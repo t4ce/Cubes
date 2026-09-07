@@ -1,8 +1,15 @@
 //! Fixed seed lattice and screen-space activation, independent of UI/input APIs.
-pub const COLS: usize = 16;
-pub const ROWS: usize = 9;
+pub const COLS: usize = 24;
+pub const ROWS: usize = 12;
 pub const COUNT: usize = COLS * ROWS;
+// Keep the original seed separation; the doubled seed count expands the
+// lattice in both axes instead of compressing it into the old footprint.
 pub const SPACING: f32 = 0.8;
+pub const CUBE_GRID_AXIS: usize = 3;
+pub const CUBE_GRID_COUNT: usize = CUBE_GRID_AXIS * CUBE_GRID_AXIS * CUBE_GRID_AXIS;
+pub const MAX_SEED_COUNT: usize = COUNT;
+pub const CUBE_GRID_SPACING: f32 = 2.2;
+pub const CUBE_GRID_SCALE: f32 = 0.55;
 pub const CUBE_SCALE: f32 = 0.24;
 pub const CUBE_LOCAL_RADIUS: f32 = 1.74;
 /// The cursor activation circle extends this many rendered cube radii.
@@ -26,9 +33,23 @@ pub fn cursor_radius_px(cube_scale: f32, depth: f32, projection_y: f32, height: 
 
 pub fn position(index: usize) -> [f32; 3] {
     [
-        ((index % COLS) as f32 - 7.5) * SPACING,
-        ((index / COLS) as f32 - 4.0) * SPACING,
+        ((index % COLS) as f32 - (COLS - 1) as f32 * 0.5) * SPACING,
+        ((index / COLS) as f32 - (ROWS - 1) as f32 * 0.5) * SPACING,
         0.0,
+    ]
+}
+
+/// A static 3×3×3 lattice, centered on the origin and deliberately spaced
+/// wide enough for its individual cubes to read as a volume.
+pub fn cube_position(index: usize) -> [f32; 3] {
+    let x = index % CUBE_GRID_AXIS;
+    let y = (index / CUBE_GRID_AXIS) % CUBE_GRID_AXIS;
+    let z = index / (CUBE_GRID_AXIS * CUBE_GRID_AXIS);
+    let center = (CUBE_GRID_AXIS - 1) as f32 * 0.5;
+    [
+        (x as f32 - center) * CUBE_GRID_SPACING,
+        (y as f32 - center) * CUBE_GRID_SPACING,
+        (z as f32 - center) * CUBE_GRID_SPACING,
     ]
 }
 
@@ -64,10 +85,6 @@ pub fn near(point: [f32; 2], cursor: [i32; 2], width: u32, height: u32, radius_p
     dx * dx + dy * dy <= radius_px * radius_px
 }
 
-pub fn move_camera(z: f32, forward: bool, backward: bool, delta: f32) -> f32 {
-    (z + (forward as i32 - backward as i32) as f32 * delta.clamp(0.0, 0.1) * 3.0).clamp(-30.0, -1.0)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -88,14 +105,27 @@ mod tests {
         assert!((large - small * 2.0).abs() < 0.0001);
     }
     #[test]
-    fn lattice_has_144_unique_xy_seeds() {
+    fn lattice_has_288_unique_xy_seeds() {
+        assert_eq!(COUNT, 288);
         for i in 0..COUNT {
             for j in 0..i {
                 assert_ne!(position(i), position(j));
             }
         }
-        assert_eq!(position(0), [-6.0, -3.2, 0.0]);
-        assert_eq!(position(COUNT - 1), [6.0, 3.2, 0.0]);
+        assert_eq!(position(0), [-9.2, -4.4, 0.0]);
+        assert_eq!(position(COUNT - 1), [9.2, 4.4, 0.0]);
+    }
+    #[test]
+    fn cube_lattice_has_27_centered_unique_seeds() {
+        assert_eq!(CUBE_GRID_COUNT, 27);
+        assert_eq!(cube_position(0), [-2.2, -2.2, -2.2]);
+        assert_eq!(cube_position(13), [0.0, 0.0, 0.0]);
+        assert_eq!(cube_position(CUBE_GRID_COUNT - 1), [2.2, 2.2, 2.2]);
+        for i in 0..CUBE_GRID_COUNT {
+            for j in 0..i {
+                assert_ne!(cube_position(i), cube_position(j));
+            }
+        }
     }
     #[test]
     fn projection_matches_negative_y_viewport() {
@@ -120,12 +150,5 @@ mod tests {
                 .any(|&c| near([400., 225.], c, 800, 450, 58.0))
         );
         assert!(!near([0., 0.], [-1, 0], 800, 450, 58.0));
-    }
-    #[test]
-    fn camera_is_bounded_and_opposite_keys_cancel() {
-        assert_eq!(move_camera(-7.5, true, true, 0.1), -7.5);
-        assert!(move_camera(-7.5, true, false, 0.1) > -7.5);
-        assert_eq!(move_camera(-1., true, false, 5.), -1.);
-        assert_eq!(move_camera(-30., false, true, 5.), -30.);
     }
 }

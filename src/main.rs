@@ -19,7 +19,7 @@ use trueos::{
     vsys,
 };
 use trueos_picasso::Picasso;
-use trueos_picasso::cam::{Camera, Projection, Quaternion};
+use trueos_picasso::cam::{Camera, FlyCam, Projection, Quaternion};
 
 // Runtime input contains no imported mesh: HS generates all 44 triangles.
 const CUBE_VERTEX_COUNT: u32 = 1;
@@ -38,6 +38,21 @@ struct GridCursor {
     local: [i32; 2],
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SceneMode {
+    InteractiveGrid,
+    StaticCube,
+}
+
+impl SceneMode {
+    const fn seed_count(self) -> usize {
+        match self {
+            Self::InteractiveGrid => grid::COUNT,
+            Self::StaticCube => grid::CUBE_GRID_COUNT,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 enum CubeError {
     Contract,
@@ -52,9 +67,11 @@ struct CubeScene {
     vertices: Buffer,
     indices: Buffer,
     mesh: RetainedMesh,
-    camera: Camera,
+    flycam: FlyCam,
     seed_buffer: Buffer,
     cursors: Vec<GridCursor>,
+    mode: SceneMode,
+    number_keys: u8,
     pending_resize: Option<ResizeEvent>,
     previous_elapsed_millis: u64,
     previous_view_projection: [f32; 16],
@@ -165,16 +182,21 @@ impl CubeScene {
             )
             .map_err(|code| CubeError::Vgpu("mesh-create", code))?;
         let camera = default_camera();
+        let mut flycam = FlyCam::new(camera, 3.0);
+        flycam.set_look_sensitivity(0.002);
         let seed_buffer = device
             .create_buffer(
-                grid::COUNT * 64,
+                grid::MAX_SEED_COUNT * 64,
                 BUFFER_USAGE_MAP_READ | BUFFER_USAGE_MAP_WRITE,
             )
             .map_err(|code| CubeError::Vgpu("grid-seed-buffer", code))?;
         logl::log(
             level::INFO,
             format_args!(
-                "Cubes: grid=16x9 retained_seeds=144 cursor_radius=cube-scale-linked mouse=per-source-xy camera=fixed-grid-facing keys=W/S inactive=3px-flat-seed-markers",
+                "Cubes: mode-1-grid={}x{} retained_seeds={} mode-2-static-cube=3x3x3 flycam=WASD+middle-drag",
+                grid::COLS,
+                grid::ROWS,
+                grid::COUNT,
             ),
         );
         Ok(Self {
@@ -184,9 +206,11 @@ impl CubeScene {
             vertices,
             indices,
             mesh,
-            camera,
+            flycam,
             seed_buffer,
             cursors: Vec::new(),
+            mode: SceneMode::InteractiveGrid,
+            number_keys: 0,
             pending_resize: None,
             previous_elapsed_millis: 0,
             previous_view_projection: camera.retained(WIDTH, HEIGHT, [0.0; 16]).view_projection,
@@ -198,6 +222,10 @@ impl CubeScene {
         let delta_seconds =
             elapsed_millis.saturating_sub(self.previous_elapsed_millis) as f32 * 0.001;
         self.previous_elapsed_millis = elapsed_millis;
+        self.flycam
+            .step_ui4(&self.frame, delta_seconds)
+            .map_err(|error| CubeError::Ui4("flycam-ui4", error))?;
+        self.service_mode_hotkeys()?;
         let routes = self
             .frame
             .input_routes()
@@ -217,6 +245,7 @@ impl CubeScene {
             .take_pointer_event()
             .map_err(|error| CubeError::Ui4("pointer-event", error))?
         {
+            self.flycam.handle_ui4_pointer_event(&event, true);
             let cursor = GridCursor {
                 source: event.source,
                 combo: event.combo_id,
@@ -236,26 +265,15 @@ impl CubeScene {
                 self.cursors.push(cursor);
             }
         }
-        let held = |usage| {
-            routes
-                .iter()
-                .filter(|r| r.selected_for_window && r.application_focus)
-                .any(|r| r.keyboard.as_ref().is_some_and(|k| k.is_down(usage)))
-        };
-        self.camera.position[2] = grid::move_camera(
-            self.camera.position[2],
-            held(0x1a),
-            held(0x16),
-            delta_seconds,
-        );
         let width = self.frame.width();
         let height = self.frame.height();
         let camera = self
+            .flycam
             .camera
             .retained(width, height, self.previous_view_projection);
         let cursor_radius_px = grid::cursor_radius_px(
             grid::CUBE_SCALE,
-            self.camera.position[2],
+            self.flycam.camera.position[2],
             camera.projection[5],
             height,
         );
@@ -268,22 +286,36 @@ impl CubeScene {
             .device
             .acquire_ui4_surface(self.frame.window_id())
             .map_err(|code| CubeError::Vgpu("surface-acquire", code))?;
-        let mut seed_bytes = [0u8; grid::COUNT * 64];
-        for i in 0..grid::COUNT {
-            let translation = grid::position(i);
-            let active = grid::project(&camera.view_projection, translation, width, height)
-                .is_some_and(|point| {
-                    self.cursors
-                        .iter()
-                        .any(|c| grid::near(point, c.local, width, height, cursor_radius_px))
-                });
+        let seed_count = self.mode.seed_count();
+        let mut seed_bytes = [0u8; grid::MAX_SEED_COUNT * 64];
+        for i in 0..seed_count {
+            let (translation, scale) = match self.mode {
+                SceneMode::InteractiveGrid => {
+                    let translation = grid::position(i);
+                    let active = grid::project(&camera.view_projection, translation, width, height)
+                        .is_some_and(|point| {
+                            self.cursors.iter().any(|c| {
+                                grid::near(point, c.local, width, height, cursor_radius_px)
+                            })
+                        });
+                    (
+                        translation,
+                        if active {
+                            grid::CUBE_SCALE
+                        } else {
+                            grid::marker_scale(
+                                self.flycam.camera.position[2],
+                                camera.projection[5],
+                                height,
+                            )
+                        },
+                    )
+                }
+                SceneMode::StaticCube => (grid::cube_position(i), grid::CUBE_GRID_SCALE),
+            };
             let seed = RetainedTransformSeed {
                 translation,
-                scale: [if active {
-                    grid::CUBE_SCALE
-                } else {
-                    grid::marker_scale(self.camera.position[2], camera.projection[5], height)
-                }; 3],
+                scale: [scale; 3],
                 rotation: [0.0, 0.0, 0.0, 1.0],
                 local_radius: grid::CUBE_LOCAL_RADIUS,
                 previous_translation: translation,
@@ -292,8 +324,12 @@ impl CubeScene {
             };
             encode_seed(seed, &mut seed_bytes[i * 64..(i + 1) * 64]);
         }
-        write_exact(self.device, self.seed_buffer, &seed_bytes)
-            .map_err(|code| CubeError::Vgpu("grid-seed-upload", code))?;
+        write_exact(
+            self.device,
+            self.seed_buffer,
+            &seed_bytes[..seed_count * 64],
+        )
+        .map_err(|code| CubeError::Vgpu("grid-seed-upload", code))?;
         let point = self
             .device
             .submit_retained_frame_v3(
@@ -312,7 +348,7 @@ impl CubeScene {
                         ..RetainedFrameSubmitV2::default()
                     },
                     seed_buffer: self.seed_buffer.raw(),
-                    seed_count: grid::COUNT as u32,
+                    seed_count: seed_count as u32,
                     draw_count: 1,
                     draws: [
                         RetainedDrawRange {
@@ -334,6 +370,43 @@ impl CubeScene {
             .publish(Damage::full(width, height))
             .map_err(|error| CubeError::Ui4("frame-publish", error))?;
         self.previous_view_projection = camera.view_projection;
+        Ok(())
+    }
+
+    fn service_mode_hotkeys(&mut self) -> Result<(), CubeError> {
+        let state = self
+            .frame
+            .keyboard_state()
+            .map_err(|error| CubeError::Ui4("mode-hotkeys", error))?;
+        let current = state.map_or(0, |keyboard| {
+            (keyboard.is_down(0x1e) as u8) | ((keyboard.is_down(0x1f) as u8) << 1)
+        });
+        let pressed = current & !self.number_keys;
+        self.number_keys = current;
+        let mode = if pressed & 1 != 0 {
+            Some(SceneMode::InteractiveGrid)
+        } else if pressed & 2 != 0 {
+            Some(SceneMode::StaticCube)
+        } else {
+            None
+        };
+        if let Some(mode) = mode
+            && mode != self.mode
+        {
+            self.mode = mode;
+            self.cursors.clear();
+            logl::log(
+                level::INFO,
+                format_args!(
+                    "Cubes: mode={} seed_count={}",
+                    match mode {
+                        SceneMode::InteractiveGrid => "1 interactive-grid",
+                        SceneMode::StaticCube => "2 static-3x3x3-cube",
+                    },
+                    mode.seed_count(),
+                ),
+            );
+        }
         Ok(())
     }
 
