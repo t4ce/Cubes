@@ -15,7 +15,7 @@ fn main() {
     let digest = format!("{:x}", Sha256::digest(&source));
     assert_eq!(
         exported::CONTRACT_VERSION,
-        4,
+        5,
         "rebake the oriented palette cube HS/DS shader contract"
     );
     assert_eq!(

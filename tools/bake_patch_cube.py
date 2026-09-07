@@ -220,7 +220,7 @@ void main() {
     (out / "cube.tese").write_text('''#version 450
 layout(triangles, equal_spacing, ccw) in;
 layout(location=0) in vec4 controlNormal[];
-layout(location=0) out vec3 shadedColor;
+layout(location=0) out vec4 shadedColor;
 // Retained camera ABI: view-projection starts at byte 128.
 layout(std430, set=0, binding=0) readonly buffer Camera {
     mat4 view;
@@ -237,6 +237,7 @@ void main() {
                          + b.y * controlNormal[1].xyz
                          + b.z * controlNormal[2].xyz);
     vec3 baseColor = vec3(0.25, 0.70, 1.0);
+    float alpha = 1.0;
     if (controlNormal[0].w > 0.0) {
         uint id = uint(controlNormal[0].w) - 1u;
         uint base = id * 13u;
@@ -245,6 +246,8 @@ void main() {
         // Identity stays attached to the original cubie, independent of its
         // permuted position. Only its original outward square faces get stickers.
         if ((floatBitsToUint(instances.rows[base+12u].z) & 256u) != 0u && id < 27u) {
+            // Palette-cube showcase: 35% straight alpha. The grid remains opaque.
+            alpha = 0.35;
             uvec3 cell = uvec3(id % 3u, (id / 3u) % 3u, id / 9u);
             if (normal.x > 0.9999 && cell.x == 2u) baseColor = vec3(1,0.025,0.015);
             if (normal.x < -0.9999 && cell.x == 0u) baseColor = vec3(1,0.28,0.015);
@@ -258,17 +261,17 @@ void main() {
     }
     float diffuse = max(dot(normal, normalize(vec3(0.35,0.80,0.45))), 0.0);
     float sky = 0.18 + 0.12 * max(normal.y, 0.0);
-    shadedColor = baseColor * (sky + diffuse * 0.82);
+    shadedColor = vec4(baseColor * (sky + diffuse * 0.82), alpha);
     gl_Position = camera.viewProjection * p;
 }
 ''')
     (out / "cube.frag").write_text('''#version 450
-layout(location=0) in vec3 shadedColor;
+layout(location=0) in vec4 shadedColor;
 layout(location=0) out vec4 color;
 // DS applies the baseline lighting to each planar triangle's oriented normal.
-// Carrying its shaded color keeps the raster-stage interface at one vec3.
+// Carrying its shaded colour and alpha keeps the raster-stage interface at one vec4.
 void main() {
-    color = vec4(shadedColor, 1.0);
+    color = shadedColor;
 }
 ''')
     (out / "seed.f32le").write_bytes(struct.pack("<3f", 0, 0, 0))

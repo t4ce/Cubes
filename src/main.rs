@@ -220,7 +220,7 @@ impl CubeScene {
         logl::log(
             level::INFO,
             format_args!(
-                "Cubes: mode-1-grid={}x{} retained_seeds={} mode-2-palette-cube=3x3x3 turns=1s/every-5s flycam=WASD+QE-roll+middle-drag",
+                "Cubes: mode-1-grid={}x{} retained_seeds={} mode-2=compact-select-expand-3turns camera=WASD-orbit mode-1-flycam=unchanged",
                 grid::COLS,
                 grid::ROWS,
                 grid::COUNT,

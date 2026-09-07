@@ -66,7 +66,7 @@ hull shader.
 Captured URB partitions and triangle-domain TE state are programmed; ordinary
 draws explicitly disable HS/TE/DS and restore their ordinary URB allocation.
 
-Contract version 4 instances a 24×12 XY lattice or rotating 3×3×3 puzzle via
+Contract version 5 instances a 24×12 XY lattice or rotating 3×3×3 puzzle via
 V3's buffered transform seeds. VS reads camera/instances/compacted IDs at BTI1/2/3.
 Only translations, quaternion rotations, positive uniform scales and the
 full 44-patch range are accepted. V3's material envelope must remain default;
@@ -76,15 +76,35 @@ VS passes original instance identity through HS; DS uses BTI2 to apply the
 instance matrix to generated positions and normals. Its shaded-color varying
 replaces the former normal varying, so PS still consumes one vec3.
 
-Key 2 starts ordered and begins an outer-layer quarter-turn every 500 ms,
-with 250 ms smooth animation and a deterministic xorshift choice of face/direction.
-Re-entering Key 2 resets the puzzle without resetting the camera. Integer cell
+Key 2 starts ordered, compact (1.1-unit center spacing) and stationary.
+Only the 20 corner/edge cubies are selectable, not the core or six face centers.
+Picking intersects the reference bevel's 26 convex planes and checks the nearest
+piece before excluding centers, so a rejected center does not click through.
+Routed N-Mouse primary presses select at most one piece.
+
+A correct click eases the entire puzzle to the existing 2.2-unit spacing over
+one second. The camera first eases toward the selected piece's radial edge/corner
+direction, then tracks it through exactly three consecutive 1-second layer turns.
+Every roll chooses a layer containing that piece and a different axis from the
+previous turn, so there is no immediate inverse or idle cadence. It stops after
+three turns. WASD orbits a fixed-radius sphere while looking at the puzzle when
+unlocked; mouse-look and Q/E are disabled in Key 2. The camera target eases back
+to the puzzle center on completion. Pressing Key 2 again resets the selection
+phase. Key 1's flycam is unchanged.
+
+A gray 22-segment LINE_LIST floor at Y=3.5 provides orientation. It is one
+retained static draw with CPU homogeneous line clipping and vertex refreshes;
+the kernel's former one-segment restriction is widened to at most 64 segments.
+Rebuild TRUEOS as well as Cubes for this static-line admission change.
+
+Integer cell
 coordinates and orientation bases are committed at turn boundaries to avoid drift.
 Seed flag 0x100 enables six stickers by original cubie ID and local axial normal:
 +X red, -X orange, +Y white, -Y yellow, +Z green, -Z blue. Only the 54 original
 outward square faces receive these colors (two triangles each); bevels and
-inward faces remain baseline blue. Colors rotate with cubies, not world axes.
-Spacing, scale, location and fly-camera configuration are unchanged.
+inward faces remain baseline blue. Mode 2 uses 35% straight alpha for testing;
+mode 1 stays opaque. Colors rotate with cubies, not world axes.
+Expanded spacing, cubie scale and puzzle origin are unchanged.
 
 Each routed, focused N-Mouse cursor activates cubes within a radius linked to
 the expanded cube's projected scale.
@@ -92,7 +112,7 @@ Outside every cursor radius, HS emits two flat triangles as a 3-pixel seed
 marker and culls the other 42 patches. These are indicators, not tiny cubes
 or hardware point-list primitives. The marker scale compensates for camera
 distance. Active seeds expand to the original 44-triangle beveled cube.
-The default Picasso fly camera uses WASD movement, Q/E roll, and middle-mouse
+Key 1's default Picasso fly camera uses WASD movement, Q/E roll, and middle-mouse
 look.
 The retained frame's existing transform/indirect compute dispatch remains;
 it does not expand the cube mesh. Geometry expansion is performed by HS.
