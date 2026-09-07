@@ -10,6 +10,17 @@ from bake_patch_cube import ROOT, geometry, replace, write_sources
 
 
 class PatchCubeTests(unittest.TestCase):
+    def test_picking_planes_match_reference_bevel(self):
+        from itertools import product
+        _, triangles = geometry(ROOT / "Cube/cube.glb")
+        points = [v[0] for t in triangles for v in t]
+        for normal in product((-1, 0, 1), repeat=3):
+            count = sum(abs(x) for x in normal)
+            if not count:
+                continue
+            bound = (0, 1.0, 1.8, 2.6)[count]
+            support = max(sum(a*b for a,b in zip(normal,p)) for p in points)
+            self.assertAlmostEqual(support, bound, places=5)
     def test_approved_reference(self):
         raw, triangles = geometry(ROOT / "Cube/cube.glb")
         self.assertEqual(hashlib.sha256(raw).hexdigest(),

@@ -1,8 +1,7 @@
 //! Exact cubie identities and lattice orientations; animation never accumulates drift.
 pub const PALETTE_FLAG: u32 = 256;
-/// Start one quarter-turn every five seconds, leaving four seconds to view it at rest.
-const CADENCE: u64 = 5_000;
 const TURN_MS: u64 = 1_000;
+pub const OPEN_MS: u64 = 1_000;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Cubie {
     cell: [i8; 3],
@@ -18,7 +17,10 @@ struct Turn {
 pub struct Puzzle {
     cubies: [Cubie; 27],
     turn: Option<Turn>,
-    next: u64,
+    selected: Option<usize>,
+    opened: u64,
+    completed: u8,
+    previous_axis: Option<usize>,
     rng: u32,
 }
 fn rotate(mut v: [i8; 3], axis: usize, direction: i8) -> [i8; 3] {
@@ -39,7 +41,10 @@ impl Puzzle {
                 basis: [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
             }),
             turn: None,
-            next: now + CADENCE,
+            selected: None,
+            opened: now,
+            completed: 0,
+            previous_axis: None,
             rng: 0x6d2b79f5,
         }
     }
@@ -52,25 +57,66 @@ impl Puzzle {
         }
     }
     pub fn update(&mut self, now: u64) {
+        let Some(id) = self.selected else {
+            return;
+        };
+        if now < self.opened + OPEN_MS || self.completed == 3 {
+            return;
+        }
         if let Some(turn) = self.turn {
             if now.saturating_sub(turn.started) < TURN_MS {
                 return;
             }
             self.commit(turn);
             self.turn = None;
+            self.completed += 1;
+            if self.completed == 3 {
+                return;
+            }
         }
-        if now >= self.next {
+        {
             self.rng ^= self.rng << 13;
             self.rng ^= self.rng >> 17;
             self.rng ^= self.rng << 5;
+            let cell = self.cubies[id].cell;
+            let axes: [usize; 3] = core::array::from_fn(|i| ((self.rng as usize % 3) + i) % 3);
+            let axis = *axes
+                .iter()
+                .find(|&&a| cell[a] != 0 && self.previous_axis != Some(a))
+                .unwrap();
+            self.previous_axis = Some(axis); // changing axes rules out an immediate inverse
             self.turn = Some(Turn {
-                axis: (self.rng % 3) as usize,
-                layer: if self.rng & 8 == 0 { -1 } else { 1 },
+                axis,
+                layer: cell[axis],
                 direction: if self.rng & 16 == 0 { -1 } else { 1 },
                 started: now,
             });
-            self.next = now + CADENCE; // no catch-up burst after a stall
         }
+    }
+    pub fn select(&mut self, id: usize, now: u64) -> bool {
+        if self.selected.is_some()
+            || id >= 27
+            || self.cubies[id].cell.iter().filter(|&&x| x != 0).count() < 2
+        {
+            return false;
+        }
+        self.selected = Some(id);
+        self.opened = now;
+        self.rng ^= now as u32 ^ ((id as u32 + 1) * 7919);
+        true
+    }
+    pub fn selected(&self) -> Option<usize> {
+        self.selected
+    }
+    pub fn locked(&self) -> bool {
+        self.selected.is_some() && self.completed < 3
+    }
+    pub fn expansion(&self, now: u64) -> f32 {
+        if self.selected.is_none() {
+            return 0.0;
+        }
+        let p = (now.saturating_sub(self.opened) as f32 / OPEN_MS as f32).clamp(0.0, 1.0);
+        p * p * (3.0 - 2.0 * p)
     }
     pub fn angle(&self, now: u64) -> f32 {
         self.turn.map_or(0.0, |t| {
@@ -132,8 +178,12 @@ mod tests {
     fn scramble_preserves_unique_cells_and_outward_stickers() {
         let mut p = Puzzle::new(0);
         for n in 1..200 {
-            p.update(n * CADENCE);
-            p.update(n * CADENCE + TURN_MS);
+            p.commit(Turn {
+                axis: n as usize % 3,
+                layer: if n % 2 == 0 { 1 } else { -1 },
+                direction: 1,
+                started: 0,
+            });
             for i in 0..27 {
                 for j in 0..i {
                     assert_ne!(p.cubies[i].cell, p.cubies[j].cell);
@@ -156,20 +206,27 @@ mod tests {
         }
     }
     #[test]
-    fn starts_ordered_then_turns_once_every_five_seconds_for_one_second() {
+    fn selection_runs_exactly_three_consecutive_noninverse_turns() {
         let mut p = Puzzle::new(100);
-        p.update(5_099);
+        p.update(50_000);
         assert!(p.turn.is_none());
-        p.update(5_100);
-        assert!(p.turn.is_some());
-        assert_eq!(p.angle(5_100), 0.0);
-        p.update(6_099);
-        assert!(p.turn.is_some());
-        p.update(6_100);
-        assert!(p.turn.is_none());
-        p.update(10_099);
-        assert!(p.turn.is_none());
-        p.update(10_100);
-        assert!(p.turn.is_some());
+        assert!(!p.select(13, 50_000));
+        assert!(!p.select(4, 50_000));
+        assert!(p.select(0, 50_000));
+        assert!(!p.select(2, 50_000));
+        let mut previous = None;
+        for i in 0..3 {
+            p.update(51_000 + i * TURN_MS);
+            let t = p.turn.unwrap();
+            assert_ne!(Some(t.axis), previous);
+            previous = Some(t.axis);
+            assert_eq!(p.cubies[0].cell[t.axis], t.layer);
+        }
+        p.update(54_000);
+        assert!(!p.locked());
+        assert_eq!(p.completed, 3);
+        let final_state = p.cubies;
+        p.update(100_000);
+        assert_eq!(p.cubies, final_state);
     }
 }
