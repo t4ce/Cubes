@@ -134,6 +134,7 @@ def write_sources(source: Path, out: Path):
     )
     (out / "cube.vert").write_text('''#version 450
 layout(location=0) in vec3 seed;
+layout(location=0) out float instanceID;
 layout(std430, set=0, binding=0) readonly buffer Camera {
     mat4 view; mat4 projection; mat4 viewProjection;
 } camera;
@@ -141,7 +142,9 @@ layout(std430, set=0, binding=0) readonly buffer Camera {
 layout(std430, set=0, binding=1) readonly buffer Instances { vec4 rows[]; } instances;
 layout(std430, set=0, binding=2) readonly buffer Compacted { uint ids[]; } compacted;
 void main() {
-    uint base = compacted.ids[gl_InstanceIndex] * 13u;
+    uint id = compacted.ids[gl_InstanceIndex];
+    instanceID = float(id + 1u);
+    uint base = id * 13u;
     mat4 model = mat4(instances.rows[base], instances.rows[base+1u],
                       instances.rows[base+2u], instances.rows[base+3u]);
     vec4 center = model * vec4(seed, 1.0);
@@ -153,7 +156,8 @@ void main() {
 ''')
     (out / "cube.tesc").write_text('''#version 450
 layout(vertices=3) out;
-layout(location=0) out vec3 controlNormal[];
+layout(location=0) in float instanceID[];
+layout(location=0) out vec4 controlNormal[];
 ''' + '''
 int triangleCornerToPositionID(int primitiveID, int invocationID) {
     int corner = primitiveID * 3 + invocationID;
@@ -189,7 +193,7 @@ void main() {
         if (c == 5) offset = vec2(1,1);
         gl_out[gl_InvocationID].gl_Position = vec4(
             gl_in[0].gl_Position.xyz + vec3(offset * scale * 1000.0, 0), 1);
-        controlNormal[gl_InvocationID] = vec3(0,1,0);
+        controlNormal[gl_InvocationID] = vec4(0,1,0,0);
         if (gl_InvocationID == 0) {
             float level = scale > 0.0 && gl_PrimitiveID < 2 ? 1.0 : 0.0;
             gl_TessLevelOuter[0] = level;
@@ -203,8 +207,8 @@ void main() {
     vec3 p = cubePosition(positionID);
     vec3 n = triangleCornerNormal(gl_PrimitiveID, gl_InvocationID);
     gl_out[gl_InvocationID].gl_Position =
-        vec4(gl_in[0].gl_Position.xyz + scale * p, 1.0);
-    controlNormal[gl_InvocationID] = n;
+        vec4(p, 1.0);
+    controlNormal[gl_InvocationID] = vec4(n, instanceID[0]);
     if (gl_InvocationID == 0) {
         gl_TessLevelOuter[0] = 1.0;
         gl_TessLevelOuter[1] = 1.0;
@@ -215,36 +219,56 @@ void main() {
 ''')
     (out / "cube.tese").write_text('''#version 450
 layout(triangles, equal_spacing, ccw) in;
-layout(location=0) in vec3 controlNormal[];
-layout(location=0) out vec3 worldNormal;
+layout(location=0) in vec4 controlNormal[];
+layout(location=0) out vec3 shadedColor;
 // Retained camera ABI: view-projection starts at byte 128.
 layout(std430, set=0, binding=0) readonly buffer Camera {
     mat4 view;
     mat4 projection;
     mat4 viewProjection;
 } camera;
+layout(std430, set=0, binding=1) readonly buffer Instances { vec4 rows[]; } instances;
 void main() {
     vec3 b = gl_TessCoord;
     vec4 p = b.x * gl_in[0].gl_Position
            + b.y * gl_in[1].gl_Position
            + b.z * gl_in[2].gl_Position;
-    worldNormal = b.x * controlNormal[0]
-                + b.y * controlNormal[1]
-                + b.z * controlNormal[2];
+    vec3 normal = normalize(b.x * controlNormal[0].xyz
+                         + b.y * controlNormal[1].xyz
+                         + b.z * controlNormal[2].xyz);
+    vec3 baseColor = vec3(0.25, 0.70, 1.0);
+    if (controlNormal[0].w > 0.0) {
+        uint id = uint(controlNormal[0].w) - 1u;
+        uint base = id * 13u;
+        mat4 model = mat4(instances.rows[base], instances.rows[base+1u],
+                          instances.rows[base+2u], instances.rows[base+3u]);
+        // Identity stays attached to the original cubie, independent of its
+        // permuted position. Only its original outward square faces get stickers.
+        if ((floatBitsToUint(instances.rows[base+12u].z) & 256u) != 0u && id < 27u) {
+            uvec3 cell = uvec3(id % 3u, (id / 3u) % 3u, id / 9u);
+            if (normal.x > 0.9999 && cell.x == 2u) baseColor = vec3(1,0.025,0.015);
+            if (normal.x < -0.9999 && cell.x == 0u) baseColor = vec3(1,0.28,0.015);
+            if (normal.y > 0.9999 && cell.y == 2u) baseColor = vec3(1,1,1);
+            if (normal.y < -0.9999 && cell.y == 0u) baseColor = vec3(1,0.85,0.015);
+            if (normal.z > 0.9999 && cell.z == 2u) baseColor = vec3(0.02,0.8,0.08);
+            if (normal.z < -0.9999 && cell.z == 0u) baseColor = vec3(0.02,0.08,1);
+        }
+        p = model * p;
+        normal = normalize(mat3(model) * normal); // positive uniform scale only
+    }
+    float diffuse = max(dot(normal, normalize(vec3(0.35,0.80,0.45))), 0.0);
+    float sky = 0.18 + 0.12 * max(normal.y, 0.0);
+    shadedColor = baseColor * (sky + diffuse * 0.82);
     gl_Position = camera.viewProjection * p;
 }
 ''')
     (out / "cube.frag").write_text('''#version 450
-layout(location=0) in vec3 worldNormal;
+layout(location=0) in vec3 shadedColor;
 layout(location=0) out vec4 color;
 // Same material-0 lighting as the imported Cubes retained forward path.
 // Cubes uses an identity object transform and material_id=0.
 void main() {
-    vec3 normal = normalize(worldNormal);
-    vec3 lightDirection = normalize(vec3(0.35, 0.80, 0.45));
-    float diffuse = max(dot(normal, lightDirection), 0.0);
-    float sky = 0.18 + 0.12 * max(normal.y, 0.0);
-    color = vec4(vec3(0.25, 0.70, 1.0) * (sky + diffuse * 0.82), 1.0);
+    color = vec4(shadedColor, 1.0);
 }
 ''')
     (out / "seed.f32le").write_bytes(struct.pack("<3f", 0, 0, 0))
@@ -326,7 +350,7 @@ def make_dumper(out, patches):
     VkDescriptorSetLayoutBinding cube_bindings[3] = {camera_binding, camera_binding, camera_binding};
     cube_bindings[1].binding = 1;
     cube_bindings[2].binding = 2;
-    cube_bindings[1].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    cube_bindings[1].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
     cube_bindings[2].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
     const VkDescriptorSetLayoutCreateInfo set_layout_info = {''')
     c = replace(c, '.bindingCount = 1,', '.bindingCount = 3,')

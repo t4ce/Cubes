@@ -54,11 +54,24 @@ class PatchCubeTests(unittest.TestCase):
             self.assertIn("gl_PrimitiveID < 2", hs)
             self.assertIn("offset * scale * 1000.0", hs)
             vs = (out / "cube.vert").read_text()
-            self.assertIn("compacted.ids[gl_InstanceIndex] * 13u", vs)
+            self.assertIn("uint id = compacted.ids[gl_InstanceIndex]", vs)
+            self.assertIn("uint base = id * 13u", vs)
             self.assertIn("clip.w > 0.0", vs)
             self.assertFalse(manifest["runtime_integrated"])
             self.assertFalse(manifest["host_render_verified"])
             self.assertFalse(manifest["baremetal_verified"])
+
+    def test_exactly_54_square_stickers_excluding_bevels(self):
+        _, triangles = geometry(ROOT / "Cube/cube.glb")
+        per_face = {}
+        for triangle in triangles:
+            n = triangle[0][1]
+            self.assertTrue(all(v[1] == n for v in triangle))
+            if sum(abs(x) > 0.9999 for x in n) == 1:
+                per_face[n] = per_face.get(n, 0) + 1
+        self.assertEqual(len(per_face), 6)
+        self.assertEqual(list(per_face.values()), [2] * 6)
+        self.assertEqual(sum(per_face.values()) * 9, 108) # 54 faces, two triangles each
 
     def test_capture_template_drift_fails_closed(self):
         for text in ("missing", "twice twice"):

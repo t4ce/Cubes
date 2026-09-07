@@ -79,7 +79,8 @@ Outside every cursor radius, HS emits two flat triangles as a 3-pixel seed
 marker and culls the other 42 patches. These are indicators, not tiny cubes
 or hardware point-list primitives. The marker scale compensates for camera
 distance. Active seeds expand to the original 44-triangle beveled cube.
-The default Picasso fly camera uses WASD movement and middle-mouse look.
+The default Picasso fly camera uses WASD movement, Q/E roll, and middle-mouse
+look.
 The retained frame's existing transform/indirect compute dispatch remains;
 it does not expand the cube mesh. Geometry expansion is performed by HS.
 

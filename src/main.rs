@@ -2,6 +2,7 @@
 
 extern crate alloc;
 mod grid;
+mod rubik;
 use alloc::vec::Vec;
 
 use trueos::ui4_scene::{
@@ -71,6 +72,7 @@ struct CubeScene {
     seed_buffer: Buffer,
     cursors: Vec<GridCursor>,
     mode: SceneMode,
+    puzzle: rubik::Puzzle,
     number_keys: u8,
     pending_resize: Option<ResizeEvent>,
     previous_elapsed_millis: u64,
@@ -193,7 +195,7 @@ impl CubeScene {
         logl::log(
             level::INFO,
             format_args!(
-                "Cubes: mode-1-grid={}x{} retained_seeds={} mode-2-static-cube=3x3x3 flycam=WASD+middle-drag",
+                "Cubes: mode-1-grid={}x{} retained_seeds={} mode-2-static-cube=3x3x3 flycam=WASD+QE-roll+middle-drag",
                 grid::COLS,
                 grid::ROWS,
                 grid::COUNT,
@@ -210,6 +212,7 @@ impl CubeScene {
             seed_buffer,
             cursors: Vec::new(),
             mode: SceneMode::InteractiveGrid,
+            puzzle: rubik::Puzzle::new(0),
             number_keys: 0,
             pending_resize: None,
             previous_elapsed_millis: 0,
@@ -287,8 +290,15 @@ impl CubeScene {
             .acquire_ui4_surface(self.frame.window_id())
             .map_err(|code| CubeError::Vgpu("surface-acquire", code))?;
         let seed_count = self.mode.seed_count();
+        if self.mode == SceneMode::StaticCube {
+            self.puzzle.update(elapsed_millis);
+        }
+        let turn_angle = self.puzzle.angle(elapsed_millis);
         let mut seed_bytes = [0u8; grid::MAX_SEED_COUNT * 64];
         for i in 0..seed_count {
+            let (cell, basis) =
+                self.puzzle
+                    .pose(i.min(26), libm::sinf(turn_angle), libm::cosf(turn_angle));
             let (translation, scale) = match self.mode {
                 SceneMode::InteractiveGrid => {
                     let translation = grid::position(i);
@@ -311,16 +321,28 @@ impl CubeScene {
                         },
                     )
                 }
-                SceneMode::StaticCube => (grid::cube_position(i), grid::CUBE_GRID_SCALE),
+                SceneMode::StaticCube => (
+                    cell.map(|x| x * grid::CUBE_GRID_SPACING),
+                    grid::CUBE_GRID_SCALE,
+                ),
             };
             let seed = RetainedTransformSeed {
                 translation,
                 scale: [scale; 3],
-                rotation: [0.0, 0.0, 0.0, 1.0],
+                rotation: if self.mode == SceneMode::StaticCube {
+                    quaternion_from_rotation_columns(basis[0], basis[1], basis[2]).0
+                } else {
+                    [0.0, 0.0, 0.0, 1.0]
+                },
                 local_radius: grid::CUBE_LOCAL_RADIUS,
                 previous_translation: translation,
                 draw_group: 0,
-                flags: (i as u32) << 16,
+                flags: ((i as u32) << 16)
+                    | if self.mode == SceneMode::StaticCube {
+                        rubik::PALETTE_FLAG
+                    } else {
+                        0
+                    },
             };
             encode_seed(seed, &mut seed_bytes[i * 64..(i + 1) * 64]);
         }
@@ -394,6 +416,7 @@ impl CubeScene {
             && mode != self.mode
         {
             self.mode = mode;
+            self.puzzle = rubik::Puzzle::new(self.previous_elapsed_millis);
             self.cursors.clear();
             logl::log(
                 level::INFO,
@@ -401,7 +424,7 @@ impl CubeScene {
                     "Cubes: mode={} seed_count={}",
                     match mode {
                         SceneMode::InteractiveGrid => "1 interactive-grid",
-                        SceneMode::StaticCube => "2 static-3x3x3-cube",
+                        SceneMode::StaticCube => "2 palette-3x3x3-cube turns=500ms",
                     },
                     mode.seed_count(),
                 ),
