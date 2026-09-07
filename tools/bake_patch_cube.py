@@ -246,15 +246,15 @@ void main() {
         // Identity stays attached to the original cubie, independent of its
         // permuted position. Only its original outward square faces get stickers.
         if ((floatBitsToUint(instances.rows[base+12u].z) & 256u) != 0u && id < 27u) {
-            // Palette-cube showcase: 35% straight alpha. The grid remains opaque.
-            alpha = 0.35;
+            // Only the six sticker faces are translucent; bevels and the
+            // baseline cube material remain fully opaque.
             uvec3 cell = uvec3(id % 3u, (id / 3u) % 3u, id / 9u);
-            if (normal.x > 0.9999 && cell.x == 2u) baseColor = vec3(1,0.025,0.015);
-            if (normal.x < -0.9999 && cell.x == 0u) baseColor = vec3(1,0.28,0.015);
-            if (normal.y > 0.9999 && cell.y == 2u) baseColor = vec3(1,1,1);
-            if (normal.y < -0.9999 && cell.y == 0u) baseColor = vec3(1,0.85,0.015);
-            if (normal.z > 0.9999 && cell.z == 2u) baseColor = vec3(0.02,0.8,0.08);
-            if (normal.z < -0.9999 && cell.z == 0u) baseColor = vec3(0.02,0.08,1);
+            if (normal.x > 0.9999 && cell.x == 2u) { baseColor = vec3(1,0.025,0.015); alpha = 0.35; }
+            if (normal.x < -0.9999 && cell.x == 0u) { baseColor = vec3(1,0.28,0.015); alpha = 0.35; }
+            if (normal.y > 0.9999 && cell.y == 2u) { baseColor = vec3(1,1,1); alpha = 0.35; }
+            if (normal.y < -0.9999 && cell.y == 0u) { baseColor = vec3(1,0.85,0.015); alpha = 0.35; }
+            if (normal.z > 0.9999 && cell.z == 2u) { baseColor = vec3(0.02,0.8,0.08); alpha = 0.35; }
+            if (normal.z < -0.9999 && cell.z == 0u) { baseColor = vec3(0.02,0.08,1); alpha = 0.35; }
         }
         p = model * p;
         normal = normalize(mat3(model) * normal); // positive uniform scale only

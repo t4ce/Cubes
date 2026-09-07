@@ -102,8 +102,9 @@ coordinates and orientation bases are committed at turn boundaries to avoid drif
 Seed flag 0x100 enables six stickers by original cubie ID and local axial normal:
 +X red, -X orange, +Y white, -Y yellow, +Z green, -Z blue. Only the 54 original
 outward square faces receive these colors (two triangles each); bevels and
-inward faces remain baseline blue. Mode 2 uses 35% straight alpha for testing;
-mode 1 stays opaque. Colors rotate with cubies, not world axes.
+inward faces remain baseline blue. Only mode 2's six palette sticker faces use
+35% straight alpha for testing; every baseline surface and mode 1 stay opaque.
+Colors rotate with cubies, not world axes.
 Expanded spacing, cubie scale and puzzle origin are unchanged.
 
 Each routed, focused N-Mouse cursor activates cubes within a radius linked to
