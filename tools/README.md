@@ -60,13 +60,13 @@ The retained ABI pairs `RETAINED_VERTEX_LAYOUT_CUBE_PATCH_SEED` with
 0xA780 and 0x4680, with no scratch, push-data or shader-data relocations.
 HS and DS are uploaded after the ordinary shader ranges, and their KSPs
 are relocated into the draw's instruction allocation. DS uses camera BTI1.
-Per-draw state slots are 28 KiB, including a descriptor page after aligned
+Per-draw state slots are 32 KiB, including a descriptor page after aligned
 shader code; the former 20 KiB slots are too small for the canonical-position
 hull shader.
 Captured URB partitions and triangle-domain TE state are programmed; ordinary
 draws explicitly disable HS/TE/DS and restore their ordinary URB allocation.
 
-Contract version 6 instances six 10×10 room walls or a rotating 3×3×3 puzzle via
+Contract version 7 instances six 10×10 room walls or a rotating 3×3×3 puzzle via
 V3's buffered transform seeds. VS reads camera/instances/compacted IDs at BTI1/2/3.
 Only translations, quaternion rotations, positive uniform scales and the
 full 44-patch range are accepted. V3's material envelope must remain default;
@@ -98,8 +98,10 @@ to the puzzle center on completion. Pressing Key 2 again resets the selection
 phase. Both orbital angles wrap without clamps, with a pole-safe rotating up vector.
 After the third turn, three seconds of free orbit precede a 2.5-second eased
 cubic-Bezier flight into the selected cubie's center. Arrival switches to Key 1.
-Key 1 places 100 seeds on each of six walls at ±4 units. Its camera stays at
-the origin; WASD changes view direction only. Mouse-look and Q/E are disabled.
+Key 1 places 100 seeds on each of six walls at ±4 units. Whole expanded cubes
+on +X/-X/+Y/-Y/+Z/-Z use the matching opaque red/orange/white/yellow/green/blue
+palette colour; they do not use the puzzle's translucent sticker pass. Its camera
+stays at the origin; WASD changes view direction only. Mouse-look and Q/E are disabled.
 
 A gray 22-segment LINE_LIST floor at Y=3.5 provides orientation. It is one
 retained static draw with CPU homogeneous line clipping and vertex refreshes;

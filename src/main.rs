@@ -538,7 +538,7 @@ impl CubeScene {
                     | if self.mode == SceneMode::StaticCube {
                         rubik::PALETTE_FLAG | i as u32
                     } else {
-                        0
+                        rubik::ROOM_PALETTE_FLAG
                     },
             };
             if i < 27 {

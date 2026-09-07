@@ -254,9 +254,19 @@ void main() {
         int sticker = -1;
         mat4 model = mat4(instances.rows[base], instances.rows[base+1u],
                           instances.rows[base+2u], instances.rows[base+3u]);
+        // Key 1 is six 10×10 room walls in the same palette order as the
+        // Rubik faces. Whole wall cubes remain opaque.
+        if ((flags & 8192u) != 0u && id < 600u) {
+            uint wall = id / 100u;
+            if (wall == 0u) baseColor = vec3(1,0.025,0.015);
+            if (wall == 1u) baseColor = vec3(1,0.28,0.015);
+            if (wall == 2u) baseColor = vec3(1,1,1);
+            if (wall == 3u) baseColor = vec3(1,0.85,0.015);
+            if (wall == 4u) baseColor = vec3(0.02,0.8,0.08);
+            if (wall == 5u) baseColor = vec3(0.02,0.08,1);
         // Identity stays attached to the original cubie, independent of its
         // permuted position. Only its original outward square faces get stickers.
-        if ((flags & 256u) != 0u && cubie < 27u) {
+        } else if ((flags & 256u) != 0u && cubie < 27u) {
             // Only the six sticker faces are translucent; bevels and the
             // baseline cube material remain fully opaque.
             uvec3 cell = uvec3(cubie % 3u, (cubie / 3u) % 3u, cubie / 9u);
