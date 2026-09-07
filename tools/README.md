@@ -1,6 +1,6 @@
-# One-seed tessellation experiment
+# Interactive seed-grid tessellation experiment
 
-Status: **driver integration implemented; bare-metal rendering unverified**.
+Status: **single-cube rendering user-verified; interactive grid awaits bare-metal validation**.
 Cubes now requests the dedicated one-seed HS/TE/DS contract. The updated
 TRUEOS kernel and Cubes application must both be rebuilt. An older kernel
 rejects this contract rather than falling back to the imported triangle mesh.
@@ -63,9 +63,20 @@ shader code; the former 16 KiB slots are too small for this hull shader.
 Captured URB partitions and triangle-domain TE state are programmed; ordinary
 draws explicitly disable HS/TE/DS and restore their ordinary URB allocation.
 
-This first DS supports a single identity object transform, material 0,
-and the existing freely movable camera. Multiple objects, nonidentity
-transforms and V3 draw ranges are rejected rather than silently ignored.
+Contract version 2 instances that seed into a 16×9 XY lattice via V3's
+buffered transform seeds. VS reads camera/instances/compacted IDs at BTI1/2/3.
+Only translations and positive uniform scales with identity rotation and the
+full 44-patch range are accepted. V3's material envelope must remain default;
+the shader still uses baked material 0. Vertex layout ID 4 deliberately prevents
+an old single-object kernel from accepting this instanced app. Rebuild both.
+
+Each routed, focused N-Mouse cursor activates cubes within 58 screen pixels.
+Outside every cursor radius, HS emits two flat triangles as a 3-pixel seed
+marker and culls the other 42 patches. These are indicators, not tiny cubes
+or hardware point-list primitives. The marker scale compensates for camera
+distance. Active seeds expand to the original 44-triangle beveled cube.
+The camera stays grid-facing; W/S move forward/back with bounded distance.
+Mouse motion does not rotate or capture the camera.
 The retained frame's existing transform/indirect compute dispatch remains;
 it does not expand the cube mesh. Geometry expansion is performed by HS.
 

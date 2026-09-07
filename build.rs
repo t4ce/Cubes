@@ -13,9 +13,16 @@ fn main() {
     println!("cargo:rerun-if-changed={EXPORTED_MANIFEST}");
     let source = fs::read(SOURCE).expect("read cube reference");
     let digest = format!("{:x}", Sha256::digest(&source));
-    assert_eq!(exported::CONTRACT_VERSION, 2, "rebake the instanced grid shader contract");
-    assert_eq!(digest, exported::SOURCE_SHA256,
-        "cube reference differs from baked HS/DS; rebake and export before building");
+    assert_eq!(
+        exported::CONTRACT_VERSION,
+        2,
+        "rebake the instanced grid shader contract"
+    );
+    assert_eq!(
+        digest,
+        exported::SOURCE_SHA256,
+        "cube reference differs from baked HS/DS; rebake and export before building"
+    );
     // The sidecar validates the exported source, not the currently booted
     // kernel. Driver integration still requires rebuilding/booting TRUEOS.
     // No vertex/index mesh expansion at build time. Runtime uploads one seed.

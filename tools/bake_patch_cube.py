@@ -119,7 +119,7 @@ void main() {
     vec4 center = model * vec4(seed, 1.0);
     vec4 clip = camera.viewProjection * center;
     // Before tessellation, Position.w is the positive uniform cube scale.
-    // Seeds behind the eye are culled together with inactive tiny seeds.
+    // Tiny positive scales encode flat seed markers; zero culls behind the eye.
     gl_Position = vec4(center.xyz, clip.w > 0.0 ? length(model[0].xyz) : 0.0);
 }
 ''')
@@ -130,13 +130,22 @@ layout(location=0) out vec3 controlNormal[];
 void main() {
     float scale = gl_in[0].gl_Position.w;
     if (scale < 0.001) {
-        gl_out[gl_InvocationID].gl_Position = vec4(0,0,0,1);
-        controlNormal[gl_InvocationID] = vec3(0,0,1);
+        // Indicator only: two triangles form a small XY square. No cube
+        // corners are evaluated for inactive seeds. CPU encodes half-size / 1000.
+        int c = gl_PrimitiveID * 3 + gl_InvocationID;
+        vec2 offset = vec2(-1,-1);
+        if (c == 1 || c == 4) offset = vec2(1,-1);
+        if (c == 2 || c == 3) offset = vec2(-1,1);
+        if (c == 5) offset = vec2(1,1);
+        gl_out[gl_InvocationID].gl_Position = vec4(
+            gl_in[0].gl_Position.xyz + vec3(offset * scale * 1000.0, 0), 1);
+        controlNormal[gl_InvocationID] = vec3(0,1,0);
         if (gl_InvocationID == 0) {
-            gl_TessLevelOuter[0] = 0.0;
-            gl_TessLevelOuter[1] = 0.0;
-            gl_TessLevelOuter[2] = 0.0;
-            gl_TessLevelInner[0] = 0.0;
+            float level = scale > 0.0 && gl_PrimitiveID < 2 ? 1.0 : 0.0;
+            gl_TessLevelOuter[0] = level;
+            gl_TessLevelOuter[1] = level;
+            gl_TessLevelOuter[2] = level;
+            gl_TessLevelInner[0] = level;
         }
         return;
     }

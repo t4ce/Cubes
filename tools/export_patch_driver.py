@@ -36,6 +36,10 @@ def export(bake, output):
     assert urb['deref_block_size'] == 0
     assert [(urb[f'stage{i}_size'], urb[f'stage{i}_start'], urb[f'stage{i}_entries'])
             for i in range(4)] == [(1,4,2688),(2,25,1152),(1,43,2688),(1,4,0)]
+    vs_bindings = next(native.glob('*_vertex_*_bind_map.txt')).read_text()
+    assert 'surfaces=4 samplers=0' in vs_bindings
+    for slot in range(1, 4):
+        assert f'surface[{slot}]=set:0 binding:{slot-1} index:{slot-1} offset:{16*(slot-1)} plane:0' in vs_bindings
     ds_bindings = next(native.glob('*_tess_eval_*_bind_map.txt')).read_text()
     assert 'surfaces=2 samplers=0' in ds_bindings
     assert 'surface[1]=set:0 binding:0 index:0 offset:0 plane:0' in ds_bindings

@@ -4,12 +4,14 @@ extern crate alloc;
 mod grid;
 use alloc::vec::Vec;
 
-use trueos::ui4_scene::{CursorSource, Damage, Error as Ui4Error, Frame, output_dimensions};
+use trueos::ui4_scene::{
+    CursorSource, Damage, Error as Ui4Error, Frame, ResizeEvent, output_dimensions,
+};
 use trueos::vgpu::{
-    BUFFER_USAGE_INDEX, BUFFER_USAGE_MAP_READ, BUFFER_USAGE_MAP_WRITE, BUFFER_USAGE_VERTEX, Buffer, Capabilities, Device,
-    Queue, QueueClass, RETAINED_VERTEX_LAYOUT_CUBE_PATCH_SEED, RetainedFrameSubmit, RetainedMesh,
-    RetainedMeshDescriptor, RetainedTransformSeed,
-    RetainedFrameSubmitV2, RetainedFrameSubmitV3, RetainedDrawRange,
+    BUFFER_USAGE_INDEX, BUFFER_USAGE_MAP_READ, BUFFER_USAGE_MAP_WRITE, BUFFER_USAGE_VERTEX, Buffer,
+    Capabilities, Device, Queue, QueueClass, RETAINED_VERTEX_LAYOUT_CUBE_PATCH_SEED,
+    RetainedDrawRange, RetainedFrameSubmit, RetainedFrameSubmitV2, RetainedFrameSubmitV3,
+    RetainedMesh, RetainedMeshDescriptor, RetainedTransformSeed,
 };
 use trueos::{
     clock,
@@ -53,6 +55,7 @@ struct CubeScene {
     camera: Camera,
     seed_buffer: Buffer,
     cursors: Vec<GridCursor>,
+    pending_resize: Option<ResizeEvent>,
     previous_elapsed_millis: u64,
     previous_view_projection: [f32; 16],
 }
@@ -162,12 +165,19 @@ impl CubeScene {
             )
             .map_err(|code| CubeError::Vgpu("mesh-create", code))?;
         let camera = default_camera();
-        let seed_buffer = device.create_buffer(grid::COUNT * 64,
-            BUFFER_USAGE_MAP_READ | BUFFER_USAGE_MAP_WRITE)
+        let seed_buffer = device
+            .create_buffer(
+                grid::COUNT * 64,
+                BUFFER_USAGE_MAP_READ | BUFFER_USAGE_MAP_WRITE,
+            )
             .map_err(|code| CubeError::Vgpu("grid-seed-buffer", code))?;
-        logl::log(level::INFO, format_args!(
-            "Cubes: grid=16x9 retained_seeds=144 radius_px={} mouse=per-source-xy camera=fixed-grid-facing keys=W/S inactive=HS-culled",
-            grid::RADIUS_PX));
+        logl::log(
+            level::INFO,
+            format_args!(
+                "Cubes: grid=16x9 retained_seeds=144 radius_px={} mouse=per-source-xy camera=fixed-grid-facing keys=W/S inactive=3px-flat-seed-markers",
+                grid::RADIUS_PX
+            ),
+        );
         Ok(Self {
             frame,
             device,
@@ -178,39 +188,72 @@ impl CubeScene {
             camera,
             seed_buffer,
             cursors: Vec::new(),
+            pending_resize: None,
             previous_elapsed_millis: 0,
             previous_view_projection: camera.retained(WIDTH, HEIGHT, [0.0; 16]).view_projection,
         })
     }
 
     fn render(&mut self, elapsed_millis: u64) -> Result<(), CubeError> {
+        self.service_resize_events()?;
         let delta_seconds =
             elapsed_millis.saturating_sub(self.previous_elapsed_millis) as f32 * 0.001;
         self.previous_elapsed_millis = elapsed_millis;
-        let routes = self.frame.input_routes().map_err(|error| CubeError::Ui4("grid-input-routes", error))?;
-        let routed = |cursor: &GridCursor| routes.iter().any(|route|
-            route.cursor == cursor.source && route.combo_id == cursor.combo
-            && route.vcursor == cursor.virtual_cursor && route.selected_for_window && route.application_focus);
+        let routes = self
+            .frame
+            .input_routes()
+            .map_err(|error| CubeError::Ui4("grid-input-routes", error))?;
+        let routed = |cursor: &GridCursor| {
+            routes.iter().any(|route| {
+                route.cursor == cursor.source
+                    && route.combo_id == cursor.combo
+                    && route.vcursor == cursor.virtual_cursor
+                    && route.selected_for_window
+                    && route.application_focus
+            })
+        };
         self.cursors.retain(&routed);
         while let Some(event) = self
             .frame
             .take_pointer_event()
             .map_err(|error| CubeError::Ui4("pointer-event", error))?
         {
-            let cursor = GridCursor { source: event.source, combo: event.combo_id,
-                virtual_cursor: event.vcursor, local: [event.local_x, event.local_y] };
-            if !routed(&cursor) { continue; }
-            if let Some(existing) = self.cursors.iter_mut().find(|c| c.source == cursor.source
-                && c.combo == cursor.combo && c.virtual_cursor == cursor.virtual_cursor) {
+            let cursor = GridCursor {
+                source: event.source,
+                combo: event.combo_id,
+                virtual_cursor: event.vcursor,
+                local: [event.local_x, event.local_y],
+            };
+            if !routed(&cursor) {
+                continue;
+            }
+            if let Some(existing) = self.cursors.iter_mut().find(|c| {
+                c.source == cursor.source
+                    && c.combo == cursor.combo
+                    && c.virtual_cursor == cursor.virtual_cursor
+            }) {
                 *existing = cursor;
-            } else { self.cursors.push(cursor); }
+            } else {
+                self.cursors.push(cursor);
+            }
         }
-        let held = |usage| routes.iter().filter(|r| r.selected_for_window && r.application_focus)
-            .any(|r| r.keyboard.as_ref().is_some_and(|k| k.is_down(usage)));
-        self.camera.position[2] = grid::move_camera(self.camera.position[2], held(0x1a), held(0x16), delta_seconds);
+        let held = |usage| {
+            routes
+                .iter()
+                .filter(|r| r.selected_for_window && r.application_focus)
+                .any(|r| r.keyboard.as_ref().is_some_and(|k| k.is_down(usage)))
+        };
+        self.camera.position[2] = grid::move_camera(
+            self.camera.position[2],
+            held(0x1a),
+            held(0x16),
+            delta_seconds,
+        );
         let width = self.frame.width();
         let height = self.frame.height();
-        let camera = self.camera.retained(width, height, self.previous_view_projection);
+        let camera = self
+            .camera
+            .retained(width, height, self.previous_view_projection);
         match self.frame.begin_gpu_frame() {
             Ok(()) => {}
             Err(Ui4Error::Busy) => return Ok(()),
@@ -224,16 +267,24 @@ impl CubeScene {
         for i in 0..grid::COUNT {
             let translation = grid::position(i);
             let active = grid::project(&camera.view_projection, translation, width, height)
-                .is_some_and(|point| self.cursors.iter().any(|c| grid::near(point, c.local, width, height)));
+                .is_some_and(|point| {
+                    self.cursors
+                        .iter()
+                        .any(|c| grid::near(point, c.local, width, height))
+                });
             let seed = RetainedTransformSeed {
-            translation,
-            scale: [if active { grid::CUBE_SCALE } else { grid::INACTIVE_SCALE }; 3],
-            rotation: [0.0, 0.0, 0.0, 1.0],
-            local_radius: 1.74,
-            previous_translation: translation,
-            draw_group: 0,
-            flags: (i as u32) << 16,
-        };
+                translation,
+                scale: [if active {
+                    grid::CUBE_SCALE
+                } else {
+                    grid::marker_scale(self.camera.position[2], camera.projection[5], height)
+                }; 3],
+                rotation: [0.0, 0.0, 0.0, 1.0],
+                local_radius: 1.74,
+                previous_translation: translation,
+                draw_group: 0,
+                flags: (i as u32) << 16,
+            };
             encode_seed(seed, &mut seed_bytes[i * 64..(i + 1) * 64]);
         }
         write_exact(self.device, self.seed_buffer, &seed_bytes)
@@ -247,15 +298,26 @@ impl CubeScene {
                 self.vertices,
                 self.indices,
                 RetainedFrameSubmitV3 {
-                    frame: RetainedFrameSubmitV2 { frame: RetainedFrameSubmit {
-                    camera,
-                    clear_rgba8_srgb: u32::from_le_bytes([0, 128, 0, 0]),
-                    ..RetainedFrameSubmit::default()
-                    }, ..RetainedFrameSubmitV2::default() },
-                    seed_buffer: self.seed_buffer.raw(), seed_count: grid::COUNT as u32,
+                    frame: RetainedFrameSubmitV2 {
+                        frame: RetainedFrameSubmit {
+                            camera,
+                            clear_rgba8_srgb: u32::from_le_bytes([0, 128, 0, 0]),
+                            ..RetainedFrameSubmit::default()
+                        },
+                        ..RetainedFrameSubmitV2::default()
+                    },
+                    seed_buffer: self.seed_buffer.raw(),
+                    seed_count: grid::COUNT as u32,
                     draw_count: 1,
-                    draws: [RetainedDrawRange { first_index: 0, index_count: 44 },
-                            RetainedDrawRange::default(), RetainedDrawRange::default(), RetainedDrawRange::default()],
+                    draws: [
+                        RetainedDrawRange {
+                            first_index: 0,
+                            index_count: 44,
+                        },
+                        RetainedDrawRange::default(),
+                        RetainedDrawRange::default(),
+                        RetainedDrawRange::default(),
+                    ],
                     ..RetainedFrameSubmitV3::default()
                 },
             )
@@ -269,6 +331,43 @@ impl CubeScene {
         self.previous_view_projection = camera.view_projection;
         Ok(())
     }
+
+    /// UI4 delivers maximization and restoration as resize requests. Keep a
+    /// request until the current GPU lease has retired, since replacing a
+    /// streaming frame may temporarily be busy immediately after publish.
+    fn service_resize_events(&mut self) -> Result<(), CubeError> {
+        while let Some(event) = self
+            .frame
+            .take_resize_event()
+            .map_err(|error| CubeError::Ui4("resize-event-take", error))?
+        {
+            self.pending_resize = Some(event);
+        }
+
+        let Some(event) = self.pending_resize else {
+            return Ok(());
+        };
+        if (event.width, event.height) == (self.frame.width(), self.frame.height()) {
+            self.pending_resize = None;
+            return Ok(());
+        }
+
+        match self.frame.resize(event.width, event.height) {
+            Ok(()) => {
+                self.pending_resize = None;
+                logl::log(
+                    level::INFO,
+                    format_args!(
+                        "Cubes: UI4 frame resized {}x{} -> {}x{}",
+                        event.old_width, event.old_height, event.width, event.height,
+                    ),
+                );
+            }
+            Err(Ui4Error::Busy) => {}
+            Err(error) => return Err(CubeError::Ui4("frame-resize", error)),
+        }
+        Ok(())
+    }
 }
 
 fn write_exact(device: Device, buffer: Buffer, bytes: &[u8]) -> Result<(), i32> {
@@ -278,8 +377,13 @@ fn write_exact(device: Device, buffer: Buffer, bytes: &[u8]) -> Result<(), i32> 
 }
 
 fn encode_seed(seed: RetainedTransformSeed, bytes: &mut [u8]) {
-    let values = seed.translation.into_iter().chain(seed.scale)
-        .chain(seed.rotation).chain([seed.local_radius]).chain(seed.previous_translation);
+    let values = seed
+        .translation
+        .into_iter()
+        .chain(seed.scale)
+        .chain(seed.rotation)
+        .chain([seed.local_radius])
+        .chain(seed.previous_translation);
     for (i, value) in values.enumerate() {
         bytes[i * 4..i * 4 + 4].copy_from_slice(&value.to_le_bytes());
     }
