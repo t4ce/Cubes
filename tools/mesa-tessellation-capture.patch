@@ -1,0 +1,88 @@
+--- a/src/intel/vulkan/genX_shader.c
++++ b/src/intel/vulkan/genX_shader.c
+@@ -714,6 +714,22 @@
+ #endif
+    };
+ 
++   const char *tess_dump = os_get_option("TRUEOS_EXECUTABLE_DUMP_DIR");
++   if (tess_dump) {
++      char path[1024];
++      snprintf(path, sizeof(path), "%s/tess_control_TRUEOS_HS_state_v1.txt", tess_dump);
++      FILE *f = fopen(path, "w");
++      if (f) {
++         fprintf(f, "TRUEOS_HS_STATE_V1 ver=%u verx10=%u max_threads=%u instances=%u dispatch_grf_start=%u urb_entry_64b=%u scratch_bytes=%u\n",
++                 devinfo->ver, devinfo->verx10, devinfo->max_tcs_threads,
++                 tcs_prog_data->instances, tcs_prog_data->base.base.dispatch_grf_start_reg,
++                 tcs_prog_data->base.urb_entry_size, tcs_prog_data->base.base.total_scratch);
++         fprintf(f, "3DSTATE_HS");
++         for (unsigned i = 0; i < GENX(3DSTATE_HS_length); i++) fprintf(f, " %08x", hs_dwords[i]);
++         fprintf(f, "\n");
++         fclose(f);
++      }
++   }
+    anv_shader_emit_merge(batch, shader, hs.hs, hs_dwords, GENX(3DSTATE_HS), hs) {
+ #if GFX_VERx10 >= 125
+       hs.ScratchSpaceBuffer = get_scratch_surf(batch, device, shader, false);
+@@ -808,6 +824,23 @@
+ #endif
+    }
+ 
++   const char *tess_dump = os_get_option("TRUEOS_EXECUTABLE_DUMP_DIR");
++   if (tess_dump) {
++      char path[1024];
++      snprintf(path, sizeof(path), "%s/tess_eval_TRUEOS_DS_state_v1.txt", tess_dump);
++      FILE *f = fopen(path, "w");
++      if (f) {
++         fprintf(f, "TRUEOS_DS_STATE_V1 ver=%u verx10=%u max_threads=%u dispatch_grf_start=%u urb_read_length=%u urb_entry_64b=%u vue_slots=%u scratch_bytes=%u\n",
++                 devinfo->ver, devinfo->verx10, devinfo->max_tes_threads,
++                 tes_prog_data->base.base.dispatch_grf_start_reg,
++                 tes_prog_data->base.urb_read_length, tes_prog_data->base.urb_entry_size,
++                 tes_prog_data->base.vue_map.num_slots, tes_prog_data->base.base.total_scratch);
++         fprintf(f, "3DSTATE_DS");
++         for (unsigned i = 0; i < GENX(3DSTATE_DS_length); i++) fprintf(f, " %08x", ds_dwords[i]);
++         fprintf(f, "\n");
++         fclose(f);
++      }
++   }
+    anv_shader_emit_merge(batch, shader, ds.ds, ds_dwords, GENX(3DSTATE_DS), ds) {
+ #if GFX_VERx10 >= 125
+       ds.ScratchSpaceBuffer = get_scratch_surf(batch, device, shader, false);
+--- a/src/intel/vulkan/genX_gfx_state.c
++++ b/src/intel/vulkan/genX_gfx_state.c
+@@ -830,12 +830,13 @@
+                            &new_cfg, &constrained);
+    }
+ 
+-   if (anv_gfx_has_stage(gfx, MESA_SHADER_GEOMETRY)) {
++   if (anv_gfx_has_stage(gfx, MESA_SHADER_GEOMETRY) ||
++       anv_gfx_has_stage(gfx, MESA_SHADER_TESS_EVAL)) {
+       const char *trueos_dump_dir = os_get_option("TRUEOS_EXECUTABLE_DUMP_DIR");
+       if (trueos_dump_dir != NULL) {
+          char path[1024];
+-         snprintf(path, sizeof(path), "%s/geometry_TRUEOS_URB_state_v1.txt",
+-                  trueos_dump_dir);
++         snprintf(path, sizeof(path), "%s/%s_TRUEOS_URB_state_v1.txt",
++                  trueos_dump_dir, anv_gfx_has_stage(gfx, MESA_SHADER_TESS_EVAL) ? "tessellation" : "geometry");
+          FILE *file = fopen(path, "w");
+          if (file != NULL) {
+             fprintf(file, "TRUEOS_URB_STATE_V1 ver=%u verx10=%u deref_block_size=%u",
+@@ -1383,6 +1384,19 @@
+           REVERSED_TRI_INSIDE_SEPARATE : REVERSED);
+ #endif
+       SET(TE, te.Partitioning, brw_tess_info_partitioning(tess_info));
++      const char *tess_dump = os_get_option("TRUEOS_EXECUTABLE_DUMP_DIR");
++      if (tess_dump) {
++         char path[1024];
++         snprintf(path, sizeof(path), "%s/tessellation_TRUEOS_TE_state_v1.txt", tess_dump);
++         FILE *f = fopen(path, "w");
++         if (f) {
++            fprintf(f, "TRUEOS_TE_STATE_V1 domain=%u partitioning=%u output_topology_lower_left=%u domain_origin=%u triangle_domain=%u\n",
++                    brw_tess_info_domain(tess_info), brw_tess_info_partitioning(tess_info),
++                    brw_tess_info_output_topology(tess_info), dyn->ts.domain_origin,
++                    tess_info.primitive_mode == TESS_PRIMITIVE_TRIANGLES);
++            fclose(f);
++         }
++      }
+       if (dyn->ts.domain_origin == VK_TESSELLATION_DOMAIN_ORIGIN_LOWER_LEFT) {
+          SET(TE, te.OutputTopology, brw_tess_info_output_topology(tess_info));
+       } else {

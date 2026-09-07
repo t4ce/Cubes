@@ -5,7 +5,7 @@ extern crate alloc;
 use trueos::ui4_scene::{Damage, Error as Ui4Error, Frame, output_dimensions};
 use trueos::vgpu::{
     BUFFER_USAGE_INDEX, BUFFER_USAGE_MAP_WRITE, BUFFER_USAGE_VERTEX, Buffer, Capabilities, Device,
-    Queue, QueueClass, RETAINED_VERTEX_LAYOUT_POS_NORMAL, RetainedFrameSubmit, RetainedMesh,
+    Queue, QueueClass, RETAINED_VERTEX_LAYOUT_CUBE_PATCH_SEED, RetainedFrameSubmit, RetainedMesh,
     RetainedMeshDescriptor, RetainedTransformSeed,
 };
 use trueos::{
@@ -16,7 +16,11 @@ use trueos::{
 use trueos_picasso::Picasso;
 use trueos_picasso::cam::{Camera, FlyCam, Projection, Quaternion};
 
-include!(concat!(env!("OUT_DIR"), "/cube_asset.rs"));
+// Runtime input contains no imported mesh: HS generates all 44 triangles.
+const CUBE_VERTEX_COUNT: u32 = 1;
+const CUBE_INDEX_COUNT: u32 = 44;
+const CUBE_VERTICES: &[u8] = &[0; 12];
+const CUBE_INDICES: &[u8] = &[0; 44 * 4];
 
 const CUBE_SOURCE: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/Cube/cube.glb"));
 const WIDTH: u32 = 784;
@@ -54,24 +58,24 @@ fn main() {
 }
 
 fn run() -> Result<(), CubeError> {
-    // The GLB and its host-prepared buffers deliberately cross Picasso's
-    // public database boundary before becoming vGPU resources.
+    // Keep the source as a reference asset; only seed/patch indices become
+    // vGPU geometry. The driver owns the precompiled matching HS/DS bundle.
     let picasso = Picasso::new().map_err(|_| CubeError::Contract)?;
     picasso
         .put_embedded_asset("Cube/cube.glb", CUBE_SOURCE)
         .map_err(|_| CubeError::Contract)?;
     picasso
-        .put_embedded_asset("Cube/prepared/vertices", CUBE_VERTICES)
+        .put_embedded_asset("Cube/patch/seed", CUBE_VERTICES)
         .map_err(|_| CubeError::Contract)?;
     picasso
-        .put_embedded_asset("Cube/prepared/indices", CUBE_INDICES)
+        .put_embedded_asset("Cube/patch/indices", CUBE_INDICES)
         .map_err(|_| CubeError::Contract)?;
     let vertices = picasso
-        .embedded_asset("Cube/prepared/vertices")
+        .embedded_asset("Cube/patch/seed")
         .map_err(|_| CubeError::Contract)?
         .ok_or(CubeError::Contract)?;
     let indices = picasso
-        .embedded_asset("Cube/prepared/indices")
+        .embedded_asset("Cube/patch/indices")
         .map_err(|_| CubeError::Contract)?
         .ok_or(CubeError::Contract)?;
     if vertices.as_slice() != CUBE_VERTICES || indices.as_slice() != CUBE_INDICES {
@@ -80,7 +84,7 @@ fn run() -> Result<(), CubeError> {
     logl::log(
         level::INFO,
         format_args!(
-            "Cubes: Picasso database ready source_bytes={} vertices={} indices={}",
+            "Cubes: HS/TE/DS cube source_bytes={} seed_vertices={} patches={} topology=patchlist1 control_points=3 triangles=44 imported_mesh_draw=0",
             CUBE_SOURCE.len(),
             CUBE_VERTEX_COUNT,
             CUBE_INDEX_COUNT
@@ -97,7 +101,7 @@ fn run() -> Result<(), CubeError> {
 
 impl CubeScene {
     fn open(vertex_bytes: &[u8], index_bytes: &[u8]) -> Result<Self, CubeError> {
-        if vertex_bytes.len() != CUBE_VERTEX_COUNT as usize * 24
+        if vertex_bytes.len() != CUBE_VERTEX_COUNT as usize * 12
             || index_bytes.len() != CUBE_INDEX_COUNT as usize * 4
         {
             return Err(CubeError::Contract);
@@ -140,8 +144,8 @@ impl CubeScene {
                 RetainedMeshDescriptor {
                     vertex_count: CUBE_VERTEX_COUNT,
                     index_count: CUBE_INDEX_COUNT,
-                    vertex_layout: RETAINED_VERTEX_LAYOUT_POS_NORMAL,
-                    topology: trueos::vgpu::PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
+                    vertex_layout: RETAINED_VERTEX_LAYOUT_CUBE_PATCH_SEED,
+                    topology: trueos::vgpu::RETAINED_TOPOLOGY_CUBE_PATCHLIST_1
                         | trueos::vgpu::RETAINED_MESH_FLAG_DOUBLE_SIDED,
                     ..RetainedMeshDescriptor::default()
                 },
