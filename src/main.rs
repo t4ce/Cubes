@@ -5,6 +5,7 @@ mod floor;
 mod grid;
 mod picking;
 mod rubik;
+mod transition;
 use alloc::vec::Vec;
 
 use trueos::ui4_scene::{
@@ -80,6 +81,8 @@ struct CubeScene {
     puzzle: rubik::Puzzle,
     orbit: [f32; 3], // yaw, elevation, radius
     look_target: [f32; 3],
+    finished_at: Option<u64>,
+    flight: Option<transition::Flight>,
     number_keys: u8,
     pending_resize: Option<ResizeEvent>,
     previous_elapsed_millis: u64,
@@ -220,7 +223,7 @@ impl CubeScene {
         logl::log(
             level::INFO,
             format_args!(
-                "Cubes: mode-1-grid={}x{} retained_seeds={} mode-2=compact-select-expand-3turns camera=WASD-orbit mode-1-flycam=unchanged",
+                "Cubes: mode-1-room=6x{}x{} retained_seeds={} default=2 compact-select-expand-3turns wait=3s flight=2.5s camera=WASD-orbit-or-center-look",
                 grid::COLS,
                 grid::ROWS,
                 grid::COUNT,
@@ -239,10 +242,12 @@ impl CubeScene {
             floor_indices,
             floor_revision: 0,
             cursors: Vec::new(),
-            mode: SceneMode::InteractiveGrid,
+            mode: SceneMode::StaticCube,
             puzzle: rubik::Puzzle::new(0),
             orbit: [core::f32::consts::PI, 0.0, 7.5],
             look_target: [0.0; 3],
+            finished_at: None,
+            flight: None,
             number_keys: 0,
             pending_resize: None,
             previous_elapsed_millis: 0,
@@ -256,11 +261,6 @@ impl CubeScene {
             elapsed_millis.saturating_sub(self.previous_elapsed_millis) as f32 * 0.001;
         self.previous_elapsed_millis = elapsed_millis;
         self.service_mode_hotkeys()?;
-        if self.mode == SceneMode::InteractiveGrid {
-            self.flycam
-                .step_ui4(&self.frame, delta_seconds)
-                .map_err(|error| CubeError::Ui4("flycam-ui4", error))?;
-        }
         let routes = self
             .frame
             .input_routes()
@@ -280,9 +280,6 @@ impl CubeScene {
             .take_pointer_event()
             .map_err(|error| CubeError::Ui4("pointer-event", error))?
         {
-            if self.mode == SceneMode::InteractiveGrid {
-                self.flycam.handle_ui4_pointer_event(&event, true);
-            }
             let cursor = GridCursor {
                 source: event.source,
                 combo: event.combo_id,
@@ -332,8 +329,10 @@ impl CubeScene {
         }
         let width = self.frame.width();
         let height = self.frame.height();
-        if self.mode == SceneMode::StaticCube {
-            self.puzzle.update(elapsed_millis);
+        {
+            if self.mode == SceneMode::StaticCube {
+                self.puzzle.update(elapsed_millis);
+            }
             let held = |key| {
                 routes
                     .iter()
@@ -343,7 +342,7 @@ impl CubeScene {
             let dt = delta_seconds.clamp(0.0, 0.1);
             let ease = 1.0 - libm::expf(-10.0 * dt);
             let mut target = [0.0; 3];
-            if self.puzzle.locked() {
+            if self.mode == SceneMode::StaticCube && self.puzzle.locked() {
                 let angle = self.puzzle.angle(elapsed_millis);
                 let (cell, _) = self.puzzle.pose(
                     self.puzzle.selected().unwrap(),
@@ -358,38 +357,99 @@ impl CubeScene {
                     libm::cosf(yaw - self.orbit[0]),
                 );
                 self.orbit[0] += diff * ease;
-                self.orbit[1] += (elevation - self.orbit[1]) * ease;
+                self.orbit[1] += libm::atan2f(
+                    libm::sinf(elevation - self.orbit[1]),
+                    libm::cosf(elevation - self.orbit[1]),
+                ) * ease;
                 target = cell.map(|x| x * self.puzzle_spacing(elapsed_millis));
-            } else {
+            } else if self.flight.is_none() {
                 self.orbit[0] += (held(0x04) as i32 - held(0x07) as i32) as f32 * dt;
                 self.orbit[1] += (held(0x16) as i32 - held(0x1a) as i32) as f32 * dt;
-                self.orbit[1] = self.orbit[1].clamp(-1.35, 1.35);
             }
+            self.orbit[0] %= core::f32::consts::TAU;
+            self.orbit[1] %= core::f32::consts::TAU;
             for i in 0..3 {
                 self.look_target[i] += (target[i] - self.look_target[i]) * ease;
             }
             let [yaw, pitch, radius] = self.orbit;
-            self.flycam.camera.position = [
+            let radial = [
                 radius * libm::cosf(pitch) * libm::sinf(yaw),
                 radius * libm::sinf(pitch),
                 radius * libm::cosf(pitch) * libm::cosf(yaw),
             ];
-            self.flycam.camera.rotation = look_at_camera_rotation(
-                self.flycam.camera.position,
-                self.look_target,
-                [0.0, -1.0, 0.0],
-            );
+            self.flycam.camera.position = if self.mode == SceneMode::StaticCube {
+                radial
+            } else {
+                [0.0; 3]
+            };
+            let up = orbit_up(yaw, pitch);
+            if self.mode == SceneMode::InteractiveGrid {
+                self.look_target = radial.map(|v| -v);
+            }
+            self.flycam.camera.rotation =
+                look_at_camera_rotation(self.flycam.camera.position, self.look_target, up);
+            if self.mode == SceneMode::StaticCube
+                && self.puzzle.selected().is_some()
+                && !self.puzzle.locked()
+            {
+                let finished = *self.finished_at.get_or_insert(elapsed_millis);
+                if elapsed_millis.saturating_sub(finished) >= transition::WAIT_MS
+                    && self.flight.is_none()
+                {
+                    let (cell, _) = self.puzzle.pose(self.puzzle.selected().unwrap(), 0.0, 1.0);
+                    let end = cell.map(|x| x * grid::CUBE_GRID_SPACING);
+                    let start = self.flycam.camera.position;
+                    let right = [-libm::cosf(yaw), 0.0, libm::sinf(yaw)];
+                    self.flight = Some(transition::Flight {
+                        started: elapsed_millis,
+                        points: [
+                            start,
+                            core::array::from_fn(|i| start[i] + right[i] * 1.5 + up[i] * 0.5),
+                            core::array::from_fn(|i| end[i] + cell[i] * 0.6),
+                            end,
+                        ],
+                    });
+                }
+                if let Some(flight) = &self.flight {
+                    let pos = flight.position(elapsed_millis);
+                    let end = flight.points[3];
+                    let dir: [f32; 3] = core::array::from_fn(|i| end[i] - pos[i]);
+                    if dir.iter().map(|x| x * x).sum::<f32>() > 1e-8 {
+                        self.orbit[0] = libm::atan2f(-dir[0], -dir[2]);
+                        self.orbit[1] =
+                            libm::atan2f(-dir[1], libm::sqrtf(dir[0] * dir[0] + dir[2] * dir[2]));
+                    }
+                    let [y, p, r] = self.orbit;
+                    let direction = [
+                        -libm::cosf(p) * libm::sinf(y),
+                        -libm::sinf(p),
+                        -libm::cosf(p) * libm::cosf(y),
+                    ];
+                    self.flycam.camera.position = pos;
+                    self.flycam.camera.rotation = look_at_camera_rotation(
+                        pos,
+                        core::array::from_fn(|i| pos[i] + direction[i]),
+                        orbit_up(y, p),
+                    );
+                    if flight.done(elapsed_millis) {
+                        self.mode = SceneMode::InteractiveGrid;
+                        self.flycam.camera.position = [0.0; 3];
+                        self.look_target = direction.map(|x| x * r);
+                        self.flight = None;
+                        logl::log(
+                            level::INFO,
+                            format_args!(
+                                "Cubes: flight complete -> room=6x100 seeds camera=center WASD=look"
+                            ),
+                        );
+                    }
+                }
+            }
         }
         let camera = self
             .flycam
             .camera
             .retained(width, height, self.previous_view_projection);
-        let cursor_radius_px = grid::cursor_radius_px(
-            grid::CUBE_SCALE,
-            self.flycam.camera.position[2],
-            camera.projection[5],
-            height,
-        );
         match self.frame.begin_gpu_frame() {
             Ok(()) => {}
             Err(Ui4Error::Busy) => return Ok(()),
@@ -399,15 +459,32 @@ impl CubeScene {
             .device
             .acquire_ui4_surface(self.frame.window_id())
             .map_err(|code| CubeError::Vgpu("surface-acquire", code))?;
-        let seed_count = self.mode.seed_count();
+        let opaque_count = self.mode.seed_count();
+        let seed_count = opaque_count
+            + if self.mode == SceneMode::StaticCube {
+                54
+            } else {
+                1
+            };
         let turn_angle = self.puzzle.angle(elapsed_millis);
         let (turn_sin, turn_cos) = (libm::sinf(turn_angle), libm::cosf(turn_angle));
         let mut seed_bytes = [0u8; grid::MAX_SEED_COUNT * 64];
-        for i in 0..seed_count {
+        let mut opaque_seeds = [RetainedTransformSeed::default(); 27];
+        for i in 0..opaque_count {
             let (cell, basis) = self.puzzle.pose(i.min(26), turn_sin, turn_cos);
             let (translation, scale) = match self.mode {
                 SceneMode::InteractiveGrid => {
                     let translation = grid::position(i);
+                    let depth = -(camera.view[2] * translation[0]
+                        + camera.view[6] * translation[1]
+                        + camera.view[10] * translation[2]
+                        + camera.view[14]);
+                    let cursor_radius_px = grid::cursor_radius_px(
+                        grid::CUBE_SCALE,
+                        depth,
+                        camera.projection[5],
+                        height,
+                    );
                     let active = grid::project(&camera.view_projection, translation, width, height)
                         .is_some_and(|point| {
                             self.cursors.iter().any(|c| {
@@ -419,11 +496,7 @@ impl CubeScene {
                         if active {
                             grid::CUBE_SCALE
                         } else {
-                            grid::marker_scale(
-                                self.flycam.camera.position[2],
-                                camera.projection[5],
-                                height,
-                            )
+                            grid::marker_scale(depth, camera.projection[5], height)
                         },
                     )
                 }
@@ -445,12 +518,57 @@ impl CubeScene {
                 draw_group: 0,
                 flags: ((i as u32) << 16)
                     | if self.mode == SceneMode::StaticCube {
-                        rubik::PALETTE_FLAG
+                        rubik::PALETTE_FLAG | i as u32
                     } else {
                         0
                     },
             };
+            if i < 27 {
+                opaque_seeds[i] = seed;
+            }
             encode_seed(seed, &mut seed_bytes[i * 64..(i + 1) * 64]);
+        }
+        if self.mode == SceneMode::StaticCube {
+            let mut faces = Vec::with_capacity(54);
+            for id in 0..27 {
+                let (_, basis) = self.puzzle.pose(id, turn_sin, turn_cos);
+                let cell = [id % 3, (id / 3) % 3, id / 9];
+                for axis in 0..3 {
+                    if cell[axis] != 1 {
+                        let sign = if cell[axis] == 2 { 1.0 } else { -1.0 };
+                        let face = (axis * 2 + usize::from(sign < 0.0)) as u32;
+                        let p: [f32; 3] = core::array::from_fn(|i| {
+                            opaque_seeds[id].translation[i]
+                                + basis[axis][i] * sign * grid::CUBE_GRID_SCALE
+                        });
+                        let depth = -(camera.view[2] * p[0]
+                            + camera.view[6] * p[1]
+                            + camera.view[10] * p[2]
+                            + camera.view[14]);
+                        faces.push((depth, id, face));
+                    }
+                }
+            }
+            faces.sort_by(|a, b| b.0.total_cmp(&a.0));
+            for (slot, (_, id, face)) in faces.iter().enumerate() {
+                let mut seed = opaque_seeds[*id];
+                seed.draw_group = 1;
+                seed.flags =
+                    ((slot as u32) << 16) | rubik::PALETTE_FLAG | 512 | (*face << 10) | *id as u32;
+                let row = opaque_count + slot;
+                encode_seed(seed, &mut seed_bytes[row * 64..(row + 1) * 64]);
+            }
+        } else {
+            // Keep both draw groups stable across the scene transition. This
+            // origin seed has clip.w=0 and HS emits no primitives.
+            let dummy = RetainedTransformSeed {
+                scale: [0.0001; 3],
+                rotation: [0., 0., 0., 1.],
+                draw_group: 1,
+                flags: 512,
+                ..RetainedTransformSeed::default()
+            };
+            encode_seed(dummy, &mut seed_bytes[opaque_count * 64..seed_count * 64]);
         }
         write_exact(
             self.device,
@@ -496,13 +614,16 @@ impl CubeScene {
                     },
                     seed_buffer: self.seed_buffer.raw(),
                     seed_count: seed_count as u32,
-                    draw_count: 1,
+                    draw_count: 2,
                     draws: [
                         RetainedDrawRange {
                             first_index: 0,
                             index_count: 44,
                         },
-                        RetainedDrawRange::default(),
+                        RetainedDrawRange {
+                            first_index: 0,
+                            index_count: 44,
+                        },
                         RetainedDrawRange::default(),
                         RetainedDrawRange::default(),
                     ],
@@ -542,17 +663,22 @@ impl CubeScene {
         {
             self.mode = mode;
             self.puzzle = rubik::Puzzle::new(self.previous_elapsed_millis);
+            self.finished_at = None;
+            self.flight = None;
             if mode == SceneMode::StaticCube {
                 let p = self.flycam.camera.position;
                 let radius = libm::sqrtf(p.iter().map(|x| x * x).sum::<f32>()).max(7.5);
                 self.orbit = [
                     libm::atan2f(p[0], p[2]),
-                    libm::atan2f(p[1], libm::sqrtf(p[0] * p[0] + p[2] * p[2])).clamp(-1.35, 1.35),
+                    libm::atan2f(p[1], libm::sqrtf(p[0] * p[0] + p[2] * p[2])),
                     radius,
                 ];
                 self.look_target = [0.0; 3];
                 self.flycam.camera.rotation =
                     look_at_camera_rotation(p, [0.0; 3], [0.0, -1.0, 0.0]);
+            }
+            if mode == SceneMode::InteractiveGrid {
+                self.flycam.camera.position = [0.0; 3];
             }
             self.cursors.clear();
             logl::log(
@@ -633,6 +759,14 @@ fn encode_seed(seed: RetainedTransformSeed, bytes: &mut [u8]) {
     }
     bytes[56..60].copy_from_slice(&seed.draw_group.to_le_bytes());
     bytes[60..64].copy_from_slice(&seed.flags.to_le_bytes());
+}
+
+fn orbit_up(yaw: f32, pitch: f32) -> [f32; 3] {
+    [
+        libm::sinf(yaw) * libm::sinf(pitch),
+        -libm::cosf(pitch),
+        libm::cosf(yaw) * libm::sinf(pitch),
+    ]
 }
 
 fn default_camera() -> Camera {

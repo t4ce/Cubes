@@ -1,13 +1,12 @@
 //! Fixed seed lattice and screen-space activation, independent of UI/input APIs.
-pub const COLS: usize = 24;
-pub const ROWS: usize = 12;
-pub const COUNT: usize = COLS * ROWS;
-// Keep the original seed separation; the doubled seed count expands the
-// lattice in both axes instead of compressing it into the old footprint.
+pub const COLS: usize = 10;
+pub const ROWS: usize = 10;
+pub const COUNT: usize = 6 * COLS * ROWS;
+// Ten-by-ten lattice on each of six walls, viewed from the room center.
 pub const SPACING: f32 = 0.8;
 pub const CUBE_GRID_AXIS: usize = 3;
 pub const CUBE_GRID_COUNT: usize = CUBE_GRID_AXIS * CUBE_GRID_AXIS * CUBE_GRID_AXIS;
-pub const MAX_SEED_COUNT: usize = COUNT;
+pub const MAX_SEED_COUNT: usize = COUNT + 1;
 pub const CUBE_GRID_SPACING: f32 = 2.2;
 pub const CUBE_GRID_SCALE: f32 = 0.55;
 pub const CUBE_SCALE: f32 = 0.24;
@@ -32,11 +31,18 @@ pub fn cursor_radius_px(cube_scale: f32, depth: f32, projection_y: f32, height: 
 }
 
 pub fn position(index: usize) -> [f32; 3] {
-    [
-        ((index % COLS) as f32 - (COLS - 1) as f32 * 0.5) * SPACING,
-        ((index / COLS) as f32 - (ROWS - 1) as f32 * 0.5) * SPACING,
-        0.0,
-    ]
+    let face = index / 100;
+    let i = index % 100;
+    let a = ((i % 10) as f32 - 4.5) * SPACING;
+    let b = ((i / 10) as f32 - 4.5) * SPACING;
+    match face {
+        0 => [4.0, a, b],
+        1 => [-4.0, a, b],
+        2 => [a, 4.0, b],
+        3 => [a, -4.0, b],
+        4 => [a, b, 4.0],
+        _ => [a, b, -4.0],
+    }
 }
 
 /// A static 3×3×3 lattice, centered on the origin and deliberately spaced
@@ -105,15 +111,17 @@ mod tests {
         assert!((large - small * 2.0).abs() < 0.0001);
     }
     #[test]
-    fn lattice_has_288_unique_xy_seeds() {
-        assert_eq!(COUNT, 288);
+    fn room_has_600_unique_wall_seeds() {
+        assert_eq!(COUNT, 600);
         for i in 0..COUNT {
             for j in 0..i {
                 assert_ne!(position(i), position(j));
             }
         }
-        assert_eq!(position(0), [-9.2, -4.4, 0.0]);
-        assert_eq!(position(COUNT - 1), [9.2, 4.4, 0.0]);
+        assert_eq!(position(0), [4.0, -3.6000001, -3.6000001]);
+        for i in 0..COUNT {
+            assert_eq!(position(i).iter().filter(|x| x.abs() == 4.0).count(), 1);
+        }
     }
     #[test]
     fn cube_lattice_has_27_centered_unique_seeds() {

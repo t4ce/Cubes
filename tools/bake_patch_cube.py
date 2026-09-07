@@ -192,8 +192,8 @@ void main() {
         if (c == 2 || c == 3) offset = vec2(-1,1);
         if (c == 5) offset = vec2(1,1);
         gl_out[gl_InvocationID].gl_Position = vec4(
-            gl_in[0].gl_Position.xyz + vec3(offset * scale * 1000.0, 0), 1);
-        controlNormal[gl_InvocationID] = vec4(0,1,0,0);
+            gl_in[0].gl_Position.xyz, 1);
+        controlNormal[gl_InvocationID] = vec4(offset, scale * 1000.0, 0);
         if (gl_InvocationID == 0) {
             float level = scale > 0.0 && gl_PrimitiveID < 2 ? 1.0 : 0.0;
             gl_TessLevelOuter[0] = level;
@@ -238,24 +238,38 @@ void main() {
                          + b.z * controlNormal[2].xyz);
     vec3 baseColor = vec3(0.25, 0.70, 1.0);
     float alpha = 1.0;
+    bool hidden = false;
+    if (controlNormal[0].w == 0.0) {
+        vec3 marker = b.x*controlNormal[0].xyz + b.y*controlNormal[1].xyz + b.z*controlNormal[2].xyz;
+        vec3 right=vec3(camera.view[0][0],camera.view[1][0],camera.view[2][0]);
+        vec3 up=vec3(camera.view[0][1],camera.view[1][1],camera.view[2][1]);
+        p.xyz += (right*marker.x + up*marker.y)*marker.z;
+        normal=vec3(0,1,0);
+    }
     if (controlNormal[0].w > 0.0) {
         uint id = uint(controlNormal[0].w) - 1u;
         uint base = id * 13u;
+        uint flags = floatBitsToUint(instances.rows[base+12u].z);
+        uint cubie = flags & 31u;
+        int sticker = -1;
         mat4 model = mat4(instances.rows[base], instances.rows[base+1u],
                           instances.rows[base+2u], instances.rows[base+3u]);
         // Identity stays attached to the original cubie, independent of its
         // permuted position. Only its original outward square faces get stickers.
-        if ((floatBitsToUint(instances.rows[base+12u].z) & 256u) != 0u && id < 27u) {
+        if ((flags & 256u) != 0u && cubie < 27u) {
             // Only the six sticker faces are translucent; bevels and the
             // baseline cube material remain fully opaque.
-            uvec3 cell = uvec3(id % 3u, (id / 3u) % 3u, id / 9u);
-            if (normal.x > 0.9999 && cell.x == 2u) { baseColor = vec3(1,0.025,0.015); alpha = 0.35; }
-            if (normal.x < -0.9999 && cell.x == 0u) { baseColor = vec3(1,0.28,0.015); alpha = 0.35; }
-            if (normal.y > 0.9999 && cell.y == 2u) { baseColor = vec3(1,1,1); alpha = 0.35; }
-            if (normal.y < -0.9999 && cell.y == 0u) { baseColor = vec3(1,0.85,0.015); alpha = 0.35; }
-            if (normal.z > 0.9999 && cell.z == 2u) { baseColor = vec3(0.02,0.8,0.08); alpha = 0.35; }
-            if (normal.z < -0.9999 && cell.z == 0u) { baseColor = vec3(0.02,0.08,1); alpha = 0.35; }
+            uvec3 cell = uvec3(cubie % 3u, (cubie / 3u) % 3u, cubie / 9u);
+            if (normal.x > 0.9999 && cell.x == 2u) { baseColor = vec3(1,0.025,0.015); sticker=0; }
+            if (normal.x < -0.9999 && cell.x == 0u) { baseColor = vec3(1,0.28,0.015); sticker=1; }
+            if (normal.y > 0.9999 && cell.y == 2u) { baseColor = vec3(1,1,1); sticker=2; }
+            if (normal.y < -0.9999 && cell.y == 0u) { baseColor = vec3(1,0.85,0.015); sticker=3; }
+            if (normal.z > 0.9999 && cell.z == 2u) { baseColor = vec3(0.02,0.8,0.08); sticker=4; }
+            if (normal.z < -0.9999 && cell.z == 0u) { baseColor = vec3(0.02,0.08,1); sticker=5; }
         }
+        bool transparentPass = (flags & 512u) != 0u;
+        hidden = transparentPass ? (sticker < 0 || sticker != int((flags >> 10u) & 7u)) : sticker >= 0;
+        if (sticker >= 0) alpha=0.35;
         p = model * p;
         normal = normalize(mat3(model) * normal); // positive uniform scale only
     }
@@ -263,6 +277,9 @@ void main() {
     float sky = 0.18 + 0.12 * max(normal.y, 0.0);
     shadedColor = vec4(baseColor * (sky + diffuse * 0.82), alpha);
     gl_Position = camera.viewProjection * p;
+    // Every vertex of the excluded planar triangle clips together. No PS
+    // discard/early-depth side effects and no opaque depth written for glass.
+    if (hidden) gl_Position=vec4(0,0,2,1);
 }
 ''')
     (out / "cube.frag").write_text('''#version 450

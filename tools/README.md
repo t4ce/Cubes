@@ -1,6 +1,6 @@
 # Interactive seed-grid tessellation experiment
 
-Status: **single-cube rendering user-verified; interactive grid awaits bare-metal validation**.
+Status: **previous interactive puzzle user-verified; two-pass transparency and room transition await bare-metal validation**.
 Cubes now requests the dedicated one-seed HS/TE/DS contract. The updated
 TRUEOS kernel and Cubes application must both be rebuilt. An older kernel
 rejects this contract rather than falling back to the imported triangle mesh.
@@ -66,17 +66,17 @@ hull shader.
 Captured URB partitions and triangle-domain TE state are programmed; ordinary
 draws explicitly disable HS/TE/DS and restore their ordinary URB allocation.
 
-Contract version 5 instances a 24×12 XY lattice or rotating 3×3×3 puzzle via
+Contract version 6 instances six 10×10 room walls or a rotating 3×3×3 puzzle via
 V3's buffered transform seeds. VS reads camera/instances/compacted IDs at BTI1/2/3.
 Only translations, quaternion rotations, positive uniform scales and the
 full 44-patch range are accepted. V3's material envelope must remain default;
-the shader uses baseline material-0 lighting. Vertex layout ID 5 prevents
+the shader uses baseline material-0 lighting. Vertex layout ID 6 prevents
 older translation-only kernels from accepting the oriented app. Rebuild both.
 VS passes original instance identity through HS; DS uses BTI2 to apply the
 instance matrix to generated positions and normals. Its shaded-color varying
-replaces the former normal varying, so PS still consumes one vec3.
+replaces the former normal varying; PS consumes one vec4 including alpha.
 
-Key 2 starts ordered, compact (1.1-unit center spacing) and stationary.
+Key 2 is the default and starts ordered, compact (1.1-unit center spacing) and stationary.
 Only the 20 corner/edge cubies are selectable, not the core or six face centers.
 Picking intersects the reference bevel's 26 convex planes and checks the nearest
 piece before excluding centers, so a rejected center does not click through.
@@ -90,7 +90,11 @@ previous turn, so there is no immediate inverse or idle cadence. It stops after
 three turns. WASD orbits a fixed-radius sphere while looking at the puzzle when
 unlocked; mouse-look and Q/E are disabled in Key 2. The camera target eases back
 to the puzzle center on completion. Pressing Key 2 again resets the selection
-phase. Key 1's flycam is unchanged.
+phase. Both orbital angles wrap without clamps, with a pole-safe rotating up vector.
+After the third turn, three seconds of free orbit precede a 2.5-second eased
+cubic-Bezier flight into the selected cubie's center. Arrival switches to Key 1.
+Key 1 places 100 seeds on each of six walls at ±4 units. Its camera stays at
+the origin; WASD changes view direction only. Mouse-look and Q/E are disabled.
 
 A gray 22-segment LINE_LIST floor at Y=3.5 provides orientation. It is one
 retained static draw with CPU homogeneous line clipping and vertex refreshes;
@@ -103,18 +107,24 @@ Seed flag 0x100 enables six stickers by original cubie ID and local axial normal
 +X red, -X orange, +Y white, -Y yellow, +Z green, -Z blue. Only the 54 original
 outward square faces receive these colors (two triangles each); bevels and
 inward faces remain baseline blue. Only mode 2's six palette sticker faces use
-35% straight alpha for testing; every baseline surface and mode 1 stay opaque.
+35% straight alpha; every baseline surface and mode 1 stay opaque.
+Group 0 emits only opaque surfaces with depth writes enabled, followed by the
+floor. Group 1 emits the 54 individual sticker faces sorted far-to-near each
+frame, with depth testing but no depth writes. This is face-center sorting,
+not general order-independent transparency for intersecting geometry.
+Original cubie identity is retained in flag bits 0..4; bit 9 selects the
+transparent pass and bits 10..12 select its single local face. The room uses
+600 opaque seed rows and a culled dummy row to keep both groups stable.
+The V3 seed limit is now 1024 in both kernel and SDK.
 Colors rotate with cubies, not world axes.
 Expanded spacing, cubie scale and puzzle origin are unchanged.
 
 Each routed, focused N-Mouse cursor activates cubes within a radius linked to
 the expanded cube's projected scale.
-Outside every cursor radius, HS emits two flat triangles as a 3-pixel seed
+Outside every cursor radius, HS emits two camera-facing triangles as a 3-pixel seed
 marker and culls the other 42 patches. These are indicators, not tiny cubes
 or hardware point-list primitives. The marker scale compensates for camera
 distance. Active seeds expand to the original 44-triangle beveled cube.
-Key 1's default Picasso fly camera uses WASD movement, Q/E roll, and middle-mouse
-look.
 The retained frame's existing transform/indirect compute dispatch remains;
 it does not expand the cube mesh. Geometry expansion is performed by HS.
 
