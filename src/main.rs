@@ -174,8 +174,7 @@ impl CubeScene {
         logl::log(
             level::INFO,
             format_args!(
-                "Cubes: grid=16x9 retained_seeds=144 radius_px={} mouse=per-source-xy camera=fixed-grid-facing keys=W/S inactive=3px-flat-seed-markers",
-                grid::RADIUS_PX
+                "Cubes: grid=16x9 retained_seeds=144 cursor_radius=cube-scale-linked mouse=per-source-xy camera=fixed-grid-facing keys=W/S inactive=3px-flat-seed-markers",
             ),
         );
         Ok(Self {
@@ -254,6 +253,12 @@ impl CubeScene {
         let camera = self
             .camera
             .retained(width, height, self.previous_view_projection);
+        let cursor_radius_px = grid::cursor_radius_px(
+            grid::CUBE_SCALE,
+            self.camera.position[2],
+            camera.projection[5],
+            height,
+        );
         match self.frame.begin_gpu_frame() {
             Ok(()) => {}
             Err(Ui4Error::Busy) => return Ok(()),
@@ -270,7 +275,7 @@ impl CubeScene {
                 .is_some_and(|point| {
                     self.cursors
                         .iter()
-                        .any(|c| grid::near(point, c.local, width, height))
+                        .any(|c| grid::near(point, c.local, width, height, cursor_radius_px))
                 });
             let seed = RetainedTransformSeed {
                 translation,
@@ -280,7 +285,7 @@ impl CubeScene {
                     grid::marker_scale(self.camera.position[2], camera.projection[5], height)
                 }; 3],
                 rotation: [0.0, 0.0, 0.0, 1.0],
-                local_radius: 1.74,
+                local_radius: grid::CUBE_LOCAL_RADIUS,
                 previous_translation: translation,
                 draw_group: 0,
                 flags: (i as u32) << 16,

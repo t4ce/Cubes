@@ -4,12 +4,25 @@ pub const ROWS: usize = 9;
 pub const COUNT: usize = COLS * ROWS;
 pub const SPACING: f32 = 0.8;
 pub const CUBE_SCALE: f32 = 0.24;
+pub const CUBE_LOCAL_RADIUS: f32 = 1.74;
+/// The cursor activation circle extends this many rendered cube radii.
+pub const CURSOR_RADIUS_IN_CUBE_RADII: f32 = 2.75;
 // HS interprets scales below 0.001 as flat marker half-size / 1000.
 pub fn marker_scale(depth: f32, projection_y: f32, height: u32) -> f32 {
     (3.0 * depth.abs() / (height.max(1) as f32 * projection_y.abs()) / 1000.0)
         .clamp(0.0000001, 0.0009)
 }
-pub const RADIUS_PX: f32 = 58.0;
+/// Convert an expanded cube's world-space radius to the matching screen-space
+/// cursor activation radius. Keeping `cube_scale` explicit makes the circle
+/// grow whenever the expanded-cube scale changes.
+pub fn cursor_radius_px(cube_scale: f32, depth: f32, projection_y: f32, height: u32) -> f32 {
+    cube_scale.abs()
+        * CUBE_LOCAL_RADIUS
+        * CURSOR_RADIUS_IN_CUBE_RADII
+        * projection_y.abs()
+        * height.max(1) as f32
+        / (2.0 * depth.abs().max(0.001))
+}
 
 pub fn position(index: usize) -> [f32; 3] {
     [
@@ -42,13 +55,13 @@ pub fn project(matrix: &[f32; 16], point: [f32; 3], width: u32, height: u32) -> 
     ])
 }
 
-pub fn near(point: [f32; 2], cursor: [i32; 2], width: u32, height: u32) -> bool {
+pub fn near(point: [f32; 2], cursor: [i32; 2], width: u32, height: u32, radius_px: f32) -> bool {
     if cursor[0] < 0 || cursor[1] < 0 || cursor[0] >= width as i32 || cursor[1] >= height as i32 {
         return false;
     }
     let dx = point[0] - cursor[0] as f32;
     let dy = point[1] - cursor[1] as f32;
-    dx * dx + dy * dy <= RADIUS_PX * RADIUS_PX
+    dx * dx + dy * dy <= radius_px * radius_px
 }
 
 pub fn move_camera(z: f32, forward: bool, backward: bool, delta: f32) -> f32 {
@@ -66,6 +79,13 @@ mod tests {
             let pixels = scale * 1000.0 * 1.732 / depth * 441.0;
             assert!((pixels - 3.0).abs() < 0.0001);
         }
+    }
+    #[test]
+    fn cursor_radius_tracks_expanded_cube_scale() {
+        let small = cursor_radius_px(0.24, 7.5, 1.732, 441);
+        let large = cursor_radius_px(0.48, 7.5, 1.732, 441);
+        assert!((small - 58.0).abs() < 1.0);
+        assert!((large - small * 2.0).abs() < 0.0001);
     }
     #[test]
     fn lattice_has_144_unique_xy_seeds() {
@@ -89,9 +109,17 @@ mod tests {
     #[test]
     fn independent_cursors_and_outside_window() {
         let cursors = [[100, 100], [700, 300]];
-        assert!(cursors.iter().any(|&c| near([690., 300.], c, 800, 450)));
-        assert!(!cursors.iter().any(|&c| near([400., 225.], c, 800, 450)));
-        assert!(!near([0., 0.], [-1, 0], 800, 450));
+        assert!(
+            cursors
+                .iter()
+                .any(|&c| near([690., 300.], c, 800, 450, 58.0))
+        );
+        assert!(
+            !cursors
+                .iter()
+                .any(|&c| near([400., 225.], c, 800, 450, 58.0))
+        );
+        assert!(!near([0., 0.], [-1, 0], 800, 450, 58.0));
     }
     #[test]
     fn camera_is_bounded_and_opposite_keys_cancel() {
