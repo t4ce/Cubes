@@ -9,13 +9,18 @@ pub const CUBE_GRID_COUNT: usize = CUBE_GRID_AXIS * CUBE_GRID_AXIS * CUBE_GRID_A
 pub const MAX_SEED_COUNT: usize = COUNT + 1;
 pub const CUBE_GRID_SPACING: f32 = 2.2;
 pub const CUBE_GRID_SCALE: f32 = 0.55;
+/// Compact Rubik layout: one percent of a cubie's 1.1-unit side length.
+/// This avoids coplanar face overlap without changing cube scale or expansion.
+pub const CUBE_COMPACT_GAP: f32 = 2.0 * CUBE_GRID_SCALE * 0.01;
+pub const CUBE_COMPACT_SPACING: f32 = 2.0 * CUBE_GRID_SCALE + CUBE_COMPACT_GAP;
 pub const CUBE_SCALE: f32 = 0.24;
 pub const CUBE_LOCAL_RADIUS: f32 = 1.74;
 /// The cursor activation circle extends this many rendered cube radii.
 pub const CURSOR_RADIUS_IN_CUBE_RADII: f32 = 2.75;
 // HS interprets scales below 0.001 as flat marker half-size / 1000.
+pub const MARKER_WIDTH_PX: f32 = 9.0;
 pub fn marker_scale(depth: f32, projection_y: f32, height: u32) -> f32 {
-    (3.0 * depth.abs() / (height.max(1) as f32 * projection_y.abs()) / 1000.0)
+    (MARKER_WIDTH_PX * depth.abs() / (height.max(1) as f32 * projection_y.abs()) / 1000.0)
         .clamp(0.0000001, 0.0009)
 }
 /// Convert an expanded cube's world-space radius to the matching screen-space
@@ -95,12 +100,12 @@ pub fn near(point: [f32; 2], cursor: [i32; 2], width: u32, height: u32, radius_p
 mod tests {
     use super::*;
     #[test]
-    fn marker_is_three_pixels_at_different_camera_distances() {
+    fn marker_is_nine_pixels_at_different_camera_distances() {
         for depth in [1.0, 7.5, 30.0] {
             let scale = marker_scale(depth, 1.732, 441);
             assert!(scale > 0.0 && scale < 0.001);
             let pixels = scale * 1000.0 * 1.732 / depth * 441.0;
-            assert!((pixels - 3.0).abs() < 0.0001);
+            assert!((pixels - 9.0).abs() < 0.0001);
         }
     }
     #[test]
@@ -134,6 +139,11 @@ mod tests {
                 assert_ne!(cube_position(i), cube_position(j));
             }
         }
+    }
+    #[test]
+    fn compact_puzzle_spacing_has_a_one_percent_cube_gap() {
+        assert!((CUBE_COMPACT_GAP - 0.011).abs() < 0.000001);
+        assert!((CUBE_COMPACT_SPACING - 1.111).abs() < 0.000001);
     }
     #[test]
     fn projection_matches_negative_y_viewport() {

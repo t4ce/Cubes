@@ -76,7 +76,12 @@ VS passes original instance identity through HS; DS uses BTI2 to apply the
 instance matrix to generated positions and normals. Its shaded-color varying
 replaces the former normal varying; PS consumes one vec4 including alpha.
 
-Key 2 is the default and starts ordered, compact (1.1-unit center spacing) and stationary.
+Key 2 is the default and starts ordered and compact (1.111-unit center spacing):
+the 0.011-unit separation is exactly 1% of a cubie's 1.1-unit side, preventing
+coplanar face overlap without scaling or expanding the cubies.
+After three seconds without routed mouse movement or a held WASD key, its camera
+slowly orbits the unselected compact puzzle; either input stops the orbit and
+restarts that idle timer.
 Only the 20 corner/edge cubies are selectable, not the core or six face centers.
 Picking intersects the reference bevel's 26 convex planes and checks the nearest
 piece before excluding centers, so a rejected center does not click through.
@@ -121,7 +126,7 @@ Expanded spacing, cubie scale and puzzle origin are unchanged.
 
 Each routed, focused N-Mouse cursor activates cubes within a radius linked to
 the expanded cube's projected scale.
-Outside every cursor radius, HS emits two camera-facing triangles as a 3-pixel seed
+Outside every cursor radius, HS emits two camera-facing triangles as a 9-pixel seed
 marker and culls the other 42 patches. These are indicators, not tiny cubes
 or hardware point-list primitives. The marker scale compensates for camera
 distance. Active seeds expand to the original 44-triangle beveled cube.

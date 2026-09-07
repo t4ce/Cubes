@@ -34,6 +34,8 @@ const CUBE_INDICES: &[u8] = &[0; 44 * 4];
 const CUBE_SOURCE: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/Cube/cube.glb"));
 const WIDTH: u32 = 784;
 const HEIGHT: u32 = 441;
+const IDLE_ORBIT_DELAY_MS: u64 = 3_000;
+const IDLE_ORBIT_RADIANS_PER_SECOND: f32 = 0.18;
 
 struct GridCursor {
     source: CursorSource,
@@ -81,6 +83,7 @@ struct CubeScene {
     puzzle: rubik::Puzzle,
     orbit: [f32; 3], // yaw, elevation, radius
     look_target: [f32; 3],
+    last_camera_activity_millis: u64,
     finished_at: Option<u64>,
     flight: Option<transition::Flight>,
     number_keys: u8,
@@ -223,7 +226,7 @@ impl CubeScene {
         logl::log(
             level::INFO,
             format_args!(
-                "Cubes: mode-1-room=6x{}x{} retained_seeds={} default=2 compact-select-expand-3turns wait=3s flight=2.5s camera=WASD-orbit-or-center-look",
+                "Cubes: mode-1-room=6x{}x{} retained_seeds={} default=2 compact-select-expand-3turns wait=3s flight=2.5s camera=WASD-orbit idle=3s-auto-orbit",
                 grid::COLS,
                 grid::ROWS,
                 grid::COUNT,
@@ -246,6 +249,7 @@ impl CubeScene {
             puzzle: rubik::Puzzle::new(0),
             orbit: [core::f32::consts::PI, 0.0, 7.5],
             look_target: [0.0; 3],
+            last_camera_activity_millis: 0,
             finished_at: None,
             flight: None,
             number_keys: 0,
@@ -289,6 +293,9 @@ impl CubeScene {
             if !routed(&cursor) {
                 continue;
             }
+            if event.dx != 0 || event.dy != 0 {
+                self.last_camera_activity_millis = elapsed_millis;
+            }
             if self.mode == SceneMode::StaticCube
                 && self.puzzle.selected().is_none()
                 && event.buttons_pressed & 1 != 0
@@ -307,7 +314,7 @@ impl CubeScene {
                 ) && let Some(id) = picking::pick(
                     origin,
                     direction,
-                    2.0 * grid::CUBE_GRID_SCALE,
+                    grid::CUBE_COMPACT_SPACING,
                     grid::CUBE_GRID_SCALE,
                 ) && self.puzzle.select(id, elapsed_millis)
                 {
@@ -341,6 +348,10 @@ impl CubeScene {
             };
             let dt = delta_seconds.clamp(0.0, 0.1);
             let ease = 1.0 - libm::expf(-10.0 * dt);
+            let wasd_held = held(0x04) || held(0x07) || held(0x16) || held(0x1a);
+            if wasd_held {
+                self.last_camera_activity_millis = elapsed_millis;
+            }
             let mut target = [0.0; 3];
             if self.mode == SceneMode::StaticCube && self.puzzle.locked() {
                 let angle = self.puzzle.angle(elapsed_millis);
@@ -365,6 +376,13 @@ impl CubeScene {
             } else if self.flight.is_none() {
                 self.orbit[0] += (held(0x04) as i32 - held(0x07) as i32) as f32 * dt;
                 self.orbit[1] += (held(0x16) as i32 - held(0x1a) as i32) as f32 * dt;
+                if self.mode == SceneMode::StaticCube
+                    && self.puzzle.selected().is_none()
+                    && elapsed_millis.saturating_sub(self.last_camera_activity_millis)
+                        >= IDLE_ORBIT_DELAY_MS
+                {
+                    self.orbit[0] += IDLE_ORBIT_RADIANS_PER_SECOND * dt;
+                }
             }
             self.orbit[0] %= core::f32::consts::TAU;
             self.orbit[1] %= core::f32::consts::TAU;
@@ -663,6 +681,7 @@ impl CubeScene {
         {
             self.mode = mode;
             self.puzzle = rubik::Puzzle::new(self.previous_elapsed_millis);
+            self.last_camera_activity_millis = self.previous_elapsed_millis;
             self.finished_at = None;
             self.flight = None;
             if mode == SceneMode::StaticCube {
@@ -688,7 +707,7 @@ impl CubeScene {
                     match mode {
                         SceneMode::InteractiveGrid => "1 interactive-grid",
                         SceneMode::StaticCube =>
-                            "2 compact-puzzle click=edge/corner turns=3x1s camera=WASD-orbit",
+                            "2 compact-puzzle click=edge/corner turns=3x1s camera=WASD-orbit idle=3s-auto-orbit",
                     },
                     mode.seed_count(),
                 ),
@@ -698,7 +717,7 @@ impl CubeScene {
     }
 
     fn puzzle_spacing(&self, now: u64) -> f32 {
-        let compact = 2.0 * grid::CUBE_GRID_SCALE;
+        let compact = grid::CUBE_COMPACT_SPACING;
         compact + (grid::CUBE_GRID_SPACING - compact) * self.puzzle.expansion(now)
     }
 
