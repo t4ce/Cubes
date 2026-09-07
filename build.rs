@@ -15,8 +15,8 @@ fn main() {
     let digest = format!("{:x}", Sha256::digest(&source));
     assert_eq!(
         exported::CONTRACT_VERSION,
-        2,
-        "rebake the instanced grid shader contract"
+        3,
+        "rebake the canonical-position HS shader contract"
     );
     assert_eq!(
         digest,

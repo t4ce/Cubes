@@ -12,9 +12,11 @@ applied, just as in the baseline importer.
 
 The experiment stores one 12-byte origin seed. Forty-four zero indices
 submit 44 `PATCHLIST_1` patches referencing that seed. HS primitive ID and
-invocation ID select the original triangle's three position/normal pairs
-from instruction immediates. Each patch writes three control points and
-unit tessellation factors. The triangle-domain DS interpolates the patch
+invocation ID first map each triangle corner to one of the reference's 24
+canonical positions, then select the per-corner normal from instruction
+immediates. The 132-corner triangle mapping remains exact, while geometric
+position state is explicitly 24 points. Each patch writes three control
+points and unit tessellation factors. The triangle-domain DS interpolates the patch
 and uses the existing camera matrix at byte 128. The fragment shader uses
 the baseline's material-0 lighting. This is baked reference geometry, not
 a general-purpose cube-generation or arbitrary-asset shader API.
@@ -58,25 +60,26 @@ The retained ABI pairs `RETAINED_VERTEX_LAYOUT_CUBE_PATCH_SEED` with
 0xA780 and 0x4680, with no scratch, push-data or shader-data relocations.
 HS and DS are uploaded after the ordinary shader ranges, and their KSPs
 are relocated into the draw's instruction allocation. DS uses camera BTI1.
-Per-draw state slots are 20 KiB, including a descriptor page after aligned
-shader code; the former 16 KiB slots are too small for this hull shader.
+Per-draw state slots are 28 KiB, including a descriptor page after aligned
+shader code; the former 20 KiB slots are too small for the canonical-position
+hull shader.
 Captured URB partitions and triangle-domain TE state are programmed; ordinary
 draws explicitly disable HS/TE/DS and restore their ordinary URB allocation.
 
-Contract version 2 instances that seed into a 16×9 XY lattice via V3's
-buffered transform seeds. VS reads camera/instances/compacted IDs at BTI1/2/3.
+Contract version 3 instances a 24×12 XY lattice or static 3×3×3 lattice via
+V3's buffered transform seeds. VS reads camera/instances/compacted IDs at BTI1/2/3.
 Only translations and positive uniform scales with identity rotation and the
 full 44-patch range are accepted. V3's material envelope must remain default;
 the shader still uses baked material 0. Vertex layout ID 4 deliberately prevents
 an old single-object kernel from accepting this instanced app. Rebuild both.
 
-Each routed, focused N-Mouse cursor activates cubes within 58 screen pixels.
+Each routed, focused N-Mouse cursor activates cubes within a radius linked to
+the expanded cube's projected scale.
 Outside every cursor radius, HS emits two flat triangles as a 3-pixel seed
 marker and culls the other 42 patches. These are indicators, not tiny cubes
 or hardware point-list primitives. The marker scale compensates for camera
 distance. Active seeds expand to the original 44-triangle beveled cube.
-The camera stays grid-facing; W/S move forward/back with bounded distance.
-Mouse motion does not rotate or capture the camera.
+The default Picasso fly camera uses WASD movement and middle-mouse look.
 The retained frame's existing transform/indirect compute dispatch remains;
 it does not expand the cube mesh. Geometry expansion is performed by HS.
 
@@ -96,7 +99,7 @@ rustc --edition=2024 --test src/intel/shader.rs -A warnings -o /tmp/trueos-patch
 /tmp/trueos-patch-cube-tests
 ```
 
-CPU tests compare every generated position/normal bit with the approved
-reference, but cannot prove GPU output, tessellator ordering, rasterization,
+CPU tests compare the 132 corner-to-24-canonical-position mapping and every
+per-corner normal bit with the approved reference, but cannot prove GPU output, tessellator ordering, rasterization,
 or bare-metal stability. Compare a rendered frame against the reference
 before claiming verified 1:1 presentation. No rig deployment or reboot was performed.

@@ -98,12 +98,40 @@ def write_sources(source: Path, out: Path):
 
     positions = [v[0] for triangle in triangles for v in triangle]
     normals = [v[1] for triangle in triangles for v in triangle]
+    # The patch list still has 44 × 3 corner occurrences, but geometric
+    # positions are first-class canonical identities. Use float bits, not
+    # Python float equality, so signed zero remains a distinct shader value.
+    # Insertion order makes the canonical table stable without a runtime
+    # vertex buffer or a shader constant-data allocation.
+    canonical_positions = []
+    canonical_position_ids = {}
+    position_ids = []
+    for position in positions:
+        key = struct.pack("<3f", *position)
+        position_id = canonical_position_ids.get(key)
+        if position_id is None:
+            position_id = len(canonical_positions)
+            canonical_position_ids[key] = position_id
+            canonical_positions.append(position)
+        position_ids.append(position_id)
+    if len(canonical_positions) != len(canonical_position_ids):
+        raise ValueError("canonical position table lost a reference position")
+
     # Dynamic arrays become shader-constant A64 loads in ANV. Explicit cases
-    # keep this prototype's geometry in instruction immediates and avoid a
-    # hidden constant-data allocation/relocation contract in the HS.
-    cases = ""
-    for i, (position, normal) in enumerate(zip(positions, normals)):
-        cases += f"case {i}: p={vec(position)}; n={vec(normal)}; break;\n"
+    # keep this prototype's values in instruction immediates and preserve the
+    # relocation-free HS contract.
+    position_cases = "".join(
+        f"case {i}: p={vec(position)}; break;\n"
+        for i, position in enumerate(canonical_positions)
+    )
+    corner_position_cases = "".join(
+        f"case {corner}: return {position_id};\n"
+        for corner, position_id in enumerate(position_ids)
+    )
+    normal_cases = "".join(
+        f"case {corner}: n={vec(normal)}; break;\n"
+        for corner, normal in enumerate(normals)
+    )
     (out / "cube.vert").write_text('''#version 450
 layout(location=0) in vec3 seed;
 layout(std430, set=0, binding=0) readonly buffer Camera {
@@ -127,6 +155,28 @@ void main() {
 layout(vertices=3) out;
 layout(location=0) out vec3 controlNormal[];
 ''' + '''
+int triangleCornerToPositionID(int primitiveID, int invocationID) {
+    int corner = primitiveID * 3 + invocationID;
+    switch (corner) {
+''' + corner_position_cases + '''
+    }
+    return 0;
+}
+vec3 cubePosition(int positionID) {
+    uvec3 p = uvec3(0);
+    switch (positionID) {
+''' + position_cases + '''
+    }
+    return uintBitsToFloat(p);
+}
+vec3 triangleCornerNormal(int primitiveID, int invocationID) {
+    int corner = primitiveID * 3 + invocationID;
+    uvec3 n = uvec3(0);
+    switch (corner) {
+''' + normal_cases + '''
+    }
+    return uintBitsToFloat(n);
+}
 void main() {
     float scale = gl_in[0].gl_Position.w;
     if (scale < 0.001) {
@@ -149,14 +199,12 @@ void main() {
         }
         return;
     }
-    int corner = gl_PrimitiveID * 3 + gl_InvocationID;
-    uvec3 p = uvec3(0), n = uvec3(0);
-    switch (corner) {
-''' + cases + '''
-    }
+    int positionID = triangleCornerToPositionID(gl_PrimitiveID, gl_InvocationID);
+    vec3 p = cubePosition(positionID);
+    vec3 n = triangleCornerNormal(gl_PrimitiveID, gl_InvocationID);
     gl_out[gl_InvocationID].gl_Position =
-        vec4(gl_in[0].gl_Position.xyz + scale * uintBitsToFloat(p), 1.0);
-    controlNormal[gl_InvocationID] = uintBitsToFloat(n);
+        vec4(gl_in[0].gl_Position.xyz + scale * p, 1.0);
+    controlNormal[gl_InvocationID] = n;
     if (gl_InvocationID == 0) {
         gl_TessLevelOuter[0] = 1.0;
         gl_TessLevelOuter[1] = 1.0;
@@ -207,7 +255,9 @@ void main() {
         "input_control_points": 1, "output_control_points": 3,
         "domain": "triangles", "tessellation_level": 1,
         "reference_triangle_count": len(triangles),
-        "unique_positions": len(set(positions)), "unique_normals": len(set(normals)),
+        "canonical_position_count": len(canonical_positions),
+        "triangle_corner_count": len(positions),
+        "unique_positions": len(canonical_positions), "unique_normals": len(set(normals)),
         "coordinate_space": "mesh-local, matching Cubes/build.rs",
         "runtime_integrated": False, "host_render_verified": False,
         "baremetal_verified": False,

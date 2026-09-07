@@ -18,7 +18,7 @@ class PatchCubeTests(unittest.TestCase):
         self.assertEqual(len({v[0] for t in triangles for v in t}), 24)
         self.assertEqual(len({v[1] for t in triangles for v in t}), 26)
 
-    def test_seed_and_every_generated_corner(self):
+    def test_seed_and_canonical_geometry_mapping(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
             manifest = write_sources(ROOT / "Cube/cube.glb", out)
@@ -26,15 +26,30 @@ class PatchCubeTests(unittest.TestCase):
             self.assertEqual((out / "seed.f32le").read_bytes(), bytes(12))
             self.assertEqual((out / "patches.u32le").read_bytes(), bytes(44 * 4))
             hs = (out / "cube.tesc").read_text()
-            matches = re.findall(r"case (\d+): p=uvec3\(([^)]+)\); n=uvec3\(([^)]+)\); break;", hs)
-            self.assertEqual(len(matches), 132)
+            position_cases = re.findall(r"case (\d+): p=uvec3\(([^)]+)\); break;", hs)
+            corner_position_cases = re.findall(r"case (\d+): return (\d+);", hs)
+            normal_cases = re.findall(r"case (\d+): n=uvec3\(([^)]+)\); break;", hs)
+            self.assertEqual(len(position_cases), 24)
+            self.assertEqual(len(corner_position_cases), 132)
+            self.assertEqual(len(normal_cases), 132)
             source_vertices = [v for triangle in triangles for v in triangle]
-            for i, (number, p, n) in enumerate(matches):
+            canonical_positions = [None] * len(position_cases)
+            for i, (number, p) in enumerate(position_cases):
                 self.assertEqual(int(number), i)
-                for encoded, reference in zip((p, n), source_vertices[i]):
-                    bits = [int(word[:-1], 16) for word in encoded.split(",")]
-                    self.assertEqual(struct.pack("<3I", *bits), struct.pack("<3f", *reference))
-            self.assertIn("gl_PrimitiveID * 3 + gl_InvocationID", hs)
+                bits = [int(word[:-1], 16) for word in p.split(",")]
+                canonical_positions[i] = struct.unpack("<3f", struct.pack("<3I", *bits))
+            for i, (number, position_id) in enumerate(corner_position_cases):
+                self.assertEqual(int(number), i)
+                self.assertEqual(canonical_positions[int(position_id)], source_vertices[i][0])
+            for i, (number, n) in enumerate(normal_cases):
+                self.assertEqual(int(number), i)
+                bits = [int(word[:-1], 16) for word in n.split(",")]
+                self.assertEqual(struct.pack("<3I", *bits), struct.pack("<3f", *source_vertices[i][1]))
+            self.assertEqual(manifest["canonical_position_count"], 24)
+            self.assertEqual(manifest["triangle_corner_count"], 132)
+            self.assertIn("triangleCornerToPositionID(gl_PrimitiveID, gl_InvocationID)", hs)
+            self.assertIn("vec3 p = cubePosition(positionID);", hs)
+            self.assertIn("vec3 n = triangleCornerNormal(gl_PrimitiveID, gl_InvocationID);", hs)
             self.assertIn("layout(vertices=3) out", hs)
             self.assertIn("gl_PrimitiveID < 2", hs)
             self.assertIn("offset * scale * 1000.0", hs)
