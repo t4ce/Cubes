@@ -193,7 +193,9 @@ void main() {
         if (c == 5) offset = vec2(1,1);
         gl_out[gl_InvocationID].gl_Position = vec4(
             gl_in[0].gl_Position.xyz, 1);
-        controlNormal[gl_InvocationID] = vec4(offset, scale * 1000.0, 0);
+        // Preserve the seed ID for DS colour selection while keeping a
+        // negative W distinct from ordinary cube normals.
+        controlNormal[gl_InvocationID] = vec4(offset, scale * 1000.0, -instanceID[0]);
         if (gl_InvocationID == 0) {
             float level = scale > 0.0 && gl_PrimitiveID < 2 ? 1.0 : 0.0;
             gl_TessLevelOuter[0] = level;
@@ -236,27 +238,33 @@ void main() {
     vec3 normal = normalize(b.x * controlNormal[0].xyz
                          + b.y * controlNormal[1].xyz
                          + b.z * controlNormal[2].xyz);
-    vec3 baseColor = vec3(0.25, 0.70, 1.0);
+    // The ordinary (Key-2) material stays fully opaque black.
+    vec3 baseColor = vec3(0.0);
     float alpha = 1.0;
     bool hidden = false;
-    if (controlNormal[0].w == 0.0) {
+    bool marker = controlNormal[0].w < 0.0;
+    if (marker) {
         vec3 marker = b.x*controlNormal[0].xyz + b.y*controlNormal[1].xyz + b.z*controlNormal[2].xyz;
         vec3 right=vec3(camera.view[0][0],camera.view[1][0],camera.view[2][0]);
         vec3 up=vec3(camera.view[0][1],camera.view[1][1],camera.view[2][1]);
         p.xyz += (right*marker.x + up*marker.y)*marker.z;
         normal=vec3(0,1,0);
     }
-    if (controlNormal[0].w > 0.0) {
-        uint id = uint(controlNormal[0].w) - 1u;
+    if (controlNormal[0].w != 0.0) {
+        uint id = uint(abs(controlNormal[0].w)) - 1u;
         uint base = id * 13u;
         uint flags = floatBitsToUint(instances.rows[base+12u].z);
         uint cubie = flags & 31u;
         int sticker = -1;
         mat4 model = mat4(instances.rows[base], instances.rows[base+1u],
                           instances.rows[base+2u], instances.rows[base+3u]);
+        // Key 3 colours both marker dots and expanded cubes by their position
+        // on the containing sphere.
+        if ((flags & 16384u) != 0u) {
+            baseColor = 0.5 + 0.5 * normalize(model[3].xyz);
         // Key 1 is six 10×10 room walls in the same palette order as the
         // Rubik faces. Whole wall cubes remain opaque.
-        if ((flags & 8192u) != 0u && id < 600u) {
+        } else if ((flags & 8192u) != 0u && id < 600u) {
             uint wall = id / 100u;
             if (wall == 0u) baseColor = vec3(1,0.025,0.015);
             if (wall == 1u) baseColor = vec3(1,0.28,0.015);
@@ -280,8 +288,10 @@ void main() {
         bool transparentPass = (flags & 512u) != 0u;
         hidden = transparentPass ? (sticker < 0 || sticker != int((flags >> 10u) & 7u)) : sticker >= 0;
         if (sticker >= 0) alpha=0.35;
-        p = model * p;
-        normal = normalize(mat3(model) * normal); // positive uniform scale only
+        if (!marker) {
+            p = model * p;
+            normal = normalize(mat3(model) * normal); // positive uniform scale only
+        }
     }
     float diffuse = max(dot(normal, normalize(vec3(0.35,0.80,0.45))), 0.0);
     float sky = 0.18 + 0.12 * max(normal.y, 0.0);

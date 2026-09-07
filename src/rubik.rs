@@ -2,6 +2,8 @@
 pub const PALETTE_FLAG: u32 = 256;
 /// Shade an entire key-1 room wall with its matching Rubik palette colour.
 pub const ROOM_PALETTE_FLAG: u32 = 1 << 13;
+/// Shade Key-3 seeds from their sphere position rather than the base material.
+pub const SPHERE_GRADIENT_FLAG: u32 = 1 << 14;
 const TURN_MS: u64 = 1_000;
 pub const OPEN_MS: u64 = 1_000;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -50,6 +50,7 @@ struct GridCursor {
 enum SceneMode {
     InteractiveGrid,
     StaticCube,
+    Sphere,
 }
 
 impl SceneMode {
@@ -57,6 +58,7 @@ impl SceneMode {
         match self {
             Self::InteractiveGrid => grid::COUNT,
             Self::StaticCube => grid::CUBE_GRID_COUNT,
+            Self::Sphere => grid::SPHERE_COUNT,
         }
     }
 }
@@ -405,7 +407,7 @@ impl CubeScene {
                 [0.0; 3]
             };
             let up = orbit_up(yaw, pitch);
-            if self.mode == SceneMode::InteractiveGrid {
+            if self.mode != SceneMode::StaticCube {
                 self.look_target = radial.map(|v| -v);
             }
             self.flycam.camera.rotation =
@@ -486,8 +488,10 @@ impl CubeScene {
         let seed_count = opaque_count
             + if self.mode == SceneMode::StaticCube {
                 54
-            } else {
+            } else if self.mode == SceneMode::InteractiveGrid {
                 1
+            } else {
+                0
             };
         let turn_angle = self.puzzle.angle(elapsed_millis);
         let (turn_sin, turn_cos) = (libm::sinf(turn_angle), libm::cosf(turn_angle));
@@ -527,6 +531,33 @@ impl CubeScene {
                     cell.map(|x| x * self.puzzle_spacing(elapsed_millis)),
                     grid::CUBE_GRID_SCALE,
                 ),
+                SceneMode::Sphere => {
+                    let translation = grid::sphere_position(i);
+                    let depth = -(camera.view[2] * translation[0]
+                        + camera.view[6] * translation[1]
+                        + camera.view[10] * translation[2]
+                        + camera.view[14]);
+                    let active = grid::project(&camera.view_projection, translation, width, height)
+                        .is_some_and(|point| {
+                            self.cursors.iter().any(|c| {
+                                grid::near(
+                                    point,
+                                    c.local,
+                                    width,
+                                    height,
+                                    grid::sphere_cursor_radius_px(width, height),
+                                )
+                            })
+                        });
+                    (
+                        translation,
+                        if active {
+                            grid::CUBE_SCALE
+                        } else {
+                            grid::marker_scale(depth, camera.projection[5], height)
+                        },
+                    )
+                }
             };
             let seed = RetainedTransformSeed {
                 translation,
@@ -542,8 +573,10 @@ impl CubeScene {
                 flags: ((i as u32) << 16)
                     | if self.mode == SceneMode::StaticCube {
                         rubik::PALETTE_FLAG | i as u32
-                    } else {
+                    } else if self.mode == SceneMode::InteractiveGrid {
                         rubik::ROOM_PALETTE_FLAG
+                    } else {
+                        rubik::SPHERE_GRADIENT_FLAG
                     },
             };
             if i < 27 {
@@ -581,7 +614,7 @@ impl CubeScene {
                 let row = opaque_count + slot;
                 encode_seed(seed, &mut seed_bytes[row * 64..(row + 1) * 64]);
             }
-        } else {
+        } else if self.mode == SceneMode::InteractiveGrid {
             // Keep both draw groups stable across the scene transition. This
             // origin seed has clip.w=0 and HS emits no primitives.
             let dummy = RetainedTransformSeed {
@@ -637,15 +670,19 @@ impl CubeScene {
                     },
                     seed_buffer: self.seed_buffer.raw(),
                     seed_count: seed_count as u32,
-                    draw_count: 2,
+                    draw_count: if self.mode == SceneMode::Sphere { 1 } else { 2 },
                     draws: [
                         RetainedDrawRange {
                             first_index: 0,
                             index_count: 44,
                         },
-                        RetainedDrawRange {
-                            first_index: 0,
-                            index_count: 44,
+                        if self.mode == SceneMode::Sphere {
+                            RetainedDrawRange::default()
+                        } else {
+                            RetainedDrawRange {
+                                first_index: 0,
+                                index_count: 44,
+                            }
                         },
                         RetainedDrawRange::default(),
                         RetainedDrawRange::default(),
@@ -670,7 +707,9 @@ impl CubeScene {
             .keyboard_state()
             .map_err(|error| CubeError::Ui4("mode-hotkeys", error))?;
         let current = state.map_or(0, |keyboard| {
-            (keyboard.is_down(0x1e) as u8) | ((keyboard.is_down(0x1f) as u8) << 1)
+            (keyboard.is_down(0x1e) as u8)
+                | ((keyboard.is_down(0x1f) as u8) << 1)
+                | ((keyboard.is_down(0x20) as u8) << 2)
         });
         let pressed = current & !self.number_keys;
         self.number_keys = current;
@@ -678,6 +717,8 @@ impl CubeScene {
             Some(SceneMode::InteractiveGrid)
         } else if pressed & 2 != 0 {
             Some(SceneMode::StaticCube)
+        } else if pressed & 4 != 0 {
+            Some(SceneMode::Sphere)
         } else {
             None
         };
@@ -702,7 +743,7 @@ impl CubeScene {
                 self.flycam.camera.rotation =
                     look_at_camera_rotation(p, [0.0; 3], [0.0, -1.0, 0.0]);
             }
-            if mode == SceneMode::InteractiveGrid {
+            if mode != SceneMode::StaticCube {
                 self.flycam.camera.position = [0.0; 3];
             }
             self.cursors.clear();
@@ -714,6 +755,8 @@ impl CubeScene {
                         SceneMode::InteractiveGrid => "1 interactive-grid",
                         SceneMode::StaticCube =>
                             "2 compact-puzzle click=edge/corner turns=3x1s camera=WASD-orbit idle=3s-auto-orbit",
+                        SceneMode::Sphere =>
+                            "3 sphere=1024 camera=center WASD=look cursor-expand=10%-area",
                     },
                     mode.seed_count(),
                 ),
@@ -732,6 +775,7 @@ impl CubeScene {
             yfov: match mode {
                 SceneMode::InteractiveGrid => ROOM_YFOV,
                 SceneMode::StaticCube => PUZZLE_YFOV,
+                SceneMode::Sphere => ROOM_YFOV,
             },
             znear: 0.1,
             zfar: Some(100.0),

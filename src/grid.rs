@@ -8,7 +8,12 @@ pub const SPACING: f32 = 0.8;
 pub const ROOM_HALF_EXTENT: f32 = 6.0;
 pub const CUBE_GRID_AXIS: usize = 3;
 pub const CUBE_GRID_COUNT: usize = CUBE_GRID_AXIS * CUBE_GRID_AXIS * CUBE_GRID_AXIS;
-pub const MAX_SEED_COUNT: usize = COUNT + 1;
+/// Key 3 fills the renderer's single retained draw group exactly.
+pub const SPHERE_COUNT: usize = 1024;
+pub const SPHERE_RADIUS: f32 = 6.0;
+/// The expanding cursor circle covers 10% of the current viewport area.
+pub const SPHERE_CURSOR_AREA_FRACTION: f32 = 0.10;
+pub const MAX_SEED_COUNT: usize = SPHERE_COUNT;
 pub const CUBE_GRID_SPACING: f32 = 2.2;
 pub const CUBE_GRID_SCALE: f32 = 0.55;
 /// Compact Rubik layout: one percent of a cubie's 1.1-unit side length.
@@ -64,6 +69,27 @@ pub fn cube_position(index: usize) -> [f32; 3] {
         (y as f32 - center) * CUBE_GRID_SPACING,
         (z as f32 - center) * CUBE_GRID_SPACING,
     ]
+}
+
+/// Evenly distributes the Key-3 seeds across the inside of a radius-six sphere
+/// without a vertex buffer or pole clustering.
+pub fn sphere_position(index: usize) -> [f32; 3] {
+    let t = (index as f32 + 0.5) / SPHERE_COUNT as f32;
+    let y = 1.0 - 2.0 * t;
+    let radial = libm::sqrtf((1.0 - y * y).max(0.0));
+    let azimuth = index as f32 * 2.399_963_1;
+    [
+        SPHERE_RADIUS * radial * libm::cosf(azimuth),
+        SPHERE_RADIUS * y,
+        SPHERE_RADIUS * radial * libm::sinf(azimuth),
+    ]
+}
+
+pub fn sphere_cursor_radius_px(width: u32, height: u32) -> f32 {
+    libm::sqrtf(
+        SPHERE_CURSOR_AREA_FRACTION * width.max(1) as f32 * height.max(1) as f32
+            / core::f32::consts::PI,
+    )
 }
 
 pub fn project(matrix: &[f32; 16], point: [f32; 3], width: u32, height: u32) -> Option<[f32; 2]> {
@@ -147,6 +173,23 @@ mod tests {
                 assert_ne!(cube_position(i), cube_position(j));
             }
         }
+    }
+    #[test]
+    fn sphere_has_1024_radius_six_seeds() {
+        assert_eq!(SPHERE_COUNT, 1024);
+        for i in 0..SPHERE_COUNT {
+            let p = sphere_position(i);
+            let radius = libm::sqrtf(p.iter().map(|v| v * v).sum::<f32>());
+            assert!((radius - SPHERE_RADIUS).abs() < 0.000_01);
+        }
+    }
+    #[test]
+    fn sphere_cursor_covers_ten_percent_of_viewport() {
+        let width = 784;
+        let height = 441;
+        let radius = sphere_cursor_radius_px(width, height);
+        let fraction = core::f32::consts::PI * radius * radius / (width * height) as f32;
+        assert!((fraction - SPHERE_CURSOR_AREA_FRACTION).abs() < 0.000_001);
     }
     #[test]
     fn compact_puzzle_spacing_has_a_one_percent_cube_gap() {

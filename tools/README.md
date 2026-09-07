@@ -66,8 +66,9 @@ hull shader.
 Captured URB partitions and triangle-domain TE state are programmed; ordinary
 draws explicitly disable HS/TE/DS and restore their ordinary URB allocation.
 
-Contract version 7 instances six 10×10 room walls or a rotating 3×3×3 puzzle via
-V3's buffered transform seeds. VS reads camera/instances/compacted IDs at BTI1/2/3.
+Contract version 7 instances six 10×10 room walls, a rotating 3×3×3 puzzle, or
+a 1,024-seed sphere via V3's buffered transform seeds. VS reads
+camera/instances/compacted IDs at BTI1/2/3.
 Only translations, quaternion rotations, positive uniform scales and the
 full 44-patch range are accepted. V3's material envelope must remain default;
 the shader uses baseline material-0 lighting. Vertex layout ID 6 prevents
@@ -106,6 +107,12 @@ palette colour; they do not use the puzzle's translucent sticker pass. Its camer
 stays at the origin; W/S look up/down and A/D look left/right. Mouse-look and
 Q/E are disabled.
 
+Key 3 places 1,024 Fibonacci-distributed seeds on a radius-six sphere around
+the camera. It uses Key 1's centered WASD look controls; every seed uses an RGB
+gradient from its sphere position, both as a dot and as an expanded cube. Routed
+cursor movement expands the nearby seeds with a screen-space circle whose area
+is 10% of the current viewport.
+
 A gray 22-segment LINE_LIST floor at Y=3.5 provides orientation. It is one
 retained static draw with CPU homogeneous line clipping and vertex refreshes;
 the kernel's former one-segment restriction is widened to at most 64 segments.
@@ -116,7 +123,7 @@ coordinates and orientation bases are committed at turn boundaries to avoid drif
 Seed flag 0x100 enables six stickers by original cubie ID and local axial normal:
 +X red, -X orange, +Y white, -Y yellow, +Z green, -Z blue. Only the 54 original
 outward square faces receive these colors (two triangles each); bevels and
-inward faces remain baseline blue. Only mode 2's six palette sticker faces use
+inward faces remain baseline black. Only mode 2's six palette sticker faces use
 35% straight alpha; every baseline surface and mode 1 stay opaque.
 Group 0 emits only opaque surfaces with depth writes enabled, followed by the
 floor. Group 1 emits the 54 individual sticker faces sorted far-to-near each
