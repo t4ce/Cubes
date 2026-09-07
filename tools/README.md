@@ -66,12 +66,25 @@ hull shader.
 Captured URB partitions and triangle-domain TE state are programmed; ordinary
 draws explicitly disable HS/TE/DS and restore their ordinary URB allocation.
 
-Contract version 3 instances a 24×12 XY lattice or static 3×3×3 lattice via
+Contract version 4 instances a 24×12 XY lattice or rotating 3×3×3 puzzle via
 V3's buffered transform seeds. VS reads camera/instances/compacted IDs at BTI1/2/3.
-Only translations and positive uniform scales with identity rotation and the
+Only translations, quaternion rotations, positive uniform scales and the
 full 44-patch range are accepted. V3's material envelope must remain default;
-the shader still uses baked material 0. Vertex layout ID 4 deliberately prevents
-an old single-object kernel from accepting this instanced app. Rebuild both.
+the shader uses baseline material-0 lighting. Vertex layout ID 5 prevents
+older translation-only kernels from accepting the oriented app. Rebuild both.
+VS passes original instance identity through HS; DS uses BTI2 to apply the
+instance matrix to generated positions and normals. Its shaded-color varying
+replaces the former normal varying, so PS still consumes one vec3.
+
+Key 2 starts ordered and begins an outer-layer quarter-turn every 500 ms,
+with 250 ms smooth animation and a deterministic xorshift choice of face/direction.
+Re-entering Key 2 resets the puzzle without resetting the camera. Integer cell
+coordinates and orientation bases are committed at turn boundaries to avoid drift.
+Seed flag 0x100 enables six stickers by original cubie ID and local axial normal:
++X red, -X orange, +Y white, -Y yellow, +Z green, -Z blue. Only the 54 original
+outward square faces receive these colors (two triangles each); bevels and
+inward faces remain baseline blue. Colors rotate with cubies, not world axes.
+Spacing, scale, location and fly-camera configuration are unchanged.
 
 Each routed, focused N-Mouse cursor activates cubes within a radius linked to
 the expanded cube's projected scale.

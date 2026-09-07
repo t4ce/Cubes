@@ -195,7 +195,7 @@ impl CubeScene {
         logl::log(
             level::INFO,
             format_args!(
-                "Cubes: mode-1-grid={}x{} retained_seeds={} mode-2-static-cube=3x3x3 flycam=WASD+QE-roll+middle-drag",
+                "Cubes: mode-1-grid={}x{} retained_seeds={} mode-2-palette-cube=3x3x3 turns=500ms flycam=WASD+QE-roll+middle-drag",
                 grid::COLS,
                 grid::ROWS,
                 grid::COUNT,
@@ -294,11 +294,10 @@ impl CubeScene {
             self.puzzle.update(elapsed_millis);
         }
         let turn_angle = self.puzzle.angle(elapsed_millis);
+        let (turn_sin, turn_cos) = (libm::sinf(turn_angle), libm::cosf(turn_angle));
         let mut seed_bytes = [0u8; grid::MAX_SEED_COUNT * 64];
         for i in 0..seed_count {
-            let (cell, basis) =
-                self.puzzle
-                    .pose(i.min(26), libm::sinf(turn_angle), libm::cosf(turn_angle));
+            let (cell, basis) = self.puzzle.pose(i.min(26), turn_sin, turn_cos);
             let (translation, scale) = match self.mode {
                 SceneMode::InteractiveGrid => {
                     let translation = grid::position(i);

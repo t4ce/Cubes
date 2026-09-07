@@ -87,7 +87,7 @@ const fn kernel(offset: u32, size: u32, grf: u8, bindings: u8) -> ShaderKernelMe
 pub(crate) static PIPELINE: TrianglePipeline = TrianglePipeline {
     vs: TriangleVertexShader { code: &VERTEX, meta: TriangleVertexShaderMetadata {
         kernel: kernel(0, VERTEX.len() as u32 * 4, 2, 4), max_threads: 546,
-        urb_entry_output_length: 2 } },
+        urb_entry_output_length: 1 } },
     ps: TrianglePixelShader { code: &FRAGMENT, meta: TrianglePixelShaderMetadata {
         kernel: kernel(((VERTEX.len() as u32 * 4) + 63) & !63, FRAGMENT.len() as u32 * 4, 4, 1),
         num_varying_inputs: 1, uses_vmask: true, computed_stencil: false,
