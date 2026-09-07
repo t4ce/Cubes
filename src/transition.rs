@@ -1,4 +1,4 @@
-pub const WAIT_MS: u64 = 3000;
+pub const WAIT_MS: u64 = 1000;
 pub const FLIGHT_MS: u64 = 2500;
 pub struct Flight {
     pub started: u64,
@@ -36,5 +36,10 @@ mod tests {
         for n in 3000..5500 {
             assert!(f.position(n).iter().all(|v| v.is_finite()));
         }
+    }
+
+    #[test]
+    fn post_turn_pause_is_one_second() {
+        assert_eq!(WAIT_MS, 1_000);
     }
 }

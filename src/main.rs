@@ -34,6 +34,8 @@ const CUBE_INDICES: &[u8] = &[0; 44 * 4];
 const CUBE_SOURCE: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/Cube/cube.glb"));
 const WIDTH: u32 = 784;
 const HEIGHT: u32 = 441;
+const PUZZLE_YFOV: f32 = core::f32::consts::FRAC_PI_3;
+const ROOM_YFOV: f32 = 5.0 * core::f32::consts::PI / 12.0;
 const IDLE_ORBIT_DELAY_MS: u64 = 3_000;
 const IDLE_ORBIT_RADIANS_PER_SECOND: f32 = 0.18;
 
@@ -226,7 +228,7 @@ impl CubeScene {
         logl::log(
             level::INFO,
             format_args!(
-                "Cubes: mode-1-room=6x{}x{} retained_seeds={} default=2 compact-select-expand-3turns wait=3s flight=2.5s camera=WASD-orbit idle=3s-auto-orbit",
+                "Cubes: mode-1-room=6x{}x{} retained_seeds={} default=2 compact-select-expand-3turns wait=1s flight=2.5s camera=WASD-orbit idle=3s-auto-orbit",
                 grid::COLS,
                 grid::ROWS,
                 grid::COUNT,
@@ -374,8 +376,10 @@ impl CubeScene {
                 ) * ease;
                 target = cell.map(|x| x * self.puzzle_spacing(elapsed_millis));
             } else if self.flight.is_none() {
-                self.orbit[0] += (held(0x04) as i32 - held(0x07) as i32) as f32 * dt;
-                self.orbit[1] += (held(0x16) as i32 - held(0x1a) as i32) as f32 * dt;
+                // The room uses a screen-down world Y convention, so reverse
+                // both orbit axes to retain conventional visual controls.
+                self.orbit[0] += (held(0x07) as i32 - held(0x04) as i32) as f32 * dt;
+                self.orbit[1] += (held(0x1a) as i32 - held(0x16) as i32) as f32 * dt;
                 if self.mode == SceneMode::StaticCube
                     && self.puzzle.selected().is_none()
                     && elapsed_millis.saturating_sub(self.last_camera_activity_millis)
@@ -451,6 +455,7 @@ impl CubeScene {
                     );
                     if flight.done(elapsed_millis) {
                         self.mode = SceneMode::InteractiveGrid;
+                        self.set_mode_projection(SceneMode::InteractiveGrid);
                         self.flycam.camera.position = [0.0; 3];
                         self.look_target = direction.map(|x| x * r);
                         self.flight = None;
@@ -680,6 +685,7 @@ impl CubeScene {
             && (mode != self.mode || mode == SceneMode::StaticCube)
         {
             self.mode = mode;
+            self.set_mode_projection(mode);
             self.puzzle = rubik::Puzzle::new(self.previous_elapsed_millis);
             self.last_camera_activity_millis = self.previous_elapsed_millis;
             self.finished_at = None;
@@ -719,6 +725,18 @@ impl CubeScene {
     fn puzzle_spacing(&self, now: u64) -> f32 {
         let compact = grid::CUBE_COMPACT_SPACING;
         compact + (grid::CUBE_GRID_SPACING - compact) * self.puzzle.expansion(now)
+    }
+
+    fn set_mode_projection(&mut self, mode: SceneMode) {
+        self.flycam.camera.projection = Projection::Perspective {
+            yfov: match mode {
+                SceneMode::InteractiveGrid => ROOM_YFOV,
+                SceneMode::StaticCube => PUZZLE_YFOV,
+            },
+            znear: 0.1,
+            zfar: Some(100.0),
+            aspect_ratio: None,
+        };
     }
 
     /// UI4 delivers maximization and restoration as resize requests. Keep a
@@ -794,7 +812,7 @@ fn default_camera() -> Camera {
         position,
         rotation: look_at_camera_rotation(position, [0.0; 3], [0.0, -1.0, 0.0]),
         projection: Projection::Perspective {
-            yfov: core::f32::consts::FRAC_PI_3,
+            yfov: PUZZLE_YFOV,
             znear: 0.1,
             zfar: Some(100.0),
             aspect_ratio: None,

@@ -4,6 +4,8 @@ pub const ROWS: usize = 10;
 pub const COUNT: usize = 6 * COLS * ROWS;
 // Ten-by-ten lattice on each of six walls, viewed from the room center.
 pub const SPACING: f32 = 0.8;
+/// Key-1 room walls sit farther from the origin than the compact puzzle.
+pub const ROOM_HALF_EXTENT: f32 = 6.0;
 pub const CUBE_GRID_AXIS: usize = 3;
 pub const CUBE_GRID_COUNT: usize = CUBE_GRID_AXIS * CUBE_GRID_AXIS * CUBE_GRID_AXIS;
 pub const MAX_SEED_COUNT: usize = COUNT + 1;
@@ -41,12 +43,12 @@ pub fn position(index: usize) -> [f32; 3] {
     let a = ((i % 10) as f32 - 4.5) * SPACING;
     let b = ((i / 10) as f32 - 4.5) * SPACING;
     match face {
-        0 => [4.0, a, b],
-        1 => [-4.0, a, b],
-        2 => [a, 4.0, b],
-        3 => [a, -4.0, b],
-        4 => [a, b, 4.0],
-        _ => [a, b, -4.0],
+        0 => [ROOM_HALF_EXTENT, a, b],
+        1 => [-ROOM_HALF_EXTENT, a, b],
+        2 => [a, ROOM_HALF_EXTENT, b],
+        3 => [a, -ROOM_HALF_EXTENT, b],
+        4 => [a, b, ROOM_HALF_EXTENT],
+        _ => [a, b, -ROOM_HALF_EXTENT],
     }
 }
 
@@ -123,9 +125,15 @@ mod tests {
                 assert_ne!(position(i), position(j));
             }
         }
-        assert_eq!(position(0), [4.0, -3.6000001, -3.6000001]);
+        assert_eq!(position(0), [6.0, -3.6000001, -3.6000001]);
         for i in 0..COUNT {
-            assert_eq!(position(i).iter().filter(|x| x.abs() == 4.0).count(), 1);
+            assert_eq!(
+                position(i)
+                    .iter()
+                    .filter(|x| x.abs() == ROOM_HALF_EXTENT)
+                    .count(),
+                1
+            );
         }
     }
     #[test]

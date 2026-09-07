@@ -96,12 +96,15 @@ three turns. WASD orbits a fixed-radius sphere while looking at the puzzle when
 unlocked; mouse-look and Q/E are disabled in Key 2. The camera target eases back
 to the puzzle center on completion. Pressing Key 2 again resets the selection
 phase. Both orbital angles wrap without clamps, with a pole-safe rotating up vector.
-After the third turn, three seconds of free orbit precede a 2.5-second eased
+After the third turn, one second of free orbit precedes a 2.5-second eased
 cubic-Bezier flight into the selected cubie's center. Arrival switches to Key 1.
-Key 1 places 100 seeds on each of six walls at ±4 units. Whole expanded cubes
+Key 1 places 100 seeds on each of six walls at ±6 units, with a 75° vertical
+field of view (Key 2 remains 60°). This makes the surrounding room cubes read
+farther away and smaller. Whole expanded cubes
 on +X/-X/+Y/-Y/+Z/-Z use the matching opaque red/orange/white/yellow/green/blue
 palette colour; they do not use the puzzle's translucent sticker pass. Its camera
-stays at the origin; WASD changes view direction only. Mouse-look and Q/E are disabled.
+stays at the origin; W/S look up/down and A/D look left/right. Mouse-look and
+Q/E are disabled.
 
 A gray 22-segment LINE_LIST floor at Y=3.5 provides orientation. It is one
 retained static draw with CPU homogeneous line clipping and vertex refreshes;
