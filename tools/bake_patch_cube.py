@@ -265,8 +265,8 @@ void main() {
     (out / "cube.frag").write_text('''#version 450
 layout(location=0) in vec3 shadedColor;
 layout(location=0) out vec4 color;
-// Same material-0 lighting as the imported Cubes retained forward path.
-// Cubes uses an identity object transform and material_id=0.
+// DS applies the baseline lighting to each planar triangle's oriented normal.
+// Carrying its shaded color keeps the raster-stage interface at one vec3.
 void main() {
     color = vec4(shadedColor, 1.0);
 }

@@ -17,8 +17,8 @@ canonical positions, then select the per-corner normal from instruction
 immediates. The 132-corner triangle mapping remains exact, while geometric
 position state is explicitly 24 points. Each patch writes three control
 points and unit tessellation factors. The triangle-domain DS interpolates the patch
-and uses the existing camera matrix at byte 128. The fragment shader uses
-the baseline's material-0 lighting. This is baked reference geometry, not
+and uses the existing camera matrix at byte 128. DS applies the baseline's
+material-0 lighting; PS writes the resulting color. This is baked reference geometry, not
 a general-purpose cube-generation or arbitrary-asset shader API.
 
 ## Checks and bake

@@ -195,7 +195,7 @@ impl CubeScene {
         logl::log(
             level::INFO,
             format_args!(
-                "Cubes: mode-1-grid={}x{} retained_seeds={} mode-2-palette-cube=3x3x3 turns=500ms flycam=WASD+QE-roll+middle-drag",
+                "Cubes: mode-1-grid={}x{} retained_seeds={} mode-2-palette-cube=3x3x3 turns=1s/every-5s flycam=WASD+QE-roll+middle-drag",
                 grid::COLS,
                 grid::ROWS,
                 grid::COUNT,
@@ -423,7 +423,7 @@ impl CubeScene {
                     "Cubes: mode={} seed_count={}",
                     match mode {
                         SceneMode::InteractiveGrid => "1 interactive-grid",
-                        SceneMode::StaticCube => "2 palette-3x3x3-cube turns=500ms",
+                        SceneMode::StaticCube => "2 palette-3x3x3-cube turns=1s/every-5s",
                     },
                     mode.seed_count(),
                 ),

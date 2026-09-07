@@ -1,7 +1,8 @@
 //! Exact cubie identities and lattice orientations; animation never accumulates drift.
 pub const PALETTE_FLAG: u32 = 256;
-const CADENCE: u64 = 500;
-const TURN_MS: u64 = 250;
+/// Start one quarter-turn every five seconds, leaving four seconds to view it at rest.
+const CADENCE: u64 = 5_000;
+const TURN_MS: u64 = 1_000;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Cubie {
     cell: [i8; 3],
@@ -131,8 +132,8 @@ mod tests {
     fn scramble_preserves_unique_cells_and_outward_stickers() {
         let mut p = Puzzle::new(0);
         for n in 1..200 {
-            p.update(n * 500);
-            p.update(n * 500 + 250);
+            p.update(n * CADENCE);
+            p.update(n * CADENCE + TURN_MS);
             for i in 0..27 {
                 for j in 0..i {
                     assert_ne!(p.cubies[i].cell, p.cubies[j].cell);
@@ -155,16 +156,20 @@ mod tests {
         }
     }
     #[test]
-    fn starts_ordered_and_waits_half_a_second() {
+    fn starts_ordered_then_turns_once_every_five_seconds_for_one_second() {
         let mut p = Puzzle::new(100);
-        p.update(599);
+        p.update(5_099);
         assert!(p.turn.is_none());
-        p.update(600);
+        p.update(5_100);
         assert!(p.turn.is_some());
-        assert_eq!(p.angle(600), 0.0);
-        p.update(850);
+        assert_eq!(p.angle(5_100), 0.0);
+        p.update(6_099);
+        assert!(p.turn.is_some());
+        p.update(6_100);
         assert!(p.turn.is_none());
-        p.update(1100);
+        p.update(10_099);
+        assert!(p.turn.is_none());
+        p.update(10_100);
         assert!(p.turn.is_some());
     }
 }
