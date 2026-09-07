@@ -25,6 +25,7 @@ Run from Cubes:
 
 ```sh
 python3 tools/test_bake_patch_cube.py
+python3 tools/test_patch_overlay.py
 python3 tools/bake_patch_cube.py --out target/patch-cube --source-only
 python3 tools/bake_patch_cube.py --out target/patch-cube
 python3 tools/export_patch_driver.py target/patch-cube ../TRUEOS/crates/trueos-shader/generated_patch_cube.rs
@@ -68,9 +69,13 @@ transforms and V3 draw ranges are rejected rather than silently ignored.
 The retained frame's existing transform/indirect compute dispatch remains;
 it does not expand the cube mesh. Geometry expansion is performed by HS.
 
-`build.rs` checks the reference GLB hash against the generated driver bundle
+`build.rs` checks the reference GLB hash against the app-local exported
+`Cube/cube_driver_manifest.rs` (written alongside the driver bundle)
 instead of expanding imported vertices. The source GLB is retained as a
 reference asset, but is no longer used as runtime draw geometry.
+This works inside Blueprint source overlays without a sibling TRUEOS tree.
+The overlay test also verifies that a stale asset is rejected. The manifest
+does not attest which kernel is currently booted.
 
 Host checks: `cargo check` in TRUEOS and Cubes, plus standalone shader tests:
 

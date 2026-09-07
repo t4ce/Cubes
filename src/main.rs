@@ -1,12 +1,15 @@
 #![no_std]
 
 extern crate alloc;
+mod grid;
+use alloc::vec::Vec;
 
-use trueos::ui4_scene::{Damage, Error as Ui4Error, Frame, output_dimensions};
+use trueos::ui4_scene::{CursorSource, Damage, Error as Ui4Error, Frame, output_dimensions};
 use trueos::vgpu::{
-    BUFFER_USAGE_INDEX, BUFFER_USAGE_MAP_WRITE, BUFFER_USAGE_VERTEX, Buffer, Capabilities, Device,
+    BUFFER_USAGE_INDEX, BUFFER_USAGE_MAP_READ, BUFFER_USAGE_MAP_WRITE, BUFFER_USAGE_VERTEX, Buffer, Capabilities, Device,
     Queue, QueueClass, RETAINED_VERTEX_LAYOUT_CUBE_PATCH_SEED, RetainedFrameSubmit, RetainedMesh,
     RetainedMeshDescriptor, RetainedTransformSeed,
+    RetainedFrameSubmitV2, RetainedFrameSubmitV3, RetainedDrawRange,
 };
 use trueos::{
     clock,
@@ -14,7 +17,7 @@ use trueos::{
     vsys,
 };
 use trueos_picasso::Picasso;
-use trueos_picasso::cam::{Camera, FlyCam, Projection, Quaternion};
+use trueos_picasso::cam::{Camera, Projection, Quaternion};
 
 // Runtime input contains no imported mesh: HS generates all 44 triangles.
 const CUBE_VERTEX_COUNT: u32 = 1;
@@ -25,8 +28,13 @@ const CUBE_INDICES: &[u8] = &[0; 44 * 4];
 const CUBE_SOURCE: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/Cube/cube.glb"));
 const WIDTH: u32 = 784;
 const HEIGHT: u32 = 441;
-const FLYCAM_SPEED: f32 = 1.5;
-const FLYCAM_LOOK_SENSITIVITY: f32 = 0.002;
+
+struct GridCursor {
+    source: CursorSource,
+    combo: u32,
+    virtual_cursor: bool,
+    local: [i32; 2],
+}
 
 #[derive(Clone, Copy, Debug)]
 enum CubeError {
@@ -42,7 +50,9 @@ struct CubeScene {
     vertices: Buffer,
     indices: Buffer,
     mesh: RetainedMesh,
-    flycam: FlyCam,
+    camera: Camera,
+    seed_buffer: Buffer,
+    cursors: Vec<GridCursor>,
     previous_elapsed_millis: u64,
     previous_view_projection: [f32; 16],
 }
@@ -152,8 +162,12 @@ impl CubeScene {
             )
             .map_err(|code| CubeError::Vgpu("mesh-create", code))?;
         let camera = default_camera();
-        let mut flycam = FlyCam::new(camera, FLYCAM_SPEED);
-        flycam.set_look_sensitivity(FLYCAM_LOOK_SENSITIVITY);
+        let seed_buffer = device.create_buffer(grid::COUNT * 64,
+            BUFFER_USAGE_MAP_READ | BUFFER_USAGE_MAP_WRITE)
+            .map_err(|code| CubeError::Vgpu("grid-seed-buffer", code))?;
+        logl::log(level::INFO, format_args!(
+            "Cubes: grid=16x9 retained_seeds=144 radius_px={} mouse=per-source-xy camera=fixed-grid-facing keys=W/S inactive=HS-culled",
+            grid::RADIUS_PX));
         Ok(Self {
             frame,
             device,
@@ -161,7 +175,9 @@ impl CubeScene {
             vertices,
             indices,
             mesh,
-            flycam,
+            camera,
+            seed_buffer,
+            cursors: Vec::new(),
             previous_elapsed_millis: 0,
             previous_view_projection: camera.retained(WIDTH, HEIGHT, [0.0; 16]).view_projection,
         })
@@ -171,22 +187,30 @@ impl CubeScene {
         let delta_seconds =
             elapsed_millis.saturating_sub(self.previous_elapsed_millis) as f32 * 0.001;
         self.previous_elapsed_millis = elapsed_millis;
-        self.flycam
-            .step_ui4(&self.frame, delta_seconds)
-            .map_err(|error| CubeError::Ui4("flycam-ui4", error))?;
+        let routes = self.frame.input_routes().map_err(|error| CubeError::Ui4("grid-input-routes", error))?;
+        let routed = |cursor: &GridCursor| routes.iter().any(|route|
+            route.cursor == cursor.source && route.combo_id == cursor.combo
+            && route.vcursor == cursor.virtual_cursor && route.selected_for_window && route.application_focus);
+        self.cursors.retain(&routed);
         while let Some(event) = self
             .frame
             .take_pointer_event()
             .map_err(|error| CubeError::Ui4("pointer-event", error))?
         {
-            self.flycam.handle_ui4_pointer_event(&event, true);
+            let cursor = GridCursor { source: event.source, combo: event.combo_id,
+                virtual_cursor: event.vcursor, local: [event.local_x, event.local_y] };
+            if !routed(&cursor) { continue; }
+            if let Some(existing) = self.cursors.iter_mut().find(|c| c.source == cursor.source
+                && c.combo == cursor.combo && c.virtual_cursor == cursor.virtual_cursor) {
+                *existing = cursor;
+            } else { self.cursors.push(cursor); }
         }
+        let held = |usage| routes.iter().filter(|r| r.selected_for_window && r.application_focus)
+            .any(|r| r.keyboard.as_ref().is_some_and(|k| k.is_down(usage)));
+        self.camera.position[2] = grid::move_camera(self.camera.position[2], held(0x1a), held(0x16), delta_seconds);
         let width = self.frame.width();
         let height = self.frame.height();
-        let camera = self
-            .flycam
-            .camera
-            .retained(width, height, self.previous_view_projection);
+        let camera = self.camera.retained(width, height, self.previous_view_projection);
         match self.frame.begin_gpu_frame() {
             Ok(()) => {}
             Err(Ui4Error::Busy) => return Ok(()),
@@ -196,31 +220,43 @@ impl CubeScene {
             .device
             .acquire_ui4_surface(self.frame.window_id())
             .map_err(|code| CubeError::Vgpu("surface-acquire", code))?;
-        let mut seeds =
-            [RetainedTransformSeed::default(); trueos::vgpu::MAX_RETAINED_TRANSFORM_SEEDS];
-        seeds[0] = RetainedTransformSeed {
-            translation: [0.0; 3],
-            scale: [1.0; 3],
+        let mut seed_bytes = [0u8; grid::COUNT * 64];
+        for i in 0..grid::COUNT {
+            let translation = grid::position(i);
+            let active = grid::project(&camera.view_projection, translation, width, height)
+                .is_some_and(|point| self.cursors.iter().any(|c| grid::near(point, c.local, width, height)));
+            let seed = RetainedTransformSeed {
+            translation,
+            scale: [if active { grid::CUBE_SCALE } else { grid::INACTIVE_SCALE }; 3],
             rotation: [0.0, 0.0, 0.0, 1.0],
-            local_radius: 1.0,
-            previous_translation: [0.0; 3],
+            local_radius: 1.74,
+            previous_translation: translation,
             draw_group: 0,
-            flags: 0,
+            flags: (i as u32) << 16,
         };
+            encode_seed(seed, &mut seed_bytes[i * 64..(i + 1) * 64]);
+        }
+        write_exact(self.device, self.seed_buffer, &seed_bytes)
+            .map_err(|code| CubeError::Vgpu("grid-seed-upload", code))?;
         let point = self
             .device
-            .submit_retained_frame(
+            .submit_retained_frame_v3(
                 self.queue,
                 surface,
                 self.mesh,
                 self.vertices,
                 self.indices,
-                RetainedFrameSubmit {
+                RetainedFrameSubmitV3 {
+                    frame: RetainedFrameSubmitV2 { frame: RetainedFrameSubmit {
                     camera,
                     clear_rgba8_srgb: u32::from_le_bytes([0, 128, 0, 0]),
-                    seed_count: 1,
-                    seeds,
                     ..RetainedFrameSubmit::default()
+                    }, ..RetainedFrameSubmitV2::default() },
+                    seed_buffer: self.seed_buffer.raw(), seed_count: grid::COUNT as u32,
+                    draw_count: 1,
+                    draws: [RetainedDrawRange { first_index: 0, index_count: 44 },
+                            RetainedDrawRange::default(), RetainedDrawRange::default(), RetainedDrawRange::default()],
+                    ..RetainedFrameSubmitV3::default()
                 },
             )
             .map_err(|code| CubeError::Vgpu("frame-submit", code))?;
@@ -241,8 +277,18 @@ fn write_exact(device: Device, buffer: Buffer, bytes: &[u8]) -> Result<(), i32> 
         .ok_or(trueos::vgpu::ERR_IO)
 }
 
+fn encode_seed(seed: RetainedTransformSeed, bytes: &mut [u8]) {
+    let values = seed.translation.into_iter().chain(seed.scale)
+        .chain(seed.rotation).chain([seed.local_radius]).chain(seed.previous_translation);
+    for (i, value) in values.enumerate() {
+        bytes[i * 4..i * 4 + 4].copy_from_slice(&value.to_le_bytes());
+    }
+    bytes[56..60].copy_from_slice(&seed.draw_group.to_le_bytes());
+    bytes[60..64].copy_from_slice(&seed.flags.to_le_bytes());
+}
+
 fn default_camera() -> Camera {
-    let position = [0.0, 0.0, -5.0];
+    let position = [0.0, 0.0, -7.5];
     Camera {
         position,
         rotation: look_at_camera_rotation(position, [0.0; 3], [0.0, -1.0, 0.0]),

@@ -106,20 +106,47 @@ def write_sources(source: Path, out: Path):
         cases += f"case {i}: p={vec(position)}; n={vec(normal)}; break;\n"
     (out / "cube.vert").write_text('''#version 450
 layout(location=0) in vec3 seed;
-void main() { gl_Position = vec4(seed, 1.0); }
+layout(std430, set=0, binding=0) readonly buffer Camera {
+    mat4 view; mat4 projection; mat4 viewProjection;
+} camera;
+// The existing retained-transform ABI: 208 bytes / 13 vec4s per instance.
+layout(std430, set=0, binding=1) readonly buffer Instances { vec4 rows[]; } instances;
+layout(std430, set=0, binding=2) readonly buffer Compacted { uint ids[]; } compacted;
+void main() {
+    uint base = compacted.ids[gl_InstanceIndex] * 13u;
+    mat4 model = mat4(instances.rows[base], instances.rows[base+1u],
+                      instances.rows[base+2u], instances.rows[base+3u]);
+    vec4 center = model * vec4(seed, 1.0);
+    vec4 clip = camera.viewProjection * center;
+    // Before tessellation, Position.w is the positive uniform cube scale.
+    // Seeds behind the eye are culled together with inactive tiny seeds.
+    gl_Position = vec4(center.xyz, clip.w > 0.0 ? length(model[0].xyz) : 0.0);
+}
 ''')
     (out / "cube.tesc").write_text('''#version 450
 layout(vertices=3) out;
 layout(location=0) out vec3 controlNormal[];
 ''' + '''
 void main() {
+    float scale = gl_in[0].gl_Position.w;
+    if (scale < 0.001) {
+        gl_out[gl_InvocationID].gl_Position = vec4(0,0,0,1);
+        controlNormal[gl_InvocationID] = vec3(0,0,1);
+        if (gl_InvocationID == 0) {
+            gl_TessLevelOuter[0] = 0.0;
+            gl_TessLevelOuter[1] = 0.0;
+            gl_TessLevelOuter[2] = 0.0;
+            gl_TessLevelInner[0] = 0.0;
+        }
+        return;
+    }
     int corner = gl_PrimitiveID * 3 + gl_InvocationID;
     uvec3 p = uvec3(0), n = uvec3(0);
     switch (corner) {
 ''' + cases + '''
     }
     gl_out[gl_InvocationID].gl_Position =
-        vec4(gl_in[0].gl_Position.xyz + uintBitsToFloat(p), 1.0);
+        vec4(gl_in[0].gl_Position.xyz + scale * uintBitsToFloat(p), 1.0);
     controlNormal[gl_InvocationID] = uintBitsToFloat(n);
     if (gl_InvocationID == 0) {
         gl_TessLevelOuter[0] = 1.0;
@@ -235,7 +262,16 @@ def make_dumper(out, patches):
     };
     const VkGraphicsPipelineCreateInfo pipeline_info = {''')
     c = replace(c, ".pInputAssemblyState = &input_assembly,", ".pInputAssemblyState = &input_assembly,\n        .pTessellationState = &tessellation,")
-    c = replace(c, ".stageFlags = VK_SHADER_STAGE_VERTEX_BIT,", ".stageFlags = VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT,")
+    c = replace(c, ".stageFlags = VK_SHADER_STAGE_VERTEX_BIT,", ".stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT,")
+    c = replace(c, "    const VkDescriptorSetLayoutCreateInfo set_layout_info = {", '''
+    VkDescriptorSetLayoutBinding cube_bindings[3] = {camera_binding, camera_binding, camera_binding};
+    cube_bindings[1].binding = 1;
+    cube_bindings[2].binding = 2;
+    cube_bindings[1].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    cube_bindings[2].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    const VkDescriptorSetLayoutCreateInfo set_layout_info = {''')
+    c = replace(c, '.bindingCount = 1,', '.bindingCount = 3,')
+    c = replace(c, '.pBindings = &camera_binding,', '.pBindings = cube_bindings,')
     c = replace(c, 'case VK_SHADER_STAGE_GEOMETRY_BIT:', '''case VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT: return "tess_control";
         case VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT: return "tess_eval";
         case VK_SHADER_STAGE_GEOMETRY_BIT:''')
@@ -275,7 +311,7 @@ def make_dumper(out, patches):
 ''' + c[end:]
     c = replace(c, ".usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,",
                 ".usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,")
-    c = replace(c, "    const VkCommandBufferBeginInfo begin_info = {", f'''    VkDescriptorPoolSize pool_size = {{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1}};
+    c = replace(c, "    const VkCommandBufferBeginInfo begin_info = {", f'''    VkDescriptorPoolSize pool_size = {{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3}};
     VkDescriptorPoolCreateInfo descriptor_pool_info = {{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .maxSets = 1, .poolSizeCount = 1, .pPoolSizes = &pool_size,
@@ -294,6 +330,15 @@ def make_dumper(out, patches):
         .dstSet = camera_set, .dstBinding = 0, .descriptorCount = 1,
         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .pBufferInfo = &camera_buffer,
     }};
+    vkUpdateDescriptorSets(device, 1, &camera_write, 0, NULL);
+    // Valid backing ranges for recording only; no EU code is submitted.
+    VkDescriptorBufferInfo instance_buffer = {{vertex_buffer, 0, 208}};
+    VkDescriptorBufferInfo compacted_buffer = {{vertex_buffer, 0, 4}};
+    camera_write.dstBinding = 1;
+    camera_write.pBufferInfo = &instance_buffer;
+    vkUpdateDescriptorSets(device, 1, &camera_write, 0, NULL);
+    camera_write.dstBinding = 2;
+    camera_write.pBufferInfo = &compacted_buffer;
     vkUpdateDescriptorSets(device, 1, &camera_write, 0, NULL);
     const VkCommandBufferBeginInfo begin_info = {{''')
     c = replace(c, "    vkCmdDraw(command_buffer, line_adjacency ? 4u : (geometry_enabled ? 6u : 3u), 1, 0, 0);", f'''
