@@ -1,9 +1,9 @@
 #![no_std]
 
 extern crate alloc;
+mod counters;
 mod floor;
 mod grid;
-mod hud;
 mod orchard;
 include!(concat!(env!("OUT_DIR"), "/orchard_assets.rs"));
 mod picking;
@@ -35,9 +35,6 @@ const CUBE_INDICES: &[u8] = &[0; 44 * 4];
 
 const CUBE_SOURCE: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/Cube/cube.glb"));
 const WIDTH: u32 = 784;
-// Performance A/B switch: false creates no counter task/window or sprite work.
-// Keep the Tokio runtime and scene scheduling unchanged to isolate the HUD.
-const ENABLE_COUNTER_HUD: bool = false;
 const HEIGHT: u32 = 441;
 const PUZZLE_YFOV: f32 = core::f32::consts::FRAC_PI_3;
 const ROOM_YFOV: f32 = 5.0 * core::f32::consts::PI / 12.0;
@@ -88,7 +85,7 @@ enum CubeError {
 
 struct CubeScene {
     frame: Frame,
-    hud: Option<hud::Worker>,
+    counters: counters::Sampler,
     device: Device,
     queue: Queue,
     vertices: Buffer,
@@ -116,20 +113,7 @@ struct CubeScene {
 }
 
 fn main() {
-    let result = match trueos::runtime::current_thread().build() {
-        Ok(runtime) => {
-            let local = trueos::tokio::task::LocalSet::new();
-            local.block_on(&runtime, run())
-        }
-        Err(error) => {
-            logl::log(
-                level::ERROR,
-                format_args!("Cubes: Tokio runtime unavailable={error}"),
-            );
-            Err(CubeError::Contract)
-        }
-    };
-    if let Err(error) = result {
+    if let Err(error) = run() {
         logl::log(
             level::ERROR,
             format_args!("Cubes: startup/render failure={error:?}"),
@@ -138,7 +122,7 @@ fn main() {
     let _ = trueos::vshell::shutdown_current_blueprint("Cubes exited");
 }
 
-async fn run() -> Result<(), CubeError> {
+fn run() -> Result<(), CubeError> {
     // Keep the source as a reference asset; only seed/patch indices become
     // vGPU geometry. The driver owns the precompiled matching HS/DS bundle.
     let picasso = Picasso::new().map_err(|_| CubeError::Contract)?;
@@ -175,13 +159,8 @@ async fn run() -> Result<(), CubeError> {
     let mut scene = CubeScene::open(&vertices, &indices)?;
     let started = clock::monotonic_millis();
     loop {
-        if let Err(error) = scene.render(clock::monotonic_millis().saturating_sub(started)) {
-            if let Some(hud) = scene.hud.take() {
-                hud.shutdown().await;
-            }
-            return Err(error);
-        }
-        trueos::tokio::time::sleep(core::time::Duration::from_millis(16)).await;
+        scene.render(clock::monotonic_millis().saturating_sub(started))?;
+        trueos::vsys::sleep_ms(16);
     }
 }
 
@@ -298,28 +277,8 @@ impl CubeScene {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let hud = if !ENABLE_COUNTER_HUD {
-            logl::log(
-                level::INFO,
-                format_args!("Cubes: counter HUD disabled (performance test)"),
-            );
-            None
-        } else {
-            match hud::Worker::spawn(&frame) {
-                Ok(panel) => Some(panel),
-                Err(error) => {
-                    logl::log(
-                        level::WARN,
-                        format_args!(
-                            "Cubes: counter window unavailable={error:?}; scene continues"
-                        ),
-                    );
-                    None
-                }
-            }
-        };
         Ok(Self {
-            hud,
+            counters: counters::Sampler::new(clock::monotonic_millis()),
             orchards,
             orchard_index: 0,
             frame,
@@ -824,12 +783,13 @@ impl CubeScene {
         self.frame
             .publish(Damage::full(width, height))
             .map_err(|error| CubeError::Ui4("frame-publish", error))?;
-        if let Some(panel) = self.hud.as_ref() {
-            panel.send(
-                self.mode.number(),
-                expanded_count,
-                countable_seed_count.saturating_sub(expanded_count),
-            );
+        if let Some(report) = self.counters.record(
+            clock::monotonic_millis(),
+            self.mode.number(),
+            expanded_count,
+            countable_seed_count.saturating_sub(expanded_count),
+        ) {
+            logl::log(level::INFO, format_args!("Cubes: {report}"));
         }
         self.previous_view_projection = camera.view_projection;
         Ok(())
