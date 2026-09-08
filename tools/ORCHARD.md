@@ -30,14 +30,45 @@ existing 44 PATCHLIST_1 references, not a POINT_LIST masquerading as patches.
 Visible seeds are compacted and sorted near-to-far on the CPU before upload.
 Only those seeds enter the existing VS/HS/TE/DS path; no CPU cube mesh is built.
 
-Visibility rejects cubes outside the camera frustum, then tests whether an
-entire candidate's outer box lies in another cube's shadow volume. Occluders
-use a box with 0.8 times the cube half-scale, strictly inside the actual bevel.
-This is conservative: partially exposed cubes remain, and occlusion by a union
-of multiple blockers is not detected. Remaining hidden surfaces are handled by
-ordinary GPU depth testing. This is not GPU HiZ feedback or per-face HS culling.
-The bounded pairwise CPU test may cost more than it saves on sparse scenes;
-performance and visual behavior still need bare-metal validation.
+Visibility rejects cubes outside the camera frustum, then sorts survivors by
+nearest projected outer-box depth. A persistent 320×180 CPU buffer accumulates
+coverage from the union of accepted cubes. A cell is filled only when its whole
+area lies strictly inside the projected convex hull of a cube's inner box
+(0.8 times the half-scale). Its stored depth is the inner box's farthest depth.
+A candidate is removed only when every cell touched by its padded outer screen
+rectangle has proven coverage at a strictly nearer depth. The outer box contains
+the bevel; the inner box is strictly inside it. Near-plane intersections,
+camera-inside views, invalid projections and partial coverage retain the seed;
+uncertain cubes cannot supply occlusion coverage. The buffer resets each frame.
+
+The exact single-blocker shadow-volume test remains as a fallback, with cheap
+projected bounds rejection before ray tests. This matters for these small cubes:
+a buffer-only 160×90 test removed none of the 477 orchard seeds in the existing
+frontal test, and even 320×180 submitted more than the old culler at the paired
+asset's default orbit distance. Combining the buffer with the exact fallback
+adds collective occlusion without losing sub-cell single-blocker coverage in
+the tested views. Scratch vectors are reused, with no new allocations after
+capacity warmup. The depth buffer uses 230,400 bytes; projected and blocker
+records use additional reusable storage. The fallback retains an O(N²) worst
+case, so this is not a claim of eliminating all pairwise CPU work.
+
+Host regression checks cover collective occlusion by four disjoint blockers,
+pixel/cell cracks, incomplete coverage, wrong depth, near-plane/inside-camera
+cases, invalid transforms, empty views, and all four authored sizes. The inner
+box is checked against the picking bevel planes, which are checked against the
+baked GLB by the shader-source tests. An independent bevel-ray oracle checks
+96×54 sample rays at 24 orbit views against all source cubes. In the 12 sampled
+default-distance views, 84–243 of the 900 seeds were skipped, with 0–45 additional
+seeds skipped versus the old single-blocker pass. This is sampled host evidence;
+GPU image equivalence and runtime performance still need bare-metal validation.
+
+Counters retain all authored instances in the denominator: `S` source, `F`
+after frustum, `O` removed by occlusion, `V` visible submissions, `P = V×44`
+patch references, and `X = (S−V)×44` avoided patch references. See `COUNTERS.md`.
+These are application submission counts, not measured hardware invocations.
+Each surviving cube still submits the existing 44 patches. Remaining hidden
+surfaces use ordinary GPU depth testing; this is not per-face HS culling or GPU
+HiZ feedback. Conservative uncertainty intentionally keeps some hidden cubes.
 
 The custom color flag takes precedence over overlapping Rubik/room/sphere flag
 bits in both shader decoding and driver admission. Rebuild TRUEOS and Cubes:
@@ -46,5 +77,5 @@ Precompiled shader artifacts are checked in; no runtime shader compiler needed.
 
 Checks: `cargo check`, `python3 tools/test_bake_patch_cube.py`,
 `python3 tools/test_patch_overlay.py`, and
-`rustc --edition=2024 --test src/orchard.rs -o /tmp/cubes-orchard-tests`
+`rustc --edition=2024 -O --test src/orchard.rs -o /tmp/cubes-orchard-tests`
 followed by `/tmp/cubes-orchard-tests`.

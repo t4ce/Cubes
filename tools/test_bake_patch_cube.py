@@ -14,11 +14,15 @@ class PatchCubeTests(unittest.TestCase):
         from itertools import product
         _, triangles = geometry(ROOT / "Cube/cube.glb")
         points = [v[0] for t in triangles for v in t]
+        picking = (ROOT / "src/picking.rs").read_text()
+        bounds = re.search(r"PLANE_BOUNDS: \[f32; 4\] = \[([^]]+)\]", picking)
+        self.assertIsNotNone(bounds)
+        bounds = [float(value) for value in bounds[1].split(",")]
         for normal in product((-1, 0, 1), repeat=3):
             count = sum(abs(x) for x in normal)
             if not count:
                 continue
-            bound = (0, 1.0, 1.8, 2.6)[count]
+            bound = bounds[count]
             support = max(sum(a*b for a,b in zip(normal,p)) for p in points)
             self.assertAlmostEqual(support, bound, places=5)
     def test_approved_reference(self):

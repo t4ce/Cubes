@@ -113,10 +113,11 @@ gradient from its sphere position, both as a dot and as an expanded cube. Routed
 cursor movement expands the nearby seeds with a screen-space circle whose area
 is 10% of the current viewport.
 
-A CPU-stamped MicroFont panel sits at the frame's bottom-right in every mode:
-`M# Exxxx Uxxxx` reports the current mode and the number of full expanded cubes
-versus compact marker cubes. Key 4 reports only its conservatively visible
-Orchard cubes, never its behind-camera fallback seed.
+Counts are logged once per second in four 250 ms samples; no HUD task or
+counter window is used. Modes 1–3 report expanded cubes and compact markers.
+Key 4 reports all authored source cubes, frustum survivors, occluded cubes,
+visible submissions, and submitted/avoided cube patch references. See
+`COUNTERS.md` and `ORCHARD.md` for visibility behavior and host validation.
 
 A gray 22-segment LINE_LIST floor at Y=3.5 provides orientation. It is one
 retained static draw with CPU homogeneous line clipping and vertex refreshes;

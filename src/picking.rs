@@ -1,4 +1,7 @@
 //! Picking intersects the actual convex bevel shape, including occluding centers.
+/// Axis, edge and corner plane supports of the baked convex reference cube.
+/// The orchard occluder regression checks this same definition.
+pub(crate) const PLANE_BOUNDS: [f32; 4] = [0.0, 1.0, 1.8, 2.6];
 pub fn ray(inv: &[f32; 16], x: i32, y: i32, w: u32, h: u32) -> Option<([f32; 3], [f32; 3])> {
     if x < 0 || y < 0 || x >= w as i32 || y >= h as i32 {
         return None;
@@ -42,11 +45,7 @@ pub fn pick(origin: [f32; 3], dir: [f32; 3], spacing: f32, scale: f32) -> Option
                     if count == 0 {
                         continue;
                     }
-                    let bound = match count {
-                        1 => 1.0,
-                        2 => 1.8,
-                        _ => 2.6,
-                    };
+                    let bound = PLANE_BOUNDS[count as usize];
                     let distance = bound - (0..3).map(|i| n[i] as f32 * o[i]).sum::<f32>();
                     let denom = (0..3).map(|i| n[i] as f32 * d[i]).sum::<f32>();
                     if denom.abs() < 1e-8 {

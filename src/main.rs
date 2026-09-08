@@ -100,6 +100,7 @@ struct CubeScene {
     mode: SceneMode,
     orchards: Vec<orchard::Asset>,
     orchard_index: usize,
+    visibility_scratch: orchard::VisibilityScratch,
     puzzle: rubik::Puzzle,
     orbit: [f32; 3], // yaw, elevation, radius
     look_target: [f32; 3],
@@ -281,6 +282,7 @@ impl CubeScene {
             counters: counters::Sampler::new(clock::monotonic_millis()),
             orchards,
             orchard_index: 0,
+            visibility_scratch: orchard::VisibilityScratch::new(),
             frame,
             device,
             queue,
@@ -529,27 +531,26 @@ impl CubeScene {
             .device
             .acquire_ui4_surface(self.frame.window_id())
             .map_err(|code| CubeError::Vgpu("surface-acquire", code))?;
-        let visible = if self.mode == SceneMode::Orchard {
-            orchard::visible(
+        let puzzle_spacing = self.puzzle_spacing(elapsed_millis);
+        let (visible, visibility_stats) = if self.mode == SceneMode::Orchard {
+            let (ids, stats) = orchard::visible(
+                &mut self.visibility_scratch,
                 &self.orchards[self.orchard_index],
                 self.flycam.camera.position,
                 &camera.view_projection,
-            )
+            );
+            (ids, Some(stats))
         } else {
-            Vec::new()
+            (&[][..], None)
         };
         let opaque_count = if self.mode == SceneMode::Orchard {
             visible.len().max(1)
         } else {
             self.mode.seed_count()
         };
-        // The empty-Orchard fallback seed keeps the retained group valid but
-        // is not a real cube, so omit it from the user-visible total.
-        let countable_seed_count = if self.mode == SceneMode::Orchard {
-            visible.len()
-        } else {
-            opaque_count
-        };
+        // Visibility removes submissions, not authored scene instances. The
+        // fallback seed is an ABI placeholder and is never a countable cube.
+        let countable_seed_count = visibility_stats.map_or(opaque_count, |stats| stats.source);
         let seed_count = opaque_count
             + if self.mode == SceneMode::StaticCube {
                 54
@@ -603,7 +604,7 @@ impl CubeScene {
                     )
                 }
                 SceneMode::StaticCube => (
-                    cell.map(|x| x * self.puzzle_spacing(elapsed_millis)),
+                    cell.map(|x| x * puzzle_spacing),
                     grid::CUBE_GRID_SCALE,
                 ),
                 SceneMode::Sphere => {
@@ -788,6 +789,11 @@ impl CubeScene {
             self.mode.number(),
             expanded_count,
             countable_seed_count.saturating_sub(expanded_count),
+            visibility_stats.map(|stats| counters::Visibility {
+                frustum: stats.frustum,
+                occluded: stats.occluded,
+                patches_per_cube: CUBE_INDEX_COUNT as usize,
+            }),
         ) {
             logl::log(level::INFO, format_args!("Cubes: {report}"));
         }
@@ -850,7 +856,7 @@ impl CubeScene {
                 logl::log(
                     level::INFO,
                     format_args!(
-                        "Cubes: Key4 asset={} cubes={} assets={} visibility=conservative-cpu-before-HS",
+                        "Cubes: Key4 asset={} cubes={} assets={} visibility=collective-cpu-before-HS",
                         asset.name,
                         asset.cubes.len(),
                         self.orchards.len()
