@@ -4,7 +4,9 @@ extern crate alloc;
 mod counters;
 mod floor;
 mod grid;
+mod modes;
 mod orchard;
+use modes::{ModeKeys, SceneMode};
 include!(concat!(env!("OUT_DIR"), "/orchard_assets.rs"));
 mod picking;
 mod reveal;
@@ -52,15 +54,6 @@ struct GridCursor {
     local: [i32; 2],
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum SceneMode {
-    InteractiveGrid,
-    StaticCube,
-    Sphere,
-    Orchard,
-    World,
-}
-
 impl SceneMode {
     const fn seed_count(self) -> usize {
         match self {
@@ -105,9 +98,9 @@ struct CubeScene {
     floor_revision: u32,
     cursors: Vec<GridCursor>,
     mode: SceneMode,
-    orchards: Vec<orchard::Asset>,
+    orchards: orchard::Pages,
     orchard_index: usize,
-    worlds: Vec<orchard::Asset>,
+    worlds: orchard::Pages,
     world_index: usize,
     visibility_scratch: orchard::VisibilityScratch,
     orchard_reveal: reveal::Reveal,
@@ -117,9 +110,11 @@ struct CubeScene {
     last_camera_activity_millis: u64,
     finished_at: Option<u64>,
     flight: Option<transition::Flight>,
-    number_keys: u8,
+    number_keys: ModeKeys,
+    demo_camera: Option<FlyCam>,
     pending_resize: Option<ResizeEvent>,
     previous_elapsed_millis: u64,
+    first_frame: bool,
     previous_view_projection: [f32; 16],
 }
 
@@ -167,7 +162,20 @@ fn run() -> Result<(), CubeError> {
         ),
     );
 
+    let opening = clock::monotonic_millis();
+    logl::log(
+        level::INFO,
+        format_args!("Cubes: startup stage=scene-open-begin uptime_ms={opening}"),
+    );
     let mut scene = CubeScene::open(&vertices, &indices)?;
+    logl::log(
+        level::INFO,
+        format_args!(
+            "Cubes: startup stage=scene-open-end uptime_ms={} elapsed_ms={} asset_loading=on-selection",
+            clock::monotonic_millis(),
+            clock::monotonic_millis().saturating_sub(opening)
+        ),
+    );
     let started = clock::monotonic_millis();
     loop {
         scene.render(clock::monotonic_millis().saturating_sub(started))?;
@@ -262,43 +270,8 @@ impl CubeScene {
                 grid::COUNT,
             ),
         );
-        let orchards = ORCHARD_ASSETS
-            .iter()
-            .map(|&(name, bytes)| {
-                orchard::decode(name, bytes).map_err(|error| {
-                    logl::log(
-                        level::ERROR,
-                        format_args!("Cubes: asset={} rejected={}", name, error),
-                    );
-                    CubeError::Contract
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        // Two authored assets per view; later additions become further Key-4 pages.
-        let orchards = orchards
-            .chunks(2)
-            .map(|pair| {
-                orchard::side_by_side(pair).map_err(|error| {
-                    logl::log(
-                        level::ERROR,
-                        format_args!("Cubes: asset pair rejected={error}"),
-                    );
-                    CubeError::Contract
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let worlds = WORLD_ASSETS
-            .iter()
-            .map(|&(name, bytes)| {
-                orchard::decode(name, bytes).map_err(|error| {
-                    logl::log(
-                        level::ERROR,
-                        format_args!("Cubes: world asset={} rejected={}", name, error),
-                    );
-                    CubeError::Contract
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let orchards = orchard::Pages::new(ORCHARD_ASSETS, true);
+        let worlds = orchard::Pages::new(WORLD_ASSETS, false);
         Ok(Self {
             counters: counters::Sampler::new(clock::monotonic_millis()),
             orchards,
@@ -326,9 +299,11 @@ impl CubeScene {
             last_camera_activity_millis: 0,
             finished_at: None,
             flight: None,
-            number_keys: 0,
+            number_keys: ModeKeys::default(),
+            demo_camera: None,
             pending_resize: None,
             previous_elapsed_millis: 0,
+            first_frame: true,
             previous_view_projection: camera.retained(WIDTH, HEIGHT, [0.0; 16]).view_projection,
         })
     }
@@ -600,17 +575,14 @@ impl CubeScene {
             }
             SceneMode::World => {
                 let asset = &self.worlds[self.world_index];
-                self.orchard_reveal
-                    .begin_frame(elapsed_millis, asset.cubes.len());
                 let (ids, stats) = orchard::visible_when_limited(
                     &mut self.visibility_scratch,
                     asset,
                     self.flycam.camera.position,
                     &camera.view_projection,
                     WORLD_SEED_BUDGET,
-                    |id| self.orchard_reveal.admit(id),
+                    |_| true,
                 );
-                self.orchard_reveal.end_frame();
                 (ids, Some(stats))
             }
             _ => (&[][..], None),
@@ -717,6 +689,8 @@ impl CubeScene {
                 scale: [scale; 3],
                 rotation: if self.mode == SceneMode::StaticCube {
                     quaternion_from_rotation_columns(basis[0], basis[1], basis[2]).0
+                } else if self.mode == SceneMode::World {
+                    orchard::WORLD_ROTATION
                 } else {
                     [0.0, 0.0, 0.0, 1.0]
                 },
@@ -801,6 +775,16 @@ impl CubeScene {
         write_exact(self.device, self.floor_vertices, &floor_bytes)
             .map_err(|code| CubeError::Vgpu("floor-upload", code))?;
         self.floor_revision = self.floor_revision.wrapping_add(1);
+        let submit_started = if self.first_frame {
+            let now = clock::monotonic_millis();
+            logl::log(
+                level::INFO,
+                format_args!("Cubes: startup stage=first-submit-begin uptime_ms={now}"),
+            );
+            now
+        } else {
+            0
+        };
         let point = self
             .device
             .submit_retained_frame_v3(
@@ -865,12 +849,45 @@ impl CubeScene {
                 },
             )
             .map_err(|code| CubeError::Vgpu("frame-submit", code))?;
+        let wait_started = if self.first_frame {
+            let now = clock::monotonic_millis();
+            logl::log(
+                level::INFO,
+                format_args!(
+                    "Cubes: startup stage=first-submit-end uptime_ms={now} elapsed_ms={}",
+                    now.saturating_sub(submit_started)
+                ),
+            );
+            now
+        } else {
+            0
+        };
         self.device
             .wait(self.queue, point.value)
             .map_err(|code| CubeError::Vgpu("timeline-wait", code))?;
+        if self.first_frame {
+            let now = clock::monotonic_millis();
+            logl::log(
+                level::INFO,
+                format_args!(
+                    "Cubes: startup stage=first-wait-end uptime_ms={now} elapsed_ms={}",
+                    now.saturating_sub(wait_started)
+                ),
+            );
+        }
         self.frame
             .publish(Damage::full(width, height))
             .map_err(|error| CubeError::Ui4("frame-publish", error))?;
+        if self.first_frame {
+            logl::log(
+                level::INFO,
+                format_args!(
+                    "Cubes: startup stage=first-publish-end uptime_ms={}",
+                    clock::monotonic_millis()
+                ),
+            );
+            self.first_frame = false;
+        }
         if let Some(report) = self.counters.record(
             clock::monotonic_millis(),
             self.mode.number(),
@@ -901,36 +918,69 @@ impl CubeScene {
                 | ((keyboard.is_down(0x21) as u8) << 3)
                 | ((keyboard.is_down(0x22) as u8) << 4)
         });
-        let pressed = current & !self.number_keys;
-        self.number_keys = current;
-        let mode = if pressed & 1 != 0 {
-            Some(SceneMode::InteractiveGrid)
-        } else if pressed & 2 != 0 {
-            Some(SceneMode::StaticCube)
-        } else if pressed & 4 != 0 {
-            Some(SceneMode::Sphere)
-        } else if pressed & 8 != 0 && !self.orchards.is_empty() {
-            Some(SceneMode::Orchard)
-        } else if pressed & 16 != 0 && !self.worlds.is_empty() {
-            Some(SceneMode::World)
-        } else {
-            None
-        };
-        if let Some(mode) = mode
-            && (mode != self.mode || matches!(mode, SceneMode::StaticCube | SceneMode::Orchard))
-        {
-            if mode == SceneMode::Orchard && self.mode == mode {
-                self.orchard_index = (self.orchard_index + 1) % self.orchards.len();
+        if let Some(selection) = self.number_keys.update(
+            current,
+            self.mode,
+            self.orchard_index,
+            self.orchards.len(),
+            self.worlds.len(),
+        ) {
+            let mode = selection.mode;
+            match mode {
+                SceneMode::Orchard => self.orchard_index = selection.page.unwrap(),
+                SceneMode::World => self.world_index = selection.page.unwrap(),
+                _ => {}
             }
-            if mode == SceneMode::World && self.mode == mode {
-                self.world_index = (self.world_index + 1) % self.worlds.len();
+            if matches!(mode, SceneMode::Orchard | SceneMode::World) {
+                let started = clock::monotonic_millis();
+                let (pages, index) = if mode == SceneMode::Orchard {
+                    (&mut self.orchards, self.orchard_index)
+                } else {
+                    (&mut self.worlds, self.world_index)
+                };
+                let loaded = if mode == SceneMode::World {
+                    pages.load_world(index)
+                } else {
+                    pages.load(index)
+                }
+                .map_err(|error| {
+                    logl::log(
+                        level::ERROR,
+                        format_args!(
+                            "Cubes: asset mode={} page={} rejected={error}",
+                            mode.number(),
+                            index + 1
+                        ),
+                    );
+                    CubeError::Contract
+                })?;
+                if loaded {
+                    logl::log(
+                        level::INFO,
+                        format_args!(
+                            "Cubes: asset mode={} page={} cubes={} decode_ms={}",
+                            mode.number(),
+                            index + 1,
+                            pages[index].cubes.len(),
+                            clock::monotonic_millis().saturating_sub(started)
+                        ),
+                    );
+                }
+            }
+            if mode == SceneMode::World && self.mode != SceneMode::World {
+                self.demo_camera = Some(self.flycam);
+            } else if mode != SceneMode::World && self.mode == SceneMode::World {
+                if let Some(camera) = self.demo_camera.take() {
+                    self.flycam = camera;
+                }
             }
             self.mode = mode;
             self.frame
                 .set_center_snapped_mouse(mode == SceneMode::World)
                 .map_err(|error| CubeError::Ui4("center-snapped-mouse", error))?;
-            self.set_mode_projection(mode);
-            self.puzzle = rubik::Puzzle::new(self.previous_elapsed_millis);
+            if mode != SceneMode::World {
+                self.puzzle = rubik::Puzzle::new(self.previous_elapsed_millis);
+            }
             self.last_camera_activity_millis = self.previous_elapsed_millis;
             self.finished_at = None;
             self.flight = None;
@@ -965,16 +1015,16 @@ impl CubeScene {
                     ),
                 );
             } else if mode == SceneMode::World {
-                self.orchard_reveal.reset();
                 self.flycam = FlyCam::new(default_camera(), 3.0);
-                self.flycam.camera.position = [0.0, -WORLD_EYE_HEIGHT, 0.0];
+                self.flycam.camera.position =
+                    orchard::world_from_demo([0.0, -WORLD_EYE_HEIGHT, 0.0]);
                 self.flycam.camera.rotation = look_at_camera_rotation(
                     self.flycam.camera.position,
                     // Aim straight along the XZ world plane.  Targeting the
                     // ground at Y=0 here gave the fresh first-person camera
                     // an unintended atan(1.8 / 3.0) ~= 31 degree down-pitch.
-                    [0.0, -WORLD_EYE_HEIGHT, -WORLD_INITIAL_LOOK_AHEAD],
-                    [0.0, -1.0, 0.0],
+                    orchard::world_from_demo([0.0, -WORLD_EYE_HEIGHT, -WORLD_INITIAL_LOOK_AHEAD]),
+                    orchard::world_from_demo([0.0, -1.0, 0.0]),
                 );
                 let asset = &self.worlds[self.world_index];
                 logl::log(
@@ -992,6 +1042,12 @@ impl CubeScene {
             } else if mode != SceneMode::StaticCube {
                 self.flycam.camera.position = [0.0; 3];
             }
+            self.set_mode_projection(mode);
+            self.previous_view_projection = self
+                .flycam
+                .camera
+                .retained(self.frame.width(), self.frame.height(), [0.0; 16])
+                .view_projection;
             self.cursors.clear();
             logl::log(
                 level::INFO,

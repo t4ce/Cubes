@@ -1,6 +1,5 @@
 //! Compact static assets and conservative pre-HS visibility. No cursor dependency.
 extern crate alloc;
-use alloc::collections::BTreeSet;
 use alloc::vec::Vec;
 pub const CUSTOM_RGB555: u32 = 1 << 15;
 /// Authored world assets may exceed the renderer's per-frame seed budget.
@@ -16,6 +15,82 @@ pub struct Asset {
     pub name: &'static str,
     pub cubes: Vec<Cube>,
     pub radius: f32,
+}
+
+/// Key 5 uses the shader's +Y-up lighting convention. A proper half-turn
+/// around X maps the demo's -Y-up coordinates without mirroring the scene.
+pub const WORLD_ROTATION: [f32; 4] = [1.0, 0.0, 0.0, 0.0];
+pub fn world_from_demo([x, y, z]: [f32; 3]) -> [f32; 3] {
+    [x, -y, -z]
+}
+
+/// Decoded pages are created on first selection and retained for revisits.
+/// Constructing the catalog does not inspect or decode embedded asset bytes.
+pub struct Pages {
+    sources: &'static [(&'static str, &'static [u8])],
+    paired: bool,
+    decoded: Vec<Option<Asset>>,
+}
+
+impl Pages {
+    pub fn new(sources: &'static [(&'static str, &'static [u8])], paired: bool) -> Self {
+        let len = if paired {
+            sources.len().div_ceil(2)
+        } else {
+            sources.len()
+        };
+        Self {
+            sources,
+            paired,
+            decoded: (0..len).map(|_| None).collect(),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.decoded.len()
+    }
+
+    /// Orient a newly decoded world once, before culling or rendering sees it.
+    /// Keep using this entry point for world pages, including cached revisits.
+    pub fn load_world(&mut self, index: usize) -> Result<bool, &'static str> {
+        let loaded = self.load(index)?;
+        if loaded {
+            for cube in &mut self.decoded[index].as_mut().unwrap().cubes {
+                cube.center = world_from_demo(cube.center);
+            }
+        }
+        Ok(loaded)
+    }
+
+    /// Returns true only when this call decoded a previously unloaded page.
+    pub fn load(&mut self, index: usize) -> Result<bool, &'static str> {
+        let slot = self.decoded.get_mut(index).ok_or("cubes-page-index")?;
+        if slot.is_some() {
+            return Ok(false);
+        }
+        let asset = if self.paired {
+            let first = index * 2;
+            let pair = self.sources[first..(first + 2).min(self.sources.len())]
+                .iter()
+                .map(|&(name, bytes)| decode(name, bytes))
+                .collect::<Result<Vec<_>, _>>()?;
+            side_by_side(&pair)?
+        } else {
+            let (name, bytes) = self.sources[index];
+            decode(name, bytes)?
+        };
+        *slot = Some(asset);
+        Ok(true)
+    }
+}
+
+impl core::ops::Index<usize> for Pages {
+    type Output = Asset;
+    fn index(&self, index: usize) -> &Asset {
+        self.decoded[index]
+            .as_ref()
+            .expect("selected page must be loaded before use")
+    }
 }
 
 /// Arrange an asset pair on a shared base, without changing authored scales.
@@ -106,20 +181,40 @@ pub fn decode(name: &'static str, bytes: &[u8]) -> Result<Asset, &'static str> {
         return Err("cubes-opaque-only");
     }
     let mut cubes = Vec::with_capacity(count);
-    let mut occupied = BTreeSet::new();
-    let mut lo = [f32::INFINITY; 3];
-    let mut hi = [f32::NEG_INFINITY; 3];
+    // Coordinates are signed bytes and side lengths are at most four cells.
+    // Use one bounded bitmap instead of a tree node allocation for every few
+    // occupied cells (millions of inserts across the bundled worlds).
+    let mut grid_lo = [i16::MAX; 3];
+    let mut grid_hi = [i16::MIN; 3];
     for r in bytes[start..].chunks_exact(8) {
         if !(1..=4).contains(&r[3]) || r[4] as usize >= colors || r[6] != 0 || r[7] != 0 {
             return Err("cubes-record");
         }
+        for axis in 0..3 {
+            let origin = r[axis] as i8 as i16;
+            grid_lo[axis] = grid_lo[axis].min(origin);
+            grid_hi[axis] = grid_hi[axis].max(origin + r[3] as i16);
+        }
+    }
+    let dimensions: [usize; 3] = core::array::from_fn(|a| (grid_hi[a] - grid_lo[a]) as usize);
+    let cells = dimensions.iter().product::<usize>();
+    let mut occupied = alloc::vec![0u64; cells.div_ceil(64)];
+    let mut lo = [f32::INFINITY; 3];
+    let mut hi = [f32::NEG_INFINITY; 3];
+    for r in bytes[start..].chunks_exact(8) {
         let origin = [r[0] as i8 as i16, r[1] as i8 as i16, r[2] as i8 as i16];
         for x in 0..r[3] as i16 {
             for y in 0..r[3] as i16 {
                 for z in 0..r[3] as i16 {
-                    if !occupied.insert([origin[0] + x, origin[1] + y, origin[2] + z]) {
+                    let cell = ((origin[0] + x - grid_lo[0]) as usize * dimensions[1]
+                        + (origin[1] + y - grid_lo[1]) as usize)
+                        * dimensions[2]
+                        + (origin[2] + z - grid_lo[2]) as usize;
+                    let mask = 1u64 << (cell % 64);
+                    if occupied[cell / 64] & mask != 0 {
                         return Err("cubes-overlap");
                     }
+                    occupied[cell / 64] |= mask;
                 }
             }
         }
@@ -553,6 +648,81 @@ mod reveal;
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn pages_decode_only_selection_and_cache_revisits() {
+        static SOURCES: &[(&str, &[u8])] = &[
+            ("pine", include_bytes!("../Cube/plant_pine.cubes")),
+            ("invalid-unselected", b"invalid"),
+        ];
+        let mut pages = Pages::new(SOURCES, false);
+        assert!(pages.decoded.iter().all(Option::is_none));
+        assert_eq!(pages.load(0), Ok(true));
+        let ptr = pages[0].cubes.as_ptr();
+        assert_eq!(pages.load(0), Ok(false));
+        assert_eq!(pages[0].cubes.as_ptr(), ptr);
+        assert!(pages.decoded[1].is_none());
+        assert_eq!(pages.load(1), Err("cubes-header"));
+        assert!(pages.decoded[1].is_none());
+        assert_eq!(pages.load(2), Err("cubes-page-index"));
+        let mut pairs = Pages::new(&SOURCES[..1], true);
+        assert_eq!(pairs.load(0), Ok(true));
+        assert_eq!(pairs[0].cubes.len(), pages[0].cubes.len());
+    }
+
+    #[test]
+    fn bitmap_overlap_matches_cell_set_at_signed_coordinate_extremes() {
+        use alloc::collections::BTreeSet;
+        let template = include_bytes!("../Cube/plant_pine.cubes");
+        let start = 16 + template[10] as usize * 4;
+        let mut random = 123u32;
+        for trial in 0..100 {
+            let mut bytes = template[..start].to_vec();
+            bytes[8..10].copy_from_slice(&32u16.to_le_bytes());
+            let mut occupied = BTreeSet::new();
+            let mut overlap = false;
+            for record in 0..32 {
+                let mut origin = [0i16; 3];
+                for axis in &mut origin {
+                    random = random.wrapping_mul(1664525).wrapping_add(1013904223);
+                    *axis = if trial % 2 == 0 {
+                        (random >> 24) as i8 as i16
+                    } else {
+                        (random % 8) as i16 - 4
+                    };
+                }
+                if record == 0 {
+                    origin = [-128; 3];
+                }
+                if record == 1 {
+                    origin = [127; 3];
+                }
+                let side = 1 + (random % 4) as i16;
+                bytes.extend_from_slice(&[
+                    origin[0] as u8,
+                    origin[1] as u8,
+                    origin[2] as u8,
+                    side as u8,
+                    0,
+                    0,
+                    0,
+                    0,
+                ]);
+                for x in 0..side {
+                    for y in 0..side {
+                        for z in 0..side {
+                            overlap |=
+                                !occupied.insert([origin[0] + x, origin[1] + y, origin[2] + z]);
+                        }
+                    }
+                }
+            }
+            assert_eq!(
+                decode("random", &bytes).err(),
+                overlap.then_some("cubes-overlap")
+            );
+        }
+    }
+
     #[test]
     fn pair_keeps_both_assets_sizes_colors_and_a_clear_gap() {
         let a = decode("orchard", include_bytes!("../Cube/cube_orchard.cubes")).unwrap();

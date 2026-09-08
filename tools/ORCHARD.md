@@ -1,7 +1,7 @@
 # Key 4: compact opaque cube assets
 
 Put `.cubes` files in `Cube/` and rebuild Cubes. The build discovers them in
-filename order; runtime decodes each once at startup. Key 4 shows adjacent
+filename order; runtime decodes only the selected page and caches it. Key 4 shows adjacent
 pairs of assets side by side; subsequent presses cycle pairs. Each pair is
 limited to 1024 total seeds. The orchard and pine use 900 together, retain
 their authored scales/colors, align their bases, and have a one-world-unit gap.
@@ -13,7 +13,15 @@ flags, malformed records and unsupported scales fail explicitly.
 ## Key 5: streamed lvl27 worlds
 
 `Cube/lvl27/` contains the 27 standalone world exports. Key 5 enters this
-mode; every further Key-5 press advances one world and wraps after World 27.
+mode at World 1; every further Key-5 press advances one world and wraps after
+World 27. Holding the key does not repeat. Keys 1–4 neither advance nor reset
+this sequence: after visiting another mode, Key 5 selects the next world.
+Key 5 rotates world positions, cube orientations and the camera together by
+180 degrees around X, making +Y the upper side used by the shader's sun/sky.
+CPU visibility uses the same rotated positions. Keys 1–4 retain their original
+coordinate conventions. World pages load only on selection and are cached for revisits. Worlds use
+immediate visibility admission, independent of Key 4's timed reveal. The demo
+camera is saved on entry and restored before switching back to Keys 1–4.
 World assets may contain up to 4,096 authored cubes, but the retained renderer
 caps each world frame at 2,048 seeds. Each frame uses the existing conservative
 frustum/occlusion pass, orders survivors nearest-first, and admits only the
@@ -22,6 +30,8 @@ center of the world plane. Mouse movement controls yaw/pitch; WASD walks on
 the XZ grid plane, independent of view pitch. Moving the camera changes that
 camera-relative selection; no CPU mesh expansion, extra renderer submission,
 or hull-shader change is involved.
+
+## Key 4 camera and reveal
 
 WASD orbits the centered asset; after three seconds without camera input it
 orbits automatically. Mouse position does not control expansion. Asset +Y is
@@ -121,3 +131,9 @@ Checks: `cargo check`, `python3 tools/test_bake_patch_cube.py`,
 `python3 tools/test_patch_overlay.py`, and
 `rustc --edition=2024 -O --test src/orchard.rs -o /tmp/cubes-orchard-tests`
 followed by `/tmp/cubes-orchard-tests`.
+
+World-cycle regression (run from the Cubes repository):
+`rustc --edition=2024 -O --test tools/test_world_cycle.rs -o /tmp/cubes-world-cycle-tests`
+then `/tmp/cubes-world-cycle-tests`. This exercises the real mode router and
+lazy page cache across all 27 bundled files, wraparound, held keys and visits
+to Keys 1–4. Display/input routing on TRUEOS still requires a hardware run.
