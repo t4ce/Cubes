@@ -12,6 +12,7 @@ mod picking;
 mod reveal;
 mod rubik;
 mod transition;
+mod world_bounds;
 use alloc::vec::Vec;
 
 use trueos::ui4_scene::{
@@ -420,8 +421,16 @@ impl CubeScene {
                 let length = libm::sqrtf(walk[0] * walk[0] + walk[2] * walk[2]);
                 if length > f32::EPSILON {
                     let distance = self.flycam.speed() * dt / length;
-                    self.flycam.camera.position[0] += walk[0] * distance;
-                    self.flycam.camera.position[2] += walk[2] * distance;
+                    let bounded = world_bounds::advance(
+                        [
+                            self.flycam.camera.position[0],
+                            self.flycam.camera.position[2],
+                        ],
+                        [walk[0] * distance, walk[2] * distance],
+                        world_bounds::has_horizontal_ramps(self.world_index),
+                    );
+                    self.flycam.camera.position[0] = bounded[0];
+                    self.flycam.camera.position[2] = bounded[1];
                 }
             }
             if self.mode == SceneMode::StaticCube && self.puzzle.locked() {

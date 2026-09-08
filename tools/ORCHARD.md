@@ -31,6 +31,12 @@ the XZ grid plane, independent of view pitch. Moving the camera changes that
 camera-relative selection; no CPU mesh expansion, extra renderer submission,
 or hull-shader change is involved.
 
+Key 5 also constrains the point camera to an inset version of the authored
+terrain footprint. Worlds 1--26 permit the 32×32 core and their four centered
+3.2×6.4 ramps, stopping 0.6 world units before each standing portal. Void
+(World 27) permits its core only. Boundary movement slides along a wall, so a
+diagonal walk cannot leave the terrain or pass through a portal.
+
 ## Key 4 camera and reveal
 
 WASD orbits the centered asset; after three seconds without camera input it
