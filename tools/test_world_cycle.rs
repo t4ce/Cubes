@@ -63,3 +63,20 @@ fn every_bundled_world_loads_in_order_and_revisits_are_cached() {
         }
     }
 }
+
+#[path = "../src/camera_entry.rs"]
+mod camera_entry;
+
+#[test]
+fn world_room_puzzle_sequence_has_valid_puzzle_entry() {
+    use modes::{ModeKeys, SceneMode};
+    let mut keys = ModeKeys::default();
+    let mut mode = SceneMode::StaticCube;
+    for key in [16, 1, 2] {
+        mode = keys.update(key, mode, 0, 1, 27).unwrap().mode;
+        keys.update(0, mode, 0, 1, 27);
+    }
+    assert_eq!(mode, SceneMode::StaticCube);
+    // Key 1's centered camera was the failing input to the Key 2 look-at.
+    assert_eq!(camera_entry::puzzle_position([0.0; 3]), [0.0, 0.0, -7.5]);
+}

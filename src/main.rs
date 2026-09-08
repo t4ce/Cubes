@@ -2,6 +2,7 @@
 
 extern crate alloc;
 mod counters;
+mod camera_entry;
 mod floor;
 mod grid;
 mod modes;
@@ -994,7 +995,8 @@ impl CubeScene {
             self.finished_at = None;
             self.flight = None;
             if mode == SceneMode::StaticCube {
-                let p = self.flycam.camera.position;
+                let p = camera_entry::puzzle_position(self.flycam.camera.position);
+                self.flycam.camera.position = p;
                 let radius = libm::sqrtf(p.iter().map(|x| x * x).sum::<f32>()).max(7.5);
                 self.orbit = [
                     libm::atan2f(p[0], p[2]),
