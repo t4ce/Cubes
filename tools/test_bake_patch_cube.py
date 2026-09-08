@@ -75,6 +75,8 @@ class PatchCubeTests(unittest.TestCase):
             self.assertIn("sticker != int((flags >> 10u) & 7u)", ds)
             self.assertIn("(flags & 8192u) != 0u && id < 600u", ds)
             self.assertIn("(flags & 16384u) != 0u", ds)
+            self.assertIn("(flags & 32768u) == 0u && (flags & 512u) != 0u", ds)
+            self.assertLess(ds.index("if ((flags & 32768u)"),ds.index("if ((flags & 16384u)"))
             self.assertIn("normalize(model[3].xyz)", ds)
             self.assertIn("uint wall = id / 100u", ds)
             self.assertEqual(ds.count("wall =="), 6)

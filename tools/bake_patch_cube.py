@@ -260,7 +260,9 @@ void main() {
                           instances.rows[base+2u], instances.rows[base+3u]);
         // Key 3 colours both marker dots and expanded cubes by their position
         // on the containing sphere.
-        if ((flags & 16384u) != 0u) {
+        if ((flags & 32768u) != 0u) {
+            baseColor = vec3(flags & 31u, (flags >> 5u) & 31u, (flags >> 10u) & 31u) / 31.0;
+        } else if ((flags & 16384u) != 0u) {
             baseColor = 0.5 + 0.5 * normalize(model[3].xyz);
         // Key 1 is six 10×10 room walls in the same palette order as the
         // Rubik faces. Whole wall cubes remain opaque.
@@ -285,7 +287,7 @@ void main() {
             if (normal.z > 0.9999 && cell.z == 2u) { baseColor = vec3(0.02,0.8,0.08); sticker=4; }
             if (normal.z < -0.9999 && cell.z == 0u) { baseColor = vec3(0.02,0.08,1); sticker=5; }
         }
-        bool transparentPass = (flags & 512u) != 0u;
+        bool transparentPass = (flags & 32768u) == 0u && (flags & 512u) != 0u;
         hidden = transparentPass ? (sticker < 0 || sticker != int((flags >> 10u) & 7u)) : sticker >= 0;
         if (sticker >= 0) alpha=0.35;
         if (!marker) {
