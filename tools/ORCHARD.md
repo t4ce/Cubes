@@ -10,6 +10,17 @@ created for missing assets. Each asset may contain 1–1024 cubes. This stage
 accepts version-1 opaque static assets only; rigs, alpha palettes, unsupported
 flags, malformed records and unsupported scales fail explicitly.
 
+## Key 5: streamed lvl27 worlds
+
+`Cube/lvl27/` contains the 27 standalone world exports. Key 5 enters this
+mode; every further Key-5 press advances one world and wraps after World 27.
+World assets may contain up to 4,096 authored cubes, but the retained renderer
+stays capped at 1,024 seeds. Each frame uses the existing conservative
+frustum/occlusion pass, orders survivors nearest-first, and admits only the
+first 1,024 before the existing VS/HS/TE/DS path. Orbiting changes that
+camera-relative selection; no CPU mesh expansion, extra renderer submission,
+or hull-shader change is involved.
+
 WASD orbits the centered asset; after three seconds without camera input it
 orbits automatically. Mouse position does not control expansion. Asset +Y is
 mapped to demo -Y (up). Framing uses asset bounds without resizing the cubes.

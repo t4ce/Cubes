@@ -3,6 +3,9 @@ extern crate alloc;
 use alloc::collections::BTreeSet;
 use alloc::vec::Vec;
 pub const CUSTOM_RGB555: u32 = 1 << 15;
+/// Authored world assets may exceed the renderer's per-frame seed budget.
+/// They are compacted by `visible_when_limited` before reaching the HS path.
+pub const MAX_ASSET_CUBES: usize = 4096;
 #[derive(Clone, Copy, Debug)]
 pub struct Cube {
     pub center: [f32; 3],
@@ -92,7 +95,7 @@ pub fn decode(name: &'static str, bytes: &[u8]) -> Result<Asset, &'static str> {
     let count = u16::from_le_bytes([bytes[8], bytes[9]]) as usize;
     let colors = bytes[10] as usize;
     let unit = f32::from_le_bytes(bytes[12..16].try_into().unwrap());
-    if count == 0 || count > 1024 || colors == 0 || !unit.is_finite() || unit <= 0.0 {
+    if count == 0 || count > MAX_ASSET_CUBES || colors == 0 || !unit.is_finite() || unit <= 0.0 {
         return Err("cubes-limits");
     }
     let start = 16 + colors * 4;
@@ -464,6 +467,21 @@ pub fn visible_when<'a>(
     asset: &Asset,
     eye: [f32; 3],
     matrix: &[f32; 16],
+    admit: impl FnMut(usize) -> bool,
+) -> (&'a [usize], VisibilityStats) {
+    visible_when_limited(scratch, asset, eye, matrix, usize::MAX, admit)
+}
+
+/// Nearest-first, conservative visibility with an explicit submission budget.
+/// The budget is applied after frustum and occlusion testing, before any seed
+/// reaches the retained-buffer/HS pipeline. This lets large authored worlds
+/// stream around the camera without changing the renderer's seed ABI.
+pub fn visible_when_limited<'a>(
+    scratch: &'a mut VisibilityScratch,
+    asset: &Asset,
+    eye: [f32; 3],
+    matrix: &[f32; 16],
+    max_visible: usize,
     mut admit: impl FnMut(usize) -> bool,
 ) -> (&'a [usize], VisibilityStats) {
     scratch.depth.fill(f32::INFINITY);
@@ -489,6 +507,11 @@ pub fn visible_when<'a>(
         ..VisibilityStats::default()
     };
     for candidate in &scratch.projected {
+        if scratch.visible.len() >= max_visible {
+            // Candidates are already ordered nearest-to-farthest, so none of
+            // the remaining cubes can displace an admitted seed this frame.
+            break;
+        }
         if let Some(p) = &candidate.projection {
             if fully_occluded(&scratch.depth, p)
                 || single_occluded(asset.cubes[candidate.id], p, eye, &scratch.blockers)

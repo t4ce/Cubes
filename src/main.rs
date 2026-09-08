@@ -41,6 +41,7 @@ const PUZZLE_YFOV: f32 = core::f32::consts::FRAC_PI_3;
 const ROOM_YFOV: f32 = 5.0 * core::f32::consts::PI / 12.0;
 const IDLE_ORBIT_DELAY_MS: u64 = 3_000;
 const IDLE_ORBIT_RADIANS_PER_SECOND: f32 = 0.18;
+const WORLD_SEED_BUDGET: usize = grid::MAX_SEED_COUNT;
 
 struct GridCursor {
     source: CursorSource,
@@ -55,6 +56,7 @@ enum SceneMode {
     StaticCube,
     Sphere,
     Orchard,
+    World,
 }
 
 impl SceneMode {
@@ -64,6 +66,7 @@ impl SceneMode {
             Self::StaticCube => grid::CUBE_GRID_COUNT,
             Self::Sphere => grid::SPHERE_COUNT,
             Self::Orchard => 0, // Asset-specific count is selected at runtime.
+            Self::World => 0,   // Nearest visible world seeds are selected at runtime.
         }
     }
 
@@ -73,6 +76,7 @@ impl SceneMode {
             Self::StaticCube => 2,
             Self::Sphere => 3,
             Self::Orchard => 4,
+            Self::World => 5,
         }
     }
 }
@@ -101,6 +105,8 @@ struct CubeScene {
     mode: SceneMode,
     orchards: Vec<orchard::Asset>,
     orchard_index: usize,
+    worlds: Vec<orchard::Asset>,
+    world_index: usize,
     visibility_scratch: orchard::VisibilityScratch,
     orchard_reveal: reveal::Reveal,
     puzzle: rubik::Puzzle,
@@ -280,10 +286,24 @@ impl CubeScene {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
+        let worlds = WORLD_ASSETS
+            .iter()
+            .map(|&(name, bytes)| {
+                orchard::decode(name, bytes).map_err(|error| {
+                    logl::log(
+                        level::ERROR,
+                        format_args!("Cubes: world asset={} rejected={}", name, error),
+                    );
+                    CubeError::Contract
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
             counters: counters::Sampler::new(clock::monotonic_millis()),
             orchards,
             orchard_index: 0,
+            worlds,
+            world_index: 0,
             visibility_scratch: orchard::VisibilityScratch::new(),
             orchard_reveal: reveal::Reveal::new(),
             frame,
@@ -431,7 +451,7 @@ impl CubeScene {
                 // both orbit axes to retain conventional visual controls.
                 self.orbit[0] += (held(0x07) as i32 - held(0x04) as i32) as f32 * dt;
                 self.orbit[1] += (held(0x1a) as i32 - held(0x16) as i32) as f32 * dt;
-                if (self.mode == SceneMode::Orchard
+                if (matches!(self.mode, SceneMode::Orchard | SceneMode::World)
                     || (self.mode == SceneMode::StaticCube && self.puzzle.selected().is_none()))
                     && elapsed_millis.saturating_sub(self.last_camera_activity_millis)
                         >= IDLE_ORBIT_DELAY_MS
@@ -450,14 +470,19 @@ impl CubeScene {
                 radius * libm::sinf(pitch),
                 radius * libm::cosf(pitch) * libm::cosf(yaw),
             ];
-            self.flycam.camera.position =
-                if matches!(self.mode, SceneMode::StaticCube | SceneMode::Orchard) {
-                    radial
-                } else {
-                    [0.0; 3]
-                };
+            self.flycam.camera.position = if matches!(
+                self.mode,
+                SceneMode::StaticCube | SceneMode::Orchard | SceneMode::World
+            ) {
+                radial
+            } else {
+                [0.0; 3]
+            };
             let up = orbit_up(yaw, pitch);
-            if !matches!(self.mode, SceneMode::StaticCube | SceneMode::Orchard) {
+            if !matches!(
+                self.mode,
+                SceneMode::StaticCube | SceneMode::Orchard | SceneMode::World
+            ) {
                 self.look_target = radial.map(|v| -v);
             }
             self.flycam.camera.rotation =
@@ -535,23 +560,39 @@ impl CubeScene {
             .acquire_ui4_surface(self.frame.window_id())
             .map_err(|code| CubeError::Vgpu("surface-acquire", code))?;
         let puzzle_spacing = self.puzzle_spacing(elapsed_millis);
-        let (visible, visibility_stats) = if self.mode == SceneMode::Orchard {
-            let asset = &self.orchards[self.orchard_index];
-            self.orchard_reveal
-                .begin_frame(elapsed_millis, asset.cubes.len());
-            let (ids, stats) = orchard::visible_when(
-                &mut self.visibility_scratch,
-                asset,
-                self.flycam.camera.position,
-                &camera.view_projection,
-                |id| self.orchard_reveal.admit(id),
-            );
-            self.orchard_reveal.end_frame();
-            (ids, Some(stats))
-        } else {
-            (&[][..], None)
+        let (visible, visibility_stats) = match self.mode {
+            SceneMode::Orchard => {
+                let asset = &self.orchards[self.orchard_index];
+                self.orchard_reveal
+                    .begin_frame(elapsed_millis, asset.cubes.len());
+                let (ids, stats) = orchard::visible_when(
+                    &mut self.visibility_scratch,
+                    asset,
+                    self.flycam.camera.position,
+                    &camera.view_projection,
+                    |id| self.orchard_reveal.admit(id),
+                );
+                self.orchard_reveal.end_frame();
+                (ids, Some(stats))
+            }
+            SceneMode::World => {
+                let asset = &self.worlds[self.world_index];
+                self.orchard_reveal
+                    .begin_frame(elapsed_millis, asset.cubes.len());
+                let (ids, stats) = orchard::visible_when_limited(
+                    &mut self.visibility_scratch,
+                    asset,
+                    self.flycam.camera.position,
+                    &camera.view_projection,
+                    WORLD_SEED_BUDGET,
+                    |id| self.orchard_reveal.admit(id),
+                );
+                self.orchard_reveal.end_frame();
+                (ids, Some(stats))
+            }
+            _ => (&[][..], None),
         };
-        let opaque_count = if self.mode == SceneMode::Orchard {
+        let opaque_count = if matches!(self.mode, SceneMode::Orchard | SceneMode::World) {
             visible.len().max(1)
         } else {
             self.mode.seed_count()
@@ -584,6 +625,14 @@ impl CubeScene {
                         (self.flycam.camera.position.map(|v| v * 2.0), 0.0001)
                     }
                 }
+                SceneMode::World => {
+                    if let Some(&id) = visible.get(i) {
+                        let cube = self.worlds[self.world_index].cubes[id];
+                        (cube.center, cube.scale)
+                    } else {
+                        (self.flycam.camera.position.map(|v| v * 2.0), 0.0001)
+                    }
+                }
                 SceneMode::InteractiveGrid => {
                     let translation = grid::position(i);
                     let depth = -(camera.view[2] * translation[0]
@@ -611,10 +660,7 @@ impl CubeScene {
                         },
                     )
                 }
-                SceneMode::StaticCube => (
-                    cell.map(|x| x * puzzle_spacing),
-                    grid::CUBE_GRID_SCALE,
-                ),
+                SceneMode::StaticCube => (cell.map(|x| x * puzzle_spacing), grid::CUBE_GRID_SCALE),
                 SceneMode::Sphere => {
                     let translation = grid::sphere_position(i);
                     let depth = -(camera.view[2] * translation[0]
@@ -662,6 +708,10 @@ impl CubeScene {
                     } else if self.mode == SceneMode::Orchard {
                         visible.get(i).map_or(orchard::CUSTOM_RGB555, |&id| {
                             self.orchards[self.orchard_index].cubes[id].flags
+                        })
+                    } else if self.mode == SceneMode::World {
+                        visible.get(i).map_or(orchard::CUSTOM_RGB555, |&id| {
+                            self.worlds[self.world_index].cubes[id].flags
                         })
                     } else {
                         rubik::SPHERE_GRADIENT_FLAG
@@ -761,7 +811,10 @@ impl CubeScene {
                     },
                     seed_buffer: self.seed_buffer.raw(),
                     seed_count: seed_count as u32,
-                    draw_count: if matches!(self.mode, SceneMode::Sphere | SceneMode::Orchard) {
+                    draw_count: if matches!(
+                        self.mode,
+                        SceneMode::Sphere | SceneMode::Orchard | SceneMode::World
+                    ) {
                         1
                     } else {
                         2
@@ -771,7 +824,10 @@ impl CubeScene {
                             first_index: 0,
                             index_count: 44,
                         },
-                        if matches!(self.mode, SceneMode::Sphere | SceneMode::Orchard) {
+                        if matches!(
+                            self.mode,
+                            SceneMode::Sphere | SceneMode::Orchard | SceneMode::World
+                        ) {
                             RetainedDrawRange::default()
                         } else {
                             RetainedDrawRange {
@@ -820,6 +876,7 @@ impl CubeScene {
                 | ((keyboard.is_down(0x1f) as u8) << 1)
                 | ((keyboard.is_down(0x20) as u8) << 2)
                 | ((keyboard.is_down(0x21) as u8) << 3)
+                | ((keyboard.is_down(0x22) as u8) << 4)
         });
         let pressed = current & !self.number_keys;
         self.number_keys = current;
@@ -831,6 +888,8 @@ impl CubeScene {
             Some(SceneMode::Sphere)
         } else if pressed & 8 != 0 && !self.orchards.is_empty() {
             Some(SceneMode::Orchard)
+        } else if pressed & 16 != 0 && !self.worlds.is_empty() {
+            Some(SceneMode::World)
         } else {
             None
         };
@@ -839,6 +898,9 @@ impl CubeScene {
         {
             if mode == SceneMode::Orchard && self.mode == mode {
                 self.orchard_index = (self.orchard_index + 1) % self.orchards.len();
+            }
+            if mode == SceneMode::World && self.mode == mode {
+                self.world_index = (self.world_index + 1) % self.worlds.len();
             }
             self.mode = mode;
             self.set_mode_projection(mode);
@@ -876,6 +938,23 @@ impl CubeScene {
                         reveal::REARM_MS
                     ),
                 );
+            } else if mode == SceneMode::World {
+                self.orchard_reveal.reset();
+                let asset = &self.worlds[self.world_index];
+                self.orbit = [core::f32::consts::PI, -0.15, (asset.radius * 1.15).max(8.0)];
+                self.look_target = [0.; 3];
+                logl::log(
+                    level::INFO,
+                    format_args!(
+                        "Cubes: Key5 world={}/{} asset={} authored={} streamed_nearest={} renderer_seed_limit={}",
+                        self.world_index + 1,
+                        self.worlds.len(),
+                        asset.name,
+                        asset.cubes.len(),
+                        WORLD_SEED_BUDGET,
+                        grid::MAX_SEED_COUNT
+                    ),
+                );
             } else if mode != SceneMode::StaticCube {
                 self.flycam.camera.position = [0.0; 3];
             }
@@ -892,9 +971,13 @@ impl CubeScene {
                             "3 sphere=1024 camera=center WASD=look cursor-expand=10%-area",
                         SceneMode::Orchard =>
                             "4 cubes-pair WASD=orbit idle=auto-orbit Key4=next-pair",
+                        SceneMode::World =>
+                            "5 lvl27-world WASD=orbit nearest-first-stream Key5=next-world",
                     },
                     if mode == SceneMode::Orchard {
                         self.orchards[self.orchard_index].cubes.len()
+                    } else if mode == SceneMode::World {
+                        self.worlds[self.world_index].cubes.len()
                     } else {
                         mode.seed_count()
                     },
@@ -916,10 +999,13 @@ impl CubeScene {
                 SceneMode::StaticCube => PUZZLE_YFOV,
                 SceneMode::Sphere => ROOM_YFOV,
                 SceneMode::Orchard => PUZZLE_YFOV,
+                SceneMode::World => PUZZLE_YFOV,
             },
             znear: 0.1,
             zfar: Some(if mode == SceneMode::Orchard {
                 (self.orchards[self.orchard_index].radius * 10.0).max(100.0)
+            } else if mode == SceneMode::World {
+                (self.worlds[self.world_index].radius * 10.0).max(100.0)
             } else {
                 100.0
             }),

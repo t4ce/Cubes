@@ -17,24 +17,37 @@ fn main() {
         .filter(|p| p.extension().is_some_and(|e| e == "cubes"))
         .collect();
     assets.sort();
-    let mut registry = String::from("const ORCHARD_ASSETS: &[(&str, &[u8])] = &[\n");
-    for path in assets {
-        let bytes = fs::read(&path).expect("read CUBES asset");
-        orchard::decode("build-validation", &bytes).unwrap_or_else(|error| {
-            panic!(
-                "{}: {} (expected strict-grid nature v1)",
-                path.display(),
-                error
-            )
-        });
-        let absolute = fs::canonicalize(&path).unwrap();
-        registry.push_str(&format!(
-            "({:?}, include_bytes!({:?})),\n",
-            path.file_name().unwrap().to_str().unwrap(),
-            absolute
-        ));
-    }
-    registry.push_str("];\n");
+    let write_registry = |constant: &str, assets: Vec<std::path::PathBuf>| {
+        let mut registry = format!("const {constant}: &[(&str, &[u8])] = &[\n");
+        for path in assets {
+            let bytes = fs::read(&path).expect("read CUBES asset");
+            orchard::decode("build-validation", &bytes).unwrap_or_else(|error| {
+                panic!(
+                    "{}: {} (expected strict-grid nature v1)",
+                    path.display(),
+                    error
+                )
+            });
+            let absolute = fs::canonicalize(&path).unwrap();
+            registry.push_str(&format!(
+                "({:?}, include_bytes!({:?})),\n",
+                path.file_name().unwrap().to_str().unwrap(),
+                absolute
+            ));
+        }
+        registry.push_str("];\n");
+        registry
+    };
+    let mut registry = write_registry("ORCHARD_ASSETS", assets);
+    let world_dir = std::path::Path::new("Cube/lvl27");
+    let mut worlds: Vec<_> = fs::read_dir(world_dir)
+        .expect("Cube/lvl27 world directory")
+        .map(|e| e.unwrap().path())
+        .filter(|p| p.extension().is_some_and(|e| e == "cubes"))
+        .collect();
+    worlds.sort();
+    assert_eq!(worlds.len(), 27, "expected all 27 lvl27 world assets");
+    registry.push_str(&write_registry("WORLD_ASSETS", worlds));
     fs::write(
         std::path::Path::new(&std::env::var_os("OUT_DIR").unwrap()).join("orchard_assets.rs"),
         registry,
