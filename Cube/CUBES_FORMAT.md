@@ -1,142 +1,128 @@
-# CUBES compact asset format v1
+# CUBES strict-grid nature format v1
 
-This format is intended for assets made entirely from the single procedural cube used by `t4ce/Cubes`.
-The asset file does **not** duplicate cube mesh vertices. Each placed cube is one compact point/seed plus metadata.
+This is the compact source format for the nature builder. Trees, rocks/ores, and bushes all use the same clean baseline:
 
-## Design goals
+- one reusable procedural cube shape
+- strict `1x` integer placement grid
+- legal cube sizes only: `1x`, `2x`, `3x`, `4x`
+- no occupied grid cell may be used by two cubes
+- every rendered cube is uniformly scaled
+- a `1%` gap of one base grid unit is removed from the rendered side length so neighboring faces never coincide
+- no rigs, bones, free-positioned pieces, or animal-specific data
 
-- One logical point per cube.
-- Cube sizes are restricted to `1x`, `2x`, `3x`, or `4x`.
-- Positions remain snapped to the smallest `1x` grid.
-- Trees use a `-1%` smallest-cell visual bias to preserve a tiny gap.
-- Animals use a small positive visual bias so adjacent rigid cubes can clip at joints without giving up the logical non-overlap grid.
-- A quadruped asset may assign each cube rigidly to one bone. No skin weights are needed because a cube belongs to exactly one bone.
+The file stores no repeated mesh geometry. Each cube is represented by one compact grid record plus palette metadata.
 
 ## File layout
 
 All multi-byte values are little-endian.
 
-### Header: 16 bytes
+### Header — 16 bytes
 
 | Offset | Type | Meaning |
 |---:|---|---|
 | 0 | `u8[4]` | ASCII `CUBE` |
-| 4 | `u8` | Version, currently `1` |
-| 5 | `u8` | Asset type: `0=static/tree`, `1=quadruped` |
-| 6 | `i8` | Visual side bias in percent of one smallest grid cell (`-1` tree gap, `+10` animal clip in the demo) |
-| 7 | `u8` | Bone count |
+| 4 | `u8` | Version = `1` |
+| 5 | `u8` | Flags = `0` for strict-grid static nature asset |
+| 6 | `u8` | Gap percent of one `1x` grid unit; demo writes `1` |
+| 7 | `u8` | Cube record size = `8` |
 | 8 | `u16` | Cube count |
 | 10 | `u8` | Palette entry count |
-| 11 | `u8` | Cube record size, currently `8` |
-| 12 | `f32` | Smallest grid-unit side length |
+| 11 | `u8` | Maximum legal size tier = `4` |
+| 12 | `f32` | World-space size of one `1x` grid cell (`grid_unit`) |
 
-### Palette: 4 bytes per entry
+### Palette — 4 bytes per entry
 
-`RGBA8`.
+Each palette entry is `RGBA8`.
 
-### Bone record: 8 bytes per bone
+### Cube record — 8 bytes
 
-| Byte | Type | Meaning |
+| Offset | Type | Meaning |
 |---:|---|---|
-| 0 | `i8` | Parent bone index, `-1` for root |
-| 1 | `i8` | Pivot X in half-grid units |
-| 2 | `i8` | Pivot Y in half-grid units |
-| 3 | `i8` | Pivot Z in half-grid units |
-| 4 | `u8` | Bone flags, reserved in v1 |
-| 5..7 | `u8[3]` | Reserved |
-
-The demo uses the fixed quadruped bone order:
-
-```text
-0  root
-1  spine
-2  chest
-3  neck
-4  head
-5  frontLUpper
-6  frontLLower
-7  frontRUpper
-8  frontRLower
-9  hindLUpper
-10 hindLLower
-11 hindRUpper
-12 hindRLower
-13 tail
-```
-
-### Cube record: 8 bytes per cube
-
-| Byte | Type | Meaning |
-|---:|---|---|
-| 0 | `i8` | Cube-center X in half-grid units |
-| 1 | `i8` | Cube-center Y in half-grid units |
-| 2 | `i8` | Cube-center Z in half-grid units |
+| 0 | `i8` | Minimum occupied grid cell X |
+| 1 | `i8` | Minimum occupied grid cell Y |
+| 2 | `i8` | Minimum occupied grid cell Z |
 | 3 | `u8` | Size tier: `1..4` |
 | 4 | `u8` | Palette index |
-| 5 | `u8` | Bone index, or `255` for an unrigged/static cube |
-| 6 | `u8` | Semantic part id (body, leaf, head, leg, etc.) |
-| 7 | `u8` | Cube flags; bit 0 currently marks the animal visual-clip mode |
+| 5 | `u8` | Semantic part id |
+| 6 | `u8` | Reserved flags, currently `0` |
+| 7 | `u8` | Reserved, currently `0` |
 
-The point position is reconstructed exactly as:
-
-```text
-center = vec3(cx2, cy2, cz2) * (grid_unit * 0.5)
-```
-
-The procedural cube in the `Cubes` runtime is mesh-local with a side length of 2, so the positive uniform half-scale is:
+For a record `(gx, gy, gz, size)`, the exact cube center is reconstructed without storing floats:
 
 ```text
-rendered_side = size_tier * grid_unit + visual_bias_percent/100 * grid_unit
-uniform_scale = rendered_side * 0.5
+center_grid = [gx, gy, gz] + [size, size, size] * 0.5
+center_world = center_grid * grid_unit
 ```
 
-This preserves equal-sided cubes at every tier.
-
-## Mapping to the current `Cubes` retained path
-
-The compact file should be treated as an **asset/source format**, not as a replacement for the current retained runtime ABI.
-On load, each 8-byte cube record can be expanded to one existing `RetainedTransformSeed`:
+The nominal cube side is:
 
 ```text
-translation = decoded center (or bone-transformed center)
-scale       = [uniform_scale; 3]
-rotation    = identity for static assets, bone rotation for rigged animals
-local_radius = existing cube local radius
-previous_translation = translation initially
-draw_group  = 0
-flags       = group-local slot metadata + custom colour bits
+nominal_side = size * grid_unit
 ```
 
-For a first implementation, this keeps the current GPU contract untouched while making source assets dramatically smaller.
-
-### Compact colour without adding another GPU buffer
-
-The current pipeline already uses the upper 16 bits of `seed.flags` for the group-local seed slot, so leave those bits alone.
-For custom static/tree/animal assets, the currently unused lower-bit mode can reserve bit 15 as a custom-colour marker and use bits 0..14 as RGB555:
+The builder's visual separation is:
 
 ```text
-bit 15      CUSTOM_RGB555
-bits 10..14 blue 5-bit
-bits 5..9   green 5-bit
-bits 0..4   red 5-bit
+gap_world = grid_unit * gap_percent / 100
+rendered_side = nominal_side - gap_world
 ```
 
-The loader converts the exported palette's RGBA8 entry to RGB555 when it creates the runtime seed. The domain shader then decodes RGB555 when `CUSTOM_RGB555` is set. This avoids an extra per-instance colour buffer and leaves the upper 16-bit slot numbering intact.
+The same subtraction is used for every size tier, so the visible separation between adjacent logical cubes stays tied to the smallest grid unit.
 
-## Rigging model
+## Occupancy rule
 
-Animals use rigid cube-to-bone assignment rather than vertex skin weights:
+A size-`N` cube starting at `(gx, gy, gz)` reserves exactly `N³` smallest grid cells:
 
 ```text
-cube -> one bone index -> bone matrix -> cube transform
+x = gx .. gx + N - 1
+y = gy .. gy + N - 1
+z = gz .. gz + N - 1
 ```
 
-That is sufficient because each cube is already an independent rigid primitive. A simple walk cycle only needs to update the 14 bone transforms; each cube inherits the transform of its assigned bone.
+A placement is legal only when none of those cells has already been reserved. A `4x` cube therefore reserves exactly `4 × 4 × 4 = 64` smallest cells.
 
-For the first runtime version it is reasonable to generate/update `RetainedTransformSeed`s on the CPU. If large animated crowds become important later, the same compact records can stay resident and a small bone-matrix buffer can drive the retained transform compute path on the GPU.
+## Current semantic part ids
 
-## Current demo limits
+```text
+0  generic cube
+1  trunk / stem
+2  branch
+3  foliage / crown / tip
+4  rock
+5  ore-bearing rock
+6  bush / shrub foliage
+7  berry
+8  grass / grass base
+```
 
-- Cube centers are signed `i8` half-grid values, giving an asset-local range of roughly `-64 .. +63.5` grid cells per axis.
-- Cube count is `u16`, although the current `Cubes` retained renderer has a much smaller practical per-frame seed ceiling.
-- The v1 format assumes one rigid bone per cube and no per-cube non-uniform scaling.
+These ids are only metadata. Rendering still uses the palette index and the one reusable cube primitive.
+
+## Mapping to `t4ce/Cubes`
+
+The compact file is an asset representation, not a replacement for the renderer's retained runtime seed. Each 8-byte cube record can expand to one runtime cube instance:
+
+```text
+translation = center_world
+scale       = [rendered_side * 0.5; 3]
+rotation    = identity
+color       = palette[palette_index]
+```
+
+The `* 0.5` assumes the procedural reference cube spans two mesh-local units across, matching the current `Cubes` procedural-cube path.
+
+This keeps the authored asset extremely small while preserving the exact strict-grid layout.
+
+## Validation and runtime profile
+
+The nature builder and Cubes Demo use this one layout, not the earlier
+half-grid-center/bone layout which also carried version byte 1. Header bytes
+7 and 11 must be exactly 8 and 4. Older layouts must be explicitly converted
+or re-exported, never guessed by the runtime.
+
+The demo accepts 1–1024 cubes, 1–255 opaque RGBA palette entries, positive finite
+grid units, gap percentages 1–99 (builder default 1), and rendered half-scales
+of at least 0.001. Header flags and both reserved record bytes must be zero.
+Semantic part IDs are metadata and do not change placement. Cell occupancy is
+validated before rendering; invalid assets fail the build with their filename.
+Asset +Y is mapped to demo -Y and the assembled asset is centered for orbiting;
+neither operation changes relative positions or sizes.

@@ -1,5 +1,8 @@
 use sha2::{Digest, Sha256};
 use std::fs;
+#[allow(dead_code)]
+#[path = "src/orchard.rs"]
+mod orchard;
 
 mod exported {
     // This file travels with the app into Blueprint's source overlay.
@@ -16,6 +19,9 @@ fn main() {
     assets.sort();
     let mut registry = String::from("const ORCHARD_ASSETS: &[(&str, &[u8])] = &[\n");
     for path in assets {
+        let bytes = fs::read(&path).expect("read CUBES asset");
+        orchard::decode("build-validation", &bytes)
+            .unwrap_or_else(|error| panic!("{}: {} (expected strict-grid nature v1)", path.display(), error));
         let absolute = fs::canonicalize(&path).unwrap();
         registry.push_str(&format!(
             "({:?}, include_bytes!({:?})),\n",

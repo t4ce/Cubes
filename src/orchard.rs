@@ -1,6 +1,7 @@
 //! Compact static assets and conservative pre-HS visibility. No cursor dependency.
 extern crate alloc;
 use alloc::vec::Vec;
+use alloc::collections::BTreeSet;
 pub const CUSTOM_RGB555: u32 = 1 << 15;
 #[derive(Clone, Copy, Debug)]
 pub struct Cube {
@@ -14,13 +15,16 @@ pub struct Asset {
     pub radius: f32,
 }
 pub fn decode(name: &'static str, bytes: &[u8]) -> Result<Asset, &'static str> {
-    if bytes.len() < 16 || &bytes[..4] != b"CUBE" || bytes[4] != 1 || bytes[11] != 8 {
+    if bytes.len() < 16 || &bytes[..4] != b"CUBE" || bytes[4] != 1 {
         return Err("cubes-header");
     }
-    // Static opaque assets only in this stage. Never silently ignore a rig.
-    if bytes[5] != 0 || bytes[7] != 0 {
+    if bytes[7] != 8 || bytes[11] != 4 {
+        return Err("cubes-header");
+    }
+    if bytes[5] != 0 {
         return Err("cubes-static-only");
     }
+    if bytes[6] == 0 || bytes[6] >= 100 { return Err("cubes-gap"); }
     let count = u16::from_le_bytes([bytes[8], bytes[9]]) as usize;
     let colors = bytes[10] as usize;
     let unit = f32::from_le_bytes(bytes[12..16].try_into().unwrap());
@@ -35,21 +39,30 @@ pub fn decode(name: &'static str, bytes: &[u8]) -> Result<Asset, &'static str> {
         return Err("cubes-opaque-only");
     }
     let mut cubes = Vec::with_capacity(count);
+    let mut occupied = BTreeSet::new();
     let mut lo = [f32::INFINITY; 3];
     let mut hi = [f32::NEG_INFINITY; 3];
     for r in bytes[start..].chunks_exact(8) {
-        if !(1..=4).contains(&r[3]) || r[4] as usize >= colors || r[5] != 255 || r[7] != 0 {
+        if !(1..=4).contains(&r[3])
+            || r[4] as usize >= colors
+            || r[6] != 0
+            || r[7] != 0
+        {
             return Err("cubes-record");
         }
-        let scale = (r[3] as f32 + bytes[6] as i8 as f32 / 100.0) * unit * 0.5;
+        let origin = [r[0] as i8 as i16, r[1] as i8 as i16, r[2] as i8 as i16];
+        for x in 0..r[3] as i16 { for y in 0..r[3] as i16 { for z in 0..r[3] as i16 {
+            if !occupied.insert([origin[0]+x,origin[1]+y,origin[2]+z]) { return Err("cubes-overlap"); }
+        }}}
+        let scale = (r[3] as f32 - bytes[6] as f32 / 100.0) * unit * 0.5;
         if !scale.is_finite() || scale < 0.001 {
             return Err("cubes-scale");
         }
         // Asset +Y is up; this demo's camera convention has -Y up.
         let center = [
-            r[0] as i8 as f32 * unit * 0.5,
-            -(r[1] as i8 as f32) * unit * 0.5,
-            r[2] as i8 as f32 * unit * 0.5,
+            (origin[0] as f32 + r[3] as f32*0.5) * unit,
+            -(origin[1] as f32 + r[3] as f32*0.5) * unit,
+            (origin[2] as f32 + r[3] as f32*0.5) * unit,
         ];
         if center.iter().any(|x| !x.is_finite()) {
             return Err("cubes-position");
@@ -224,6 +237,14 @@ mod tests {
         bad = bytes.to_vec();
         bad[5] = 1;
         assert!(decode("rig", &bad).is_err());
+    }
+    #[test]
+    fn strict_grid_pine_has_correct_spacing_and_gap() {
+        let asset = decode("pine", include_bytes!("../Cube/plant_pine.cubes")).unwrap();
+        assert_eq!(asset.cubes.len(), 423);
+        assert!((asset.cubes[0].scale-0.199).abs()<1e-6);
+        assert!((asset.cubes[0].center[1]-asset.cubes[1].center[1]-0.4).abs()<1e-6);
+        assert!(asset.cubes.iter().all(|c| c.flags & CUSTOM_RGB555 != 0));
     }
     #[test]
     fn occlusion_keeps_partial_silhouettes_and_inside_views() {

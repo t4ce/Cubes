@@ -10,7 +10,16 @@ flags, malformed records and unsupported scales fail explicitly.
 WASD orbits the centered asset; after three seconds without camera input it
 orbits automatically. Mouse position does not control expansion. Asset +Y is
 mapped to demo -Y (up). Framing uses asset bounds without resizing the cubes.
-Size tiers and smallest-cell bias follow CUBES_FORMAT.md exactly. Palette
+Only the strict-grid nature v1 layout in `Cube/CUBES_FORMAT.md` is accepted.
+Coordinates are minimum occupied cells: center = (origin + size/2) * grid_unit.
+Rendered side = (size - gap_percent/100) * grid_unit. Gap must be 1..99 percent;
+the builder uses 1 percent. Overlapping occupied cells and nonzero reserved
+fields are rejected. The same decoder validates every asset at build time.
+There is no runtime legacy-format detection. The old orchard was migrated
+losslessly; its original is retained as `Cube/cube_orchard.center-v1-backup`,
+which is not packaged as an asset. `tools/migrate_center_cubes.py` is an explicit
+offline converter, not a supported alternate runtime format.
+Palette
 colors are quantized to RGB555 and use the existing DS lighting, alpha 1.
 
 One logical seed per cube remains the source. Submitted geometry is the
