@@ -1,8 +1,11 @@
 # Key 4: compact opaque cube assets
 
 Put `.cubes` files in `Cube/` and rebuild Cubes. The build discovers them in
-filename order; runtime decodes each once at startup. Key 4 enters the first
-asset and subsequent Key-4 presses cycle assets. No placeholder copies are
+filename order; runtime decodes each once at startup. Key 4 shows adjacent
+pairs of assets side by side; subsequent presses cycle pairs. Each pair is
+limited to 1024 total seeds. The orchard and pine use 900 together, retain
+their authored scales/colors, align their bases, and have a one-world-unit gap.
+Camera bounds and visibility cover the combined pair. No placeholder copies are
 created for missing assets. Each asset may contain 1–1024 cubes. This stage
 accepts version-1 opaque static assets only; rigs, alpha palettes, unsupported
 flags, malformed records and unsupported scales fail explicitly.

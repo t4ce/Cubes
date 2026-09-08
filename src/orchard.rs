@@ -14,6 +14,68 @@ pub struct Asset {
     pub cubes: Vec<Cube>,
     pub radius: f32,
 }
+
+/// Arrange an asset pair on a shared base, without changing authored scales.
+/// The combined seeds share the existing visibility pass and orbit bounds.
+pub fn side_by_side(assets: &[Asset]) -> Result<Asset, &'static str> {
+    let count: usize = assets.iter().map(|a| a.cubes.len()).sum();
+    if count == 0 || count > 1024 {
+        return Err("cubes-pair-seed-limit");
+    }
+    let mut cubes = Vec::with_capacity(count);
+    let mut cursor = 0.0;
+    for asset in assets {
+        let left = asset
+            .cubes
+            .iter()
+            .map(|c| c.center[0] - c.scale)
+            .fold(f32::INFINITY, f32::min);
+        let right = asset
+            .cubes
+            .iter()
+            .map(|c| c.center[0] + c.scale)
+            .fold(f32::NEG_INFINITY, f32::max);
+        // Demo +Y points down: largest Y is the bottom of the asset.
+        let bottom = asset
+            .cubes
+            .iter()
+            .map(|c| c.center[1] + c.scale)
+            .fold(f32::NEG_INFINITY, f32::max);
+        for &cube in &asset.cubes {
+            let mut placed = cube;
+            placed.center[0] += cursor - left;
+            placed.center[1] -= bottom;
+            cubes.push(placed);
+        }
+        cursor += right - left + 1.0; // One world-unit clear gap between asset bounds.
+    }
+    let lo: [f32; 3] = core::array::from_fn(|a| {
+        cubes
+            .iter()
+            .map(|c| c.center[a] - c.scale)
+            .fold(f32::INFINITY, f32::min)
+    });
+    let hi: [f32; 3] = core::array::from_fn(|a| {
+        cubes
+            .iter()
+            .map(|c| c.center[a] + c.scale)
+            .fold(f32::NEG_INFINITY, f32::max)
+    });
+    for cube in &mut cubes {
+        for a in 0..3 {
+            cube.center[a] -= (lo[a] + hi[a]) * 0.5;
+        }
+    }
+    Ok(Asset {
+        name: if assets.len() == 1 {
+            assets[0].name
+        } else {
+            "side-by-side pair"
+        },
+        cubes,
+        radius: (0..3).map(|a| (hi[a] - lo[a]) * 0.5).sum(),
+    })
+}
 pub fn decode(name: &'static str, bytes: &[u8]) -> Result<Asset, &'static str> {
     if bytes.len() < 16 || &bytes[..4] != b"CUBE" || bytes[4] != 1 {
         return Err("cubes-header");
@@ -193,6 +255,35 @@ pub fn visible(asset: &Asset, eye: [f32; 3], matrix: &[f32; 16]) -> Vec<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn pair_keeps_both_assets_sizes_colors_and_a_clear_gap() {
+        let a = decode("orchard", include_bytes!("../Cube/cube_orchard.cubes")).unwrap();
+        let b = decode("pine", include_bytes!("../Cube/plant_pine.cubes")).unwrap();
+        let split = a.cubes.len();
+        let originals = [a, b];
+        let pair = side_by_side(&originals).unwrap();
+        assert_eq!(pair.cubes.len(), 900);
+        for (original, placed) in originals.iter().flat_map(|a| &a.cubes).zip(&pair.cubes) {
+            assert_eq!(original.scale, placed.scale);
+            assert_eq!(original.flags, placed.flags);
+        }
+        let right = pair.cubes[..split]
+            .iter()
+            .map(|c| c.center[0] + c.scale)
+            .fold(f32::NEG_INFINITY, f32::max);
+        let left = pair.cubes[split..]
+            .iter()
+            .map(|c| c.center[0] - c.scale)
+            .fold(f32::INFINITY, f32::min);
+        assert!((left - right - 1.0).abs() < 1e-5);
+        let bottom = |cubes: &[Cube]| {
+            cubes
+                .iter()
+                .map(|c| c.center[1] + c.scale)
+                .fold(f32::NEG_INFINITY, f32::max)
+        };
+        assert!((bottom(&pair.cubes[..split]) - bottom(&pair.cubes[split..])).abs() < 1e-5);
+    }
     #[test]
     fn orchard_visibility_removes_hidden_seeds_without_emptying_the_view() {
         let asset = decode("orchard", include_bytes!("../Cube/cube_orchard.cubes")).unwrap();

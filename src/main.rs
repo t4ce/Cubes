@@ -35,6 +35,9 @@ const CUBE_INDICES: &[u8] = &[0; 44 * 4];
 
 const CUBE_SOURCE: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/Cube/cube.glb"));
 const WIDTH: u32 = 784;
+// Performance A/B switch: false creates no counter task/window or sprite work.
+// Keep the Tokio runtime and scene scheduling unchanged to isolate the HUD.
+const ENABLE_COUNTER_HUD: bool = false;
 const HEIGHT: u32 = 441;
 const PUZZLE_YFOV: f32 = core::f32::consts::FRAC_PI_3;
 const ROOM_YFOV: f32 = 5.0 * core::f32::consts::PI / 12.0;
@@ -282,14 +285,37 @@ impl CubeScene {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let hud = match hud::Worker::spawn(&frame) {
-            Ok(panel) => Some(panel),
-            Err(error) => {
-                logl::log(
-                    level::WARN,
-                    format_args!("Cubes: counter window unavailable={error:?}; scene continues"),
-                );
-                None
+        // Two authored assets per view; later additions become further Key-4 pages.
+        let orchards = orchards
+            .chunks(2)
+            .map(|pair| {
+                orchard::side_by_side(pair).map_err(|error| {
+                    logl::log(
+                        level::ERROR,
+                        format_args!("Cubes: asset pair rejected={error}"),
+                    );
+                    CubeError::Contract
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let hud = if !ENABLE_COUNTER_HUD {
+            logl::log(
+                level::INFO,
+                format_args!("Cubes: counter HUD disabled (performance test)"),
+            );
+            None
+        } else {
+            match hud::Worker::spawn(&frame) {
+                Ok(panel) => Some(panel),
+                Err(error) => {
+                    logl::log(
+                        level::WARN,
+                        format_args!(
+                            "Cubes: counter window unavailable={error:?}; scene continues"
+                        ),
+                    );
+                    None
+                }
             }
         };
         Ok(Self {
@@ -885,7 +911,7 @@ impl CubeScene {
                         SceneMode::Sphere =>
                             "3 sphere=1024 camera=center WASD=look cursor-expand=10%-area",
                         SceneMode::Orchard =>
-                            "4 cubes-asset WASD=orbit idle=auto-orbit Key4=next-asset",
+                            "4 cubes-pair WASD=orbit idle=auto-orbit Key4=next-pair",
                     },
                     if mode == SceneMode::Orchard {
                         self.orchards[self.orchard_index].cubes.len()
