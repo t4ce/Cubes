@@ -20,8 +20,13 @@ fn main() {
     let mut registry = String::from("const ORCHARD_ASSETS: &[(&str, &[u8])] = &[\n");
     for path in assets {
         let bytes = fs::read(&path).expect("read CUBES asset");
-        orchard::decode("build-validation", &bytes)
-            .unwrap_or_else(|error| panic!("{}: {} (expected strict-grid nature v1)", path.display(), error));
+        orchard::decode("build-validation", &bytes).unwrap_or_else(|error| {
+            panic!(
+                "{}: {} (expected strict-grid nature v1)",
+                path.display(),
+                error
+            )
+        });
         let absolute = fs::canonicalize(&path).unwrap();
         registry.push_str(&format!(
             "({:?}, include_bytes!({:?})),\n",
