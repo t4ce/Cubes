@@ -249,7 +249,7 @@ impl CubeScene {
         logl::log(
             level::INFO,
             format_args!(
-                "Cubes: mode-1-room=6x{}x{} retained_seeds={} default=2 compact-select-expand-3turns wait=1s flight=2.5s camera=WASD-orbit idle=3s-auto-orbit",
+                "Cubes: mode-1-room=6x{}x{} retained_seeds={} default=2 compact-select-expand-3turns wait=0s flight=3.5s camera=WASD-orbit idle=3s-auto-orbit",
                 grid::COLS,
                 grid::ROWS,
                 grid::COUNT,

@@ -1,5 +1,7 @@
-pub const WAIT_MS: u64 = 1000;
-pub const FLIGHT_MS: u64 = 2500;
+// Begin the camera flight as soon as the third turn commits, then ease into
+// the room over an additional second instead of pausing between the stages.
+pub const WAIT_MS: u64 = 0;
+pub const FLIGHT_MS: u64 = 3500;
 pub struct Flight {
     pub started: u64,
     pub points: [[f32; 3]; 4],
@@ -39,7 +41,8 @@ mod tests {
     }
 
     #[test]
-    fn post_turn_pause_is_one_second() {
-        assert_eq!(WAIT_MS, 1_000);
+    fn post_turn_pause_is_removed_and_flight_is_extended() {
+        assert_eq!(WAIT_MS, 0);
+        assert_eq!(FLIGHT_MS, 3_500);
     }
 }
