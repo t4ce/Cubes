@@ -190,6 +190,8 @@ pub struct VisibilityStats {
     /// Cubes remaining after frustum rejection, including uncertain projections.
     pub frustum: usize,
     pub occluded: usize,
+    /// Eligible cubes deliberately deferred by the reveal queue.
+    pub pending: usize,
     pub visible: usize,
 }
 
@@ -445,11 +447,24 @@ fn single_occluded(
 /// Cull by collective screen coverage or an exact single-blocker shadow proof.
 /// Both prove the entire outer candidate hidden; uncertainty retains a cube.
 /// This is whole-seed visibility; each survivor still submits all 44 patches.
+#[cfg(test)]
 pub fn visible<'a>(
     scratch: &'a mut VisibilityScratch,
     asset: &Asset,
     eye: [f32; 3],
     matrix: &[f32; 16],
+) -> (&'a [usize], VisibilityStats) {
+    visible_when(scratch, asset, eye, matrix, |_| true)
+}
+
+/// Admission runs after visibility testing and before recording any occlusion.
+/// Only actually submitted, full-size opaque cubes can hide later candidates.
+pub fn visible_when<'a>(
+    scratch: &'a mut VisibilityScratch,
+    asset: &Asset,
+    eye: [f32; 3],
+    matrix: &[f32; 16],
+    mut admit: impl FnMut(usize) -> bool,
 ) -> (&'a [usize], VisibilityStats) {
     scratch.depth.fill(f32::INFINITY);
     scratch.projected.clear();
@@ -481,6 +496,12 @@ pub fn visible<'a>(
                 stats.occluded += 1;
                 continue;
             }
+        }
+        if !admit(candidate.id) {
+            stats.pending += 1;
+            continue;
+        }
+        if candidate.projection.is_some() {
             let cube = asset.cubes[candidate.id];
             let inner = Cube {
                 scale: cube.scale * INNER_SCALE,
@@ -503,6 +524,9 @@ pub fn visible<'a>(
 #[cfg(test)]
 #[path = "picking.rs"]
 mod picking;
+#[cfg(test)]
+#[path = "reveal.rs"]
+mod reveal;
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -545,7 +569,10 @@ mod tests {
         let mut scratch = VisibilityScratch::new();
         let (kept, stats) = visible(&mut scratch, &asset, [0., 0., -20.], &matrix);
         assert_eq!(stats.source, asset.cubes.len());
-        assert_eq!(stats.frustum, stats.occluded + stats.visible);
+        assert_eq!(
+            stats.frustum,
+            stats.occluded + stats.pending + stats.visible
+        );
         assert!(!kept.is_empty());
         assert!(kept.len() < asset.cubes.len());
         std::println!(
@@ -639,7 +666,10 @@ mod tests {
 
     fn assert_stats(stats: VisibilityStats, ids: &[usize], source: usize) {
         assert_eq!(stats.source, source);
-        assert_eq!(stats.frustum, stats.occluded + stats.visible);
+        assert_eq!(
+            stats.frustum,
+            stats.occluded + stats.pending + stats.visible
+        );
         assert_eq!(stats.visible, ids.len());
         assert!(stats.frustum <= source);
     }
@@ -963,6 +993,112 @@ mod tests {
         assert!(
             collectively_removed > 0,
             "collective culling must improve real assets"
+        );
+    }
+    #[test]
+    fn pending_cubes_cannot_occlude_already_admitted_cubes() {
+        let asset = scene(alloc::vec![cube([0., 0., 4.], 1.), cube([0., 0., 8.], 0.3)]);
+        let mut scratch = VisibilityScratch::new();
+        let (ids, stats) = visible_when(&mut scratch, &asset, [0.; 3], &PERSPECTIVE, |id| id == 1);
+        assert_eq!(ids, &[1]);
+        assert_eq!((stats.occluded, stats.pending), (0, 1));
+        assert_stats(stats, ids, 2);
+        let (ids, stats) = visible_when(&mut scratch, &asset, [0.; 3], &PERSPECTIVE, |_| true);
+        assert_eq!(ids, &[0]);
+        assert_eq!((stats.occluded, stats.pending), (1, 0));
+        let (ids, stats) = visible_when(&mut scratch, &asset, [0.; 3], &PERSPECTIVE, |_| false);
+        assert!(ids.is_empty());
+        assert_eq!((stats.occluded, stats.pending), (0, 2));
+    }
+
+    #[test]
+    fn reveal_reaches_the_exact_original_submission_at_each_stationary_view() {
+        let asset = side_by_side(&[
+            decode("orchard", include_bytes!("../Cube/cube_orchard.cubes")).unwrap(),
+            decode("pine", include_bytes!("../Cube/plant_pine.cubes")).unwrap(),
+        ])
+        .unwrap();
+        let mut baseline = VisibilityScratch::new();
+        let mut scratch = VisibilityScratch::new();
+        let mut reveal = reveal::Reveal::new();
+        let far = (asset.radius * 10.).max(100.);
+        for view in 0..12 {
+            let yaw = core::f32::consts::PI + view as f32 * core::f32::consts::TAU / 12.;
+            let (eye, matrix, _) = orbit_matrix(yaw, -0.15, asset.radius * 2.5, far);
+            let (expected, _) = visible(&mut baseline, &asset, eye, &matrix);
+            reveal.reset();
+            let mut previous = 0;
+            let mut settled_at = None;
+            for now in (0..1300).step_by(67) {
+                reveal.begin_frame(now, asset.cubes.len());
+                let (ids, stats) =
+                    visible_when(&mut scratch, &asset, eye, &matrix, |id| reveal.admit(id));
+                reveal.end_frame();
+                assert_stats(stats, ids, asset.cubes.len());
+                assert!(ids.len() >= previous);
+                assert!(ids.len() - previous <= reveal::MAX_STARTS_PER_FRAME as usize);
+                assert!(ids.len() <= expected.len());
+                if now < reveal::DELAY_MS {
+                    assert!(ids.is_empty());
+                }
+                if stats.pending == 0 {
+                    assert_eq!(
+                        ids, expected,
+                        "view {view}: final IDs and order must match exactly"
+                    );
+                    settled_at.get_or_insert(now);
+                }
+                previous = ids.len();
+            }
+            assert!(settled_at.unwrap() < 1000);
+            std::println!(
+                "pop-in view={view} final={} settled={}ms at ~15fps",
+                expected.len(),
+                settled_at.unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn moving_orbit_defers_new_exposures_then_converges_when_the_camera_stops() {
+        let asset = side_by_side(&[
+            decode("orchard", include_bytes!("../Cube/cube_orchard.cubes")).unwrap(),
+            decode("pine", include_bytes!("../Cube/plant_pine.cubes")).unwrap(),
+        ])
+        .unwrap();
+        let far = (asset.radius * 10.).max(100.);
+        let mut baseline = VisibilityScratch::new();
+        let mut scratch = VisibilityScratch::new();
+        let mut reveal = reveal::Reveal::new();
+        let mut drawn_total = 0;
+        let mut baseline_total = 0;
+        let mut pending_after_startup = 0;
+        for frame in 0..550 {
+            let now = frame * 67;
+            let yaw = core::f32::consts::PI + frame.min(519) as f32 * 0.067 * 0.18;
+            let (eye, matrix, _) = orbit_matrix(yaw, -0.15, asset.radius * 2.5, far);
+            let (expected, _) = visible(&mut baseline, &asset, eye, &matrix);
+            reveal.begin_frame(now, asset.cubes.len());
+            let (ids, stats) =
+                visible_when(&mut scratch, &asset, eye, &matrix, |id| reveal.admit(id));
+            reveal.end_frame();
+            assert_stats(stats, ids, asset.cubes.len());
+            if (20..520).contains(&frame) {
+                pending_after_startup += stats.pending;
+                drawn_total += ids.len();
+                baseline_total += expected.len();
+            }
+            if frame >= 540 {
+                assert_eq!(ids, expected);
+                assert_eq!(stats.pending, 0);
+            }
+        }
+        assert!(pending_after_startup > 0);
+        assert!(drawn_total < baseline_total);
+        std::println!(
+            "moving orbit after startup: mean pending={:.1} mean extra avoided={:.1}",
+            pending_after_startup as f32 / 500.,
+            (baseline_total - drawn_total) as f32 / 500.
         );
     }
 }

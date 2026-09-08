@@ -7,6 +7,7 @@ mod grid;
 mod orchard;
 include!(concat!(env!("OUT_DIR"), "/orchard_assets.rs"));
 mod picking;
+mod reveal;
 mod rubik;
 mod transition;
 use alloc::vec::Vec;
@@ -101,6 +102,7 @@ struct CubeScene {
     orchards: Vec<orchard::Asset>,
     orchard_index: usize,
     visibility_scratch: orchard::VisibilityScratch,
+    orchard_reveal: reveal::Reveal,
     puzzle: rubik::Puzzle,
     orbit: [f32; 3], // yaw, elevation, radius
     look_target: [f32; 3],
@@ -283,6 +285,7 @@ impl CubeScene {
             orchards,
             orchard_index: 0,
             visibility_scratch: orchard::VisibilityScratch::new(),
+            orchard_reveal: reveal::Reveal::new(),
             frame,
             device,
             queue,
@@ -533,12 +536,17 @@ impl CubeScene {
             .map_err(|code| CubeError::Vgpu("surface-acquire", code))?;
         let puzzle_spacing = self.puzzle_spacing(elapsed_millis);
         let (visible, visibility_stats) = if self.mode == SceneMode::Orchard {
-            let (ids, stats) = orchard::visible(
+            let asset = &self.orchards[self.orchard_index];
+            self.orchard_reveal
+                .begin_frame(elapsed_millis, asset.cubes.len());
+            let (ids, stats) = orchard::visible_when(
                 &mut self.visibility_scratch,
-                &self.orchards[self.orchard_index],
+                asset,
                 self.flycam.camera.position,
                 &camera.view_projection,
+                |id| self.orchard_reveal.admit(id),
             );
+            self.orchard_reveal.end_frame();
             (ids, Some(stats))
         } else {
             (&[][..], None)
@@ -792,6 +800,7 @@ impl CubeScene {
             visibility_stats.map(|stats| counters::Visibility {
                 frustum: stats.frustum,
                 occluded: stats.occluded,
+                pending: stats.pending,
                 patches_per_cube: CUBE_INDEX_COUNT as usize,
             }),
         ) {
@@ -850,16 +859,21 @@ impl CubeScene {
                     look_at_camera_rotation(p, [0.0; 3], [0.0, -1.0, 0.0]);
             }
             if mode == SceneMode::Orchard {
+                self.orchard_reveal.reset();
                 let asset = &self.orchards[self.orchard_index];
                 self.orbit = [core::f32::consts::PI, -0.15, (asset.radius * 2.5).max(1.0)];
                 self.look_target = [0.; 3];
                 logl::log(
                     level::INFO,
                     format_args!(
-                        "Cubes: Key4 asset={} cubes={} assets={} visibility=collective-cpu-before-HS",
+                        "Cubes: Key4 asset={} cubes={} assets={} visibility=collective-cpu-before-HS reveal=pop delay={}ms rate={}/s burst={} rearm={}ms",
                         asset.name,
                         asset.cubes.len(),
-                        self.orchards.len()
+                        self.orchards.len(),
+                        reveal::DELAY_MS,
+                        reveal::STARTS_PER_SECOND,
+                        reveal::MAX_STARTS_PER_FRAME,
+                        reveal::REARM_MS
                     ),
                 );
             } else if mode != SceneMode::StaticCube {

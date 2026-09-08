@@ -20,20 +20,27 @@ Key 4 records the complete authored scene, including cubes removed before seed
 upload. Its bins use separate visibility labels so frustum counts cannot be
 confused with the frame count:
 
-`[0:+240ms M4 S900 F900 O243 V657 P28908 X10692 frames15]`
+`[0:+240ms M4 S900 F900 O243 Q0 V657 P28908 X10692 frames15]`
 
 - `S`: authored source cubes, including those never submitted this frame.
 - `F`: cubes surviving the frustum test.
-- `O`: cubes removed by conservative occlusion (`F − V`).
+- `O`: cubes removed by conservative occlusion (`F − Q − V`).
+- `Q`: eligible cubes deliberately waiting for delayed/rate-limited pop-in.
 - `V`: visible cubes submitted for expansion.
 - `P`: submitted cube patch references (`V × 44`).
 - `X`: cube patch references avoided (`(S − V) × 44`).
 - `frames`: successfully published frames in the bin.
 
 The empty-view ABI placeholder is excluded from `S`, `V` and `P`. Thus an empty
-900-cube view reports `S900 F0 O0 V0 P0 X39600`; it does not become a zero-cube
-scene. `P/X` describe logical cube submissions, not GPU performance counters or
-measured HS invocations. Surviving cubes still expand all 44 patches. Modes
+900-cube view reports `S900 F0 O0 Q0 V0 P0 X39600`; it does not become a zero-cube
+scene. An entirely queued view instead reports
+`S900 F900 O0 Q900 V0 P0 X39600`. In every bin, `F = O + Q + V`; `X`
+includes both visibility culling and delayed admission. Waiting cubes supply no
+occlusion coverage, so `O` may differ from immediate admission while `Q > 0`.
+Once the camera settles and the queue drains, `Q` returns to zero and the
+original visibility result is restored. `P/X` describe logical cube submissions,
+not GPU performance counters or measured HS invocations. Surviving cubes still
+expand all 44 patches. Modes
 1–3 retain their existing `E/U/F` output.
 
 Host check: `rustc --edition=2024 --test src/counters.rs -o /tmp/cubes-counter-tests`

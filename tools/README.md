@@ -116,7 +116,7 @@ is 10% of the current viewport.
 Counts are logged once per second in four 250 ms samples; no HUD task or
 counter window is used. Modes 1–3 report expanded cubes and compact markers.
 Key 4 reports all authored source cubes, frustum survivors, occluded cubes,
-visible submissions, and submitted/avoided cube patch references. See
+pending pop-ins, visible submissions, and submitted/avoided cube patch references. See
 `COUNTERS.md` and `ORCHARD.md` for visibility behavior and host validation.
 
 A gray 22-segment LINE_LIST floor at Y=3.5 provides orientation. It is one

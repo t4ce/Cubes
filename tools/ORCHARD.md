@@ -28,7 +28,26 @@ colors are quantized to RGB555 and use the existing DS lighting, alpha 1.
 One logical seed per cube remains the source. Submitted geometry is the
 existing 44 PATCHLIST_1 references, not a POINT_LIST masquerading as patches.
 Visible seeds are compacted and sorted near-to-far on the CPU before upload.
-Only those seeds enter the existing VS/HS/TE/DS path; no CPU cube mesh is built.
+Only admitted visible seeds enter the existing VS/HS/TE/DS path; no CPU cube
+mesh is built.
+
+Newly exposed cubes now wait 120 ms, then pop directly to their full authored
+size and color. Admission follows the culler's nearest-first order at up to
+1,600 new cubes per second, capped at 96 starts in any one frame. Waiting cubes
+have no submitted seed or marker and do not provide occlusion coverage. A cube
+that becomes hidden leaves the draw immediately; if it reappears within 240 ms
+of the first observed hidden frame, its admitted state is reused. Longer
+absences rearm the delay. Waiting cubes lose accumulated exposure time whenever
+they become hidden. This avoids repeating the effect for brief culling changes
+while suppressing fleeting new exposures. History uses authored IDs, never
+compacted upload positions. Every Key4 entry/page change resets it.
+
+This is intentional temporary pop-in. Once a stationary view catches up, it
+uses exactly the former cube IDs, order, scales, colors and patch counts. Extra
+savings occur during entry and visibility changes, not after settling. The
+parameters are together at the top of `src/reveal.rs`. A stalled render cannot
+bank more than the 96-start burst cap or count as an observed hidden frame.
+At very low FPS the per-frame cap reduces the effective admission rate.
 
 Visibility rejects cubes outside the camera frustum, then sorts survivors by
 nearest projected outer-box depth. A persistent 320×180 CPU buffer accumulates
@@ -40,6 +59,9 @@ rectangle has proven coverage at a strictly nearer depth. The outer box contains
 the bevel; the inner box is strictly inside it. Near-plane intersections,
 camera-inside views, invalid projections and partial coverage retain the seed;
 uncertain cubes cannot supply occlusion coverage. The buffer resets each frame.
+Reveal admission happens after the visibility test and before stamping either
+the collective buffer or the single-blocker list, so pending cubes never hide
+an already revealed background cube.
 
 The exact single-blocker shadow-volume test remains as a fallback, with cheap
 projected bounds rejection before ray tests. This matters for these small cubes:
@@ -61,10 +83,17 @@ baked GLB by the shader-source tests. An independent bevel-ray oracle checks
 default-distance views, 84–243 of the 900 seeds were skipped, with 0–45 additional
 seeds skipped versus the old single-blocker pass. This is sampled host evidence;
 GPU image equivalence and runtime performance still need bare-metal validation.
+With pop-in enabled, the same 12 stationary views reached the exact baseline
+submission in 536–670 ms at simulated 67 ms frame intervals (about 15 FPS).
+A moving orbit simulation after startup averaged 12.6 pending cubes and 12.3
+fewer submitted cubes than immediate admission, then matched the baseline when
+the camera stopped. These are host simulations, not measurements of the new
+behavior on hardware.
 
 Counters retain all authored instances in the denominator: `S` source, `F`
-after frustum, `O` removed by occlusion, `V` visible submissions, `P = V×44`
-patch references, and `X = (S−V)×44` avoided patch references. See `COUNTERS.md`.
+after frustum, `O` removed by occlusion, `Q` waiting for reveal, `V` actual
+visible submissions, `P = V×44` patch references, and `X = (S−V)×44` avoided
+patch references. See `COUNTERS.md`.
 These are application submission counts, not measured hardware invocations.
 Each surviving cube still submits the existing 44 patches. Remaining hidden
 surfaces use ordinary GPU depth testing; this is not per-face HS culling or GPU

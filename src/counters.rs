@@ -4,6 +4,7 @@ use core::fmt;
 pub struct Visibility {
     pub frustum: usize,
     pub occluded: usize,
+    pub pending: usize,
     pub patches_per_cube: usize,
 }
 #[derive(Clone, Copy, Default)]
@@ -73,13 +74,14 @@ impl fmt::Display for Report {
             } else if let Some(v) = s.visibility {
                 write!(
                     f,
-                    " [{}:+{}ms M{} S{} F{} O{} V{} P{} X{} frames{}]",
+                    " [{}:+{}ms M{} S{} F{} O{} Q{} V{} P{} X{} frames{}]",
                     i,
                     s.at,
                     s.mode,
                     s.expanded + s.unexpanded,
                     v.frustum,
                     v.occluded,
+                    v.pending,
                     s.expanded,
                     s.expanded * v.patches_per_cube,
                     s.unexpanded * v.patches_per_cube,
@@ -132,6 +134,7 @@ mod tests {
             Some(Visibility {
                 frustum: 876,
                 occluded: 491,
+                pending: 0,
                 patches_per_cube: 44,
             }),
         );
@@ -143,13 +146,40 @@ mod tests {
             Some(Visibility {
                 frustum: 0,
                 occluded: 0,
+                pending: 0,
+                patches_per_cube: 44,
+            }),
+        );
+        s.record(
+            500,
+            4,
+            0,
+            900,
+            Some(Visibility {
+                frustum: 900,
+                occluded: 0,
+                pending: 900,
+                patches_per_cube: 44,
+            }),
+        );
+        s.record(
+            750,
+            4,
+            600,
+            300,
+            Some(Visibility {
+                frustum: 900,
+                occluded: 200,
+                pending: 100,
                 patches_per_cube: 44,
             }),
         );
         let report = s.record(1000, 2, 27, 0, None).unwrap().to_string();
-        assert!(report.contains("M4 S900 F876 O491 V385 P16940 X22660 frames1"));
+        assert!(report.contains("M4 S900 F876 O491 Q0 V385 P16940 X22660 frames1"));
         // The required empty-view placeholder is never a logical cube.
-        assert!(report.contains("M4 S900 F0 O0 V0 P0 X39600 frames1"));
+        assert!(report.contains("M4 S900 F0 O0 Q0 V0 P0 X39600 frames1"));
+        assert!(report.contains("M4 S900 F900 O0 Q900 V0 P0 X39600 frames1"));
+        assert!(report.contains("M4 S900 F900 O200 Q100 V600 P26400 X13200 frames1"));
         assert!(
             s.record(2000, 2, 27, 0, None)
                 .unwrap()
