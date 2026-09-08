@@ -3,6 +3,7 @@
 extern crate alloc;
 mod floor;
 mod grid;
+mod hud;
 mod orchard;
 include!(concat!(env!("OUT_DIR"), "/orchard_assets.rs"));
 mod picking;
@@ -63,6 +64,15 @@ impl SceneMode {
             Self::StaticCube => grid::CUBE_GRID_COUNT,
             Self::Sphere => grid::SPHERE_COUNT,
             Self::Orchard => 0, // Asset-specific count is selected at runtime.
+        }
+    }
+
+    const fn number(self) -> u8 {
+        match self {
+            Self::InteractiveGrid => 1,
+            Self::StaticCube => 2,
+            Self::Sphere => 3,
+            Self::Orchard => 4,
         }
     }
 }
@@ -519,6 +529,13 @@ impl CubeScene {
         } else {
             self.mode.seed_count()
         };
+        // The empty-Orchard fallback seed keeps the retained group valid but
+        // is not a real cube, so omit it from the user-visible total.
+        let countable_seed_count = if self.mode == SceneMode::Orchard {
+            visible.len()
+        } else {
+            opaque_count
+        };
         let seed_count = opaque_count
             + if self.mode == SceneMode::StaticCube {
                 54
@@ -531,6 +548,7 @@ impl CubeScene {
         let (turn_sin, turn_cos) = (libm::sinf(turn_angle), libm::cosf(turn_angle));
         let mut seed_bytes = [0u8; grid::MAX_SEED_COUNT * 64];
         let mut opaque_seeds = [RetainedTransformSeed::default(); 27];
+        let mut expanded_count = 0usize;
         for i in 0..opaque_count {
             let (cell, basis) = self.puzzle.pose(i.min(26), turn_sin, turn_cos);
             let (translation, scale) = match self.mode {
@@ -626,6 +644,9 @@ impl CubeScene {
                         rubik::SPHERE_GRADIENT_FLAG
                     },
             };
+            if scale >= 0.001 {
+                expanded_count += 1;
+            }
             if i < 27 {
                 opaque_seeds[i] = seed;
             }
@@ -745,6 +766,13 @@ impl CubeScene {
         self.device
             .wait(self.queue, point.value)
             .map_err(|code| CubeError::Vgpu("timeline-wait", code))?;
+        hud::stamp(
+            &mut self.frame,
+            self.mode.number(),
+            expanded_count,
+            countable_seed_count.saturating_sub(expanded_count),
+        )
+        .map_err(|error| CubeError::Ui4("microfont-stamp", error))?;
         self.frame
             .publish(Damage::full(width, height))
             .map_err(|error| CubeError::Ui4("frame-publish", error))?;

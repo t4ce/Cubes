@@ -238,8 +238,8 @@ void main() {
     vec3 normal = normalize(b.x * controlNormal[0].xyz
                          + b.y * controlNormal[1].xyz
                          + b.z * controlNormal[2].xyz);
-    // The ordinary (Key-2) material stays fully opaque black.
-    vec3 baseColor = vec3(0.0);
+    // The ordinary (Key-2) material stays fully opaque neutral mid-gray.
+    vec3 baseColor = vec3(0.5);
     float alpha = 1.0;
     bool hidden = false;
     bool marker = controlNormal[0].w < 0.0;

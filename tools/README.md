@@ -113,6 +113,11 @@ gradient from its sphere position, both as a dot and as an expanded cube. Routed
 cursor movement expands the nearby seeds with a screen-space circle whose area
 is 10% of the current viewport.
 
+A CPU-stamped MicroFont panel sits at the frame's bottom-right in every mode:
+`M# Exxxx Uxxxx` reports the current mode and the number of full expanded cubes
+versus compact marker cubes. Key 4 reports only its conservatively visible
+Orchard cubes, never its behind-camera fallback seed.
+
 A gray 22-segment LINE_LIST floor at Y=3.5 provides orientation. It is one
 retained static draw with CPU homogeneous line clipping and vertex refreshes;
 the kernel's former one-segment restriction is widened to at most 64 segments.
@@ -123,7 +128,7 @@ coordinates and orientation bases are committed at turn boundaries to avoid drif
 Seed flag 0x100 enables six stickers by original cubie ID and local axial normal:
 +X red, -X orange, +Y white, -Y yellow, +Z green, -Z blue. Only the 54 original
 outward square faces receive these colors (two triangles each); bevels and
-inward faces remain baseline black. Only mode 2's six palette sticker faces use
+inward faces remain baseline mid-gray. Only mode 2's six palette sticker faces use
 35% straight alpha; every baseline surface and mode 1 stay opaque.
 Group 0 emits only opaque surfaces with depth writes enabled, followed by the
 floor. Group 1 emits the 54 individual sticker faces sorted far-to-near each

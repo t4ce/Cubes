@@ -70,6 +70,7 @@ name = "cubes"
 version = "0.1.0"
 dependencies = [
  "libm",
+ "microfont",
  "sha2",
  "trueos",
  "trueos-picasso",
@@ -157,6 +158,12 @@ name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
+
+[[package]]
+name = "microfont"
+version = "3.7.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2660862cebd3be0df0fcfd5153f59c77cc767b35757114386c4724bab29a6256"
 
 [[package]]
 name = "once_cell"
