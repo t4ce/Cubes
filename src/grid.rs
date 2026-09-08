@@ -13,7 +13,9 @@ pub const SPHERE_COUNT: usize = 1024;
 pub const SPHERE_RADIUS: f32 = 6.0;
 /// The expanding cursor circle covers 10% of the current viewport area.
 pub const SPHERE_CURSOR_AREA_FRACTION: f32 = 0.10;
-pub const MAX_SEED_COUNT: usize = SPHERE_COUNT;
+/// Retained V3 now permits 2,048 seeds. Key 3 intentionally keeps its
+/// original 1,024-sphere scene; Key 5 uses the additional world budget.
+pub const MAX_SEED_COUNT: usize = 2048;
 pub const CUBE_GRID_SPACING: f32 = 2.2;
 pub const CUBE_GRID_SCALE: f32 = 0.55;
 /// Compact Rubik layout: one percent of a cubie's 1.1-unit side length.

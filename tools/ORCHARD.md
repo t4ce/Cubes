@@ -15,9 +15,11 @@ flags, malformed records and unsupported scales fail explicitly.
 `Cube/lvl27/` contains the 27 standalone world exports. Key 5 enters this
 mode; every further Key-5 press advances one world and wraps after World 27.
 World assets may contain up to 4,096 authored cubes, but the retained renderer
-stays capped at 1,024 seeds. Each frame uses the existing conservative
+caps each world frame at 2,048 seeds. Each frame uses the existing conservative
 frustum/occlusion pass, orders survivors nearest-first, and admits only the
-first 1,024 before the existing VS/HS/TE/DS path. Orbiting changes that
+first 2,048 before the existing VS/HS/TE/DS path. Key 5 starts above the
+center of the world plane. Mouse movement controls yaw/pitch; WASD walks on
+the XZ grid plane, independent of view pitch. Moving the camera changes that
 camera-relative selection; no CPU mesh expansion, extra renderer submission,
 or hull-shader change is involved.
 

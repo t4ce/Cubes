@@ -138,7 +138,7 @@ not general order-independent transparency for intersecting geometry.
 Original cubie identity is retained in flag bits 0..4; bit 9 selects the
 transparent pass and bits 10..12 select its single local face. The room uses
 600 opaque seed rows and a culled dummy row to keep both groups stable.
-The V3 seed limit is now 1024 in both kernel and SDK.
+The V3 seed limit is now 2048 in both kernel and SDK.
 Colors rotate with cubies, not world axes.
 Expanded spacing, cubie scale and puzzle origin are unchanged.
 

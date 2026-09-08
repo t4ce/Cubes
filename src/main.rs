@@ -42,6 +42,8 @@ const ROOM_YFOV: f32 = 5.0 * core::f32::consts::PI / 12.0;
 const IDLE_ORBIT_DELAY_MS: u64 = 3_000;
 const IDLE_ORBIT_RADIANS_PER_SECOND: f32 = 0.18;
 const WORLD_SEED_BUDGET: usize = grid::MAX_SEED_COUNT;
+const WORLD_EYE_HEIGHT: f32 = 1.8;
+const WORLD_INITIAL_LOOK_AHEAD: f32 = 3.0;
 
 struct GridCursor {
     source: CursorSource,
@@ -244,8 +246,7 @@ impl CubeScene {
         }
         write_exact(device, floor_indices, &floor_index_bytes)
             .map_err(|code| CubeError::Vgpu("floor-index-upload", code))?;
-        let mut flycam = FlyCam::new(camera, 3.0);
-        flycam.set_look_sensitivity(0.002);
+        let flycam = FlyCam::new(camera, 3.0);
         let seed_buffer = device
             .create_buffer(
                 grid::MAX_SEED_COUNT * 64,
@@ -369,6 +370,11 @@ impl CubeScene {
             if event.dx != 0 || event.dy != 0 {
                 self.last_camera_activity_millis = elapsed_millis;
             }
+            if self.mode == SceneMode::World {
+                // Worlds are flat XZ planes: simple raw pointer look has no
+                // button gesture or orbit target, just first-person yaw/pitch.
+                self.flycam.look(event.dx as f32, event.dy as f32);
+            }
             if self.mode == SceneMode::StaticCube
                 && self.puzzle.selected().is_none()
                 && event.buttons_pressed & 1 != 0
@@ -422,10 +428,27 @@ impl CubeScene {
             let dt = delta_seconds.clamp(0.0, 0.1);
             let ease = 1.0 - libm::expf(-10.0 * dt);
             let wasd_held = held(0x04) || held(0x07) || held(0x16) || held(0x1a);
-            if wasd_held {
+            if wasd_held && self.mode != SceneMode::World {
                 self.last_camera_activity_millis = elapsed_millis;
             }
             let mut target = [0.0; 3];
+            if self.mode == SceneMode::World {
+                let local = [
+                    (held(0x07) as i32 - held(0x04) as i32) as f32,
+                    0.0,
+                    (held(0x16) as i32 - held(0x1a) as i32) as f32,
+                ];
+                let mut walk = self.flycam.camera.rotation.rotate(local);
+                // Keep movement on the common 2D world plane even while the
+                // user looks up or down.
+                walk[1] = 0.0;
+                let length = libm::sqrtf(walk[0] * walk[0] + walk[2] * walk[2]);
+                if length > f32::EPSILON {
+                    let distance = self.flycam.speed() * dt / length;
+                    self.flycam.camera.position[0] += walk[0] * distance;
+                    self.flycam.camera.position[2] += walk[2] * distance;
+                }
+            }
             if self.mode == SceneMode::StaticCube && self.puzzle.locked() {
                 let angle = self.puzzle.angle(elapsed_millis);
                 let (cell, _) = self.puzzle.pose(
@@ -446,12 +469,12 @@ impl CubeScene {
                     libm::cosf(elevation - self.orbit[1]),
                 ) * ease;
                 target = cell.map(|x| x * self.puzzle_spacing(elapsed_millis));
-            } else if self.flight.is_none() {
+            } else if self.mode != SceneMode::World && self.flight.is_none() {
                 // The room uses a screen-down world Y convention, so reverse
                 // both orbit axes to retain conventional visual controls.
                 self.orbit[0] += (held(0x07) as i32 - held(0x04) as i32) as f32 * dt;
                 self.orbit[1] += (held(0x1a) as i32 - held(0x16) as i32) as f32 * dt;
-                if (matches!(self.mode, SceneMode::Orchard | SceneMode::World)
+                if (self.mode == SceneMode::Orchard
                     || (self.mode == SceneMode::StaticCube && self.puzzle.selected().is_none()))
                     && elapsed_millis.saturating_sub(self.last_camera_activity_millis)
                         >= IDLE_ORBIT_DELAY_MS
@@ -470,14 +493,12 @@ impl CubeScene {
                 radius * libm::sinf(pitch),
                 radius * libm::cosf(pitch) * libm::cosf(yaw),
             ];
-            self.flycam.camera.position = if matches!(
-                self.mode,
-                SceneMode::StaticCube | SceneMode::Orchard | SceneMode::World
-            ) {
-                radial
-            } else {
-                [0.0; 3]
-            };
+            self.flycam.camera.position =
+                if matches!(self.mode, SceneMode::StaticCube | SceneMode::Orchard) {
+                    radial
+                } else {
+                    self.flycam.camera.position
+                };
             let up = orbit_up(yaw, pitch);
             if !matches!(
                 self.mode,
@@ -485,8 +506,10 @@ impl CubeScene {
             ) {
                 self.look_target = radial.map(|v| -v);
             }
-            self.flycam.camera.rotation =
-                look_at_camera_rotation(self.flycam.camera.position, self.look_target, up);
+            if self.mode != SceneMode::World {
+                self.flycam.camera.rotation =
+                    look_at_camera_rotation(self.flycam.camera.position, self.look_target, up);
+            }
             if self.mode == SceneMode::StaticCube
                 && self.puzzle.selected().is_some()
                 && !self.puzzle.locked()
@@ -940,13 +963,18 @@ impl CubeScene {
                 );
             } else if mode == SceneMode::World {
                 self.orchard_reveal.reset();
+                self.flycam = FlyCam::new(default_camera(), 3.0);
+                self.flycam.camera.position = [0.0, -WORLD_EYE_HEIGHT, 0.0];
+                self.flycam.camera.rotation = look_at_camera_rotation(
+                    self.flycam.camera.position,
+                    [0.0, 0.0, -WORLD_INITIAL_LOOK_AHEAD],
+                    [0.0, -1.0, 0.0],
+                );
                 let asset = &self.worlds[self.world_index];
-                self.orbit = [core::f32::consts::PI, -0.15, (asset.radius * 1.15).max(8.0)];
-                self.look_target = [0.; 3];
                 logl::log(
                     level::INFO,
                     format_args!(
-                        "Cubes: Key5 world={}/{} asset={} authored={} streamed_nearest={} renderer_seed_limit={}",
+                        "Cubes: Key5 world={}/{} asset={} authored={} first_person=plane_walk streamed_nearest={} renderer_seed_limit={}",
                         self.world_index + 1,
                         self.worlds.len(),
                         asset.name,
@@ -972,7 +1000,7 @@ impl CubeScene {
                         SceneMode::Orchard =>
                             "4 cubes-pair WASD=orbit idle=auto-orbit Key4=next-pair",
                         SceneMode::World =>
-                            "5 lvl27-world WASD=orbit nearest-first-stream Key5=next-world",
+                            "5 lvl27-world first-person mouse-look WASD=plane-walk nearest-first-stream Key5=next-world",
                     },
                     if mode == SceneMode::Orchard {
                         self.orchards[self.orchard_index].cubes.len()
@@ -1004,8 +1032,6 @@ impl CubeScene {
             znear: 0.1,
             zfar: Some(if mode == SceneMode::Orchard {
                 (self.orchards[self.orchard_index].radius * 10.0).max(100.0)
-            } else if mode == SceneMode::World {
-                (self.worlds[self.world_index].radius * 10.0).max(100.0)
             } else {
                 100.0
             }),
