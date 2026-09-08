@@ -926,6 +926,9 @@ impl CubeScene {
                 self.world_index = (self.world_index + 1) % self.worlds.len();
             }
             self.mode = mode;
+            self.frame
+                .set_center_snapped_mouse(mode == SceneMode::World)
+                .map_err(|error| CubeError::Ui4("center-snapped-mouse", error))?;
             self.set_mode_projection(mode);
             self.puzzle = rubik::Puzzle::new(self.previous_elapsed_millis);
             self.last_camera_activity_millis = self.previous_elapsed_millis;
@@ -967,7 +970,10 @@ impl CubeScene {
                 self.flycam.camera.position = [0.0, -WORLD_EYE_HEIGHT, 0.0];
                 self.flycam.camera.rotation = look_at_camera_rotation(
                     self.flycam.camera.position,
-                    [0.0, 0.0, -WORLD_INITIAL_LOOK_AHEAD],
+                    // Aim straight along the XZ world plane.  Targeting the
+                    // ground at Y=0 here gave the fresh first-person camera
+                    // an unintended atan(1.8 / 3.0) ~= 31 degree down-pitch.
+                    [0.0, -WORLD_EYE_HEIGHT, -WORLD_INITIAL_LOOK_AHEAD],
                     [0.0, -1.0, 0.0],
                 );
                 let asset = &self.worlds[self.world_index];
