@@ -23,7 +23,6 @@ use trueos::vgpu::{
 use trueos::{
     clock,
     logl::{self, level},
-    vsys,
 };
 use trueos_picasso::Picasso;
 use trueos_picasso::cam::{Camera, FlyCam, Projection, Quaternion};
@@ -86,6 +85,7 @@ enum CubeError {
 
 struct CubeScene {
     frame: Frame,
+    hud: Option<hud::Worker>,
     device: Device,
     queue: Queue,
     vertices: Buffer,
@@ -113,7 +113,20 @@ struct CubeScene {
 }
 
 fn main() {
-    if let Err(error) = run() {
+    let result = match trueos::runtime::current_thread().build() {
+        Ok(runtime) => {
+            let local = trueos::tokio::task::LocalSet::new();
+            local.block_on(&runtime, run())
+        }
+        Err(error) => {
+            logl::log(
+                level::ERROR,
+                format_args!("Cubes: Tokio runtime unavailable={error}"),
+            );
+            Err(CubeError::Contract)
+        }
+    };
+    if let Err(error) = result {
         logl::log(
             level::ERROR,
             format_args!("Cubes: startup/render failure={error:?}"),
@@ -122,7 +135,7 @@ fn main() {
     let _ = trueos::vshell::shutdown_current_blueprint("Cubes exited");
 }
 
-fn run() -> Result<(), CubeError> {
+async fn run() -> Result<(), CubeError> {
     // Keep the source as a reference asset; only seed/patch indices become
     // vGPU geometry. The driver owns the precompiled matching HS/DS bundle.
     let picasso = Picasso::new().map_err(|_| CubeError::Contract)?;
@@ -159,8 +172,13 @@ fn run() -> Result<(), CubeError> {
     let mut scene = CubeScene::open(&vertices, &indices)?;
     let started = clock::monotonic_millis();
     loop {
-        scene.render(clock::monotonic_millis().saturating_sub(started))?;
-        vsys::sleep_ms(16);
+        if let Err(error) = scene.render(clock::monotonic_millis().saturating_sub(started)) {
+            if let Some(hud) = scene.hud.take() {
+                hud.shutdown().await;
+            }
+            return Err(error);
+        }
+        trueos::tokio::time::sleep(core::time::Duration::from_millis(16)).await;
     }
 }
 
@@ -264,7 +282,18 @@ impl CubeScene {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
+        let hud = match hud::Worker::spawn(&frame) {
+            Ok(panel) => Some(panel),
+            Err(error) => {
+                logl::log(
+                    level::WARN,
+                    format_args!("Cubes: counter window unavailable={error:?}; scene continues"),
+                );
+                None
+            }
+        };
         Ok(Self {
+            hud,
             orchards,
             orchard_index: 0,
             frame,
@@ -766,16 +795,16 @@ impl CubeScene {
         self.device
             .wait(self.queue, point.value)
             .map_err(|code| CubeError::Vgpu("timeline-wait", code))?;
-        hud::stamp(
-            &mut self.frame,
-            self.mode.number(),
-            expanded_count,
-            countable_seed_count.saturating_sub(expanded_count),
-        )
-        .map_err(|error| CubeError::Ui4("microfont-stamp", error))?;
         self.frame
             .publish(Damage::full(width, height))
             .map_err(|error| CubeError::Ui4("frame-publish", error))?;
+        if let Some(panel) = self.hud.as_ref() {
+            panel.send(
+                self.mode.number(),
+                expanded_count,
+                countable_seed_count.saturating_sub(expanded_count),
+            );
+        }
         self.previous_view_projection = camera.view_projection;
         Ok(())
     }

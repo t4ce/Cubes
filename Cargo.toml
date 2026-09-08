@@ -13,7 +13,7 @@ bench = false
 [dependencies]
 libm = "0.2"
 microfont = "3.7.8"
-trueos = { path = "../TRUEOS-Blueprints/api", features = ["default-global-allocator", "default-panic-handler"] }
+trueos = { path = "../TRUEOS-Blueprints/api", features = ["default-global-allocator", "tokio-runtime"] }
 trueos-picasso = { path = "../TRUEOS-Picasso", default-features = false, features = ["blueprint"] }
 
 [build-dependencies]
