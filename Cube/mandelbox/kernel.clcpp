@@ -210,10 +210,42 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
-// Generated port of the_one_cube_chroma.html; see tools/export_chroma.py.
+// Generated port of Mandelbox.html; see tools/export_chroma.py.
 // Both complete spherical presets retain the reference's 120 steps / 3 AO taps.
 // iDate.xyz = packed authored sRGB; .w = 0 Folded Core, 1 Box Cathedral.
 // iSampleRate = 1..3 colors. Pixels form a 3x2 cubemap with a one-texel gutter.
+// World identity also changes the Cathedral's recursive geometry. These six
+// fixed directions belong to the authored themes, not the output tint. Blends
+// use every active theme once; padded palette slots have no influence.
+float3 themeShapeColor(float rgb, __global const ShaderToyUniforms *st) {
+    (void)st;
+    if (rgb==6539250.0f) return st_vec3( 0.65f, 0.15f,-0.40f); // sky 63c7f2
+    if (rgb==8014640.0f) return st_vec3(-0.50f, 0.80f, 0.20f); // underground 7a4b30
+    if (rgb==2430269.0f) return st_vec3( 0.30f,-0.65f, 0.90f); // black-hole 25153d
+    if (rgb==16050342.0f) return st_vec3(-0.20f,-0.50f,-0.70f); // white-hole f4e8a6
+    if (rgb==5156712.0f) return st_vec3( 0.80f, 0.60f,-0.10f); // island 4eaf68
+    if (rgb==14116199.0f) return st_vec3(-0.70f, 0.20f, 0.60f); // city d76567
+    return st_vec3(0.0f);
+}
+float3 themeShape(__global const ShaderToyUniforms *st) {
+    (void)st;
+    if (int((st->date).w)==0) return st_vec3(0.0f); // Void stays the original Folded Core.
+    float3 shape=themeShapeColor((st->date).x, st);
+    if ((st->timing.z)>1.0f) shape+=themeShapeColor((st->date).y, st);
+    if ((st->timing.z)>2.0f) shape+=themeShapeColor((st->date).z, st);
+    return shape/st_clamp((st->timing.z),1.0f,3.0f);
+}
+// One rigid rotation at each recursive scale, increasing toward fine detail.
+// Rotate before repetition: apertures/solid intersections change, not merely
+// the camera or pigment. A unit quaternion preserves the distance bound, so
+// the marcher, normals and AO all see the same conservative geometry.
+float3 themeFold(float3 p, float3 shape, float level, __global const ShaderToyUniforms *st) {
+    (void)st;
+    float3 turn=shape*(0.28f+0.11f*level);
+    float4 q=st_vec4(turn,1.0f)/sqrt(1.0f+dot(turn,turn));
+    return p+2.0f*cross(q.xyz,cross(q.xyz,p)+q.w*p);
+}
+
 const float3 CAMERA = st_vec3(0.08f,-0.12f,0.05f);
 const float FAR = 44.0f;
 float max3(float3 v, __global const ShaderToyUniforms *st) {
@@ -242,12 +274,12 @@ float octagon(float2 q, __global const ShaderToyUniforms *st) {
 // Original cathedral's four recursive scales and factor-three repetition.
 // Each level is now bounded by the 24-vertex seed; apertures have flat bevels.
 // Thus the uploaded silhouette recurs throughout, rather than only enclosing it.
-float2 cathedral(float3 p, __global const ShaderToyUniforms *st) {
+float2 cathedral(float3 p, float3 shape, __global const ShaderToyUniforms *st) {
     (void)st;
     p/=7.2f;
     float d=-100.0f, scale=1.0f, detail=0.0f;
     for (int i=0;i<4;++i) {
-        float3 a=st_mod(p*scale,2.0f)-1.0f;
+        float3 a=st_mod(themeFold(p,shape,float(i), st)*scale,2.0f)-1.0f;
         float seed=oneCubeUnit(a, st)/scale;
         float3 r=st_abs(1.0f-3.0f*st_abs(a));
         float cut=st_min(octagon(r.xy, st),st_min(octagon(r.yz, st),octagon(r.zx, st)))/(3.0f*scale);
@@ -296,9 +328,9 @@ float2 foldedCore(float3 p, __global const ShaderToyUniforms *st) {
     d=st_max(d,-oneCube(p,0.62f, st));
     return st_vec2(d,st_clamp(orbit*3.0f,0.0f,3.0f));
 }
-float2 map(float3 p, __global const ShaderToyUniforms *st) {
+float2 map(float3 p, float3 shape, __global const ShaderToyUniforms *st) {
     (void)st;
-    float2 inner=int((st->date).w)==0 ? foldedCore(p, st) : cathedral(p, st);
+    float2 inner=int((st->date).w)==0 ? foldedCore(p, st) : cathedral(p,shape, st);
     float shell=-oneCube(p,17.5f, st);
     if (shell<inner.x) return st_vec2(shell,4.0f);
     return inner;
@@ -312,27 +344,27 @@ float3 cubeRay(float2 uv, int face, __global const ShaderToyUniforms *st) {
     if (face==4) return normalize(st_vec3(uv.x,-uv.y,1.0f));
     return normalize(st_vec3(-uv.x,-uv.y,-1.0f));
 }
-float3 normalAt(float3 p,float eps, __global const ShaderToyUniforms *st) {
+float3 normalAt(float3 p,float eps,float3 shape, __global const ShaderToyUniforms *st) {
     (void)st;
     float2 e=st_vec2(1.0f,-1.0f)*eps;
-    return normalize(e.xyy*map(p+e.xyy, st).x+e.yyx*map(p+e.yyx, st).x+
-                     e.yxy*map(p+e.yxy, st).x+e.xxx*map(p+e.xxx, st).x);
+    return normalize(e.xyy*map(p+e.xyy,shape, st).x+e.yyx*map(p+e.yyx,shape, st).x+
+                     e.yxy*map(p+e.yxy,shape, st).x+e.xxx*map(p+e.xxx,shape, st).x);
 }
-float occlusion(float3 p,float3 n, __global const ShaderToyUniforms *st) {
+float occlusion(float3 p,float3 n,float3 shape, __global const ShaderToyUniforms *st) {
     (void)st;
     float a=0.0f,weight=1.0f;
     for (int i=1;i<=3;++i) {
         float h=0.10f+float(i)*0.18f;
-        a+=(h-map(p+n*h, st).x)*weight; weight*=0.52f;
+        a+=(h-map(p+n*h,shape, st).x)*weight; weight*=0.52f;
     }
     return st_clamp(1.0f-1.75f*a,0.18f,1.0f);
 }
-float4 bakeMaterial(float3 rd, __global const ShaderToyUniforms *st) {
+float4 bakeMaterial(float3 rd,float3 shape, __global const ShaderToyUniforms *st) {
     (void)st;
     float travel=0.0f, hit=0.0f, epsilon=0.002f;
     float2 value=st_vec2(1.0f);
     for (int i=0;i<120;++i) {
-        value=map(CAMERA+rd*travel, st);
+        value=map(CAMERA+rd*travel,shape, st);
         epsilon=st_max(0.0015f,travel*0.0005f);
         if (value.x<epsilon) { hit=1.0f; break; }
         travel+=st_max(value.x*0.68f,0.0009f);
@@ -340,8 +372,8 @@ float4 bakeMaterial(float3 rd, __global const ShaderToyUniforms *st) {
     }
     if (hit<0.5f) { return st_vec4(0.0f); }
     float3 p=CAMERA+rd*travel;
-    float3 n=normalAt(p,st_max(0.0012f,epsilon*1.1f), st);
-    float ao=occlusion(p,n, st);
+    float3 n=normalAt(p,st_max(0.0012f,epsilon*1.1f),shape, st);
+    float ao=occlusion(p,n,shape, st);
     float facing=st_max(dot(n,-rd),0.0f);
     float key=st_max(dot(n,normalize(st_vec3(-0.45f,0.70f,-0.55f))),0.0f);
     float fill=st_max(dot(n,normalize(st_vec3(0.8f,-0.2f,0.4f))),0.0f);
@@ -383,7 +415,7 @@ void mainImage( float4 & fragColor,  float2 fragCoord, __global const ShaderToyU
     float2 tile=floor(fragCoord/stride);
     int face=int(tile.x+tile.y*3.0f);
     float2 uv=(st_mod(fragCoord,stride)-1.0f)/faceSize*2.0f-1.0f;
-    float4 material=bakeMaterial(cubeRay(uv,face, st), st);
+    float4 material=bakeMaterial(cubeRay(uv,face, st),themeShape(st), st);
     float light=material.r*material.r*1.6f;
     float wb=material.g,wc=material.b,wa=st_max(0.0f,1.0f-wb-wc);
     float3 a=linearColor((st->date).x, st);
@@ -421,6 +453,16 @@ inline float4 chroma_unpack(uint c) {
     return convert_float4((uint4)(c & 255u, (c >> 8) & 255u, (c >> 16) & 255u, 255u)) / 255.0f;
 }
 
+// Cube-face UVs span [-1,1]. Six center squares plus four corner
+// sections per face form eight connected patches across the cube seams.
+// Center area: 0.4^2 = 16%; all corners: (1 - 0.7)^2 = 9% per face.
+// The remaining 75% is transparent, revealing the layers below the world.
+inline bool chroma_patch_visible(float2 uv) {
+    float2 a = fabs(uv);
+    return (a.x <= 0.4f && a.y <= 0.4f)
+        || (a.x >= 0.7f && a.y >= 0.7f);
+}
+
 inline float4 chroma_sample(__global const uint *source, float3 ray, uint4 controls) {
     float3 a = fabs(ray);
     uint face;
@@ -435,6 +477,7 @@ inline float4 chroma_sample(__global const uint *source, float3 ray, uint4 contr
         face = ray.z >= 0.0f ? 4u : 5u;
         uv = (float2)(ray.z >= 0.0f ? ray.x : -ray.x, -ray.y) / a.z;
     }
+    if (!chroma_patch_visible(uv)) return (float4)(0.0f);
     uint stride = controls.y / 3u;
     float2 base = convert_float2((uint2)(face % 3u, face / 3u) * stride);
     // Border rays extend each face. Bilinear lookup can cross its geometric
@@ -467,10 +510,14 @@ kernel TRUEOS_REQD_SUB_GROUP_SIZE_16 void shadertoy_mandelbox(
     } else if (uniforms->render_control.x == 2u) {
         float2 uv = (float2)(2.0f*(float)x+1.0f-(float)width,
                             (float)height-2.0f*(float)y-1.0f) / (float)height;
+        // Preserve the camera lens. The mask lives on the environment
+        // cube's faces, not in screen space and not in a magnified crop.
         float3 ray = (float3)(uv * uniforms->timing.x, -1.0f);
         float4 q = uniforms->mouse;
         ray += 2.0f * cross(q.xyz, cross(q.xyz, ray) + q.w * ray);
         color = chroma_sample(source, ray, uniforms->render_control);
     }
-    output[(size_t)y * (pitch_bytes / 4u) + x] = st_pack_rgba8(color);
+    output[(size_t)y * (pitch_bytes / 4u) + x] = color.w == 0.0f ? 0u : st_pack_rgba8(color);
+    // The generated ShaderToy packer forces opaque alpha; masked pixels must
+    // bypass it and write transparent black (valid premultiplied RGBA).
 }

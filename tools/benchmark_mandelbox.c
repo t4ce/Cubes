@@ -60,7 +60,7 @@ int main(int argc, char **argv) {
     require_cl(clSetKernelArg(runtime->kernel, 5, sizeof(atlas), &atlas), "source arg");
     const size_t global[2] = {(width + 15u) & ~15u, height}, local[2] = {16, 1};
     const char *presets[] = {"cathedral-single", "cathedral-duo", "cathedral-trio", "folded-void"};
-    const char *views[] = {"front", "sky", "ground", "behind"};
+    const char *views[] = {"front", "sky", "ground", "behind", "edge", "corner"};
     for (int preset = 0; preset < 4; ++preset) {
         memset(&uniforms, 0, sizeof(uniforms));
         uniforms.values[0] = atlas_width; uniforms.values[1] = atlas_height; uniforms.values[2] = 1;
@@ -94,10 +94,13 @@ int main(int argc, char **argv) {
         uniforms.values[0] = width; uniforms.values[1] = height;
         uniforms.values[12] = 0.5773503f;
         uniforms.controls[0] = 2;
-        for (int view = 0; view < 4; ++view) {
-            const float half_pitch = view == 1 ? 0.7f : view == 2 ? -0.7f : 0;
-            uniforms.values[4] = sinf(half_pitch); uniforms.values[5] = view == 3 ? 1 : 0;
-            uniforms.values[6] = 0; uniforms.values[7] = view == 3 ? 0 : cosf(half_pitch);
+        for (int view = 0; view < 6; ++view) {
+            const float half_pitch = view == 1 ? 0.7f : view == 2 ? -0.7f : view == 5 ? 0.30773985f : 0;
+            const float half_yaw = view == 3 ? 1.57079633f : view >= 4 ? 0.39269908f : 0;
+            uniforms.values[4] = sinf(half_pitch)*cosf(half_yaw);
+            uniforms.values[5] = sinf(half_yaw)*cosf(half_pitch);
+            uniforms.values[6] = -sinf(half_yaw)*sinf(half_pitch);
+            uniforms.values[7] = cosf(half_yaw)*cosf(half_pitch);
             require_cl(clEnqueueWriteBuffer(runtime->queue, runtime->uniform_buffer, CL_TRUE, 0, sizeof(uniforms), &uniforms, 0, NULL, NULL), "view uniforms");
             double total_ms = 0;
             for (int frame = 0; frame < 6; ++frame) {
@@ -115,6 +118,12 @@ int main(int argc, char **argv) {
             for (size_t offset = 0; offset < bytes; offset += 4) {
                 if (fwrite(pixels + offset, 1, 3, output) != 3) return 2;
             }
+            if (fclose(output) != 0) return 2;
+            // Preserve alpha for mask validation; PPM alone hides whether
+            // the gaps are opaque black or truly transparent.
+            snprintf(path, sizeof(path), "%s/%s-%s.rgba", argv[2], presets[preset], views[view]);
+            output = fopen(path, "wb");
+            if (!output || fwrite(pixels, 1, bytes, output) != bytes) return 2;
             if (fclose(output) != 0) return 2;
             printf("preset=%s view=%s warm_sample_ms=%.3f output=%s\n", presets[preset], views[view], total_ms/5.0, path);
             fflush(stdout);

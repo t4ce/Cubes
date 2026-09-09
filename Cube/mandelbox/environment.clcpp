@@ -4,6 +4,16 @@ inline float4 chroma_unpack(uint c) {
     return convert_float4((uint4)(c & 255u, (c >> 8) & 255u, (c >> 16) & 255u, 255u)) / 255.0f;
 }
 
+// Cube-face UVs span [-1,1]. Six center squares plus four corner
+// sections per face form eight connected patches across the cube seams.
+// Center area: 0.4^2 = 16%; all corners: (1 - 0.7)^2 = 9% per face.
+// The remaining 75% is transparent, revealing the layers below the world.
+inline bool chroma_patch_visible(float2 uv) {
+    float2 a = fabs(uv);
+    return (a.x <= 0.4f && a.y <= 0.4f)
+        || (a.x >= 0.7f && a.y >= 0.7f);
+}
+
 inline float4 chroma_sample(__global const uint *source, float3 ray, uint4 controls) {
     float3 a = fabs(ray);
     uint face;
@@ -18,6 +28,7 @@ inline float4 chroma_sample(__global const uint *source, float3 ray, uint4 contr
         face = ray.z >= 0.0f ? 4u : 5u;
         uv = (float2)(ray.z >= 0.0f ? ray.x : -ray.x, -ray.y) / a.z;
     }
+    if (!chroma_patch_visible(uv)) return (float4)(0.0f);
     uint stride = controls.y / 3u;
     float2 base = convert_float2((uint2)(face % 3u, face / 3u) * stride);
     // Border rays extend each face. Bilinear lookup can cross its geometric
@@ -49,10 +60,14 @@ kernel TRUEOS_REQD_SUB_GROUP_SIZE_16 void shadertoy_mandelbox(
     } else if (uniforms->render_control.x == 2u) {
         float2 uv = (float2)(2.0f*(float)x+1.0f-(float)width,
                             (float)height-2.0f*(float)y-1.0f) / (float)height;
+        // Preserve the camera lens. The mask lives on the environment
+        // cube's faces, not in screen space and not in a magnified crop.
         float3 ray = (float3)(uv * uniforms->timing.x, -1.0f);
         float4 q = uniforms->mouse;
         ray += 2.0f * cross(q.xyz, cross(q.xyz, ray) + q.w * ray);
         color = chroma_sample(source, ray, uniforms->render_control);
     }
-    output[(size_t)y * (pitch_bytes / 4u) + x] = st_pack_rgba8(color);
+    output[(size_t)y * (pitch_bytes / 4u) + x] = color.w == 0.0f ? 0u : st_pack_rgba8(color);
+    // The generated ShaderToy packer forces opaque alpha; masked pixels must
+    // bypass it and write transparent black (valid premultiplied RGBA).
 }

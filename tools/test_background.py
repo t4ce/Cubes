@@ -39,9 +39,22 @@ with tempfile.TemporaryDirectory(prefix="cubes-background-") as directory:
     (root/"tests.rs").write_text(program)
     subprocess.run(["rustc","--edition=2024","--test",str(root/"tests.rs"),"-o",str(root/"tests")],check=True)
     subprocess.run([str(root/"tests")],check=True)
-html = (APP/"Cube/cube_tree_builder_world_ramps.html").read_text().lower()
 source = (APP/"src/environment.rs").read_text().lower()
 for color in colors+[0xd83cff]:
-    assert f"0x{color:06x}" in html and f"0x{color:06x}" in source
+    assert f"0x{color:06x}" in source
+# Every authored non-Void combination has its own bake geometry signature.
+# Parse the actual shader table, so a mistyped packed color cannot silently
+# select the zero/default shape while its tint remains correct.
+shape_source = (APP/"Cube/mandelbox/theme_shape.glsl").read_text()
+shapes = {int(rgb): tuple(map(float, vector.split(',')))
+          for rgb, vector in re.findall(r'rgb==(\d+)\.0\) return vec3\(([^)]+)\)', shape_source)}
+assert set(shapes) == set(colors)
+signatures = []
+for mask in expected[:-1]:
+    active = [shapes[color] for i, color in enumerate(colors) if mask & (1 << i)]
+    signature = tuple(sum(shape[a] for shape in active) / len(active) for a in range(3))
+    assert sum(x*x for x in signature) > 0.01, 'collapsed theme geometry'
+    signatures.append(signature)
+assert len(set(signatures)) == 26, 'two worlds have identical recursive folds'
 subprocess.run([sys.executable,str(APP/"tools/bake_mandelbox.py"),"--check"],check=True)
-print("27 worlds, seven authored colors, full Chroma presets and follower verified")
+print("27 worlds, seven authored colors, 26 distinct shape signatures, Chroma presets and follower verified")

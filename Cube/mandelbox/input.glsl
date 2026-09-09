@@ -21,10 +21,39 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
-// Generated port of the_one_cube_chroma.html; see tools/export_chroma.py.
+// Generated port of Mandelbox.html; see tools/export_chroma.py.
 // Both complete spherical presets retain the reference's 120 steps / 3 AO taps.
 // iDate.xyz = packed authored sRGB; .w = 0 Folded Core, 1 Box Cathedral.
 // iSampleRate = 1..3 colors. Pixels form a 3x2 cubemap with a one-texel gutter.
+// World identity also changes the Cathedral's recursive geometry. These six
+// fixed directions belong to the authored themes, not the output tint. Blends
+// use every active theme once; padded palette slots have no influence.
+vec3 themeShapeColor(float rgb) {
+    if (rgb==6539250.0) return vec3( 0.65, 0.15,-0.40); // sky 63c7f2
+    if (rgb==8014640.0) return vec3(-0.50, 0.80, 0.20); // underground 7a4b30
+    if (rgb==2430269.0) return vec3( 0.30,-0.65, 0.90); // black-hole 25153d
+    if (rgb==16050342.0) return vec3(-0.20,-0.50,-0.70); // white-hole f4e8a6
+    if (rgb==5156712.0) return vec3( 0.80, 0.60,-0.10); // island 4eaf68
+    if (rgb==14116199.0) return vec3(-0.70, 0.20, 0.60); // city d76567
+    return vec3(0.0);
+}
+vec3 themeShape() {
+    if (int(iDate.w)==0) return vec3(0.0); // Void stays the original Folded Core.
+    vec3 shape=themeShapeColor(iDate.x);
+    if (iSampleRate>1.0) shape+=themeShapeColor(iDate.y);
+    if (iSampleRate>2.0) shape+=themeShapeColor(iDate.z);
+    return shape/clamp(iSampleRate,1.0,3.0);
+}
+// One rigid rotation at each recursive scale, increasing toward fine detail.
+// Rotate before repetition: apertures/solid intersections change, not merely
+// the camera or pigment. A unit quaternion preserves the distance bound, so
+// the marcher, normals and AO all see the same conservative geometry.
+vec3 themeFold(vec3 p, vec3 shape, float level) {
+    vec3 turn=shape*(0.28+0.11*level);
+    vec4 q=vec4(turn,1.0)/sqrt(1.0+dot(turn,turn));
+    return p+2.0*cross(q.xyz,cross(q.xyz,p)+q.w*p);
+}
+
 const vec3 CAMERA = vec3(0.08,-0.12,0.05);
 const float FAR = 44.0;
 float max3(vec3 v) { return max(v.x,max(v.y,v.z)); }
@@ -49,11 +78,11 @@ float octagon(vec2 q) {
 // Original cathedral's four recursive scales and factor-three repetition.
 // Each level is now bounded by the 24-vertex seed; apertures have flat bevels.
 // Thus the uploaded silhouette recurs throughout, rather than only enclosing it.
-vec2 cathedral(vec3 p) {
+vec2 cathedral(vec3 p, vec3 shape) {
     p/=7.2;
     float d=-100.0, scale=1.0, detail=0.0;
     for (int i=0;i<4;++i) {
-        vec3 a=mod(p*scale,2.0)-1.0;
+        vec3 a=mod(themeFold(p,shape,float(i))*scale,2.0)-1.0;
         float seed=oneCubeUnit(a)/scale;
         vec3 r=abs(1.0-3.0*abs(a));
         float cut=min(octagon(r.xy),min(octagon(r.yz),octagon(r.zx)))/(3.0*scale);
@@ -100,8 +129,8 @@ vec2 foldedCore(vec3 p) {
     d=max(d,-oneCube(p,0.62));
     return vec2(d,clamp(orbit*3.0,0.0,3.0));
 }
-vec2 map(vec3 p) {
-    vec2 inner=int(iDate.w)==0 ? foldedCore(p) : cathedral(p);
+vec2 map(vec3 p, vec3 shape) {
+    vec2 inner=int(iDate.w)==0 ? foldedCore(p) : cathedral(p,shape);
     float shell=-oneCube(p,17.5);
     if (shell<inner.x) return vec2(shell,4.0);
     return inner;
@@ -114,24 +143,24 @@ vec3 cubeRay(vec2 uv, int face) {
     if (face==4) return normalize(vec3(uv.x,-uv.y,1.0));
     return normalize(vec3(-uv.x,-uv.y,-1.0));
 }
-vec3 normalAt(vec3 p,float eps) {
+vec3 normalAt(vec3 p,float eps,vec3 shape) {
     vec2 e=vec2(1.0,-1.0)*eps;
-    return normalize(e.xyy*map(p+e.xyy).x+e.yyx*map(p+e.yyx).x+
-                     e.yxy*map(p+e.yxy).x+e.xxx*map(p+e.xxx).x);
+    return normalize(e.xyy*map(p+e.xyy,shape).x+e.yyx*map(p+e.yyx,shape).x+
+                     e.yxy*map(p+e.yxy,shape).x+e.xxx*map(p+e.xxx,shape).x);
 }
-float occlusion(vec3 p,vec3 n) {
+float occlusion(vec3 p,vec3 n,vec3 shape) {
     float a=0.0,weight=1.0;
     for (int i=1;i<=3;++i) {
         float h=0.10+float(i)*0.18;
-        a+=(h-map(p+n*h).x)*weight; weight*=0.52;
+        a+=(h-map(p+n*h,shape).x)*weight; weight*=0.52;
     }
     return clamp(1.0-1.75*a,0.18,1.0);
 }
-vec4 bakeMaterial(vec3 rd) {
+vec4 bakeMaterial(vec3 rd,vec3 shape) {
     float travel=0.0, hit=0.0, epsilon=0.002;
     vec2 value=vec2(1.0);
     for (int i=0;i<120;++i) {
-        value=map(CAMERA+rd*travel);
+        value=map(CAMERA+rd*travel,shape);
         epsilon=max(0.0015,travel*0.0005);
         if (value.x<epsilon) { hit=1.0; break; }
         travel+=max(value.x*0.68,0.0009);
@@ -139,8 +168,8 @@ vec4 bakeMaterial(vec3 rd) {
     }
     if (hit<0.5) { return vec4(0.0); }
     vec3 p=CAMERA+rd*travel;
-    vec3 n=normalAt(p,max(0.0012,epsilon*1.1));
-    float ao=occlusion(p,n);
+    vec3 n=normalAt(p,max(0.0012,epsilon*1.1),shape);
+    float ao=occlusion(p,n,shape);
     float facing=max(dot(n,-rd),0.0);
     float key=max(dot(n,normalize(vec3(-0.45,0.70,-0.55))),0.0);
     float fill=max(dot(n,normalize(vec3(0.8,-0.2,0.4))),0.0);
@@ -179,7 +208,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 tile=floor(fragCoord/stride);
     int face=int(tile.x+tile.y*3.0);
     vec2 uv=(mod(fragCoord,stride)-1.0)/faceSize*2.0-1.0;
-    vec4 material=bakeMaterial(cubeRay(uv,face));
+    vec4 material=bakeMaterial(cubeRay(uv,face),themeShape());
     float light=material.r*material.r*1.6;
     float wb=material.g,wc=material.b,wa=max(0.0,1.0-wb-wc);
     vec3 a=linearColor(iDate.x);
