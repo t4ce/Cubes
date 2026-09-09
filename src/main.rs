@@ -2,9 +2,9 @@
 
 extern crate alloc;
 mod background;
-mod environment;
 mod camera_entry;
 mod counters;
+mod environment;
 mod floor;
 mod grid;
 mod modes;
@@ -16,10 +16,10 @@ mod reveal;
 mod rubik;
 mod transition;
 mod world_bounds;
-mod world_look;
-mod world_topology;
-mod world_portals;
 mod world_cube;
+mod world_look;
+mod world_portals;
+mod world_topology;
 use alloc::vec::Vec;
 
 use trueos::ui4_scene::{
@@ -285,8 +285,11 @@ impl CubeScene {
         let orchards = orchard::Pages::new(ORCHARD_ASSETS, true);
         let worlds = orchard::Pages::new(WORLD_ASSETS, false);
         let background = background::Background::start(
-            frame.background().map_err(|error| CubeError::Ui4("background-target", error))?
-        ).map_err(|error| CubeError::Ui4("background-start", error))?;
+            frame
+                .background()
+                .map_err(|error| CubeError::Ui4("background-target", error))?,
+        )
+        .map_err(|error| CubeError::Ui4("background-start", error))?;
         Ok(Self {
             background,
             counters: counters::Sampler::new(clock::monotonic_millis()),
@@ -338,7 +341,10 @@ impl CubeScene {
         // exact committed quarter-turns change the portal topology.
         self.puzzle.update(elapsed_millis);
         if self.mode == SceneMode::World {
-            self.active_world.as_mut().unwrap().update(&self.puzzle, elapsed_millis);
+            self.active_world
+                .as_mut()
+                .unwrap()
+                .update(&self.puzzle, elapsed_millis);
         }
         let routes = self
             .frame
@@ -597,10 +603,15 @@ impl CubeScene {
             Projection::Perspective { yfov, .. } => libm::tanf(yfov * 0.5),
             _ => libm::tanf(PUZZLE_YFOV * 0.5),
         };
-        self.background.update(
-            self.mode == SceneMode::World, self.flycam.camera.rotation.0,
-            delta_seconds, tan_half_fov, (width, height),
-        ).map_err(|error| CubeError::Ui4("background-update", error))?;
+        self.background
+            .update(
+                self.mode == SceneMode::World,
+                self.flycam.camera.rotation.0,
+                delta_seconds,
+                tan_half_fov,
+                (width, height),
+            )
+            .map_err(|error| CubeError::Ui4("background-update", error))?;
         match self.frame.begin_gpu_frame() {
             Ok(()) => {}
             Err(Ui4Error::Busy) => return Ok(()),
@@ -649,7 +660,8 @@ impl CubeScene {
         // Visibility removes submissions, not authored scene instances. The
         // fallback seed is an ABI placeholder and is never a countable cube.
         let opaque_count = scene_opaque_count + if companion { 27 } else { 0 };
-        let countable_seed_count = visibility_stats.map_or(scene_opaque_count, |stats| stats.source)
+        let countable_seed_count = visibility_stats
+            .map_or(scene_opaque_count, |stats| stats.source)
             + if companion { 27 } else { 0 };
         let seed_count = opaque_count
             + if self.mode == SceneMode::StaticCube || companion {
@@ -779,18 +791,27 @@ impl CubeScene {
             encode_seed(seed, &mut seed_bytes[i * 64..(i + 1) * 64]);
         }
         if companion {
-            let placement = world_cube::Placement::new(width, height, tan_half_fov, self.world_cube.expansion(elapsed_millis));
+            let placement = world_cube::Placement::new(
+                width,
+                height,
+                tan_half_fov,
+                self.world_cube.expansion(elapsed_millis),
+            );
             for id in 0..27 {
                 let (cell, basis) = self.puzzle.pose(id, turn_sin, turn_cos);
                 let (position, basis, scale) = placement.pose(cell, basis);
                 let offset = self.flycam.camera.rotation.rotate(position);
-                let translation = core::array::from_fn(|a| self.flycam.camera.position[a] + offset[a]);
+                let translation =
+                    core::array::from_fn(|a| self.flycam.camera.position[a] + offset[a]);
                 let basis = basis.map(|axis| self.flycam.camera.rotation.rotate(axis));
                 let row = scene_opaque_count + id;
                 let seed = RetainedTransformSeed {
-                    translation, previous_translation: translation, scale: [scale; 3],
+                    translation,
+                    previous_translation: translation,
+                    scale: [scale; 3],
                     rotation: quaternion_from_rotation_columns(basis[0], basis[1], basis[2]).0,
-                    local_radius: grid::CUBE_LOCAL_RADIUS, draw_group: 0,
+                    local_radius: grid::CUBE_LOCAL_RADIUS,
+                    draw_group: 0,
                     flags: ((row as u32) << 16) | rubik::PALETTE_FLAG | id as u32,
                 };
                 opaque_seeds[id] = seed;
@@ -802,15 +823,15 @@ impl CubeScene {
             let mut faces = Vec::with_capacity(54);
             for id in 0..27 {
                 let seed = opaque_seeds[id];
-                let basis = [[1.,0.,0.],[0.,1.,0.],[0.,0.,1.]].map(|a| Quaternion(seed.rotation).rotate(a));
+                let basis = [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]]
+                    .map(|a| Quaternion(seed.rotation).rotate(a));
                 let cell = [id % 3, (id / 3) % 3, id / 9];
                 for axis in 0..3 {
                     if cell[axis] != 1 {
                         let sign = if cell[axis] == 2 { 1.0 } else { -1.0 };
                         let face = (axis * 2 + usize::from(sign < 0.0)) as u32;
                         let p: [f32; 3] = core::array::from_fn(|i| {
-                            opaque_seeds[id].translation[i]
-                                + basis[axis][i] * sign * seed.scale[0]
+                            opaque_seeds[id].translation[i] + basis[axis][i] * sign * seed.scale[0]
                         });
                         let depth = -(camera.view[2] * p[0]
                             + camera.view[6] * p[1]
@@ -895,10 +916,11 @@ impl CubeScene {
                     },
                     seed_buffer: self.seed_buffer.raw(),
                     seed_count: seed_count as u32,
-                    draw_count: if !companion && matches!(
-                        self.mode,
-                        SceneMode::Sphere | SceneMode::Orchard | SceneMode::World
-                    ) {
+                    draw_count: if !companion
+                        && matches!(
+                            self.mode,
+                            SceneMode::Sphere | SceneMode::Orchard | SceneMode::World
+                        ) {
                         1
                     } else {
                         2
@@ -908,10 +930,12 @@ impl CubeScene {
                             first_index: 0,
                             index_count: 44,
                         },
-                        if !companion && matches!(
-                            self.mode,
-                            SceneMode::Sphere | SceneMode::Orchard | SceneMode::World
-                        ) {
+                        if !companion
+                            && matches!(
+                                self.mode,
+                                SceneMode::Sphere | SceneMode::Orchard | SceneMode::World
+                            )
+                        {
                             RetainedDrawRange::default()
                         } else {
                             RetainedDrawRange {
@@ -988,7 +1012,9 @@ impl CubeScene {
             .frame
             .keyboard_state()
             .map_err(|error| CubeError::Ui4("mode-hotkeys", error))?;
-        let r_held = state.as_ref().is_some_and(|keyboard| keyboard.is_down(0x15));
+        let r_held = state
+            .as_ref()
+            .is_some_and(|keyboard| keyboard.is_down(0x15));
         let current = state.map_or(0, |keyboard| {
             (keyboard.is_down(0x1e) as u8)
                 | ((keyboard.is_down(0x1f) as u8) << 1)
@@ -1106,12 +1132,18 @@ impl CubeScene {
                     core::array::from_fn(|i| self.flycam.camera.position[i] + direction[i]),
                     [0.0, 1.0, 0.0],
                 );
-                self.background.select_world(
-                    WORLD_ASSETS[self.world_index].0, self.flycam.camera.rotation.0,
-                ).map_err(|error| CubeError::Ui4("background-world", error))?;
+                self.background
+                    .select_world(
+                        WORLD_ASSETS[self.world_index].0,
+                        self.flycam.camera.rotation.0,
+                    )
+                    .map_err(|error| CubeError::Ui4("background-world", error))?;
                 let asset = &self.worlds[self.world_index];
                 self.active_world = Some(world_portals::World::new(
-                    self.world_index, asset, WORLD_ASSETS[self.world_index].1, &self.puzzle,
+                    self.world_index,
+                    asset,
+                    WORLD_ASSETS[self.world_index].1,
+                    &self.puzzle,
                 ));
                 logl::log(
                     level::INFO,
@@ -1160,7 +1192,11 @@ impl CubeScene {
                 ),
             );
         }
-        self.world_cube.key(r_held, self.mode == SceneMode::World, self.previous_elapsed_millis);
+        self.world_cube.key(
+            r_held,
+            self.mode == SceneMode::World,
+            self.previous_elapsed_millis,
+        );
         Ok(())
     }
 

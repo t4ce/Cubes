@@ -4,8 +4,8 @@ use crate::rubik::Puzzle;
 // The authored roster: opposing pairs are Sky/Underground (+/-X),
 // Black/White hole (+/-Y), Island/City (+/-Z). Index order is not lattice order.
 pub const THEME_MASKS: [u8; 27] = [
-    1, 2, 4, 8, 16, 32, 5, 9, 17, 33, 6, 10, 18, 34, 20, 36, 24, 40,
-    21, 37, 25, 41, 22, 38, 26, 42, 0,
+    1, 2, 4, 8, 16, 32, 5, 9, 17, 33, 6, 10, 18, 34, 20, 36, 24, 40, 21, 37, 25, 41, 22, 38, 26,
+    42, 0,
 ];
 pub const VOID: usize = 26;
 pub const FACES: usize = 7; // north, east, south, west, bottom, top, center
@@ -21,9 +21,13 @@ pub type Routes = [Destination; FACES];
 pub fn solved_cell(world: usize) -> [i8; 3] {
     let mask = THEME_MASKS[world];
     core::array::from_fn(|axis| {
-        if mask & (1 << (axis * 2)) != 0 { 1 }
-        else if mask & (2 << (axis * 2)) != 0 { -1 }
-        else { 0 }
+        if mask & (1 << (axis * 2)) != 0 {
+            1
+        } else if mask & (2 << (axis * 2)) != 0 {
+            -1
+        } else {
+            0
+        }
     })
 }
 pub fn cubie(world: usize) -> usize {
@@ -31,7 +35,10 @@ pub fn cubie(world: usize) -> usize {
     x + y * 3 + z * 9
 }
 fn world_for_mask(mask: u8) -> usize {
-    THEME_MASKS.iter().position(|&m| m == mask).expect("closed world roster")
+    THEME_MASKS
+        .iter()
+        .position(|&m| m == mask)
+        .expect("closed world roster")
 }
 
 /// Keep the authored room faces, including its Leave slots and Void markers.
@@ -41,12 +48,24 @@ pub fn authored_routes(world: usize) -> Routes {
     let themes: [u8; 6] = core::array::from_fn(|i| 1 << i);
     let mut active = themes.into_iter().filter(|bit| mask & bit != 0);
     match mask.count_ones() {
-        0 => [World(0), World(2), World(1), World(3), World(5), World(4), Leave],
+        0 => [
+            World(0),
+            World(2),
+            World(1),
+            World(3),
+            World(5),
+            World(4),
+            Leave,
+        ],
         1 => {
             let pair = (0..3).find(|pair| mask & (3 << (pair * 2)) != 0).unwrap();
-            let mut other = themes.into_iter().filter(|bit| bit & (3 << (pair * 2)) == 0);
+            let mut other = themes
+                .into_iter()
+                .filter(|bit| bit & (3 << (pair * 2)) == 0);
             let mut routes = [None; FACES];
-            for route in &mut routes[..4] { *route = World(world_for_mask(mask | other.next().unwrap())); }
+            for route in &mut routes[..4] {
+                *route = World(world_for_mask(mask | other.next().unwrap()));
+            }
             routes[4] = World(VOID);
             routes[5] = Leave;
             routes
@@ -55,16 +74,29 @@ pub fn authored_routes(world: usize) -> Routes {
             let a = active.next().unwrap();
             let b = active.next().unwrap();
             let pair = (0..3).find(|pair| mask & (3 << (pair * 2)) == 0).unwrap();
-            [World(world_for_mask(a)), World(world_for_mask(mask | (1 << (pair * 2)))),
-             World(world_for_mask(b)), World(world_for_mask(mask | (2 << (pair * 2)))),
-             Leave, Leave, None]
+            [
+                World(world_for_mask(a)),
+                World(world_for_mask(mask | (1 << (pair * 2)))),
+                World(world_for_mask(b)),
+                World(world_for_mask(mask | (2 << (pair * 2)))),
+                Leave,
+                Leave,
+                None,
+            ]
         }
         3 => {
             let a = active.next().unwrap();
             let b = active.next().unwrap();
             let c = active.next().unwrap();
-            [World(world_for_mask(a | b)), World(world_for_mask(a | c)),
-             World(world_for_mask(b | c)), Leave, Leave, Leave, None]
+            [
+                World(world_for_mask(a | b)),
+                World(world_for_mask(a | c)),
+                World(world_for_mask(b | c)),
+                Leave,
+                Leave,
+                Leave,
+                None,
+            ]
         }
         _ => unreachable!(),
     }
@@ -72,18 +104,31 @@ pub fn authored_routes(world: usize) -> Routes {
 
 pub fn routes(world: usize, puzzle: &Puzzle) -> Routes {
     let authored = authored_routes(world);
-    if world == VOID { return authored; }
+    if world == VOID {
+        return authored;
+    }
     let origin = solved_cell(world);
     let (cell, basis) = puzzle.lattice_pose(cubie(world));
     authored.map(|destination| {
-        let Destination::World(target) = destination else { return destination; };
+        let Destination::World(target) = destination else {
+            return destination;
+        };
         let neighbor = solved_cell(target);
         let direction: [i8; 3] = core::array::from_fn(|axis| neighbor[axis] - origin[axis]);
         let adjacent = core::array::from_fn(|row| {
-            cell[row] + (0..3).map(|column| basis[column][row] * direction[column]).sum::<i8>()
+            cell[row]
+                + (0..3)
+                    .map(|column| basis[column][row] * direction[column])
+                    .sum::<i8>()
         });
-        let identity = puzzle.identity_at(adjacent).expect("inward cubie face must have a neighbor");
-        Destination::World((0..27).find(|&world| cubie(world) == identity).expect("every cubie has a world"))
+        let identity = puzzle
+            .identity_at(adjacent)
+            .expect("inward cubie face must have a neighbor");
+        Destination::World(
+            (0..27)
+                .find(|&world| cubie(world) == identity)
+                .expect("every cubie has a world"),
+        )
     })
 }
 
@@ -97,7 +142,9 @@ mod tests {
         ids.sort();
         assert_eq!(ids, (0..27).collect::<Vec<_>>());
         assert_eq!(cubie(VOID), 13);
-        for world in 0..27 { assert_eq!(routes(world, &puzzle), authored_routes(world)); }
+        for world in 0..27 {
+            assert_eq!(routes(world, &puzzle), authored_routes(world));
+        }
     }
     #[test]
     fn committed_turns_change_neighbors_but_preserve_exits_void_and_reciprocity() {
@@ -106,7 +153,9 @@ mod tests {
         assert!(puzzle.select(0, 0));
         puzzle.update(1000); // animation started; no committed permutation yet
         assert_eq!(puzzle.revision(), 0);
-        for world in 0..27 { assert_eq!(routes(world, &puzzle), initial[world]); }
+        for world in 0..27 {
+            assert_eq!(routes(world, &puzzle), initial[world]);
+        }
         let mut changed = false;
         for now in [2000, 3000, 4000] {
             puzzle.update(now);
@@ -114,12 +163,18 @@ mod tests {
                 let current = routes(world, &puzzle);
                 changed |= current != initial[world];
                 for (face, destination) in current.into_iter().enumerate() {
-                    if initial[world][face] == Destination::Leave { assert_eq!(destination, Destination::Leave); }
+                    if initial[world][face] == Destination::Leave {
+                        assert_eq!(destination, Destination::Leave);
+                    }
                     if let Destination::World(target) = destination {
                         assert_ne!(world, target);
                         assert!(routes(target, &puzzle).contains(&Destination::World(world)));
-                        if world == VOID { assert!(target < 6); }
-                        if target == VOID { assert!(world < 6); }
+                        if world == VOID {
+                            assert!(target < 6);
+                        }
+                        if target == VOID {
+                            assert!(world < 6);
+                        }
                     }
                 }
             }

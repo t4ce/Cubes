@@ -24,19 +24,26 @@ pub fn ray(inv: &[f32; 16], x: i32, y: i32, w: u32, h: u32) -> Option<([f32; 3],
     let b = unproject(1.0)?;
     Some((a, core::array::from_fn(|i| b[i] - a[i])))
 }
+#[cfg(test)]
 pub fn pick(origin: [f32; 3], dir: [f32; 3], spacing: f32, scale: f32) -> Option<usize> {
     pick_poses(origin, dir, spacing, scale, |id| {
-        ([
-            (id % 3) as f32 - 1.0,
-            ((id / 3) % 3) as f32 - 1.0,
-            (id / 9) as f32 - 1.0,
-        ], [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]])
+        (
+            [
+                (id % 3) as f32 - 1.0,
+                ((id / 3) % 3) as f32 - 1.0,
+                (id / 9) as f32 - 1.0,
+            ],
+            [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]],
+        )
     })
 }
 
 /// Intersect the same beveled seed in its current cubie-local orientation.
 pub fn pick_poses(
-    origin: [f32; 3], dir: [f32; 3], spacing: f32, scale: f32,
+    origin: [f32; 3],
+    dir: [f32; 3],
+    spacing: f32,
+    scale: f32,
     pose: impl Fn(usize) -> ([f32; 3], [[f32; 3]; 3]),
 ) -> Option<usize> {
     let mut nearest = f32::INFINITY;
@@ -44,7 +51,8 @@ pub fn pick_poses(
     for id in 0..27 {
         let (cell, basis) = pose(id);
         let translated: [f32; 3] = core::array::from_fn(|i| origin[i] - cell[i] * spacing);
-        let o: [f32; 3] = basis.map(|axis| (0..3).map(|i| axis[i] * translated[i]).sum::<f32>() / scale);
+        let o: [f32; 3] =
+            basis.map(|axis| (0..3).map(|i| axis[i] * translated[i]).sum::<f32>() / scale);
         let d: [f32; 3] = basis.map(|axis| (0..3).map(|i| axis[i] * dir[i]).sum::<f32>() / scale);
         let mut near = 0.0f32;
         let mut far = f32::INFINITY;

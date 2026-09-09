@@ -79,16 +79,38 @@ artifacts without changing them.
 - TRUEOS `python3 tools/shadertoy-cpp-offline/test_blueprint_packages.py`: package
   authentication and hardware-contract admission.
 
-Packing, deployment and runtime GPU/rig testing are left to the user for this
-change. Both the kernel and Cubes need rebuilding together. In the rig test,
+Packing, deployment and runtime rig testing are performed by the user. Both
+the kernel and Cubes need rebuilding together for the resident environment ABI. In the rig test,
 look for one `Chroma environment ready` record per Key 5 selection and none
 from camera motion or maximize/restore. Check both hemispheres, single/dual/trio
 worlds, Void, the first mouse movement, rotation settling, and stop while loading.
 
-The optional host probe `tools/benchmark_mandelbox.c` has been updated and
-compile-checked for the new ABI, but has not been executed for this change.
+The host probe `tools/benchmark_mandelbox.c` was executed on the local UHD 770.
+The three Cathedral palettes took 198–217 ms to bake; Folded Core took 1377 ms.
+Cached 640×360 lookup took approximately 0.18 ms. These are host OpenCL timings,
+not TRUEOS end-to-end frame timings. Readbacks of all four directions were
+produced, and Cathedral/Void front views were inspected without the rig's stripes.
 It reports bake time separately from cached lookup time and writes four views
 for single/dual/trio Cathedral and Void. Build with
 `cc -O2 -std=c11 tools/benchmark_mandelbox.c -o /tmp/benchmark_chroma -l:libOpenCL.so.1 -l:libX11.so.6 -lm`.
 Create an output directory, then pass `kernel.spv output-directory width height`.
 Use the pinned TRUEOS OpenCL ICD/toolchain environment when needed.
+
+## Stripe regression (2026-09-09)
+
+The 3078-pixel atlas exposed an execution-mask error in TRUEOS's ShaderToy
+walker. The global width remainder (six) was used as RightExecutionMask, leaving
+ten columns unwritten in every SIMD16 workgroup. The mask describes local lanes
+in each group; this is also how [Intel's Gen12LP runtime programs it](https://github.com/intel/compute-runtime/blob/master/opencl/source/gen12lp/gpgpu_walker_gen12lp.cpp#L105-L120).
+The fixed dispatcher launches every lane and retains the shader's existing
+width/height bounds guard. Odd-sized windows benefit from the same correction.
+
+`tools/test_shadertoy_dispatch.py` in TRUEOS now replays the emitted walker
+against sentinel-padded rows, including the guttered atlas and odd window widths.
+It failed on the previous mask and passes with complete coverage and untouched
+padding. All 13 dispatch tests pass. The user subsequently confirmed on the rig
+that the shader is clean, accurately projected, and performant.
+
+This correction is in the TRUEOS kernel. It does not change the shader package,
+face resolution, or procedural detail. Keep the current quality for this pass:
+filling the missing lanes already changes actual bake work.
