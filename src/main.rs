@@ -17,6 +17,9 @@ mod rubik;
 mod transition;
 mod world_bounds;
 mod world_look;
+mod world_topology;
+mod world_portals;
+mod world_cube;
 use alloc::vec::Vec;
 
 use trueos::ui4_scene::{
@@ -107,6 +110,8 @@ struct CubeScene {
     orchard_index: usize,
     worlds: orchard::Pages,
     world_index: usize,
+    active_world: Option<world_portals::World>,
+    world_cube: world_cube::Companion,
     visibility_scratch: orchard::VisibilityScratch,
     orchard_reveal: reveal::Reveal,
     puzzle: rubik::Puzzle,
@@ -305,6 +310,8 @@ impl CubeScene {
             cursors: Vec::new(),
             mode: SceneMode::StaticCube,
             puzzle: rubik::Puzzle::new(0),
+            active_world: None,
+            world_cube: world_cube::Companion::default(),
             orbit: [core::f32::consts::PI, 0.0, 7.5],
             look_target: [0.0; 3],
             last_camera_activity_millis: 0,
@@ -327,6 +334,12 @@ impl CubeScene {
             elapsed_millis.saturating_sub(self.previous_elapsed_millis) as f32 * 0.001;
         self.previous_elapsed_millis = elapsed_millis;
         self.service_mode_hotkeys()?;
+        // A selected Key-2 action continues after entering a world. Only its
+        // exact committed quarter-turns change the portal topology.
+        self.puzzle.update(elapsed_millis);
+        if self.mode == SceneMode::World {
+            self.active_world.as_mut().unwrap().update(&self.puzzle, elapsed_millis);
+        }
         let routes = self
             .frame
             .input_routes()
@@ -391,11 +404,12 @@ impl CubeScene {
                     event.local_y,
                     self.frame.width(),
                     self.frame.height(),
-                ) && let Some(id) = picking::pick(
+                ) && let Some(id) = picking::pick_poses(
                     origin,
                     direction,
                     grid::CUBE_COMPACT_SPACING,
                     grid::CUBE_GRID_SCALE,
+                    |id| self.puzzle.pose(id, 0.0, 1.0),
                 ) && self.puzzle.select(id, elapsed_millis)
                 {
                     logl::log(
@@ -417,9 +431,6 @@ impl CubeScene {
         let width = self.frame.width();
         let height = self.frame.height();
         {
-            if self.mode == SceneMode::StaticCube {
-                self.puzzle.update(elapsed_millis);
-            }
             let held = |key| {
                 routes
                     .iter()
@@ -600,6 +611,7 @@ impl CubeScene {
             .acquire_ui4_surface(self.frame.window_id())
             .map_err(|code| CubeError::Vgpu("surface-acquire", code))?;
         let puzzle_spacing = self.puzzle_spacing(elapsed_millis);
+        let companion = self.world_cube.visible(self.mode == SceneMode::World);
         let (visible, visibility_stats) = match self.mode {
             SceneMode::Orchard => {
                 let asset = &self.orchards[self.orchard_index];
@@ -616,29 +628,31 @@ impl CubeScene {
                 (ids, Some(stats))
             }
             SceneMode::World => {
-                let asset = &self.worlds[self.world_index];
+                let asset = &self.active_world.as_ref().unwrap().scene;
                 let (ids, stats) = orchard::visible_when_limited(
                     &mut self.visibility_scratch,
                     asset,
                     self.flycam.camera.position,
                     &camera.view_projection,
-                    WORLD_SEED_BUDGET,
-                    |_| true,
+                    WORLD_SEED_BUDGET - if companion { world_cube::SEEDS } else { 0 },
+                    |id| asset.cubes[id].scale >= 0.001,
                 );
                 (ids, Some(stats))
             }
             _ => (&[][..], None),
         };
-        let opaque_count = if matches!(self.mode, SceneMode::Orchard | SceneMode::World) {
+        let scene_opaque_count = if matches!(self.mode, SceneMode::Orchard | SceneMode::World) {
             visible.len().max(1)
         } else {
             self.mode.seed_count()
         };
         // Visibility removes submissions, not authored scene instances. The
         // fallback seed is an ABI placeholder and is never a countable cube.
-        let countable_seed_count = visibility_stats.map_or(opaque_count, |stats| stats.source);
+        let opaque_count = scene_opaque_count + if companion { 27 } else { 0 };
+        let countable_seed_count = visibility_stats.map_or(scene_opaque_count, |stats| stats.source)
+            + if companion { 27 } else { 0 };
         let seed_count = opaque_count
-            + if self.mode == SceneMode::StaticCube {
+            + if self.mode == SceneMode::StaticCube || companion {
                 54
             } else if self.mode == SceneMode::InteractiveGrid {
                 1
@@ -650,7 +664,7 @@ impl CubeScene {
         let mut seed_bytes = [0u8; grid::MAX_SEED_COUNT * 64];
         let mut opaque_seeds = [RetainedTransformSeed::default(); 27];
         let mut expanded_count = 0usize;
-        for i in 0..opaque_count {
+        for i in 0..scene_opaque_count {
             let (cell, basis) = self.puzzle.pose(i.min(26), turn_sin, turn_cos);
             let (translation, scale) = match self.mode {
                 SceneMode::Orchard => {
@@ -664,7 +678,7 @@ impl CubeScene {
                 }
                 SceneMode::World => {
                     if let Some(&id) = visible.get(i) {
-                        let cube = self.worlds[self.world_index].cubes[id];
+                        let cube = self.active_world.as_ref().unwrap().scene.cubes[id];
                         (cube.center, cube.scale)
                     } else {
                         (self.flycam.camera.position.map(|v| v * 2.0), 0.0001)
@@ -750,7 +764,7 @@ impl CubeScene {
                         })
                     } else if self.mode == SceneMode::World {
                         visible.get(i).map_or(orchard::CUSTOM_RGB555, |&id| {
-                            self.worlds[self.world_index].cubes[id].flags
+                            self.active_world.as_ref().unwrap().scene.cubes[id].flags
                         })
                     } else {
                         rubik::SPHERE_GRADIENT_FLAG
@@ -764,10 +778,31 @@ impl CubeScene {
             }
             encode_seed(seed, &mut seed_bytes[i * 64..(i + 1) * 64]);
         }
-        if self.mode == SceneMode::StaticCube {
+        if companion {
+            let placement = world_cube::Placement::new(width, height, tan_half_fov, self.world_cube.expansion(elapsed_millis));
+            for id in 0..27 {
+                let (cell, basis) = self.puzzle.pose(id, turn_sin, turn_cos);
+                let (position, basis, scale) = placement.pose(cell, basis);
+                let offset = self.flycam.camera.rotation.rotate(position);
+                let translation = core::array::from_fn(|a| self.flycam.camera.position[a] + offset[a]);
+                let basis = basis.map(|axis| self.flycam.camera.rotation.rotate(axis));
+                let row = scene_opaque_count + id;
+                let seed = RetainedTransformSeed {
+                    translation, previous_translation: translation, scale: [scale; 3],
+                    rotation: quaternion_from_rotation_columns(basis[0], basis[1], basis[2]).0,
+                    local_radius: grid::CUBE_LOCAL_RADIUS, draw_group: 0,
+                    flags: ((row as u32) << 16) | rubik::PALETTE_FLAG | id as u32,
+                };
+                opaque_seeds[id] = seed;
+                encode_seed(seed, &mut seed_bytes[row * 64..(row + 1) * 64]);
+                expanded_count += 1;
+            }
+        }
+        if self.mode == SceneMode::StaticCube || companion {
             let mut faces = Vec::with_capacity(54);
             for id in 0..27 {
-                let (_, basis) = self.puzzle.pose(id, turn_sin, turn_cos);
+                let seed = opaque_seeds[id];
+                let basis = [[1.,0.,0.],[0.,1.,0.],[0.,0.,1.]].map(|a| Quaternion(seed.rotation).rotate(a));
                 let cell = [id % 3, (id / 3) % 3, id / 9];
                 for axis in 0..3 {
                     if cell[axis] != 1 {
@@ -775,7 +810,7 @@ impl CubeScene {
                         let face = (axis * 2 + usize::from(sign < 0.0)) as u32;
                         let p: [f32; 3] = core::array::from_fn(|i| {
                             opaque_seeds[id].translation[i]
-                                + basis[axis][i] * sign * grid::CUBE_GRID_SCALE
+                                + basis[axis][i] * sign * seed.scale[0]
                         });
                         let depth = -(camera.view[2] * p[0]
                             + camera.view[6] * p[1]
@@ -860,7 +895,7 @@ impl CubeScene {
                     },
                     seed_buffer: self.seed_buffer.raw(),
                     seed_count: seed_count as u32,
-                    draw_count: if matches!(
+                    draw_count: if !companion && matches!(
                         self.mode,
                         SceneMode::Sphere | SceneMode::Orchard | SceneMode::World
                     ) {
@@ -873,7 +908,7 @@ impl CubeScene {
                             first_index: 0,
                             index_count: 44,
                         },
-                        if matches!(
+                        if !companion && matches!(
                             self.mode,
                             SceneMode::Sphere | SceneMode::Orchard | SceneMode::World
                         ) {
@@ -953,6 +988,7 @@ impl CubeScene {
             .frame
             .keyboard_state()
             .map_err(|error| CubeError::Ui4("mode-hotkeys", error))?;
+        let r_held = state.as_ref().is_some_and(|keyboard| keyboard.is_down(0x15));
         let current = state.map_or(0, |keyboard| {
             (keyboard.is_down(0x1e) as u8)
                 | ((keyboard.is_down(0x1f) as u8) << 1)
@@ -1020,8 +1056,8 @@ impl CubeScene {
             self.frame
                 .set_center_snapped_mouse(mode == SceneMode::World)
                 .map_err(|error| CubeError::Ui4("center-snapped-mouse", error))?;
-            if mode != SceneMode::World {
-                self.puzzle = rubik::Puzzle::new(self.previous_elapsed_millis);
+            if mode == SceneMode::StaticCube {
+                self.puzzle.reenter(self.previous_elapsed_millis);
             }
             self.last_camera_activity_millis = self.previous_elapsed_millis;
             self.finished_at = None;
@@ -1074,6 +1110,9 @@ impl CubeScene {
                     WORLD_ASSETS[self.world_index].0, self.flycam.camera.rotation.0,
                 ).map_err(|error| CubeError::Ui4("background-world", error))?;
                 let asset = &self.worlds[self.world_index];
+                self.active_world = Some(world_portals::World::new(
+                    self.world_index, asset, WORLD_ASSETS[self.world_index].1, &self.puzzle,
+                ));
                 logl::log(
                     level::INFO,
                     format_args!(
@@ -1109,7 +1148,7 @@ impl CubeScene {
                         SceneMode::Orchard =>
                             "4 cubes-pair WASD=orbit idle=auto-orbit Key4=next-pair",
                         SceneMode::World =>
-                            "5 lvl27-world first-person mouse-look WASD=plane-walk nearest-first-stream Key5=next-world",
+                            "5 lvl27-world first-person mouse-look WASD=plane-walk Key5=next-world R=display-cube",
                     },
                     if mode == SceneMode::Orchard {
                         self.orchards[self.orchard_index].cubes.len()
@@ -1121,6 +1160,7 @@ impl CubeScene {
                 ),
             );
         }
+        self.world_cube.key(r_held, self.mode == SceneMode::World, self.previous_elapsed_millis);
         Ok(())
     }
 

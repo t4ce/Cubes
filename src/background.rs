@@ -1,12 +1,11 @@
 //! Independent ShaderToy producer for the layered window's environment.
+use crate::environment::{Palette, RotationFollower};
 use alloc::sync::Arc;
 use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use trueos::ui4_scene::{BackgroundLayer, Error, ShadertoyParamsV1};
 
 const SHADER: u32 = 16;
 const PACKAGE: &[u8] = include_bytes!("../Cube/mandelbox/mandelbox.stpkg");
-use crate::environment::{Palette, RotationFollower};
-
 const COMMAND_WORDS: usize = 14;
 
 struct Shared {

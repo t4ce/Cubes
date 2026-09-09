@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bake/check Cubes' reviewed Mandelbox package through TRUEOS' ShaderToy lane."""
+"""Bake/check Cubes' Chroma environment through authenticated ShaderToy program 16."""
 from pathlib import Path
 import argparse
 import hashlib

@@ -26,6 +26,7 @@ pub struct Puzzle {
     completed: u8,
     previous_axis: Option<usize>,
     rng: u32,
+    revision: u64,
 }
 fn rotate(mut v: [i8; 3], axis: usize, direction: i8) -> [i8; 3] {
     let a = (axis + 1) % 3;
@@ -50,6 +51,7 @@ impl Puzzle {
             completed: 0,
             previous_axis: None,
             rng: 0x6d2b79f5,
+            revision: 0,
         }
     }
     fn commit(&mut self, turn: Turn) {
@@ -58,6 +60,27 @@ impl Puzzle {
                 cubie.cell = rotate(cubie.cell, turn.axis, turn.direction);
                 cubie.basis = cubie.basis.map(|v| rotate(v, turn.axis, turn.direction));
             }
+        }
+        self.revision = self.revision.wrapping_add(1);
+    }
+    /// Only completed lattice turns change world adjacency.
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+    pub fn lattice_pose(&self, id: usize) -> ([i8; 3], [[i8; 3]; 3]) {
+        (self.cubies[id].cell, self.cubies[id].basis)
+    }
+    pub fn identity_at(&self, cell: [i8; 3]) -> Option<usize> {
+        self.cubies.iter().position(|cubie| cubie.cell == cell)
+    }
+    /// Re-enter the Key-2 demo without resetting its shared permutation. An
+    /// in-progress action continues; a finished action can be selected again.
+    pub fn reenter(&mut self, now: u64) {
+        if !self.locked() {
+            self.selected = None;
+            self.opened = now;
+            self.completed = 0;
+            self.previous_axis = None;
         }
     }
     pub fn update(&mut self, now: u64) {
