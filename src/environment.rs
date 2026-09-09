@@ -20,6 +20,18 @@ pub struct Palette {
 }
 
 impl Palette {
+    /// Arithmetic average of the authored sRGB bytes, rounded to nearest.
+    /// Repeated padding colors are excluded; pure and Void colors stay exact.
+    pub fn average_rgb(&self) -> [u8; 3] {
+        [16, 8, 0].map(|shift| {
+            let sum: u32 = self.colors[..self.count as usize]
+                .iter()
+                .map(|color| (color >> shift) & 255)
+                .sum();
+            ((sum + self.count / 2) / self.count) as u8
+        })
+    }
+
     pub fn for_world(name: &str) -> Option<Self> {
         let name = name.strip_suffix(".cubes").unwrap_or(name);
         if name == "world_27_void" {

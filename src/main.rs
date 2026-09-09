@@ -1139,6 +1139,16 @@ impl CubeScene {
                     )
                     .map_err(|error| CubeError::Ui4("background-world", error))?;
                 let asset = &self.worlds[self.world_index];
+                let palette = environment::Palette::for_world(WORLD_ASSETS[self.world_index].0)
+                    .ok_or(CubeError::Contract)?;
+                // One hardware-register update per Key-5 selection, not per
+                // frame or mouse movement. Preserve the world if unavailable.
+                if let Err(error) = self.frame.set_display_bottom_color(palette.average_rgb()) {
+                    logl::log(
+                        level::WARN,
+                        format_args!("Cubes: display bottom color unavailable: {error:?}"),
+                    );
+                }
                 self.active_world = Some(world_portals::World::new(
                     self.world_index,
                     asset,

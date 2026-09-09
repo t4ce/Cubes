@@ -28,6 +28,9 @@ for world, mask in zip(worlds, expected):
     authored = [int.from_bytes(data[i:i+3],"big") for i in range(16,16+4*data[10],4)]
     assert all(color in authored for color in palette), world.name
     count = len(palette)
+    average = [(sum((color >> shift) & 255 for color in palette) + count // 2) // count
+               for shift in (16, 8, 0)]
+    program += f'assert_eq!(Palette::for_world("{world.name}").unwrap().average_rgb(),{average});\n'
     palette += [palette[0]]*(3-count)
     program += f'assert_eq!(Palette::for_world("{world.name}"),Some(Palette {{colors:{palette},count:{count},cathedral:{str(bool(mask)).lower()}}}));\n'
 program += '}\n#[test] fn unrecognized_names_do_not_silently_become_void() {assert!(Palette::for_world("cityscape.cubes").is_none());}\n'

@@ -5,6 +5,17 @@ a native worker owns the independently published background. Keys 1–4 retain a
 neutral slate shade. Key 5 uses a complete spherical environment, including the
 lower hemisphere, with background-only opacity 128/255.
 
+Each Key 5 selection also sets the primary display's opaque hardware bottom
+color once through `Frame::set_display_bottom_color`. Pure worlds use their
+authored theme RGB; dual/trio worlds use the arithmetic mean of the two/three
+authored sRGB byte values, rounded to nearest; Void uses `#D83CFF`. This adds
+no texture, plane, or per-frame rendering work. The existing transparent plane
+stack exposes that color wherever no intervening opaque content covers it.
+It is shared Pipe A display state, like UI4's color picker: last writer wins,
+and leaving/closing Cubes does not restore a previous color. An unavailable
+register/backend is logged without aborting the world.
+The new Blueprint export requires an updated TRUEOS kernel as well as Cubes.
+
 Every Key 5 world selection advances a generation, even when revisiting a
 previously loaded world. The kernel bakes that generation once into a resident
 six-face RGBA8 cubemap: 1024×1024 useful texels per face, with a one-texel border
