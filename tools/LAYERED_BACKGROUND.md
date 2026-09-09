@@ -3,7 +3,8 @@
 Cubes opens one UI4 layered window. Picasso renders the transparent foreground;
 a native worker owns the independently published background. Keys 1–4 retain a
 neutral slate shade. Key 5 uses a complete spherical environment, including the
-lower hemisphere, with background-only opacity 128/255.
+lower hemisphere, with opaque visible world patches and transparent gaps. Neutral modes retain
+background-only opacity 128/255.
 
 Each Key 5 selection also sets the primary display's opaque hardware bottom
 color once through `Frame::set_display_bottom_color`. Pure worlds use their
@@ -161,16 +162,17 @@ Before/after views and a comparison sheet are in `target/chroma-variation/`.
 
 The cached 360-degree cubemap is now sampled only inside six face-center
 squares and eight corner patches. On each face, UV spans [-1,1]: the center
-uses `abs(u),abs(v) <= 0.4`; a corner uses both `>= 0.7`. Each cube corner
-joins three adjacent face sections. This retains 16% center area + 9% corner
-area = 25% of the total cube surface, with transparent gaps over the other
-75%. These are environment-space patches; they remain attached to the six
+uses `abs(u),abs(v) <= 0.4/sqrt(2)`; a corner uses both `>= 0.7`. Each cube corner
+joins three adjacent face sections. This retains 8% center area + 9% corner
+area = 17% of the total cube surface, with transparent gaps over the other
+83%. These are environment-space patches; they remain attached to the six
 cube axes and eight corner directions as the camera turns. No screen-space
 magnification remains. Existing damped rotation following is retained.
 
 Masked pixels bypass the ShaderToy packer's forced opaque alpha and write
 RGBA zero, so lower layers/display color remain visible through the gaps.
-Visible patches retain the existing background layer opacity of 128/255.
+Visible world patches use background layer opacity 255/255; neutral modes
+retain 128/255. Opacity changes only on mode changes, not camera updates.
 All six source faces are still baked once per Key5 selection; masking and
 sampling happen only in the cheap view pass. Theme-specific folds are retained.
 
@@ -181,3 +183,25 @@ cube-projection mask, checked palette-independent coverage and transparent
 black pixels. Preview: `target/chroma-patches/patch-preview.png` (checkerboard
 indicates transparency, not an image drawn by the app). On-device composition
 has not been tested. Rebuild both TRUEOS and Cubes for the new admission hash.
+
+## Smaller centers and cheaper gap pixels (2026-09-10)
+
+Each face-center rectangle has half its previous area: both dimensions scale
+by 1/sqrt(2). The eight joined corner patches are unchanged. The view shader
+now tests the rotated ray against the mask before choosing a cube face or
+performing UV division. Rejected pixels write transparent zero and return,
+skipping atlas lookup, interpolation and color packing. Every output pixel
+still needs a write to clear old patches during rotation; buffer allocation,
+full-frame dispatch, follower timing and presentation cadence are unchanged.
+The bake still occurs once per selection, and settled cameras submit no work.
+
+Host probe data for before/after at 1280×720 is in `target/chroma-cost/`.
+
+Across the 24 local UHD 770 cached views, median sample time decreased from
+0.484 ms to 0.381 ms (about 21%). This includes both smaller center coverage
+and earlier rejection, not an isolated attribution to either change. It is
+GPU view-pass timing, not end-to-end compositor/rig timing. The front-center
+pixel coverage ratio was 0.4996 (raster rounding); retained visible RGB pixels
+matched exactly in front/corner comparisons. All 24 new masks match the
+independent projection test. Source/package validation, dispatch/admission
+tests and Cubes `cargo check` pass. No rig deployment was performed.

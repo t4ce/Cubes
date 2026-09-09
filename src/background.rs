@@ -42,6 +42,7 @@ impl Background {
         drop(
             trueos::worker::spawn(move || {
                 let mut completed = u32::MAX;
+                let mut opacity = 128;
                 while !worker.stop.load(Ordering::Acquire)
                     && !trueos::worker::cancellation_requested()
                 {
@@ -55,6 +56,16 @@ impl Background {
                     });
                     if worker.sequence.load(Ordering::SeqCst) != sequence {
                         continue;
+                    }
+                    // World patches carry their own binary alpha mask. Show
+                    // them at full opacity while retaining the neutral-mode shade.
+                    let desired_opacity = if command[0] != 0 { 255 } else { 128 };
+                    if opacity != desired_opacity {
+                        if let Err(error) = layer.set_opacity(desired_opacity) {
+                            failed(&worker, error);
+                            break;
+                        }
+                        opacity = desired_opacity;
                     }
                     match layer.begin_gpu_frame() {
                         Ok(()) => {}

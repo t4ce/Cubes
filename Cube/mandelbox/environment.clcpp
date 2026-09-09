@@ -4,14 +4,18 @@ inline float4 chroma_unpack(uint c) {
     return convert_float4((uint4)(c & 255u, (c >> 8) & 255u, (c >> 16) & 255u, 255u)) / 255.0f;
 }
 
-// Cube-face UVs span [-1,1]. Six center squares plus four corner
-// sections per face form eight connected patches across the cube seams.
-// Center area: 0.4^2 = 16%; all corners: (1 - 0.7)^2 = 9% per face.
-// The remaining 75% is transparent, revealing the layers below the world.
-inline bool chroma_patch_visible(float2 uv) {
-    float2 a = fabs(uv);
-    return (a.x <= 0.4f && a.y <= 0.4f)
-        || (a.x >= 0.7f && a.y >= 0.7f);
+// Six center squares now occupy 8% of each face (half their old area).
+// Corner sections remain 9%, giving 17% total cube-surface coverage.
+// Test the homogeneous ray BEFORE face selection/division/texture lookup.
+// The two smaller absolute components become the face's UV coordinates;
+// comparing against the largest avoids calculating UVs for transparent pixels.
+inline bool chroma_patch_visible(float3 ray) {
+    float3 a = fabs(ray);
+    float largest = fmax(a.x, fmax(a.y, a.z));
+    float smallest = fmin(a.x, fmin(a.y, a.z));
+    float middle = fmax(fmin(a.x, a.y), fmin(fmax(a.x, a.y), a.z));
+    const float center_extent = 0.2828427125f; // 0.4 / sqrt(2): half area.
+    return middle <= center_extent * largest || smallest >= 0.7f * largest;
 }
 
 inline float4 chroma_sample(__global const uint *source, float3 ray, uint4 controls) {
@@ -28,7 +32,6 @@ inline float4 chroma_sample(__global const uint *source, float3 ray, uint4 contr
         face = ray.z >= 0.0f ? 4u : 5u;
         uv = (float2)(ray.z >= 0.0f ? ray.x : -ray.x, -ray.y) / a.z;
     }
-    if (!chroma_patch_visible(uv)) return (float4)(0.0f);
     uint stride = controls.y / 3u;
     float2 base = convert_float2((uint2)(face % 3u, face / 3u) * stride);
     // Border rays extend each face. Bilinear lookup can cross its geometric
@@ -65,6 +68,10 @@ kernel TRUEOS_REQD_SUB_GROUP_SIZE_16 void shadertoy_mandelbox(
         float3 ray = (float3)(uv * uniforms->timing.x, -1.0f);
         float4 q = uniforms->mouse;
         ray += 2.0f * cross(q.xyz, cross(q.xyz, ray) + q.w * ray);
+        if (!chroma_patch_visible(ray)) {
+            output[(size_t)y * (pitch_bytes / 4u) + x] = 0u;
+            return;
+        }
         color = chroma_sample(source, ray, uniforms->render_control);
     }
     output[(size_t)y * (pitch_bytes / 4u) + x] = color.w == 0.0f ? 0u : st_pack_rgba8(color);

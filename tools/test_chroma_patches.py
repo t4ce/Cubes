@@ -29,9 +29,9 @@ for view_id, view in enumerate(views):
             # Project direction to the cube. The mask is sign/face symmetric.
             a, b, dominant = sorted(map(abs, (cy*rx+sy*pz, py, -sy*rx+cy*pz)))
             u, v = a/dominant, b/dominant
-            expected = v <= .4 or u >= .7
+            expected = v <= .4/math.sqrt(2) or u >= .7
             # Native floating-point can choose either side exactly on an edge.
-            if min(abs(v-.4), abs(u-.7)) > 2e-6:
+            if min(abs(v-.4/math.sqrt(2)), abs(u-.7)) > 2e-6:
                 assert alpha[y*width+x] == (255 if expected else 0), (view,x,y,u,v)
     assert 0 < alpha.count(255) < width*height, view
     for preset in presets:
