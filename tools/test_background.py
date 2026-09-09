@@ -20,6 +20,23 @@ assert len(worlds)==len(expected)==27
 program+='#[test] fn authored_roster_matches_the_six_theme_bits() {\n'
 for world,mask in zip(worlds,expected): program+=f'assert_eq!(theme_mask("{world.name}"),{mask});\n'
 program+='}\n'
+program+=item(str(APP/'src/background.rs'),'render_command')+'\n'
+program+='mod libm { pub fn sinf(x:f32)->f32 {x.sin()} pub fn cosf(x:f32)->f32 {x.cos()} }\n'
+program+=r'''
+#[test] fn sky_culling_tracks_pitch_and_vertical_fov() {
+    let command=|pitch,fov|render_command(true,"sky.cubes",0.0,pitch,fov,(784,441));
+    assert_eq!(command(0.0,0.577)[0],1); // half sky
+    assert_eq!(command(-0.7,0.577)[0],0); // entirely ground
+    assert_eq!(command(-0.7,1.0)[0],1); // wider FOV still sees sky
+    assert_eq!(command(1.4,0.577)[0],1);
+}
+#[test] fn hidden_sky_retains_pixels_across_camera_and_theme_changes() {
+    let ground=render_command(true,"sky.cubes",0.0,-1.0,0.577,(784,441));
+    assert_eq!(ground,render_command(true,"city.cubes",2.0,-1.4,0.577,(784,441)));
+    assert_eq!(ground,render_command(false,"island.cubes",2.0,1.4,0.577,(784,441)));
+    assert_ne!(ground,render_command(false,"sky.cubes",0.0,0.0,0.577,(1920,1080)));
+}
+'''
 program+='#[test] fn absent_theme_is_not_substring_matched() { assert_eq!(theme_mask("cityscape.cubes"),0); }\n'
 with tempfile.TemporaryDirectory(prefix='cubes-background-') as directory:
     root=Path(directory);(root/'tests.rs').write_text(program)

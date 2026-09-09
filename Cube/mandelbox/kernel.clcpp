@@ -221,6 +221,9 @@ float3 themeColor(int i, __global const ShaderToyUniforms *st) {
 }
 const float3 CAMERA = st_vec3(0.08f, -0.12f, 0.05f);
 const float FAR = 44.0f;
+// Cheap neutral shade outside the sky and during the first resize publication.
+// UI4 applies the independently controlled background opacity to this image.
+const float3 SHADE = st_vec3(28.0f, 34.0f, 46.0f)/255.0f;
 
 float max3(float3 v, __global const ShaderToyUniforms *st) {
     (void)st; return st_max(v.x, st_max(v.y, v.z)); }
@@ -284,7 +287,7 @@ float2 foldedCore(float3 p, __global const ShaderToyUniforms *st) {
     float3 z=c;
     float derivative=1.0f;
     float orbit=10.0f;
-    for (int i=0; i<9; ++i) {
+    for (int i=0; i<7; ++i) {
         z=st_clamp(z,-1.0f,1.0f)*2.0f-z; // box fold
         float r2=dot(z,z);
         float k=st_clamp(1.0f/st_max(r2,0.00001f),1.0f,4.0f); // sphere fold
@@ -318,7 +321,7 @@ float occlusion(float3 p,float3 n, __global const ShaderToyUniforms *st) {
     (void)st;
     float a=0.0f;
     float weight=1.0f;
-    for (int i=1;i<=3;++i) {
+    for (int i=1;i<=2;++i) {
         float h=0.10f+float(i)*0.18f;
         a+=(h-map(p+n*h, st).x)*weight;
         weight*=0.52f;
@@ -328,21 +331,24 @@ float occlusion(float3 p,float3 n, __global const ShaderToyUniforms *st) {
 
 void mainImage( float4 & fragColor,  float2 fragCoord, __global const ShaderToyUniforms *st) {
     (void)st;
-    if((st->date).y<0.5f) { fragColor=st_vec4(0.0f); return; }
+    if((st->date).y<0.5f) { fragColor=st_vec4(SHADE,1.0f); return; }
     float2 uv=fragCoord/(st->resolution_time.xyz).xy*2.0f-1.0f;
-    float3 rd=normalize(st_vec3(uv.x*(st->resolution_time.xyz).x/(st->resolution_time.xyz).y*(st->mouse).z, -uv.y*(st->mouse).z, -1.0f));
+    // fragCoord is bottom-up; Key 5's world camera is +Y-up.
+    float3 rd=normalize(st_vec3(uv.x*(st->resolution_time.xyz).x/(st->resolution_time.xyz).y*(st->mouse).z, uv.y*(st->mouse).z, -1.0f));
     float pitch=(st->mouse).y;
     float yaw=(st->mouse).x;
     rd=st_vec3(rd.x,rd.y*cos(pitch)-rd.z*sin(pitch),rd.y*sin(pitch)+rd.z*cos(pitch));
     rd=st_vec3(rd.x*cos(yaw)-rd.z*sin(yaw),rd.y,rd.x*sin(yaw)+rd.z*cos(yaw));
+    // Cull before any distance estimates, normals or occlusion evaluations.
+    if(rd.y<=0.0f) { fragColor=st_vec4(SHADE,1.0f); return; }
     float travel=0.0f;
     float hit=0.0f;
     float epsilon=0.002f;
     float2 sampleValue=st_vec2(1.0f);
-    for (int i=0;i<112;++i) {
+    for (int i=0;i<72;++i) {
         float3 p=CAMERA+rd*travel;
         sampleValue=map(p, st);
-        epsilon=st_max(0.0015f,travel*0.00050f);
+        epsilon=st_max(0.0025f,travel*0.00085f);
         if (sampleValue.x<epsilon) { hit=1.0f; break; }
         travel+=st_max(sampleValue.x*0.78f,0.001f);
         if (travel>FAR) break;
@@ -398,12 +404,11 @@ void mainImage( float4 & fragColor,  float2 fragCoord, __global const ShaderToyU
         float fogAmount=1.0f-exp(-travel*(2==1 ? 0.046f : 0.043f));
         color=st_mix(color,fog,fogAmount);
     }
-    // Tone map and encode once, during baking, not during mouse movement.
+    // Tone map and encode once per shaded pixel.
     color=st_vec3(1.0f)-exp(-color*1.45f);
     color=st_pow(st_max(color,0.0f),st_vec3(1.0f/2.2f));
     fragColor=st_vec4(color,1.0f);
 }
-
 
 };
 

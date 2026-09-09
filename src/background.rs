@@ -26,6 +26,33 @@ pub fn theme_mask(name: &str) -> u32 {
     })
 }
 
+/// At the upper edge of an unrolled +Y-up view, the unnormalized ray has
+/// y = sin(pitch) + tan(fov/2) * cos(pitch). Horizontal FOV cannot change its
+/// sign. A view wholly below the horizon needs only the retained flat shade.
+fn render_command(
+    enabled: bool,
+    name: &str,
+    yaw: f32,
+    pitch: f32,
+    tan_half_fov: f32,
+    extent: (u32, u32),
+) -> [u32; 7] {
+    let sky_visible = enabled && libm::sinf(pitch) + tan_half_fov * libm::cosf(pitch) > 0.0;
+    if !sky_visible {
+        // Camera/theme changes while the sky is invisible cause no dispatch.
+        return [0, 0, 0, 0, 0, extent.0, extent.1];
+    }
+    [
+        1,
+        theme_mask(name),
+        yaw.to_bits(),
+        pitch.to_bits(),
+        tan_half_fov.to_bits(),
+        extent.0,
+        extent.1,
+    ]
+}
+
 struct Shared {
     sequence: AtomicU32,
     // enabled, theme mask, yaw, pitch, tan(fov/2), width, height.
@@ -42,6 +69,7 @@ pub struct Background {
 
 impl Background {
     pub fn start(mut layer: BackgroundLayer) -> Result<Self, Error> {
+        layer.set_opacity(128)?;
         layer.register_shadertoy(SHADER, PACKAGE)?;
         let shared = Arc::new(Shared {
             sequence: AtomicU32::new(0),
@@ -56,10 +84,11 @@ impl Background {
         drop(
             trueos::worker::spawn(move || {
                 let mut completed = u32::MAX;
+                let mut rendered_extent = None;
                 let mut frame = 0;
                 while !worker.stop.load(Ordering::Acquire) {
                     let sequence = worker.sequence.load(Ordering::SeqCst);
-                    if sequence & 1 != 0 || sequence == completed {
+                    if sequence == 0 || sequence & 1 != 0 || sequence == completed {
                         trueos::vsys::sleep_ms(10);
                         continue;
                     }
@@ -69,6 +98,10 @@ impl Background {
                     if worker.sequence.load(Ordering::SeqCst) != sequence {
                         continue;
                     }
+                    // First publish at a new extent is a cheap shade. Paired
+                    // resize can then commit without waiting for ray marching.
+                    let extent = (command[5], command[6]);
+                    let preview = rendered_extent != Some(extent);
                     match layer.begin_gpu_frame() {
                         Ok(()) => {}
                         Err(Error::Busy) => {
@@ -88,7 +121,7 @@ impl Background {
                         mouse_y: f32::from_bits(command[3]),
                         click_x: f32::from_bits(command[4]).max(0.1),
                         date_year: command[1] as f32,
-                        date_month: command[0] as f32,
+                        date_month: if preview { 0.0 } else { command[0] as f32 },
                         flags: 0,
                         time_seconds: 0.0,
                         delta_seconds: 0.0,
@@ -101,7 +134,10 @@ impl Background {
                         failed(&worker, error);
                         break;
                     }
-                    completed = sequence;
+                    rendered_extent = Some(extent);
+                    if !preview || command[0] == 0 {
+                        completed = sequence;
+                    }
                     frame = frame.wrapping_add(1);
                     // Give the foreground a write-free interval to stage paired
                     // resizes even when a large background takes over 100 ms.
@@ -129,15 +165,7 @@ impl Background {
         if self.shared.failed.load(Ordering::Acquire) {
             return Err(Error::Ui4);
         }
-        let command = [
-            enabled as u32,
-            theme_mask(name),
-            yaw.to_bits(),
-            pitch.to_bits(),
-            tan_half_fov.to_bits(),
-            extent.0,
-            extent.1,
-        ];
+        let command = render_command(enabled, name, yaw, pitch, tan_half_fov, extent);
         if command != self.previous {
             // A single publisher and atomic fields give the worker one coherent
             // latest command. No camera-update queue accumulates behind a bake.

@@ -34,6 +34,9 @@ vec3 themeColor(int i) {
 }
 const vec3 CAMERA = vec3(0.08, -0.12, 0.05);
 const float FAR = 44.0;
+// Cheap neutral shade outside the sky and during the first resize publication.
+// UI4 applies the independently controlled background opacity to this image.
+const vec3 SHADE = vec3(28.0, 34.0, 46.0)/255.0;
 
 float max3(vec3 v) { return max(v.x, max(v.y, v.z)); }
 float min3(vec3 v) { return min(v.x, min(v.y, v.z)); }
@@ -90,7 +93,7 @@ vec2 foldedCore(vec3 p) {
     vec3 z=c;
     float derivative=1.0;
     float orbit=10.0;
-    for (int i=0; i<9; ++i) {
+    for (int i=0; i<7; ++i) {
         z=clamp(z,-1.0,1.0)*2.0-z; // box fold
         float r2=dot(z,z);
         float k=clamp(1.0/max(r2,0.00001),1.0,4.0); // sphere fold
@@ -121,7 +124,7 @@ vec3 normalAt(vec3 p,float eps) {
 float occlusion(vec3 p,vec3 n) {
     float a=0.0;
     float weight=1.0;
-    for (int i=1;i<=3;++i) {
+    for (int i=1;i<=2;++i) {
         float h=0.10+float(i)*0.18;
         a+=(h-map(p+n*h).x)*weight;
         weight*=0.52;
@@ -130,21 +133,24 @@ float occlusion(vec3 p,vec3 n) {
 }
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
-    if(iDate.y<0.5) { fragColor=vec4(0.0); return; }
+    if(iDate.y<0.5) { fragColor=vec4(SHADE,1.0); return; }
     vec2 uv=fragCoord/iResolution.xy*2.0-1.0;
-    vec3 rd=normalize(vec3(uv.x*iResolution.x/iResolution.y*iMouse.z, -uv.y*iMouse.z, -1.0));
+    // fragCoord is bottom-up; Key 5's world camera is +Y-up.
+    vec3 rd=normalize(vec3(uv.x*iResolution.x/iResolution.y*iMouse.z, uv.y*iMouse.z, -1.0));
     float pitch=iMouse.y;
     float yaw=iMouse.x;
     rd=vec3(rd.x,rd.y*cos(pitch)-rd.z*sin(pitch),rd.y*sin(pitch)+rd.z*cos(pitch));
     rd=vec3(rd.x*cos(yaw)-rd.z*sin(yaw),rd.y,rd.x*sin(yaw)+rd.z*cos(yaw));
+    // Cull before any distance estimates, normals or occlusion evaluations.
+    if(rd.y<=0.0) { fragColor=vec4(SHADE,1.0); return; }
     float travel=0.0;
     float hit=0.0;
     float epsilon=0.002;
     vec2 sampleValue=vec2(1.0);
-    for (int i=0;i<112;++i) {
+    for (int i=0;i<72;++i) {
         vec3 p=CAMERA+rd*travel;
         sampleValue=map(p);
-        epsilon=max(0.0015,travel*0.00050);
+        epsilon=max(0.0025,travel*0.00085);
         if (sampleValue.x<epsilon) { hit=1.0; break; }
         travel+=max(sampleValue.x*0.78,0.001);
         if (travel>FAR) break;
@@ -200,9 +206,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         float fogAmount=1.0-exp(-travel*(2==1 ? 0.046 : 0.043));
         color=mix(color,fog,fogAmount);
     }
-    // Tone map and encode once, during baking, not during mouse movement.
+    // Tone map and encode once per shaded pixel.
     color=vec3(1.0)-exp(-color*1.45);
     color=pow(max(color,0.0),vec3(1.0/2.2));
     fragColor=vec4(color,1.0);
 }
-
