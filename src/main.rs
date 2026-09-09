@@ -1,4 +1,4 @@
-#![no_std]
+// Native background workers use the TRUEOS standard-library runtime.
 
 extern crate alloc;
 mod background;
