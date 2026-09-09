@@ -1,0 +1,1470 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Cube Nature Asset + Bird Builder</title>
+<style>
+  html,body{height:100%;margin:0;background:#f1eee1;font-family:Inter,system-ui,Arial,sans-serif;color:#222}
+  #app{height:100%;display:grid;grid-template-rows:auto 1fr}
+  #bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;background:#fbf9ef;border-bottom:1px solid #d8d3c3}
+  button,select{font:inherit;padding:7px 10px;border:1px solid #bcb6a7;border-radius:8px;background:white;cursor:pointer}
+  button:hover{background:#f3f3f3}
+  #status{margin-left:auto;font-size:12px;opacity:.78;font-variant-numeric:tabular-nums}
+  [hidden]{display:none!important}
+  button:disabled{opacity:.45;cursor:default}
+  #animalControls{display:inline-flex;align-items:center;gap:9px}
+  #animalControls label{display:flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap;cursor:pointer}
+  #animalControls input{accent-color:#64785d}
+  body[data-view-mode="asset"] #preset,
+  body[data-view-mode="animal"] #animalPreset{border-color:#7d8d73;box-shadow:0 0 0 2px #84957922}
+  select:focus-visible,button:focus-visible{outline:2px solid #6c8468;outline-offset:2px}
+  #view{min-height:0;position:relative}
+  canvas{display:block;width:100%;height:100%}
+
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body data-view-mode="asset">
+<div id="app">
+  <div id="bar">
+    <select id="preset" aria-label="Single asset" title="Single asset preview">
+      <optgroup label="Trees">
+        <option value="pine">Pine</option>
+        <option value="broad">Broad canopy</option>
+        <option value="orchard">Orchard</option>
+        <option value="tall">Tall</option>
+      </optgroup>
+      <optgroup label="Rocks & Ores">
+        <option value="stonePile">Stone pile</option>
+        <option value="ironPile">Iron ore</option>
+        <option value="copperPile">Copper ore</option>
+        <option value="goldPile">Gold ore</option>
+      </optgroup>
+      <optgroup label="Bushes">
+        <option value="roundBush">Round shrub</option>
+        <option value="berryBush">Berry bush</option>
+        <option value="grassTuft">Grass tuft</option>
+        <option value="wildBush">Wild bush</option>
+      </optgroup>
+      <optgroup label="Small Bushes">
+        <option value="compactBush">Compact shrub</option>
+        <option value="lowMoundBush">Low mound</option>
+        <option value="forkedBush">Forked shrub</option>
+        <option value="smallBerryBush">Small berry bush</option>
+      </optgroup>
+      <optgroup label="Chests">
+        <option value="travelerChest">Traveler chest</option>
+        <option value="gemChest">Gem chest</option>
+        <option value="ironboundChest">Ironbound chest</option>
+        <option value="royalChest">Royal chest</option>
+      </optgroup>
+      <optgroup label="Vegetables">
+        <option value="chilliPepper">Chilli pepper</option>
+        <option value="banana">Banana</option>
+        <option value="carrot">Carrot</option>
+        <option value="eggplant">Eggplant</option>
+        <option value="cornCob">Corn</option>
+        <option value="pumpkin">Pumpkin</option>
+        <option value="radish">Radish</option>
+        <option value="cucumber">Cucumber</option>
+      </optgroup>
+      <optgroup label="Tools">
+        <option value="pickaxe">Pickaxe</option>
+        <option value="hatchet">Hatchet</option>
+        <option value="hammer">Hammer</option>
+        <option value="spade">Spade</option>
+        <option value="hoe">Hoe</option>
+        <option value="rake">Rake</option>
+        <option value="sickle">Sickle</option>
+        <option value="wateringCan">Watering can</option>
+      </optgroup>
+      <optgroup label="packed_lite demo">
+        <option value="packedLiteBush">Bush</option>
+        <option value="packedLiteWildflower">Wildflower</option>
+        <option value="packedLiteRose">Rose</option>
+        <option value="packedLiteSunflower">Sunflower</option>
+        <option value="packedLiteDaisy">Daisy</option>
+        <option value="packedLiteGrass">Grass</option>
+        <option value="packedLitePalmTree">Palm tree</option>
+        <option value="packedLiteOakTree">Oak tree</option>
+        <option value="packedLiteBirchTree">Birch tree</option>
+        <option value="packedLiteTree">Tree</option>
+        <option value="packedLiteSpruceTree">Spruce tree</option>
+      </optgroup>
+      <optgroup label="Dynamic Portals">
+        <option value="dynamicPortalStanding">Dynamic portal · Standing</option>
+        <option value="dynamicPortalCircle">Dynamic portal · Circle</option>
+      </optgroup>
+    </select>
+    <select id="animalPreset" aria-label="Animals" title="Standalone animated bird preview">
+      <option value="">Animals · choose bird</option>
+      <optgroup label="Birds">
+        <option value="robin">Robin</option>
+        <option value="bluebird">Bluebird</option>
+        <option value="crow">Crow</option>
+      </optgroup>
+    </select>
+    <span id="animalControls" hidden>
+      <button id="pauseBird" type="button" aria-pressed="false" title="Pause or resume the shared flight / sit loop">Pause</button>
+      <label title="Follow the bird close up; uncheck to frame the whole preview grid"><input id="followBird" type="checkbox" checked>Follow bird</label>
+    </span>
+    <select id="portalMix" aria-label="Dynamic portal theme mix" title="Dynamic portal theme mix" hidden></select>
+    <button id="regen">New variant</button>
+    <button id="exportCubes">Export CUBES</button>
+    <span id="status">loading cube…</span>
+  </div>
+  <div id="view"></div>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const GAP = 0.01;              // 1% of the smallest grid unit
+const GRID_UNIT = 0.20;        // world-space size of one 1x cell
+const HELPER_GRID_SIZE = 12;   // visible wireframe anchor shared by asset and bird previews
+const MAX_CUBE_STEP = 4;       // legal cube tiers are 1x, 2x, 3x, 4x
+const STEM_TIER = 2;           // stems/trunks use cubes one size larger than before
+const GAP_WORLD = GRID_UNIT * GAP;
+const EMBEDDED_CUBE_GLB = 'Z2xURgIAAADUEAAAsAMAAEpTT057ImFzc2V0Ijp7ImdlbmVyYXRvciI6Iktocm9ub3MgZ2xURiBCbGVuZGVyIEkvTyB2NS4yLjQwIiwidmVyc2lvbiI6IjIuMCJ9LCJzY2VuZSI6MCwic2NlbmVzIjpbeyJuYW1lIjoiU2NlbmUiLCJub2RlcyI6WzBdfV0sIm5vZGVzIjpbeyJtZXNoIjowLCJuYW1lIjoiT25lIiwidHJhbnNsYXRpb24iOlsxNy4wNjM3MjA3MDMxMjUsMTEuOTM5MTk2NTg2NjA4ODg3LC0xNy41Nzg3NjIwNTQ0NDMzNl19XSwibWVzaGVzIjpbeyJuYW1lIjoiQ3ViZS4wMDIiLCJwcmltaXRpdmVzIjpbeyJhdHRyaWJ1dGVzIjp7IlBPU0lUSU9OIjowLCJOT1JNQUwiOjEsIlRFWENPT1JEXzAiOjJ9LCJpbmRpY2VzIjozfV19XSwiYWNjZXNzb3JzIjpbeyJidWZmZXJWaWV3IjowLCJjb21wb25lbnRUeXBlIjo1MTI2LCJjb3VudCI6OTYsIm1heCI6WzEsMSwxXSwibWluIjpbLTEsLTEsLTFdLCJ0eXBlIjoiVkVDMyJ9LHsiYnVmZmVyVmlldyI6MSwiY29tcG9uZW50VHlwZSI6NTEyNiwiY291bnQiOjk2LCJ0eXBlIjoiVkVDMyJ9LHsiYnVmZmVyVmlldyI6MiwiY29tcG9uZW50VHlwZSI6NTEyNiwiY291bnQiOjk2LCJ0eXBlIjoiVkVDMiJ9LHsiYnVmZmVyVmlldyI6MywiY29tcG9uZW50VHlwZSI6NTEyMywiY291bnQiOjEzMiwidHlwZSI6IlNDQUxBUiJ9XSwiYnVmZmVyVmlld3MiOlt7ImJ1ZmZlciI6MCwiYnl0ZUxlbmd0aCI6MTE1MiwiYnl0ZU9mZnNldCI6MCwidGFyZ2V0IjozNDk2Mn0seyJidWZmZXIiOjAsImJ5dGVMZW5ndGgiOjExNTIsImJ5dGVPZmZzZXQiOjExNTIsInRhcmdldCI6MzQ5NjJ9LHsiYnVmZmVyIjowLCJieXRlTGVuZ3RoIjo3NjgsImJ5dGVPZmZzZXQiOjIzMDQsInRhcmdldCI6MzQ5NjJ9LHsiYnVmZmVyIjowLCJieXRlTGVuZ3RoIjoyNjQsImJ5dGVPZmZzZXQiOjMwNzIsInRhcmdldCI6MzQ5NjN9XSwiYnVmZmVycyI6W3siYnl0ZUxlbmd0aCI6MzMzNn1dfSAgIAgNAABCSU4AzcxMvwAAgL/NzEw/zcxMvwAAgL/NzEw/zcxMvwAAgL/NzEw/zcxMvwAAgL/NzEw/zcxMv83MTL8AAIA/zcxMv83MTL8AAIA/zcxMv83MTL8AAIA/zcxMv83MTL8AAIA/AACAv83MTL/NzEw/AACAv83MTL/NzEw/AACAv83MTL/NzEw/AACAv83MTL/NzEw/zcxMv83MTD8AAIA/zcxMv83MTD8AAIA/zcxMv83MTD8AAIA/zcxMv83MTD8AAIA/zcxMvwAAgD/NzEw/zcxMvwAAgD/NzEw/zcxMvwAAgD/NzEw/zcxMvwAAgD/NzEw/AACAv83MTD/NzEw/AACAv83MTD/NzEw/AACAv83MTD/NzEw/AACAv83MTD/NzEw/zcxMvwAAgL/NzEy/zcxMvwAAgL/NzEy/zcxMvwAAgL/NzEy/zcxMvwAAgL/NzEy/AACAv83MTL/NzEy/AACAv83MTL/NzEy/AACAv83MTL/NzEy/AACAv83MTL/NzEy/zcxMv83MTL8AAIC/zcxMv83MTL8AAIC/zcxMv83MTL8AAIC/zcxMv83MTL8AAIC/zcxMvwAAgD/NzEy/zcxMvwAAgD/NzEy/zcxMvwAAgD/NzEy/zcxMvwAAgD/NzEy/zcxMv83MTD8AAIC/zcxMv83MTD8AAIC/zcxMv83MTD8AAIC/zcxMv83MTD8AAIC/AACAv83MTD/NzEy/AACAv83MTD/NzEy/AACAv83MTD/NzEy/AACAv83MTD/NzEy/zcxMPwAAgL/NzEw/zcxMPwAAgL/NzEw/zcxMPwAAgL/NzEw/zcxMPwAAgL/NzEw/AACAP83MTL/NzEw/AACAP83MTL/NzEw/AACAP83MTL/NzEw/AACAP83MTL/NzEw/zcxMP83MTL8AAIA/zcxMP83MTL8AAIA/zcxMP83MTL8AAIA/zcxMP83MTL8AAIA/zcxMPwAAgD/NzEw/zcxMPwAAgD/NzEw/zcxMPwAAgD/NzEw/zcxMPwAAgD/NzEw/zcxMP83MTD8AAIA/zcxMP83MTD8AAIA/zcxMP83MTD8AAIA/zcxMP83MTD8AAIA/AACAP83MTD/NzEw/AACAP83MTD/NzEw/AACAP83MTD/NzEw/AACAP83MTD/NzEw/zcxMPwAAgL/NzEy/zcxMPwAAgL/NzEy/zcxMPwAAgL/NzEy/zcxMPwAAgL/NzEy/zcxMP83MTL8AAIC/zcxMP83MTL8AAIC/zcxMP83MTL8AAIC/zcxMP83MTL8AAIC/AACAP83MTL/NzEy/AACAP83MTL/NzEy/AACAP83MTL/NzEy/AACAP83MTL/NzEy/zcxMPwAAgD/NzEy/zcxMPwAAgD/NzEy/zcxMPwAAgD/NzEy/zcxMPwAAgD/NzEy/AACAP83MTD/NzEy/AACAP83MTD/NzEy/AACAP83MTD/NzEy/AACAP83MTD/NzEy/zcxMP83MTD8AAIC/zcxMP83MTD8AAIC/zcxMP83MTD8AAIC/zcxMP83MTD8AAIC/AAAAAPQENb/0BDU/AAAAAAAAgL8AAAAAOs0TvzrNE786zRM/9AQ1v/QENb8AAAAAAAAAAAAAAAAAAIA/AAAAAPQENb/0BDU/Os0TvzrNE786zRM/9AQ1vwAAAAD0BDU/Os0TvzrNE786zRM/9AQ1vwAAAAD0BDU/9AQ1v/QENb8AAAAAAACAvwAAAAAAAAAAAAAAAAAAAAAAAIA/AAAAAPQENT/0BDU/Os0TvzrNEz86zRM/9AQ1vwAAAAD0BDU/AAAAAPQENT/0BDU/AAAAAAAAgD8AAAAAOs0TvzrNEz86zRM/9AQ1v/QENT8AAAAAOs0TvzrNEz86zRM/9AQ1vwAAAAD0BDU/9AQ1v/QENT8AAAAAAACAvwAAAAAAAAAAAAAAAPQENb/0BDW/AAAAAAAAgL8AAAAAOs0TvzrNE786zRO/9AQ1v/QENb8AAAAAOs0TvzrNE786zRO/9AQ1vwAAAAD0BDW/9AQ1v/QENb8AAAAAAACAvwAAAAAAAAAAAAAAAAAAAAAAAIC/AAAAAPQENb/0BDW/Os0TvzrNE786zRO/9AQ1vwAAAAD0BDW/AAAAAPQENT/0BDW/AAAAAAAAgD8AAAAAOs0TvzrNEz86zRO/9AQ1v/QENT8AAAAAAAAAAAAAAAAAAIC/AAAAAPQENT/0BDW/Os0TvzrNEz86zRO/9AQ1vwAAAAD0BDW/Os0TvzrNEz86zRO/9AQ1vwAAAAD0BDW/9AQ1v/QENT8AAAAAAACAvwAAAAAAAAAA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';
+
+const view = document.getElementById('view');
+const status = document.getElementById('status');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf1eee1);
+
+const camera = new THREE.PerspectiveCamera(42, 1, 0.01, 100);
+camera.position.set(5.2, 3.8, 6.2);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+view.prepend(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.target.set(0,1.7,0);
+
+scene.add(new THREE.HemisphereLight(0xffffff,0x8a8268,2.2));
+const key = new THREE.DirectionalLight(0xffffff,3.0);
+key.position.set(4,8,5); key.castShadow=true; scene.add(key);
+
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(30,30),
+  new THREE.MeshStandardMaterial({color:0xe5e0cf,roughness:1})
+);
+floor.rotation.x=-Math.PI/2; floor.position.y=-0.02; floor.receiveShadow=true;
+// The old 30×30 opaque neutral ground plane is intentionally not added to
+// the scene. The wireframe helper remains the only neutral spatial anchor.
+floor.visible=false;
+const grid = new THREE.GridHelper(HELPER_GRID_SIZE,Math.round(HELPER_GRID_SIZE/GRID_UNIT),0xb8b2a2,0xd1ccbd); grid.position.y=0; scene.add(grid);
+
+let cubeGeometry = null;
+let treeGroup = new THREE.Group();
+treeGroup.name = 'CubeTree';
+scene.add(treeGroup);
+let occupied = new Set();
+let placed = [];
+let seed = 1;
+const PART_IDS = new Map([
+  ['cube',0],['trunk',1],['branch',2],
+  ['foliage',3],['foliageSmall',3],['crown',3],['sideCrown',3],['tip',3],['upperFoliage',3],['lowerFoliage',3],
+  ['rock',4],['ore',5],['bush',6],['berry',7],['grass',8],['grassBase',8],
+  ['portal',9],['portalAccent',10],
+  ['chest',11],['chestTrim',12],['gem',13],
+  ['veggie',14],['veggieLeaf',15],
+  ['toolHandle',16],['toolHead',17],['toolDetail',18],
+  ['birdBody',19],['birdHead',20],['birdWing',21],['birdWingTip',22],
+  ['birdTail',23],['birdFeet',24],['birdBeak',25],['birdEye',26],
+  ['packedLite',27]
+]);
+
+const bark = [0x6b3423,0x7b3d29,0x8c4930,0x5e2c20];
+const leaf = [0x315d27,0x3f712d,0x5f812d,0x76942d,0x8b9f2b,0xa8b330];
+const stone = [0x747772,0x656966,0x85877f,0x565b59,0x6c706b,0x4f5452];
+const ironOre = [0x666a68,0x565b59,0x747773,0x4d5252,0x8c5134,0xa45f38];
+const copperOre = [0x6d6258,0x595956,0x7a6a5c,0x5f625c,0xa96335,0xbf7844,0x4c806c];
+const goldOre = [0x555754,0x686965,0x454846,0x73736b,0xc49a32,0xe0b84b];
+const berry = [0x8d2639,0xb23443,0x67253f,0xc34b4e];
+const grass = [0x496d2b,0x5f7e31,0x78943a,0x8ca445,0x6b8735];
+
+// Minimal bridge for optional visual modules. Nothing outside this host is exported with an asset.
+window.CUBE_NATURE_THEME_HOST = {
+  THREE, scene, floor, grid, renderer, camera, controls, treeGroup,
+  gridUnit: GRID_UNIT,
+  gridSize: HELPER_GRID_SIZE,
+  gapWorld: GAP_WORLD,
+  getCubeGeometry: () => cubeGeometry,
+  setAssetVisible: (visible) => { treeGroup.visible = !!visible; },
+  getAnimalGround: () => ({
+    id:'standalone-grid',
+    halfExtent: HELPER_GRID_SIZE * 0.5,
+    tileSize: GRID_UNIT,
+    top: 0
+  }),
+  viewMode:'asset',
+  onFrame:new Set(),
+  showAssetPreview:build,
+  getAssetRecords:()=>placed,
+  downloadCubeRecords:(records,name)=>{
+    const data=makeCubesBinary(records);
+    if(data) downloadBlob(new Blob([data],{type:'application/octet-stream'}),name);
+  }
+
+};
+window.addEventListener('cube-nature-view-mode',event=>{
+  const mode=event.detail?.mode;
+  if(!['asset','animal'].includes(mode)) return;
+  window.CUBE_NATURE_THEME_HOST.viewMode=mode;
+  document.body.dataset.viewMode=mode;
+  treeGroup.visible=mode==='asset';
+  grid.visible=true;
+  grid.position.y=0;
+  document.getElementById('animalControls').hidden=mode!=='animal';
+  document.getElementById('portalMix').hidden=mode!=='asset' || !['dynamicPortalStanding','dynamicPortalCircle'].includes(document.getElementById('preset').value);
+  document.getElementById('regen').disabled=false;
+  document.getElementById('regen').title=mode==='animal'?'New bird color variant and flight route':'New asset color / shape variant';
+  const exportButton=document.getElementById('exportCubes');
+  exportButton.disabled=false;
+  exportButton.title=mode==='animal'?'Export bird’s static, grid-aligned bind pose; animation remains in the preview':'Export the selected single asset as CUBES';
+});
+window.dispatchEvent(new Event('cube-nature-theme-host-ready'));
+
+function mulberry32(a) {
+  return function() {
+    let t = a += 0x6D2B79F5;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  }
+}
+let rnd = mulberry32(seed);
+function choose(a){return a[Math.floor(rnd()*a.length)]}
+
+function material(color){
+  return new THREE.MeshStandardMaterial({color,roughness:0.88,metalness:0,flatShading:true});
+}
+
+function clearTree(){
+  for(const m of [...treeGroup.children]){
+    treeGroup.remove(m);
+    if(m.material) m.material.dispose();
+  }
+  occupied.clear();
+  placed=[];
+}
+
+function cellKey(x,y,z){ return `${x},${y},${z}`; }
+
+function cellsFor(gx,gy,gz,tier){
+  const cells=[];
+  for(let y=gy;y<gy+tier;y++)
+    for(let x=gx;x<gx+tier;x++)
+      for(let z=gz;z<gz+tier;z++) cells.push([x,y,z]);
+  return cells;
+}
+
+function canOccupy(gx,gy,gz,tier){
+  if(!Number.isInteger(tier) || tier < 1 || tier > MAX_CUBE_STEP) return false;
+  if(!Number.isInteger(gx) || !Number.isInteger(gy) || !Number.isInteger(gz)) return false;
+  for(const [x,y,z] of cellsFor(gx,gy,gz,tier)){
+    if(occupied.has(cellKey(x,y,z))) return false;
+  }
+  return true;
+}
+
+// Tree placement: gx/gy/gz are integer coordinates of the cube's minimum
+// occupied cell. Trees keep the strict non-overlapping 1x occupancy grid.
+function cubeGrid(gx,gy,gz,tier,color,kind='cube'){
+  tier=Math.round(tier);
+  if(!canOccupy(gx,gy,gz,tier)) return false;
+
+  const cx=gx+tier/2, cy=gy+tier/2, cz=gz+tier/2;
+  const nominalSide=tier*GRID_UNIT;
+  const renderSide=Math.max(0.001,nominalSide-GAP_WORLD);
+  const m=new THREE.Mesh(cubeGeometry,material(color));
+  m.name=`${kind}_${tier}x_${String(treeGroup.children.length).padStart(3,'0')}`;
+  m.position.set(cx*GRID_UNIT,cy*GRID_UNIT,cz*GRID_UNIT);
+  m.scale.setScalar(renderSide); // uniform only: never flat/stretched
+  m.castShadow=m.receiveShadow=true;
+  m.userData={
+    kind,
+    sizeTier:tier,
+    placement:'grid',
+    centerGrid:[cx,cy,cz],
+    gridStart:[gx,gy,gz],
+    gridUnit:GRID_UNIT,
+    reservedCells:tier*tier*tier,
+    gapRatioOfGridUnit:GAP,
+    visualClipRatioOfGridUnit:0,
+    colorRGB:color>>>0
+  };
+  treeGroup.add(m);
+
+  for(const [x,y,z] of cellsFor(gx,gy,gz,tier)) occupied.add(cellKey(x,y,z));
+  placed.push({center:[cx,cy,cz],gx,gy,gz,tier,color:color>>>0,kind});
+  return true;
+}
+
+function column(gx,gz,tier,count,gy0,colorSet,kind='trunk'){
+  for(let i=0;i<count;i++) cubeGrid(gx,gy0+i*tier,gz,tier,choose(colorSet),kind);
+}
+
+function stairBranch(gx,gy,gz,steps,dx,dz,tier=1){
+  for(let i=1;i<=steps;i++) cubeGrid(gx+dx*i,gy+i,gz+dz*i,tier,choose(bark),'branch');
+}
+
+function shuffle(a){
+  for(let i=a.length-1;i>0;i--){
+    const j=Math.floor(rnd()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+
+// Packs an ellipsoid on the strict 1x occupancy grid. Larger legal cubes are
+// tried first; smaller cubes fill the remaining cells without overlap.
+function blob(cx,cy,cz,rx,ry,rz,colorSet,kind='foliage',edgeNoise=0.10,maxTier=4){
+  maxTier=Math.max(1,Math.min(MAX_CUBE_STEP,Math.round(maxTier)));
+  const target=new Set();
+  const minX=Math.floor(cx-rx), maxX=Math.ceil(cx+rx);
+  const minY=Math.floor(cy-ry), maxY=Math.ceil(cy+ry);
+  const minZ=Math.floor(cz-rz), maxZ=Math.ceil(cz+rz);
+  for(let y=minY;y<=maxY;y++) for(let x=minX;x<=maxX;x++) for(let z=minZ;z<=maxZ;z++){
+    const px=x+0.5, py=y+0.5, pz=z+0.5;
+    const q=((px-cx)**2)/(rx*rx)+((py-cy)**2)/(ry*ry)+((pz-cz)**2)/(rz*rz);
+    if(q<=1 && !(q>0.72 && rnd()<edgeNoise)) target.add(cellKey(x,y,z));
+  }
+  function blockFitsTarget(gx,gy,gz,tier){
+    for(const [x,y,z] of cellsFor(gx,gy,gz,tier)){
+      if(!target.has(cellKey(x,y,z)) || occupied.has(cellKey(x,y,z))) return false;
+    }
+    return true;
+  }
+  for(let tier=maxTier;tier>=1;tier--){
+    const candidates=[];
+    for(let y=minY;y<=maxY-tier+1;y++) for(let x=minX;x<=maxX-tier+1;x++) for(let z=minZ;z<=maxZ-tier+1;z++) candidates.push([x,y,z]);
+    shuffle(candidates);
+    const takeChance=tier===4?0.52:tier===3?0.62:tier===2?0.76:1;
+    for(const [gx,gy,gz] of candidates){
+      if(tier>1 && rnd()>takeChance) continue;
+      if(blockFitsTarget(gx,gy,gz,tier)) cubeGrid(gx,gy,gz,tier,choose(colorSet),kind);
+    }
+  }
+}
+
+function pine(){
+  column(0,0,STEM_TIER,8,0,bark);
+  blob(1.0,10.5,1.0,6.2,3.0,6.2,leaf,'foliage',0.09,3);
+  blob(1.0,14.5,1.0,5.0,3.0,5.0,leaf,'foliage',0.10,3);
+  blob(1.0,18.0,1.0,3.8,2.8,3.8,leaf,'foliage',0.12,2);
+  blob(1.0,21.0,1.0,2.4,2.4,2.4,leaf,'foliage',0.13,2);
+  cubeGrid(1,23,1,1,choose(leaf),'tip');
+}
+function broad(){
+  column(0,0,STEM_TIER,6,0,bark);
+  stairBranch(1,8,0,5,1,0,1); stairBranch(0,8,0,5,-1,0,1); stairBranch(0,9,1,4,0,1,1);
+  blob(1.0,15.5,1.0,8.0,4.5,6.0,leaf,'foliage',0.13,4);
+  blob(-4.5,14.0,1.5,4.0,3.5,4.0,leaf,'foliageSmall',0.15,3);
+  blob(6.5,15.0,0.0,4.0,3.4,4.0,leaf,'foliageSmall',0.15,3);
+}
+function orchard(){
+  column(0,0,STEM_TIER,6,0,bark);
+  stairBranch(1,7,0,5,1,0,1); stairBranch(0,7,0,5,-1,0,1);
+  blob(1.0,15.5,1.0,5.0,5.0,4.8,leaf,'crown',0.12,4);
+  blob(-4.5,12.5,1.0,3.8,3.8,3.8,leaf,'sideCrown',0.13,3);
+  blob(6.5,13.0,1.0,3.8,3.8,3.8,leaf,'sideCrown',0.13,3);
+}
+function tall(){
+  column(0,0,STEM_TIER,9,0,bark);
+  blob(1.0,15.0,1.0,4.8,7.0,4.6,leaf,'foliage',0.14,4);
+  blob(2.0,21.0,0.5,3.4,4.8,3.4,leaf,'upperFoliage',0.15,3);
+  blob(-0.5,10.0,1.5,3.8,4.0,3.8,leaf,'lowerFoliage',0.16,3);
+}
+
+
+// Rock / ore presets stay on exactly the same occupancy grid as the trees.
+// They are deliberately low and clustered, with a cube budget that lands at
+// roughly half of the tree presets across normal random variants.
+function stonePile(){
+  blob(-3.5,3.0,0.8,5.0,3.0,4.3,stone,'rock',0.18,4);
+  blob(3.5,2.2,1.2,3.8,2.2,3.3,stone,'rock',0.20,3);
+  blob(0.8,1.7,-4.2,3.2,1.7,2.8,stone,'rock',0.22,3);
+  blob(5.0,1.2,-2.8,2.2,1.2,2.0,stone,'rock',0.26,2);
+}
+function ironPile(){
+  blob(-3.2,3.2,0.2,5.1,3.2,4.4,ironOre,'ore',0.18,4);
+  blob(3.9,2.0,1.6,3.5,2.0,3.1,ironOre,'ore',0.22,3);
+  blob(1.5,1.6,-4.1,3.0,1.6,2.6,ironOre,'ore',0.24,3);
+  blob(-5.0,1.2,-2.8,2.1,1.2,1.9,ironOre,'ore',0.27,2);
+}
+function copperPile(){
+  blob(-3.7,2.3,0.8,4.0,2.3,3.6,copperOre,'ore',0.20,3);
+  blob(1.0,3.0,0.2,4.8,3.0,4.2,copperOre,'ore',0.18,4);
+  blob(5.0,1.7,-1.8,2.8,1.7,2.5,copperOre,'ore',0.24,3);
+  blob(0.8,1.3,-4.6,2.8,1.3,2.4,copperOre,'ore',0.27,2);
+}
+function goldPile(){
+  blob(-3.2,2.9,0.4,4.6,2.9,4.0,goldOre,'ore',0.19,4);
+  blob(3.2,2.4,1.0,4.0,2.4,3.5,goldOre,'ore',0.20,3);
+  blob(0.0,1.6,-4.3,3.4,1.6,2.8,goldOre,'ore',0.25,3);
+  blob(5.0,1.1,-2.5,2.0,1.1,1.8,goldOre,'ore',0.28,2);
+}
+
+// Bushes use the same strict grid but a smaller footprint / cube budget.
+function roundBush(){
+  blob(0.5,3.0,0.5,5.3,3.0,5.0,leaf,'bush',0.18,3);
+}
+function berryBush(){
+  blob(0.5,2.8,0.5,5.0,2.8,4.8,leaf,'bush',0.20,3);
+  // Berries sit in free 1x cells immediately around the crown, never inside it.
+  const spots=[
+    [5,3,0],[-5,3,0],[0,3,5],[0,3,-5],
+    [4,4,3],[-4,4,3],[4,4,-3],[-4,4,-3],
+    [2,5,4],[-2,5,4],[2,5,-4],[-2,5,-4],
+    [5,2,2],[-5,2,2],[5,2,-2],[-5,2,-2]
+  ];
+  for(const [x,y,z] of spots) cubeGrid(x,y,z,1,choose(berry),'berry');
+}
+function grassTuft(){
+  const roots=[
+    [-4,-2],[-3,1],[-2,-3],[-2,3],[-1,0],[0,-4],[0,2],[1,-1],[2,4],
+    [2,-3],[3,0],[4,2],[4,-2],[-4,3],[-3,-4],[1,4],[3,-4],[5,0],[-5,0]
+  ];
+  for(let i=0;i<roots.length;i++){
+    const [x,z]=roots[i];
+    const h=5+(i%4);
+    for(let y=0;y<h;y++) cubeGrid(x,y,z,1,choose(grass),'grass');
+  }
+  blob(0.5,1.3,0.5,4.3,1.3,4.0,grass,'grassBase',0.28,2);
+}
+function wildBush(){
+  blob(-2.0,2.4,0.5,3.8,2.4,3.8,leaf,'bush',0.22,3);
+  blob(2.5,2.1,1.0,3.6,2.1,3.4,leaf,'bush',0.24,3);
+  blob(0.5,1.7,-3.0,3.2,1.7,3.0,leaf,'bush',0.27,2);
+}
+
+// Small-bush presets are deliberately shaped differently from the regular
+// round shrub. Their tuned cube budgets average close to one half of it while
+// preserving the same strict occupancy grid, legal cube tiers, and 1% gap.
+function compactBush(){
+  // A tight, slightly flattened oval rather than a scaled copy of roundBush.
+  blob(0.5,2.4,0.5,4.2,2.3,4.0,leaf,'bush',0.20,3);
+}
+function lowMoundBush(){
+  // Two offset low lobes create an asymmetric ground-hugging silhouette.
+  blob(-2.0,2.0,0.2,3.7,1.9,3.1,leaf,'bush',0.23,3);
+  blob(2.4,1.6,1.0,3.0,1.6,2.8,leaf,'bush',0.27,2);
+}
+function forkedBush(){
+  // A low base with two raised side clusters makes a forked / open-center bush.
+  blob(0.5,1.5,0.5,3.2,1.4,3.0,leaf,'bush',0.28,2);
+  blob(-2.1,2.6,0.2,2.3,1.8,2.2,leaf,'bush',0.30,2);
+  blob(2.4,2.8,0.8,2.3,1.9,2.1,leaf,'bush',0.30,2);
+}
+function smallBerryBush(){
+  // Compact crown plus a sparse ring of exposed 1x berries.
+  blob(0.5,2.3,0.5,4.0,2.2,3.8,leaf,'bush',0.22,3);
+  const spots=[
+    [4,2,0],[-4,2,0],[0,2,4],[0,2,-4],
+    [3,3,3],[-3,3,3],[3,3,-3],[-3,3,-3],
+    [4,1,2],[-4,1,2],[2,4,3],[-2,4,-3]
+  ];
+  for(const [x,y,z] of spots) cubeGrid(x,y,z,1,choose(berry),'berry');
+}
+
+
+// --------------------------------------------------------------------------
+// CHESTS
+// Four compact standalone loot containers. They obey the same strict 1x cell
+// occupancy rules as every other asset. Loot is made from individual colored
+// gem cubes; closed chests keep it recessed, while the two "almost closed"
+// variants expose a one-cell seam beneath the lid.
+const chestWood=[0x704228,0x805033,0x925f3d,0x5e3523];
+const chestDarkWood=[0x493126,0x5a3a2b,0x6b4633,0x3b2922];
+const chestRedWood=[0x67302f,0x7d3937,0x934643,0x542828];
+const chestBrass=[0xb68835,0xd2a347,0xe2bd62];
+const chestIron=[0x596067,0x6b737a,0x454b51];
+const chestGold=[0xc69932,0xe1b84a,0xf0cf6c];
+const gemLoot=[0x49b8ff,0x57d987,0xf05b71,0xc664ff,0xffd44a,0x44e2d0];
+
+function chestShell({w,d,bodyH,lidH,gap=0,wood=chestWood,trim=chestBrass,bandXs=[],loot=3,feet=false}){
+  const x0=-Math.floor(w/2);
+  const z0=-Math.floor(d/2);
+  const x1=x0+w-1;
+  const z1=z0+d-1;
+  const front=z1;
+
+  // Hollow body: floor plus four walls. Trim replaces wood at selected bands.
+  for(let y=0;y<bodyH;y++) for(let x=x0;x<=x1;x++) for(let z=z0;z<=z1;z++){
+    const shell=y===0 || x===x0 || x===x1 || z===z0 || z===z1;
+    if(!shell) continue;
+    const isBand=bandXs.includes(x) || (z===front && y===bodyH-1);
+    cubeGrid(x,y,z,1,choose(isBand?trim:wood),isBand?'chestTrim':'chest');
+  }
+
+  // Optional small feet keep medium chests visually weighty without enlarging
+  // the whole body. They sit outside the hollow volume and remain grid-aligned.
+  if(feet){
+    for(const x of [x0,x1]) for(const z of [z0,z1]) cubeGrid(x,-1,z,1,choose(trim),'chestTrim');
+  }
+
+  // Recessed gem cubes. On an almost-closed chest the gap makes a few visible
+  // through the seam; on a closed chest they are genuinely contained inside.
+  const gemSpots=[
+    [x0+2,bodyH,z0+2],[x1-2,bodyH,z1-2],[0,bodyH,z0+Math.floor(d/2)],
+    [x0+3,bodyH,z1-2],[x1-3,bodyH,z0+2],[1,bodyH,z1-3]
+  ];
+  const gemY=gap>0?bodyH:Math.max(1,bodyH-1);
+  for(let i=0;i<Math.min(loot,gemSpots.length);i++){
+    const [gx,,gz]=gemSpots[i];
+    cubeGrid(gx,gemY,gz,1,gemLoot[i%gemLoot.length],'gem');
+  }
+
+  // Chunky lid with a subtly stepped crown. gap=0 is closed; gap=1 is only
+  // one cube-cell ajar, enough to hint at the loot without reading as open.
+  const lidBase=bodyH+gap;
+  for(let ly=0;ly<lidH;ly++){
+    const inset=(ly===lidH-1 && lidH>1)?1:0;
+    const lx0=x0+inset, lx1=x1-inset;
+    const lz0=z0+inset, lz1=z1-inset;
+    for(let x=lx0;x<=lx1;x++) for(let z=lz0;z<=lz1;z++){
+      const top=ly===lidH-1;
+      const rim=x===lx0 || x===lx1 || z===lz0 || z===lz1;
+      if(!top && !rim) continue;
+      const isBand=bandXs.includes(x) || z===front;
+      cubeGrid(x,lidBase+ly,z,1,choose(isBand?trim:wood),isBand?'chestTrim':'chest');
+    }
+  }
+
+  // Front clasp projects one cell from the body and makes the closed state
+  // visually obvious even on the almost-closed variants.
+  cubeGrid(0,Math.max(1,bodyH-2),front+1,1,choose(trim),'chestTrim');
+  cubeGrid(0,Math.max(2,bodyH-1),front+1,1,choose(trim),'chestTrim');
+}
+
+function travelerChest(){
+  chestShell({w:9,d:6,bodyH:4,lidH:2,gap:0,wood:chestWood,trim:chestBrass,bandXs:[-3,3],loot:2});
+}
+function gemChest(){
+  chestShell({w:10,d:7,bodyH:5,lidH:2,gap:1,wood:chestWood,trim:chestGold,bandXs:[-3,3],loot:4});
+}
+function ironboundChest(){
+  chestShell({w:12,d:8,bodyH:5,lidH:3,gap:0,wood:chestDarkWood,trim:chestIron,bandXs:[-4,0,4],loot:4,feet:true});
+}
+function royalChest(){
+  chestShell({w:13,d:9,bodyH:6,lidH:3,gap:1,wood:chestRedWood,trim:chestGold,bandXs:[-4,0,4],loot:6,feet:true});
+}
+
+
+// --------------------------------------------------------------------------
+// TOOLS — compact 3D silhouettes, roughly twice the vegetable cube budget.
+// The local cell map lets metal collars replace handle cells without overlap.
+const TOOL_PRESETS=['pickaxe','hatchet','hammer','spade','hoe','rake','sickle','wateringCan'];
+const toolWood=[0x80502d,0x99623a,0xad7848];
+const toolSteel=[0x647985,0x8295a0,0xa8b9bf];
+const toolEdge=[0xbccdd0,0xd5e0dd];
+const toolBrass=[0xb59343,0xd1b262,0xe1c788];
+function toolShape(draw){
+  const cells=new Map();
+  const put=(x,y,z,palette=toolSteel,kind='toolHead')=>cells.set(cellKey(x,y,z),{x,y,z,palette,kind});
+  const box=(x0,x1,y0,y1,z0,z1,palette=toolSteel,kind='toolHead')=>{
+    for(let y=y0;y<=y1;y++) for(let x=x0;x<=x1;x++) for(let z=z0;z<=z1;z++) put(x,y,z,palette,kind);
+  };
+  const handle=(height=11)=>box(-1,0,0,height-1,0,1,toolWood,'toolHandle');
+  draw({put,box,handle});
+  for(const c of cells.values()) cubeGrid(c.x,c.y,c.z,1,choose(c.palette),c.kind);
+}
+function pickaxe(){toolShape(({put,box,handle})=>{
+  handle(10); box(-3,2,9,10,0,1);
+  for(const side of [-1,1]){
+    for(const z of [0,1]){put(side<0?-4:3,9,z);put(side<0?-5:4,8,z,toolEdge);}
+  }
+});}
+function hatchet(){toolShape(({put,box,handle})=>{
+  handle(10); box(-2,0,8,10,0,1); box(1,2,7,10,0,1);
+  for(let y=7;y<=10;y++) put(3,y,0,toolEdge);
+});}
+function hammer(){toolShape(({box,handle})=>{
+  handle(9); box(-3,2,8,10,0,1);
+  box(-3,-3,8,10,0,1,toolEdge); box(2,2,8,10,0,1,toolEdge);
+});}
+function spade(){toolShape(({put,box})=>{
+  box(-1,0,4,10,0,0,toolWood,'toolHandle');
+  box(-2,1,1,4,-1,0); box(-1,0,0,0,-1,0,toolEdge);
+  box(-2,1,13,13,0,0,toolWood,'toolHandle');
+  for(const x of [-2,1]) box(x,x,10,12,0,0,toolWood,'toolHandle');
+  box(-1,0,4,5,-1,0,toolBrass,'toolDetail');
+});}
+function hoe(){toolShape(({box,handle})=>{
+  handle(11); box(-2,1,10,11,0,1); box(-2,1,9,10,2,3,toolEdge);
+});}
+function rake(){toolShape(({box,handle})=>{
+  handle(10); box(-4,3,9,10,0,0);
+  for(const x of [-4,-2,1,3]) box(x,x,11,13,0,0,toolEdge);
+  box(-1,0,8,9,1,1,toolBrass,'toolDetail');
+});}
+function sickle(){toolShape(({put,box,handle})=>{
+  handle(8); box(-1,1,8,9,0,1); box(1,2,10,12,0,1);
+  box(-1,1,13,13,0,1); box(-3,-2,12,13,0,0,toolEdge);
+  put(-4,11,0,toolEdge); put(-4,10,0,toolEdge);
+});}
+function wateringCan(){toolShape(({put,box})=>{
+  // Hollow, open-topped small can with a loop handle and an upward spout.
+  const green=[0x47775d,0x639477,0x83ae8b];
+  for(let y=0;y<4;y++) for(let x=-2;x<2;x++) for(let z=-1;z<2;z++){
+    if(y===0||x===-2||x===1||z===-1||z===1) put(x,y,z,green,'toolHead');
+  }
+  for(let y=1;y<=4;y++) put(-4,y,0,toolBrass,'toolDetail');
+  for(const y of [1,4]) put(-3,y,0,toolBrass,'toolDetail');
+  for(const c of [[2,1,0],[2,2,0],[3,2,0],[3,3,0],[4,3,0],[4,4,0],[5,4,0]]) put(...c,green,'toolHead');
+  for(const z of [-1,0,1]) put(5,5,z,toolBrass,'toolDetail');
+});}
+
+
+// --------------------------------------------------------------------------
+// VEGETABLES
+// Eight small standalone food assets. They intentionally keep a low cube
+// budget and simple silhouettes so they read as quick pickup / prop objects.
+const chilliBody=[0xb61f30,0xcf2a3a,0xe3424e];
+const bananaPeel=[0xe7c63d,0xf1d95b,0xffea79];
+const carrotBody=[0xc96520,0xe07a2d,0xf0953a];
+const eggplantBody=[0x4f2c74,0x6a3791,0x8746af];
+const pumpkinBody=[0xb85f1e,0xd97828,0xf09835];
+const cornKernel=[0xd8b931,0xefcd4d,0xffe37a];
+const veggieLeaf=[0x4e8a34,0x63a543,0x7abb54];
+const radishBulb=[0xf2ede7,0xffffff,0xf8bcc8];
+const cucumberSkin=[0x467b31,0x5f9840,0x79b253];
+
+function chilliPepper(){
+  [[0,10,0],[-1,10,0],[0,11,0],[0,12,0]].forEach(c=>cubeGrid(...c,1,choose(veggieLeaf),'veggieLeaf'));
+  [
+    [0,0,0],[0,1,0],[1,1,0],[1,2,0],[1,3,0],[2,3,0],[2,4,0],[2,5,0],[2,6,0],[1,6,0],[1,7,0],[0,7,0],[0,8,0],[-1,8,0],[-1,9,0],[-1,10,0],
+    [0,2,0],[0,3,0],[1,4,0],[1,5,0],[0,6,0]
+  ].forEach(c=>cubeGrid(...c,1,choose(chilliBody),'veggie'));
+}
+
+function banana(){
+  [
+    [-4,0,0],[-3,1,0],[-2,2,0],[-1,3,0],[0,4,0],[1,4,0],[2,5,0],[3,5,0],[4,6,0],[5,6,0],
+    [-3,0,0],[-2,1,0],[-1,2,0],[0,3,0],[1,3,0],[2,4,0],[3,4,0],[4,5,0],
+    [5,7,0],[5,8,0]
+  ].forEach(c=>cubeGrid(...c,1,choose(bananaPeel),'veggie'));
+  [[-5,0,0],[-4,1,0]].forEach(c=>cubeGrid(...c,1,0x8a6b3a,'veggieLeaf'));
+}
+
+function carrot(){
+  [[0,9,0],[-1,9,0],[1,9,0],[0,10,0],[0,11,0],[-1,10,0],[1,10,0]].forEach(c=>cubeGrid(...c,1,choose(veggieLeaf),'veggieLeaf'));
+  [
+    [-2,6,0],[-1,6,0],[0,6,0],[1,6,0],[2,6,0],
+    [-1,5,0],[0,5,0],[1,5,0],
+    [-1,4,0],[0,4,0],[1,4,0],
+    [0,3,0],[1,3,0],[0,2,0],[0,1,0],[0,0,0]
+  ].forEach(c=>cubeGrid(...c,1,choose(carrotBody),'veggie'));
+}
+
+function eggplant(){
+  [[0,10,0],[-1,10,0],[1,10,0],[0,11,0],[-1,11,0],[1,11,0],[0,12,0]].forEach(c=>cubeGrid(...c,1,choose(veggieLeaf),'veggieLeaf'));
+  [
+    [0,0,0],[-1,0,0],[1,0,0],[0,1,0],[-1,1,0],[1,1,0],
+    [-2,2,0],[-1,2,0],[0,2,0],[1,2,0],[2,2,0],
+    [-2,3,0],[-1,3,0],[0,3,0],[1,3,0],[2,3,0],
+    [-2,4,0],[-1,4,0],[0,4,0],[1,4,0],[2,4,0],
+    [-1,5,0],[0,5,0],[1,5,0],
+    [-1,6,0],[0,6,0],[1,6,0],[0,7,0],[0,8,0],[0,9,0]
+  ].forEach(c=>cubeGrid(...c,1,choose(eggplantBody),'veggie'));
+}
+
+function cornCob(){
+  [[-2,0,0],[-2,1,0],[-2,2,0],[-2,3,0],[-2,4,0],[-1,5,0],[0,6,0],[1,7,0]].forEach(c=>cubeGrid(...c,1,choose(veggieLeaf),'veggieLeaf'));
+  [[2,0,0],[2,1,0],[2,2,0],[2,3,0],[2,4,0],[1,5,0],[0,6,0],[-1,7,0]].forEach(c=>cubeGrid(...c,1,choose(veggieLeaf),'veggieLeaf'));
+  for(let y=1;y<=8;y++) for(let x=-1;x<=1;x++) cubeGrid(x,y,0,1,choose(cornKernel),'veggie');
+  [[0,9,0],[0,10,0]].forEach(c=>cubeGrid(...c,1,choose(veggieLeaf),'veggieLeaf'));
+}
+
+function pumpkin(){
+  [[0,5,0],[0,6,0],[-1,6,0],[1,6,0]].forEach(c=>cubeGrid(...c,1,choose(veggieLeaf),'veggieLeaf'));
+  [
+    [-2,0,0],[-1,0,0],[0,0,0],[1,0,0],[2,0,0],
+    [-3,1,0],[-2,1,0],[-1,1,0],[0,1,0],[1,1,0],[2,1,0],[3,1,0],
+    [-3,2,0],[-2,2,0],[-1,2,0],[0,2,0],[1,2,0],[2,2,0],[3,2,0],
+    [-2,3,0],[-1,3,0],[0,3,0],[1,3,0],[2,3,0],
+    [-1,4,0],[0,4,0],[1,4,0]
+  ].forEach(c=>cubeGrid(...c,1,choose(pumpkinBody),'veggie'));
+  for(const x of [-2,0,2]) cubeGrid(x,1,1,1,choose(pumpkinBody),'veggie');
+  for(const x of [-2,0,2]) cubeGrid(x,2,-1,1,choose(pumpkinBody),'veggie');
+}
+
+function radish(){
+  [[0,7,0],[-1,7,0],[1,7,0],[0,8,0],[-1,8,0],[1,8,0],[0,9,0]].forEach(c=>cubeGrid(...c,1,choose(veggieLeaf),'veggieLeaf'));
+  [
+    [0,0,0],[0,1,0],[-1,1,0],[1,1,0],
+    [-1,2,0],[0,2,0],[1,2,0],
+    [-2,3,0],[-1,3,0],[0,3,0],[1,3,0],[2,3,0],
+    [-1,4,0],[0,4,0],[1,4,0],[0,5,0],[0,6,0]
+  ].forEach((c,i)=>cubeGrid(...c,1,i<6?choose(radishBulb):choose([0xf5d0d8,0xf8bcc8,0xffffff]),'veggie'));
+}
+
+function cucumber(){
+  [
+    [-6,1,0],[-5,1,0],[-4,1,0],[-3,1,0],[-2,1,0],[-1,2,0],[0,2,0],[1,2,0],[2,2,0],[3,3,0],[4,3,0],[5,3,0],[6,4,0],
+    [-5,0,0],[-4,0,0],[-3,0,0],[-2,0,0],[-1,1,0],[0,1,0],[1,1,0],[2,1,0],[3,2,0],[4,2,0],[5,2,0]
+  ].forEach(c=>cubeGrid(...c,1,choose(cucumberSkin),'veggie'));
+  [[-7,1,0],[7,4,0]].forEach(c=>cubeGrid(...c,1,choose(veggieLeaf),'veggieLeaf'));
+}
+
+// --------------------------------------------------------------------------
+// DYNAMIC PORTALS
+// One portal material system can represent every legal 1/2/3-theme mix,
+// Void, or the neutral generic Leave state. Standing is a grounded oval ring;
+// Circle is a floating round ring. Both remain strict 1x-grid cube assets.
+const dynamicPortalThemeMeta={
+  1:{name:'Sky',color:0x63c7f2},
+  2:{name:'Underground',color:0x3b2b34},
+  3:{name:'black-hole',color:0x2d2438},
+  4:{name:'white-hole',color:0xf4e8a6},
+  5:{name:'Island',color:0x4eaf68},
+  6:{name:'City',color:0xd76567},
+  S:{name:'void',color:0xd83cff},
+  L:{name:'generic',color:0xcbd5e1}
+};
+const dynamicPortalOpposing=new Set(['1-2','3-4','5-6']);
+
+function dynamicPortalMixOptions(){
+  const out=[];
+  for(let a=1;a<=6;a++) out.push({ids:[a]});
+  for(let a=1;a<=6;a++) for(let b=a+1;b<=6;b++){
+    if(!dynamicPortalOpposing.has(`${a}-${b}`)) out.push({ids:[a,b]});
+  }
+  for(const a of [1,2]) for(const b of [3,4]) for(const c of [5,6]) out.push({ids:[a,b,c]});
+  out.push({ids:['S']},{ids:['L']});
+  return out;
+}
+function initDynamicPortalMixUi(){
+  const select=document.getElementById('portalMix');
+  if(!select || select.options.length) return;
+  for(const {ids} of dynamicPortalMixOptions()){
+    const option=document.createElement('option');
+    option.value=ids.join(',');
+    option.textContent=ids[0]==='S' ? 'Void' : ids[0]==='L' ? 'Generic' : ids.map(id=>dynamicPortalThemeMeta[id].name).join(' + ');
+    select.appendChild(option);
+  }
+  select.value='1,3';
+}
+function currentDynamicPortalMix(){
+  const raw=document.getElementById('portalMix')?.value || '1';
+  return raw.split(',').map(v=>/^\d+$/.test(v)?Number(v):v);
+}
+function dynamicPortalMixIndex(u,v,count,salt=0){
+  if(count<=1) return 0;
+  const noise=Math.sin((u*12.9898+v*78.233+salt*31.17))*43758.5453;
+  const jitter=(noise-Math.floor(noise)-0.5);
+  if(count===2){
+    const wobble=1.4*Math.sin(v*0.52+salt*0.71)+jitter*1.6;
+    return u+v*0.16+wobble<0 ? 0 : 1;
+  }
+  let angle=Math.atan2(v,u)+Math.PI+(salt*0.73)%(Math.PI*2)+jitter*0.28;
+  angle=((angle%(Math.PI*2))+(Math.PI*2))%(Math.PI*2);
+  return Math.min(2,Math.floor(angle/(Math.PI*2/3)));
+}
+function dynamicPortalColor(themeId,accent=false){
+  const base=new THREE.Color(dynamicPortalThemeMeta[themeId].color);
+  if(accent) base.lerp(new THREE.Color(0xffffff),themeId==='L'?0.50:0.30);
+  return base.getHex();
+}
+function standalonePortalCells(mode){
+  const cells=[];
+  if(mode==='circle'){
+    const cy=9;
+    for(let y=1;y<=17;y++) for(let x=-8;x<=8;x++){
+      const u=x/7.6, v=(y-cy)/7.6;
+      const outer=u*u+v*v<=1.02;
+      const inner=(x/4.8)**2+((y-cy)/4.8)**2<1;
+      if(!outer || inner) continue;
+      for(const z of [-1,0]) cells.push({x,y,z,u:x,v:y-cy,accent:z===0 && (Math.abs(u*u+v*v-1)<0.24)});
+    }
+  }else{
+    const cy=10;
+    for(let y=2;y<=18;y++) for(let x=-8;x<=8;x++){
+      const outer=(x/7.7)**2+((y-cy)/8.1)**2<=1.03;
+      const inner=(x/4.8)**2+((y-cy)/5.2)**2<1;
+      if(!outer || inner) continue;
+      for(const z of [-1,0]) cells.push({x,y,z,u:x,v:y-cy,accent:z===0 && ((Math.abs(x)>=6)||(y>=16))});
+    }
+    for(const sx of [-1,1]){
+      for(let y=0;y<=3;y++) for(let x=(sx<0?-7:5);x<=(sx<0?-5:7);x++) for(const z of [-1,0]){
+        cells.push({x,y,z,u:x,v:y-cy,accent:y===0});
+      }
+    }
+  }
+  const seen=new Set();
+  return cells.filter(c=>{const k=`${c.x},${c.y},${c.z}`;if(seen.has(k))return false;seen.add(k);return true;});
+}
+function buildStandaloneDynamicPortal(mode){
+  const ids=currentDynamicPortalMix();
+  const cells=standalonePortalCells(mode);
+  const salt=ids.reduce((n,id)=>n+(typeof id==='number'?id*17:id==='S'?97:131),mode==='circle'?41:19);
+  for(const c of cells){
+    const idx=dynamicPortalMixIndex(c.u,c.v,ids.length,salt);
+    const themeId=ids[idx];
+    cubeGrid(c.x,c.y,c.z,1,dynamicPortalColor(themeId,c.accent),c.accent?'portalAccent':'portal');
+  }
+}
+function dynamicPortalStanding(){buildStandaloneDynamicPortal('standing')}
+function dynamicPortalCircle(){buildStandaloneDynamicPortal('circle')}
+
+// Portal assets: 19 grid cells tall = 3.8 world units, almost exactly 80% of
+// the pine's 24-cell height. The frame uses exactly 460 visible 1x cubes,
+// which sits inside the pine's normal ~414-511 cube complexity range.
+const portalPalettes={
+  sky:{main:[0x4aaad8,0x63c7f2,0x8bdcf7],accent:[0xd8f5ff,0xffffff]},
+  underground:{main:[0x2f222a,0x3b2b34,0x493640],accent:[0x65505b,0x7a626f]},
+  blackHole:{main:[0x211a29,0x2d2438,0x392e47],accent:[0x5a496d,0x705c86]},
+  whiteHole:{main:[0xd8c96f,0xf4e8a6,0xfff5d1],accent:[0xffffff,0xffefad]},
+  island:{main:[0x2f7d44,0x4eaf68,0x76c985],accent:[0xd5ef8d,0xf1ffd0]},
+  city:{main:[0x9f4145,0xd76567,0xe58d8f],accent:[0xffc4b8,0xffeee7]},
+  void:{main:[0x5b0d77,0x8f17b0,0xd83cff],accent:[0xff7aff,0xf6c2ff]},
+  leave:{main:[0x68717f,0x9aa4b2,0xcbd5e1],accent:[0xffffff,0xe8edf3]}
+};
+
+function portalOpening(x,y){
+  return (y<=11 && Math.abs(x)<=3) ||
+    (y===12 && Math.abs(x)<=2) ||
+    (y===13 && Math.abs(x)<=1) ||
+    (y===14 && x===0);
+}
+
+function portalFrame(palette){
+  // Two-cube-deep stepped arch body.
+  for(let y=0;y<19;y++) for(let x=-7;x<=7;x++){
+    if(portalOpening(x,y)) continue;
+    for(const z of [-1,0]) cubeGrid(x,y,z,1,choose(palette.main),'portal');
+  }
+
+  // Front ribs / crest: 76 additional cubes, for exactly 460 total.
+  for(let y=0;y<19;y++){
+    for(const x of [-7,7]) cubeGrid(x,y,1,1,choose(palette.accent),'portalAccent');
+    if(y%2===0 && y<=11){
+      for(const x of [-4,4]) cubeGrid(x,y,1,1,choose(palette.accent),'portalAccent');
+    }
+  }
+  for(const y of [15,18]) for(let x=-7;x<=7;x++) cubeGrid(x,y,1,1,choose(palette.accent),'portalAccent');
+}
+
+function skyPortal(){portalFrame(portalPalettes.sky)}
+function undergroundPortal(){portalFrame(portalPalettes.underground)}
+function blackHolePortal(){portalFrame(portalPalettes.blackHole)}
+function whiteHolePortal(){portalFrame(portalPalettes.whiteHole)}
+function islandPortal(){portalFrame(portalPalettes.island)}
+function cityPortal(){portalFrame(portalPalettes.city)}
+function voidPortal(){portalFrame(portalPalettes.void)}
+function leavePortal(){portalFrame(portalPalettes.leave)}
+
+// --------------------------------------------------------------------------
+// PACKED LITE DEMO
+// Adapted directly from the uploaded Voxel Nature Pack Lite MagicaVoxel
+// source. Dense source models are resampled to this demo's grid scale while
+// retaining their original palette and silhouette. Rendering is instanced per
+// color so the richer source assets stay inexpensive in the single-asset view.
+const PACKED_LITE_PALETTE_B64="ob3E/5u3uv+UsbD/jqum/4ikm/+CnpH/e5iH/3WSff+mppn/sbGc/726o//IxKf/1M+2/9/bx//r59H/9vLY/6g6Ov+gNzf/mTU1/5EyMv+JLy//gSws/3oqKv9yJyf/PTMo/zwxJf86LyP/OS0g/zcrHv82KRv/NCcZ/zMlFv9rUDr/YUg0/1ZAL/9MOCn/QTAk/y4hGf8pHRf/IhgT/yZhJv9miC3/kn4x/41iNf+cVRT/qe7//9F2kP/q2t7/6oWi/+qJpf/qjaj/6pGr/+qWrf/qmrD/6p6z/+qitv+Tstv/W2yD/3qT0/9LS0v/S0tL/0tLS/9LS0v/S0tL/yFTIf8jWiP/JGAk/yZnJv8obSj/KnQq/yt6K/8tgS3/ZDsH/2s/B/9yQwj/eUcI/39KCf+GTgn/jVIK/5RWCv9MVbD/S1Kv/0pPrf9JTKz/SUiq/0hFqf9HQqf/Rj+m/8+fZP/HmF7/wJFY/7iKUv+wg0z/qHxG/6F1QP+Zbjr/6fv//+P6///e+f//2Pj//9P2///N9f//yPT//8Lz//+yZBf/tWkd/7ltJP+8cir/wHYw/8N7Nv/Hfz3/yoRD/6GPN/+mlzz/qp5B/6+mRv+zrkz/uLZR/7y9Vv/BxVv/eZw1/36jN/+Dqjr/iLE8/4y4Pv+Rv0D/lsZD/5vNRf8saSz/Lm4u/zBzMP8yeDL/NX41/zeDN/85iDn/O407/460Pv+0oj7/umkY/0tLS/9LS0v/S0tL/0tLS/9LS0v/gH1z/7eyof+Xj4j/VVJH/8/Ktv+IejX/CxMW/0tLS/9zfoD/4Pj+/6y8v/9HT1X/tsrP///MAP8JHSL/S0tL/0Cybv86o2T/Npld/wG6Of9LS0v/S0tL/0tLS/9LS0v/wDg4/7I0NP+hMjL/R3DD/zhlwP8wXsD/wx6L/0tLS//6n1r/+rNo/+KJUv/n5L3/AMTX/5Bnof+yuuz/3r3n/8g8Kv+oIyP/9IrO/9A3cv9NJJH/km29/8Bf6v/2qAD/TFWw/0Y/pv+nrv//5Fgh/++SM//rqZn/3UAR///r4P//////vWTU/1kNGP89CRD/JxIS/zogG/+QITD/qTHK/x5JHv9kPir/yMjI/5d4Uf8nHx//Oion/9tuFv8sLCz/AJDq/2XNsf9el4v/dJww/2evV/+nqlr/1rpK/1CBdv9ya2//kYmS/0lER//p+///wvP//53r//8wrfb/efbW/3BmLf9/hjb/f2cz/z9yL/++n0T/so1A/8+tSv+XbTb/RINF/yxpLP9NVSP/Zlop/0s6Kf/NKir/2bdS/+qFov+0elP/nGVI/z0sIv9YOzH/WlVY/3Jycv9ObUf/AAAAAA==";
+const PACKED_LITE_MODELS={
+  packedLiteBush:{name:"Bush",dims:[15,8,12],count:712,sourceScale:0.5333,data:"AQAEfwEABXoBAAZ/AQAHKgIAAyoCAAQqAgAFewIABnsCAAd9AgAIeQMAAnwDAAN8AwAEeQMABX4DAAZ6AwAHgAMACH4DAAkqBAABKgQAAoAEAAOABAAEKgQABXsEAAZ6BAAHfgQACHkEAAl8BQAAfwUAASoFAAJ6BQADeQUABIAFAAUqBQAGewUAB3wFAAiABQAJfwUACnwGAAB6BgABfwYAAnoGAAN7BgAEfwYABioGAAd6BgAIegYACYAGAAp9BwABegcAAnoHAAN6BwAEegcABXkHAAZ5BwAHfwcACHoHAAkqBwAKKggAAXoIAAIqCAADKggABCoIAAV9CAAGeQgAB3wIAAiACAAJeggACioJAAIqCQADKgkABCoJAAUqCQAGfwkAB3kJAAiACQAJegoABHwKAAV6CgAGKgoAB3wKAAh8CgAJfwsAAyoLAAR+CwAFfwsABnwLAAd+DAADKgwABH0MAAV9DAAGewwAByoNAAQqDQAFeQ0ABioAAQQqAAEFKgABBioAAQcqAQEDfAEBBIABAQV7AQEGegEBB30BAQgqAgECKgIBAyoCAQR/AgEFfgIBBnsCAQd+AgEIfwIBCSoDAQEqAwECfgMBA3oDAQR5AwEFeQMBBnsDAQd8AwEIfgMBCX4EAQAqBAEBfQQBAn4EAQN/BAEEewQBBXkEAQZ6BAEHewQBCHwEAQl6BAEKKgUBAHwFAQF7BQECfAUBA3oFAQR+BQEFKgUBBnwFAQd+BQEIfQUBCXkFAQp/BQELegYBAH8GAQF5BgECfAYBA38GAQR6BgEFfgYBBoAGAQd/BgEIgAYBCXoGAQp7BgELKgcBAHkHAQGABwECewcBA38HAQR+BwEFgAcBBnwHAQd+BwEIfgcBCYAHAQp+BwELKggBAHkIAQF/CAECfQgBA3oIAQR7CAEFeggBBn4IAQd7CAEIgAgBCXoIAQoqCAELKgkBASoJAQJ+CQEDfgkBBH4JAQV9CQEGgAkBB3sJAQh5CQEJfwkBCn8KAQIqCgEDKgoBBH8KAQV+CgEGgAoBB3kKAQh6CgEJKgoBCioLAQN7CwEEfAsBBX8LAQZ8CwEHfgsBCCoLAQkqDAEDegwBBIAMAQV8DAEGegwBB3oMAQgqDQEDfQ0BBH0NAQV/DQEGeg0BB30NAQgqDgEEfQ4BBX8OAQZ9AAIEfgACBX8AAgZ9AAIHfgACCHkBAgJ9AQIDKgECBHsBAgV5AQIGgAECB38BAgh7AgIBfwICAnoCAgN9AgIEfAICBX0CAgaAAgIHfwICCHsCAgmAAwIBKgMCAnoDAgN7AwIEegMCBX4DAgZ7AwIHegMCCHoDAgl9BAIAeQQCAXkEAgJ7BAIDgAQCBHkEAgV7BAIGfQQCB3wEAgh6BAIJfwQCCioFAgB6BQIBgAUCAnwFAgOABQIEfgUCBXwFAgZ+BQIHeQUCCH8FAgl/BQIKfwUCC3oGAgB+BgIBeQYCAnsGAgN5BgIEfwYCBXkGAgZ9BgIHfgYCCH8GAgl8BgIKewYCC3sHAgB8BwIBfAcCAn0HAgN9BwIEewcCBX8HAgZ/BwIHewcCCHsHAgl/BwIKgAcCC30IAgB5CAIBKggCAnkIAgOACAIEgAgCBXsIAgZ5CAIHeggCCHwIAgl/CAIKKggCCyoJAgF5CQICgAkCA3oJAgR/CQIFfAkCBnkJAgd+CQIIgAkCCX4JAgp8CgICKgoCA3sKAgR+CgIFewoCBnsKAgeACgIIewoCCX0KAgp6CwIDfQsCBHoLAgV9CwIGfgsCB3kLAgh+CwIJeQwCA4AMAgR5DAIFewwCBnkMAgd+DAIIKg0CA30NAgR5DQIFfw0CBn4NAgeADQIIfQ4CBH0OAgV8DgIGegADBCoAAwWAAAMGgAADB3sAAwh8AQMCgAEDA3wBAwR6AQMFfAEDBnkBAwd+AQMIegIDAX0CAwJ6AgMDfQIDBH4CAwV5AgMGewIDB3sCAwh8AgMJgAMDAXoDAwJ7AwMDfwMDBHkDAwV8AwMGgAMDB3wDAwh8AwMJegQDAYAEAwJ6BAMDfAQDBH4EAwV9BAMGegQDB30EAwh7BAMJewUDASoFAwJ5BQMDeQUDBHsFAwV5BQMGgAUDB3kFAwh/BQMJKgYDASoGAwKABgMDfwYDBIAGAwV5BgMGfwYDB4AGAwgqBgMJKgcDASoHAwJ+BwMDegcDBH8HAwV9BwMGfgcDB34HAwh9BwMJKggDASoIAwJ6CAMDfAgDBHsIAwV9CAMGfAgDB3oIAwh7CAMJfQgDCioJAwF5CQMCfgkDA3kJAwSACQMFgAkDBnoJAwd8CQMIeQkDCX4JAwp9CgMCewoDA38KAwR6CgMFfgoDBnsKAwd7CgMIfQoDCX0KAwp9CwMDgAsDBHwLAwV6CwMGfwsDB3kLAwh6CwMJfgwDA4AMAwR+DAMFfgwDBn0MAwd7DAMIKg0DBH4NAwV9DQMGfwAEBH4ABAV7AAQGfQAEB3sBBAN6AQQEKgEEBXkBBAZ8AQQHfwEECHoCBAKAAgQDgAIEBHkCBAV+AgQGgAIEB3kCBAgqAwQBeQMEAn4DBAN5AwQEeQMEBX0DBAZ6AwQHfgMECH0DBAl5BAQBgAQEAn8EBAN+BAQEgAQEBYAEBAZ/BAQHfgQECIAEBAl6BQQCKgUEA3wFBAR/BQQFfwUEBn8FBAeABQQIKgYEAn0GBAN+BgQEgAYEBXsGBAZ5BgQHegYECCoGBAkqBwQBeQcEAnwHBAN6BwQEfgcEBX0HBAZ8BwQHegcECHoHBAkqCAQBeQgEAn4IBAN5CAQEeggEBXwIBAaACAQHfwgECH0IBAl6CAQKfwkEAXsJBAJ9CQQDewkEBH4JBAV6CQQGgAkEB3oJBAh/CQQJfAkECnsKBAJ6CgQDgAoEBHkKBAV8CgQGfwoEB38KBAiACgQJewoECnkLBAN6CwQEeQsEBXsLBAZ6CwQHfwsECCoLBAmADAQDfwwEBHkMBAV/DAQGfQwEB38MBAgqDQQEeg0EBX4NBAYqAQUEKgEFBX4BBQZ7AQUHfQIFA3sCBQQqAgUFfgIFBnoCBQd/AwUCeQMFA3wDBQQqAwUFfwMFBn4DBQcqAwUIKgQFAn4EBQMqBAUEfAQFBXsEBQZ/BAUHfAQFCIAFBQMqBQUEfAUFBXwFBQZ8BQUHeQUFCHsGBQMqBgUEfQYFBXoGBQaABgUHgAYFCHsHBQJ5BwUDfgcFBH8HBQV8BwUGewcFB3wHBQgqCAUCgAgFA38IBQSACAUFfggFBnoIBQd7CAUIfwgFCSoJBQJ+CQUDKgkFBHwJBQV9CQUGeQkFB38JBQh5CQUJKgoFAyoKBQR8CgUFegoFBnwKBQd9CgUIewoFCSoLBQMqCwUEfgsFBXoLBQZ9CwUHeQsFCHoMBQQqDAUFfAwFBn4MBQd8AwYEeQMGBXsDBgZ7AwYHfQMGCHwEBgOABAYEegQGBX4EBgZ5BAYHfwQGCHkFBgOABQYEegUGBXkFBgaABQYHfgUGCH0GBgN/BgYEeQYGBX8GBgZ6BgYHeQYGCH8HBgQqBwYFfAcGBioHBgcqBwYIKggGAyoIBgQqCAYFgAgGBnkIBgeACAYIfAkGA4AJBgSACQYFegkGBn8JBgd6CQYIgAoGA3sKBgR+CgYFfAoGBoAKBgd+CgYIfAsGA34LBgR7CwYFgAsGBnkLBgd7CwYIgAwGBHoMBgV/DAYGfwwGB34IBwR/CAcFfggHBioJBwR+CQcFewkHBn0JBwd9CgcEegoHBYAKBwZ5CgcHfwoHCH0LBwZ7CwcHfA=="},
+  packedLiteWildflower:{name:"Wildflower",dims:[6,10,8],count:38,sourceScale:1,data:"AgACiQMAA4kDAASJBAADiQIBAokDAQOJAwEEiQQBA4kBAgGJAgIFiQMCA4kFAgOJAQMBiQIDBYkDAwOJBQMDiQAEAa8BBACvAQQBngEEAq8CBAGvAgQFiQMEA4kCBQWJAwUDiQEGBokDBgOJBQYDiQEHBokDBwOJBQcDiQAIBq8BCAWvAQgGngEIB68CCAavBAgDiQQJA4k="},
+  packedLiteRose:{name:"Rose",dims:[5,11,5],count:33,sourceScale:1,data:"AwADiQMBA4kDAgOJAwMDiQIEAokCBQKJAgYCiQEHAqsCBwGrAgcCqwIHA6sDBwKrAQgCqwIIAasCCAKrAggDqwMIAqsACQK6AQkBugEJAqsBCQO6AgkAugIJAasCCQOrAgkEugMJAboDCQKrAwkDugQJAroBCgKpAgoBqQIKA6kDCgKp"},
+  packedLiteSunflower:{name:"Sunflower",dims:[4,14,2],count:25,sourceScale:0.4118,data:"AQAA3AEBANwBAgDcAQMA3AEEANwBBQDcAQYA3AEHANwCBwDcAwcA3AMHAdwBCADcAAkA3AAJAdwBCQDcAQoA3AALAJ4BCwCeAgsAngAMAJ4BDACeAgwAngANAJ4BDQCeAg0Ang=="},
+  packedLiteDaisy:{name:"Daisy",dims:[6,9,3],count:24,sourceScale:1,data:"AgACiQIBAokCAgKJAwICiQIDAokDAwKJAgQCiQQEAokCBQKJBAUCiQEGAMkBBgGJBAYByQQGAokABwDJAQcAngEHAYkCBwDJAwcByQQHAZ4EBwKJBQcByQEIAMkECAHJ"},
+  packedLiteGrass:{name:"Grass",dims:[6,10,4],count:27,sourceScale:0.7143,data:"AgAAiQIAAYkCAAKJAQEBiQIBAIkCAQKJAwEBiQECAYkCAgCJAgICiQMCAYkEAgGJAQMBiQIDAokEAwGJAAQBiQIEAokFBAGJAAUBiQIFAokDBQKJBQUBiQAGAYkDBgKJAwcCiQQIA4kECQOJ"},
+  packedLitePalmTree:{name:"PalmTree",dims:[17,27,15],count:443,sourceScale:0.3649,data:"CgAF7woABu8KAAfvCgAI7QsABe0LAAbuCwAH7QsACO8MAAXtDAAG7QwAB+8MAAjuDQAF7g0ABu4NAAftDQAI7goBBe0KAQbuCwEF7gsBBu0LAQfvDAEG7wwBB+4NAQbuDQEH7woCBe0KAgbuCwIF7gsCBu0LAgfuDAIG7wwCB+8NAgbuDQIH7wsDBu4MAwbvDAMH7Q0DBu8LBAbuDAQF7QwEBu0MBAftDQQG7wsFBe8LBQbtDAUF7gwFBu0MBQftDQUG7QsGBe0LBgbuDAYF7gwGBu8NBgbuCwcF7gsHBu0MBwXtDAcG7QsIBe0LCAbuDAgF7QwIBu0KCQbtCwkF7QsJBu0MCQXuDAkG7woKBe4KCgbuCwoF7wsKBu8MCgbvCgsF7goLBu8LCwXtCwsG7gkMBu0KDAXuCgwG7QsMBe8LDAbtCQ0G7goNBe0KDQbuCQ4G7goOBu8DDwt7CA8G7QkPBu0KDwbvAhABewMQAXsDEAqAAxALegQQCnwIEAXuCBAG7QgQDXoIEA55CRAF7gkQBu8JEA56DRALgA0QDHkOEAR/DhAFeQ4QC3sOEAyADxAEfw8QBXwQEAR+EBAFfgMRAXsDEQJ8AxEDfwQRAYAEEQJ9BBEIfQQRCXkEEQp5BREBgAURAnsFEQmABREKfwYRCn0HEQB8BxEMewgRAHwIEQF5CBEF7wgRBu8IEQx5CBENeQkRAXwJEQXtCREG7wkRByYJEQx6ChEJfQoRCnoLEQl5CxEKfgsRC3sMEQV6DBEGfgwRB3wMEQh/DBEJewwRCnkMEQuADREFeQ0RBn0NEQh5DREJeQ0RCnkNEQt+DREMew4RBHoOEQV/DhEGeg8RBXsAEgZ+ARIGegMSBH8EEgJ7BBIDfQQSBHwEEgV6BBIGegQSCH8EEgl8BRICfgUSA34FEgR5BRIHegUSCHoFEgl+BRIKfgYSAn4GEgN/BhIIewYSCXsGEgp+BxICfAcSA3oHEgYiBxIHIgcSCXsHEgp7BxILewgSAXwIEgJ/CBIDeggSBCQIEgUkCBIG7wgSByIIEgh7CBIJewgSCoAIEguACBIMfgkSAX0JEgJ8CRIEJAkSBSQJEgYmCRIHJgkSCHwJEgl8CRIKfQkSC30KEgV7ChIGJgoSByYKEgh9ChIJfwoSCn4KEgt7CxIFfAsSBnsLEgd7CxIIfAsSCX8LEgp8DBIFfQwSBnsMEgd6DBIIeQwSCX4NEgV+DRIGfwETBXwBEwZ8ARMHfwITBX0CEwZ7AhMHfAMTBX4DEwZ8AxMHfwMTCH4EEwV5BBMGegQTB3oEEwh8BRMEfgUTBXwFEwZ+BRMHfgUTCH8GEwN+BhMEeQYTBX8GEwZ5BhMHeQYTCH0GEwl/BxMDfgcTBHoHEwYkBxMHIgcTCHsHEwl5CBMCfggTA38IEwR8CBMFIwgTBu4IEwclCBMIeQgTCXoIEwp5CRMDegkTBH4JEwV5CRMGJQkTB30JEwh+CRMJfAkTCoAKEwN9ChMEfgoTBXkKEwZ7ChMHfQoTCHkKEwl/AxQGfAMUB3wEFAV/BBQGgAQUB30EFAh/BRQEgAUUBX4FFAZ6BRQHfAUUCH4GFAR8BhQFgAYUBnkGFAeABhQIfAcUBHkHFAV6BxQGewcUB4AHFAh6BxQJeggUBHkIFAV/CBQGeggUB3wIFAh6CBQJgAgUCnwJFAR+CRQFfwkUBnwJFAd8CRQIfgkUCX4KFASAChQFfAoUCH8KFAl9BBUIfAQVCYAEFQp5BBULewQVDHwFFQZ8BRUHegUVCHkFFQl/BRUKgAUVC3kFFQx5BRUNfwYVBnoGFQd/BhUIegYVCXkGFQp/BhULgAYVDHkHFQSABxUFfwcVBn4HFQeABxUIfQcVCXwHFQp7BxULeggVBX0IFQZ6CBUHgAgVCH8IFQl9CBUKfAkVBnkJFQd8ChUEfAoVBX8KFQZ6ChUHfgoVCIAKFQl8CxUEeQsVBX8LFQZ8CxUIeQsVCYAMFQZ6DBUHfgwVCH8DFgx8AxYNfwMWDn4EFgt8BBYMfQQWDXwEFg59BRYKfAUWC3oFFgx+BRYNgAYWBH4GFgV9BhYGegYWB30GFgh7BxYEegcWBXoHFgZ5BxYHfgcWCHsIFgZ7CxYGewsWB4AMFgV+DBYGewwWB30MFgh7DRYFew0WBnkNFgd7DRYIeg4WBn4OFgd/DhYIfgUXBXkFFwZ5BRcHgAUXCHsGFwR5BhcFeQYXBoAGFwd8DhcFfQ4XBnsOFwd7DhcIew8XBn4PFwd5EBcGfwQYBXsEGAaABBgHegUYBXoFGAaABRgHfA8YBn4PGAd6EBgGeRAYB3sDGQWABBkFeQQZBnkCGgV9AxoFfgMaBn4="},
+  packedLiteOakTree:{name:"OakTree",dims:[21,24,21],count:1309,sourceScale:0.5106,data:"CAAJJAgACiIIAAskCQAJIwkACiEJAAshCgAIIQoACSQKAAohCgALJAgBCSQIAQojCAELIwkBCSMJAQskCgEJIQoBCiQKAQskCAIJJAgCCiQIAgsjCQIJIwkCCyQKAgklCgIKJAoCCyQIAwkkCAMKJAgDCyMJAwkjCQMLIQoDCSUKAwohCgMLJAgECSQIBAoiCAQLIwkECSMJBAshCgQJJQoECk8KBAskCAUJJAgFCiIIBQsjCQUJIwkFCyMKBQklCgUKIwoFCyMIBgkkCAYKJAgGCyMJBgkjCQYLIQoGCSMKBgojCgYLIwgHCSQIBwokCAcLIwkHCSMJBwskCgcJIwoHCiEKBwsjCAgJJAgICiQICAsjCQgJIwkICyQKCAkjCggKIQoICyEICQkkCAkKJAgJCyMJCQkkCQkLIQoJCSMKCQokCwkKJAwJCiIECgx/BAoNeQUKCH0FCgl6BQoKfwUKC38FCgx8BQoNfgYKB3kGCgh5BgoJeQYKCnwGCguABgoMfwYKDXkHCgaABwoIfwcKCXoHCgqABwoLegcKDH4HCg1+CAoGfQgKB3sICgh6CAoJfwgKCiQICgsjCAoMeQgKDXoICg56CQoHeQkKCHkJCgkhCQoLIQkKDHsJCg16CQoOgAoKB30KCgh5CgoJIwoKCiQKCgskCgoMfwoKDXoKCg55CwoJfgsKCiILCgskCwoMewsKDXkLCg5/DAoJeQwKCiMMCgt/DAoMfwwKDXwMCg57DAoPeg0KDXkDCwd7BAsGfAQLB3kECwh+BAsJegQLCnsECwt6BAsMfgULBn4FCwd5BQsIeQULCX8FCwp5BQsLewULDX8GCwZ7BgsHfwYLDn4HCwV8BwsGfgcLB3oHCw5+CAsFfAgLBnsICwd6CAsOfQgLD3oICxB5CQsFeQkLBnwJCweACQsOfgkLD3kJCxB5CgsFfwoLBn8KCwd7CgsIegoLCXsKCw16CgsOeQoLD4AKCxB9CwsGfQsLB30LCwh9CwsJgAsLC3oLCwx9CwsNfgsLDnkLCw+ADAsGfgwLB3sMCwiADAsJfwwLCiQMCwt7DAsMfgwLDXwMCw57DAsPgA0LB3oNCwokDQsLgA0LDH0NCw17DQsOfQ0LD3kOCwx9DgsNeQMMB34DDAh6AwwJgAMMCoADDAt9BAwFewQMBn8EDAd8BAwIegQMCXwEDAx+BAwNewUMBXwFDAZ/BQwNfgYMBX0GDA55BgwPeQcMBXoHDA98BwwQfAgMBHwIDAV6CAwPeQgMEH8JDAR+CQwFfAkMEHsKDAR5CgwFfwoMEHsLDAR9CwwFewsMD30LDBB8DAwFgAwMBnsMDAl8DAwPeQwMEHkNDAV9DQwGfw0MB34NDAiADQwJfg0MCnkNDAt/DQwOfg0MD4AODAd9DgwIfQ4MCX4ODAp6DgwLfw4MDIAODA16DgwOeg8MCn0PDAt9Ag0LfgINDHkDDQZ/Aw0IeQMNCYADDQp6Aw0LgAMNDHkDDQ2ABA0EfQQNBXkEDQZ9BA0HfAQNCHoEDQt7BA0MfwQNDYAEDQ6ABA0PegUNBXoFDQ6ABQ0PfAUNEH4GDQV/Bg0PfgYNEH0HDQR7Bw0FgAcND38HDRB/Bw0RfggNBHkIDQWACA0QfQgNEXkJDQSACQ0FegkNEXwJDRJ7Cg0EgAoNEH0KDRF6Cw0EfAsNEH8MDQR+DA0FeQwNEHkNDQV6DQ0GfA0ND3wODQZ8Dg0Hfg4NCH8ODQ19Dg0Ofw4ND3kPDQiADw0JgA8NCnoPDQt9Dw0MewIOBX8CDgZ6Ag4HegIOCHsCDgl8Ag4KfAIOC3sCDgx9Ag4NeQMOBH0DDgV/Aw4GeQMOB38DDgh9Aw4JfwMOCnsDDg18Aw4OegMOD38EDgN6BA4EfwQOBX0EDgaABA4HfwQOD34EDhCABQ4DeQUOBHkFDgV6BQ4QgAYOBH4GDgV/Bg4QfQcOBHkHDhB+Bw4RfwgOBIAIDhF+CA4SfgkOA4AJDgR7CQ4RegkOEn0KDgN7Cg4RfwsOA3kLDgR7Cw4QewwOBHsMDgV7DA4GfAwOEH4NDgZ5DQ4PgA0OEH8ODgZ9Dg4Hfw4ODn8ODg99Dw4Heg8OCHoPDgl5Dw4Keg8OC3sPDgx8Dw4Nfw8ODn4QDgl8EA4KeRAODHwQDg1/EA4OgAEPBXoBDwZ9AQ8HfAEPCH0BDwl9AQ8KfQEPC38CDwN+Ag8EfQIPBXsCDwZ8Ag8JgAIPCnwCDwt/Ag8MfAMPA3kDDwR5Aw8FfwMPC4ADDwx+Aw8NfgMPDn0DDw95BA8DfwQPDnsEDw9/BA8QfQUPA3kFDwR5BQ8QfAYPA3wGDwR/Bg8QewYPEYAHDwN9Bw8EfAcPEH0HDxF7CA8DfwgPBH0IDxF6CQ8DfwkPBH0JDxGA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CRUMfgkVD3sJFRB8CRURegkVEn0KFQN/ChUEeQoVC34KFQx+ChUNgAoVDn0KFRCAChUReQsVA4ALFQR6CxUIfQsVCX4LFQp7CxUMfAsVDXwLFQ56CxUQgAsVEX4MFQN/DBUEfgwVCXsMFQp6DBUMfwwVDXwMFQ96DBUQfgwVEXwNFQN7DRUEew0VBnoNFQd6DRUIeQ0VCXkNFQp6DRULew0VDH0NFQ17DRUPeg0VEHwNFRF/DhUEfg4VBXoOFQZ9DhUHfg4VCIAOFQl9DhUKfA4VC3wOFQyADhUNfQ4VDn0OFQ96DhUQgA8VBnsPFQd+DxUIfg8VCX8PFQp7DxULfw8VDHkPFQ17DxUOew8VD4AQFQd7EBUIeRAVCnoQFQuAEBUNfhAVDnkCFgp9AhYLfgMWCH4DFgl5AxYKgAMWC4ADFgx7BBYIfQQWCX4EFgqABBYLfgQWDH4FFgd7BRYIfAUWCX4FFgp7BRYLeQUWDH8GFgZ6BhYHfAYWCH0GFgl6BhYKfQYWC34GFgyABhYNgAcWBX8HFgZ+BxYHfgcWCHkHFgl5BxYKewcWC3kHFgx9BxYNgAcWDn4HFg9+CBYGewgWB3kIFgh9CBYJewgWCnoIFgt5CBYMfggWDX8IFg55CBYPfgkWBXkJFgZ7CRYHfQkWCH4JFgl8CRYKfQkWC30JFgx8CRYNfQkWDoAJFg9+ChYEeQoWBXsKFgZ7ChYHegoWCH4KFgl9ChYKfwoWC30KFg57ChYPfgoWEH8LFgR9CxYFfQsWBnkLFgd8CxYIeQsWCXkLFgp/CxYLeQsWDHkLFg56CxYPgAsWEH4MFgN7DBYEewwWBXkMFgZ/DBYHfwwWCIAMFgl8DBYLfwwWDH8MFg1+DBYOfwwWD34NFgSADRYFfQ0WBnsNFgd6DRYIeQ0WCX0NFgt+DRYMeg0WDX0NFg58DRYPfQ4WCIAOFgl9DhYOgAsXBXkMFwV6DBcGfQ=="},
+  packedLiteBirchTree:{name:"BirchTree",dims:[16,28,16],count:989,sourceScale:0.3333,data:"BwAIDQgABxAIAAgQCQAH1gkACBAHAQgNCAEHEAgBCAoJAQcQCQEICgcCCA0IAgcQCAIIEAkCBxAJAggKCAMHEAgDCBAJAwcQCQMICggEBxAIBAgQCQQHDQkECAoIBQcQCAUIEAkFBxAJBQgKCAYHEAgGCBAJBgcQCQYICggHBxAIBwgQCQcHEAkHCAwICAcQCAgIEAkIBxAJCAgKCAkHEAgJCBAJCQcQCQkICggKBxAICggQCQoHEAkKCAoICwcQCAsIEAkLBxAJCwgKCAwHEAgMCBAJDAcQCQwI1ggNBxAIDQgQCQ0HEAkNCAwIDgcQCA4IEAkOBxAJDggMCA8HEAgPCBAJDwcQCQ8IDAUQCHkFEAl/BhAIfwYQCXwIEAcQCBAIEAgQCX8IEAp5CRAHEAkQCAwJEAl+CRAKfwIRCHsCEQmABREHeQURCH0FEQmABREKfAYRB4AGEQh9BhEJfQYRCnwHEQR5BxEFewcRB3wHEQh+BxEJgAcRCnkIEQR8CBEFeQgRBhAIEQcQCBEIEAgRCXsIEQoQCBELEAgRDXsJEQR7CREFfAkRBxAJEQgMCREJfwkRCn4JEQ19ChEHewoRCIAKEQl8ChEKfAsRB3sLEQh+CxEJewESCHkCEgd5AhIIfwISCX4DEgd+AxIIfAMSCXoEEgeABBIIeQUSB30FEgh6BRIJegUSCn8GEgd+BhIIfAYSCXoHEgN8BxIEfgcSBX8HEgYQBxIHfAcSCHkHEgl5BxIKeQcSC3sHEgx8BxINeQgSAxAIEgR6CBIFeQgSBhAIEgd8CBIICggSCRAIEgp5CBILeQgSDHsIEg18CBIOfAkSBIAJEgWACRIGewkSBxAJEggQCRIJegkSCoAJEgyACRINfgkSDn0KEgd9ChIIeQoSCYAKEgp/CxIHfgsSCHoLEgmADBIIfgITBX8CEwZ6AhMHeQITCHwCEwl8AxMFgAMTBn4DEwd+AxMIfAMTCX8EEwR7BBMFewQTBoAEEwd9BBMIeQQTCXkEEwp+BBMLfQUTBH4FEwV9BRMHfAUTCHkFEwl5BRMKewYTBn8GEwcQBhMIfwYTCYAGEwp5BxMCfAcTA30HEwR5BxMFeQcTBnkHEwd5BxMIfwcTCX8HEwqABxMLeQcTDIAHEw15BxMOeQgTAXsIEwJ7CBMDeQgTBH0IEwV9CBMGewgTCAoIEwkQCBMKfggTC38IEwx9CBMNfAgTDn8IEw95CRMBfAkTAn8JEwN5CRMEgAkTBXsJEwZ7CRMHEAkTCBAJEwl7CRMKeQkTC3kJEwx+CRMNgAkTDn8KEwJ/ChMDgAoTBHwKEwZ7ChMHEAoTCH4KEwl6ChMKewsTB38LEwh9CxMJgAwTBxAMEwiADBMJew0TB38NEwh8DRMJfw4TB38OEwh9DhMJfw8TCHkBFAd5ARQIfQIUBXwCFAZ/AhQHfAIUCHkDFAV8AxQGfAMUB3oDFAh9AxQJeQMUCoADFAt8BBQDfAQUBH0EFAV6BBQGgAQUB30EFAh5BBQJeQQUCoAEFAt5BRQDfwUUBHsFFAV7BRQGEAUUB3wFFAh5BRQJgAUUCnoFFAt8BhQFfQYUBnwGFAd7BhQKfAYUC3kHFAF9BxQCeQcUA30HFAR5BxQFewcUCoAHFAt5BxQMegcUDXkHFA55BxQPewgUAXwIFAJ6CBQDeggUBIAIFAh5CBQJfQgUCnkIFAuACBQMgAgUDX4IFA58CBQPfAkUAXoJFAJ5CRQDfAkUBH8JFAV6CRQGfAkUCn0JFAt/CRQMewkUDX0JFA59ChQCewoUA38KFAR+ChQFewoUBn0KFAd9ChQJgAoUCnkLFAd8CxQIegsUCX8LFAp7CxQLfAwUB3kMFAh8DBQJfQ0UBn0NFAd+DRQIfA0UCYAOFAZ9DhQHew4UCH8OFAl6DxQHfA8UCHkAFQd7ABUIgAEVB38BFQh6AhUHfAIVCHkDFQV9AxUGfgMVB3oDFQgQAxUJewMVCn4DFQt/AxUMfQQVA38EFQR/BBUFfQQVBnsEFQd5BBUIewQVCXkEFQqABBULfQQVDHkFFQN+BRUEfAUVBXwFFQZ8BRUHgAUVCHsFFQl6BRUKfwUVC3kFFQyABhUDeQYVBHsGFQV8BhUGegYVCnoGFQt+BxUBegcVAnkHFQN7BxUEgAcVC3sHFQyABxUNegcVDn8HFQ95CBUAfQgVAX8IFQJ/CBUDeggVBHwIFQV+CBULeQgVDH8IFQ1+CBUOeggVD3sJFQN6CRUEfQkVBYAJFQt+CRUMfwkVDX4JFQ57ChUDfgoVBH4KFQV8ChUGegoVCXkKFQp8ChULeQoVDHwLFQN/CxUEfQsVBXsLFQZ+CxUHgAsVCHoLFQl+CxUKgAsVC4AMFQZ9DBUHfAwVCH0MFQl/DBUKfQwVC34NFQZ+DRUHfg0VCHoOFQZ7DhUHeg4VCH4PFQd9DxUIeg8VCXkBFgd6ARYIfAIWBXoCFgZ8AhYHegIWCH4CFgmAAhYKeQMWBHsDFgV9AxYGfgMWB30DFgiAAxYJfgMWCnwDFgt+BBYDfgQWBIAEFgV6BBYGgAQWB4AEFgh5BBYJeQQWCn0EFgt5BBYMeQUWA3wFFgR5BRYFfQUWBoAFFgh9BRYJfwUWCnwFFgt8BRYMfAYWAoAGFgN6BhYEeQYWBX4GFgt5BhYMgAYWDXsHFgF8BxYCfgcWA4AHFgR+BxYMfgcWDX4HFg5+BxYPfwgWAX4IFgJ6CBYDfQgWC3wIFgx5CBYNewgWDnoIFg95CRYCewkWA3oJFgSACRYFgAkWC30JFgx/CRYNfgkWDn4KFgJ6ChYDeQoWBHoKFgWAChYLfwoWDH4KFg18ChYOfwsWA3sLFgR9CxYFegsWBn4LFgl5CxYKfgsWC3kMFgV8DBYGgAwWB34MFgh/DBYJgAwWCnwMFgt5DRYFgA0WBnwNFgd7DRYIfg0WCXwOFgZ8DhYHfw4WCH4PFgh5ABcHegAXCHoBFwZ7ARcHgAEXCHkBFwmAAhcFewIXBn0CFwd5AhcIfgIXCX8CFwp9AxcFfQMXCH8DFwl5AxcKeQMXC3wEFwN+BBcEfQQXBXwEFwt5BBcMfwUXAnwFFwN8BRcEewUXC3kFFwyABRcNeQYXAX8GFwJ7BhcDeQYXDH8GFw1+BhcOfwcXAH8HFwF5BxcCfQcXDXoHFw55BxcPeQgXAHoIFwF7CBcCeQgXA3oIFw56CBcPfQkXAYAJFwJ6CRcOeQkXD34KFwJ+ChcDfQoXC3wKFwx7ChcNeQoXDnwLFwN8CxcEewsXBYALFwp8CxcLfAsXDHoMFwR+DBcFewwXCnoMFwt/DRcFgA0XBnkNFwl/DRcKew4XBXwOFwZ/DhcHeg4XCHkOFwl5DxcGfg8XB30PFwh5ABgGewAYB3oAGAh5ARgFfQEYBnoBGAd+ARgIgAEYCXkBGAp8AhgEfQIYBXwCGAl/AhgKewMYA3kDGAR8AxgFfQMYCoADGAt/AxgMfwQYA3kEGAR/BBgLfwQYDHoEGA19BRgBfAUYAnkFGAN7BRgMewUYDXkFGA55BhgBeQYYAnwGGA18BhgOfAcYAH0HGAGABxgOfAgYAHkIGAF7CBgOfggYD30JGAB7CRgBfgkYAn4JGA56CRgPegoYAXwKGAJ8ChgDfAoYDYAKGA59CxgDegsYBIALGAuACxgMeQsYDXkMGAR/DBgFfAwYCn8MGAt7DRgFew0YCXsNGAp5DhgFfA4YBn0OGAd8DhgIew4YCXwOGAp5DxgGeg8YB38PGAh6ABkGfQAZB30AGQh6ARkFegEZBn4BGQh/ARkJgAEZCnoCGQR9AhkFfAIZCnwCGQt5AxkDfwMZBH4DGQV/AxkLegMZDH4EGQKABBkDewQZDHoEGQ1/BRkBegUZAoAFGQx/BRkNgAUZDnoGGQGABhkCfgYZDoAHGQB6BxkBfQcZDnoIGQB/CBkOeggZD3kJGQB5CRkBfAkZDX4JGQ59ChkAewoZAX0KGQJ8ChkDfwoZDHoKGQ2AChkOfwsZAn0LGQN8CxkEfQsZC3kLGQx+CxkNeQwZBHwMGQWADBkLew0ZBX8NGQZ7DRkIeg0ZCX4NGQp+DhkFfw4ZBn0OGQd6DhkIew4ZCX4OGQqADxkHeQAaBnoAGgd+ABoIfAEaBX4BGgZ6ARoHfwEaCH4BGgl5AhoFfwIaBnkCGgh9AhoJeQIaCnsCGgt8AxoDeQMaBHkDGgV8AxoIfwMaCXwDGgp6AxoLfwMaDHkEGgJ8BBoDfwQaBHkEGgZ7BBoHegQaCHoEGgl5BBoKfAQaC3oEGgx6BRoCewUaA3wFGgR9BRoGeQUaB30FGgiABRoMewUaDYAGGgGABhoCeQYaA3oGGgR5BhoGegYaB4AGGgh6BhoJfgYaDH4GGg15BhoOfgcaAHwHGgF5BxoCewcaA3wHGgaABxoHgAcaCHwHGgl/BxoKfwcaC34HGgx6BxoNeggaAHwIGgF/CBoDfggaBH4IGgV9CBoGeggaB3oIGgh9CBoJfwgaCn4IGgt/CBoMgAgaDXoIGg56CRoAegkaAXwJGgR9CRoFfwkaBnoJGgd6CRoIfwkaCXwJGgp5CRoLegkaDHoJGg15CRoOegoaAX8KGgJ8ChoDfwoaBX4KGgZ5ChoHegoaCHwKGgt9ChoMeQsaA3oLGgR/CxoFfQsaBnoLGgd/CxoIeQsaCn8LGgt6CxoMgAwaBX0MGgZ6DBoHgAwaCHoMGgl5DBoKegwaC3oNGgaADRoHeg0aCHkNGgl6DRoKgA4aB3oOGgh9DhoJfgEbBnsBGwd6ARsIfAIbBoACGwd9AhsIegMbBX8DGwZ9AxsHegMbCIADGwl8AxsKeQQbBIAEGwV/BBsGeQQbB3kEGwh8BBsJfwQbCnsEGwt5BBsMfwUbBHwFGwV8BRsGfQUbB3oFGwh6BRsJegUbCn8FGwt8BRsMeQYbA3oGGwR7BhsFegYbBn4GGwiABhsJfAYbCnsGGwt6BhsMfwcbAX8HGwJ8BxsDgAcbBHwHGwV6BxsGgAcbCHoHGwl6BxsKfgcbC30HGwx6BxsNeggbAX4IGwJ9CBsDeggbBHoIGwh6CBsJegkbAX8JGwKACRsDfwkbBHkJGwWACRsHegkbCXwJGwp9CRsMegobAXoKGwN6ChsEfQobBX0KGwZ6ChsIfAobCXoKGwp9ChsLfgobDHkLGwN6CxsEfAsbBXoLGwZ+CxsHfAsbCH8LGwl/CxsKegsbC3kLGwx5DBsHfwwbCHoMGwl7DBsKfAwbC38="},
+  packedLiteTree:{name:"Tree",dims:[19,27,20],count:1677,sourceScale:0.4286,data:"BwAJJAcACiIHAAskCAAJIwgACiEIAAskCQAIIQkACSEJAAohCQALIgcBCSQHAQoiCAEJIwgBCiEIAQshCQEJIgkBCiEJAQsiBwIJJAcCCiIIAgkjCAIKIQgCCyEJAgkiCQIKIQkCCyIHAwkkBwMKIggDCSMIAwohCQMJIgkDCiEHBAkkBwQKIggECSYIBAohCQQJIgkECiEEBQl6BAULfgQFDH8FBQh8BQUJewUFC34FBQx+BgUHfAYFCHwGBQl6BgUKfwYFC3sGBQx9BwUHfQcFCIAHBQkmBwUKIgcFC38HBQx7CAUIfQgFCSEIBQohCAULeQgFDHwJBQh/CQUJIQkFCiEJBQuACgUJfQoFCn0EBgZ5BAYIfwQGCX0EBgp8BAYLewQGDHoFBgZ5BQYHeQUGCHsFBgl7BQYKegUGC3kFBgx8BQYNewYGBX8GBgZ9BgYHfwYGCH4GBgl/BgYKfwYGC3sGBgx/BgYNfwcGBYAHBgZ8BwYHfAcGCHkHBgl/BwYKfQcGC34HBgx8BwYNeggGBXkIBgZ5CAYHfQgGDH8IBg1+CAYOfgkGBnwJBgd6CQYIfAkGCX4JBgp/CQYLfgkGDHkJBg16CQYOgAoGB34KBgh8CgYJgAoGCn0KBgt+CgYMfgoGDX4KBg55CwYIeQsGCXwLBgp+CwYLeQsGDHwLBg17CwYOfgwGC3wMBgx+DAYNewMHBn4DBwd9AwcJeQMHCnwDBwt9BAcFeQQHBn8EBweABAcIfAQHCX4EBwt+BAcMfQUHBXwFBwZ+BQcHfgUHCIAFBwl7BQcLfgUHDHwFBw1+BgcFgAYHBnsGBw17BwcFfAcHDX4IBwV5CAcGgAgHDYAIBw5+CAcPfwkHBXwJBwZ/CQcOeQkHD30KBwV5CgcGeQoHB3kKBwl/CgcOgAsHBnoLBwd5CwcIfAsHCXkLBwp5CwcOfgwHBnkMBwd6DAcJgAwHCnsMBwt/DAcMfwwHDX8MBw5/DQcLeg0HDH8DCAZ+AwgHegMICHwDCAl/AwgKfAMIC3oECAV5BAgLfAQIDH0FCAV6BQgMfgUIDX0GCAV9BggNgAYIDnkHCAR8BwgFfQcIDX8HCA57CAgEfAgIBYAICA55CAgPfgkIBH0JCA98CggEfgoIBX8KCAZ/CggOfgsIBHwLCAV8CwgGfgsICH8LCAmACwgKfAsIDn4LCA99DAgGfwwIB34MCAh6DAgJeQwICnoMCAt9DAgNeQwIDnoNCAd9DQgJgA0ICnsNCAt7DQgMew0IDXsDCQV6AwkGfgMJB3kDCQiAAwkJewMJCn8DCQt9AwkMewQJBX8ECQZ7BAkMewUJBX0FCQx6BQkNewUJDnwGCQR5BgkFfQYJDHoGCQ17BgkOfwcJBHkHCQWABwkNfgcJDn8HCQ9+CAkEewgJBYAICQ+ACQkDeQkJBHwJCQ+ACgkDfgoJBH0KCQ98CwkEeQsJD3oMCQSADAkFfgwJBn8MCQh+DAkNfgwJDnkNCQZ7DQkHfA0JCH4NCQmADQkKfw0JC3sNCQx9DQkNfA4JCXkOCQp9AwoGgAMKB3wDCgh/AwoJfgMKCnsDCgt5AwoMfAMKDXkECgV5BAoGfwQKDX0ECg6ABQoFeQUKDH4FCg18BQoOfQUKD4AGCgR6BgoFfgYKDHwGCg6ABgoPewcKBH8HCg98BwoQeggKBH0ICg+ACAoQgAkKA4AJCgR7CQoPfgkKEHsKCgN/CgoEfgoKD4ALCgSACwoPfQwKBHkMCgV6DAoGgAwKDH0MCg16DAoOegwKD3oNCgZ8DQoHgA0KCH8NCgl+DQoKeg0KC3kNCgx9DQoNfA4KCH0OCgl8DgoKeQELC3kCCwmAAgsKfAILC3wCCwx7AwsEewMLBYADCwZ6AwsHfAMLCHwDCwl5AwsKfwMLC38DCwx+AwsNfAMLDnwECwR8BAsFfgQLBoAECw2ABAsOfgULBH4FCwV+BQsPegYLBIAGCw97BwsEeQcLEHoICwR6CAsQegkLA3kJCw9/CQsQfgoLA34KCwR+CgsPfgsLBH4LCwV9CwsPewwLBXwMCwZ5DAsNegwLDnkMCw96DQsGfA0LB34NCwh+DQsJfg0LC38NCwyADQsNeg4LCIAOCwl+DgsKfw4LC3wOCwx6AQwLfAIMBXoCDAaAAgwHegIMCH0CDAl7AgwKgAIMC3wCDAx6AgwNegMMA3kDDASAAwwFfwMMBn0DDAd7AwwIfgMMCXwDDAt7AwwMgAMMDX8DDA59BAwDfwQMBIAEDA59BAwPgAUMA4AFDASABQwFegUMD3sGDAN+BgwEfQYMBXoGDA9/BwwDgAcMBH4HDA96BwwQfggMA3sIDAR9CAwQfgkMA30JDA97CQwQfwoMA3wKDAR/CgwPgAsMA34LDAR+CwwFfAsMBnwLDA97DAwFfwwMBn8MDAd+DAwOegwMD3oNDAZ6DQwHfw0MCIANDAx7DQwNfw0MDnkODAZ5DgwHgA4MCH8ODAl+DgwKeQ4MC30ODAyADgwNfg8MCXoPDAuADwwMgA8MDXkBDQV+AQ0GfwENB34BDQiAAQ0JeQENCnwCDQOAAg0FegINBnkCDQh6Ag0JfgINCnwCDQx7Aw0DfQMNBIADDQt+Aw0MfAMNDX8DDQ56BA0DfgQNDYAEDQ58BA0PegUNA4AFDQR8BQ0PeQYNA3kGDQR7Bg0PegcNA30HDQR/Bw0PfwcNEH8IDQOACA0EfwgNEHwJDQN9CQ0PgAkNEHwKDQN8Cg0PfAsNA4ALDQR/Cw0FewsND3wMDQV+DA0GfAwNB38MDQ6ADA0PfQ0NBoANDQd8DQ0Nfg0NDoAODQZ6Dg0HfQ4NCHwODQp+Dg0Lfg4NDnwPDQd/Dw0Ifw8NCX4PDQp/Dw0LgA8NDHoPDQ1+AA4GeQEOA34BDgV5AQ4GfQEOB38BDgh6AQ4JfQEOCnwCDgJ+Ag4DegIOBIACDgV7Ag4KfgIOC38DDgJ7Aw4DgAMOC3kDDgyAAw4NfgMODn0EDgOABA4NewQODnsEDg96BQ4DewUOD3sGDgN9Bg4PfgYOEH0HDgN8Bw4QeggOA3kIDhB8CQ4DewkOBHwJDg+ACQ4QfQoOA34KDhB5Cw4CeQsOA34LDgSACw4FewsOD38LDhB5DA4CgAwOA3oMDgR6DA4FewwOBoAMDgd+DA4Pfg0OBX8NDgZ/DQ4HeQ0ODoAODgZ8Dg4HeQ4ODH0ODg16Dw4Hfw8OCHoPDgl/Dw4Kew8OC3sPDgx9Dw4NewAPBXkADwZ7AA8HfAAPCHsADwl9AQ8DegEPBIABDwV5AQ8HfAEPCH8BDwl/AQ8KeQEPC4ABDwx9Ag8CfAIPBIACDwt5Ag8MewIPDXoCDw5+Ag8PeQMPAnwDDwN9Aw8MfAMPDXoDDw6AAw8PgAMPEIAEDwJ+BA8DfQQPD38EDxB+BA8RfQUPAX8FDwJ5BQ8DfgUPD3wFDxB5BQ8RfgUPEnsGDwF7Bg8CfQYPA38GDxB9Bg8RegYPEn0HDwJ9Bw8DeQcPEHoHDxF/CA8CfQgPA38IDxF5CQ8CfgkPA3oJDwR+CQ8QegkPEX0KDwJ8Cg8DeQoPEHoLDwJ/Cw8QfQwPAn4MDwN9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ARcKfwEXC4ACFwZ7AhcHeQIXCHkCFwl8AhcKeQIXC3oCFwx7AhcNeQMXAnoDFwV7AxcGeQMXB3oDFwx+AxcNgAMXDnwEFwF+BBcCfwQXA38EFwV6BBcGfwQXB3oEFwx7BBcNgAQXDoAFFwB6BRcBeQUXAnoFFwOABRcEeQUXBX4FFwx5BRcNeQUXDnsFFw95BhcAeQYXAX4GFwJ9BhcDgAYXBHoGFwx5BhcNeQYXDn8GFw95BxcBfgcXAnkHFwN/BxcEfgcXDnkHFw98BxcQgAgXAn4IFwN9CBcEfwgXD30IFxB8CRcCfQkXA3oJFwR5CRcPeQkXEHsJFxF6ChcDfwoXEHsLFwN9CxcEfgsXD3sLFxCADBcDegwXBHkMFwV9DBcJewwXCoAMFwt/DBcMeQwXD38MFxB+DRcDfw0XBH0NFwV6DRcGew0XB4ANFwl6DRcKfA0XC3sNFwx6DRcNfA0XDnwNFw96DRcQfg4XBYAOFwZ9DhcHfw4XCH8OFwl/DhcKfA4XC38OFwx5DhcNfQ4XDnsPFwZ6DxcHfA8XCIAPFwl+DxcKfQ8XC38PFwx/DxcNfgIYCHoCGAl+AhgKeQIYC34DGAV9AxgGewMYB3oDGAh+AxgKfQMYC3kDGAx8AxgNegMYDn8EGAV/BBgGegQYB3oEGAt5BBgMfAUYBXkFGAZ7BRgKgAUYC4AFGAx8BhgCewYYA34GGAR/BhgFeQYYDHwGGA17BhgOewcYAn8HGAOABxgEfgcYBYAHGA55BxgPgAcYEHkIGAJ+CBgDewgYBHwIGAV6CBgKfQgYC3oIGA1+CBgOfggYD3oIGBB/CRgDewkYBIAJGAV/CRgIeQkYCXsJGAp/CRgLeQkYDHkJGA1/CRgOfAkYD38JGBB9ChgDfgoYB34KGAh6ChgJfgoYCn4KGAt6ChgMeQoYDX8KGA57ChgPeQsYA3oLGAd7CxgIegsYCXsLGAp7CxgLewsYDIALGA6ACxgPewwYA3sMGAR6DBgFewwYBnkMGAd6DBgIfwwYCX8MGAp8DBgLegwYDHsMGA2ADBgOfAwYD3wNGAR7DRgFfA0YBnkNGAeADRgIfA0YCX8NGAyADRgNfA0YDnkOGAZ8DhgIew4YCXoOGAx6AhkIfAIZCX0CGQp8AhkLfAMZCH4DGQl6AxkKfgMZC4AEGQd6BBkIegQZCnsEGQuABBkMfwUZBn4FGQd/BRkIewUZCX8FGQp+BRkLewYZBYAGGQaABhkHegYZCHwGGQl8BhkKfQYZC38GGQx+BhkNfAcZBX4HGQZ5BxkHgAcZCIAHGQl+BxkKewcZC4AHGQx7BxkNfAcZDnoIGQWACBkGeggZCH8IGQl9CBkKeggZC4AIGQx+CBkNeQgZDn8JGQR8CRkFgAkZBnoJGQd7CRkIewkZCX8JGQp/CRkOfQkZD4AKGQN5ChkEfQoZB3oKGQp+ChkLewoZDX0KGQ57ChkPewsZA34LGQSACxkHfAsZCH4LGQp5CxkLfAsZDH8LGQ2ACxkOewwZA3kMGQSADBkFeQwZBnwMGQd/DBkIfgwZC3sMGQx/DBkNeQwZDnsNGQiAAxoJfAQaCXsFGgh7BRoJgAYaBn0GGgd/BhoIewYaCX4HGgZ9BxoHewcaCHwHGgmACBoGfwgaB3sIGgh5CBoJfwkaBXsJGgZ+CRoHewoaA3wKGgR7ChoFfAoaBoALGgOACxoEegsaBXkLGgZ5CxoHewwaBXwMGgZ6"},
+  packedLiteSpruceTree:{name:"SpruceTree",dims:[17,28,17],count:898,sourceScale:0.4746,data:"BgAIJwYACSUHAAcnBwAIKAcACSYIAAcnCAAIJggACSYJAAclCQAIJQkACSgGAQgnBgEJJQcBBycHAQgoBwEJJwgBBycIAQkmCQEHJQkBCCUJAQkmBgIIJwYCCSUHAgcnBwIIKAcCCScIAgcnCAIJJgkCByUJAgglCQIJJgYDCCcGAwklBwMHJwcDCCgHAwknCAMHJwgDCSYJAwclCQMIJQkDCSYGBAgnBgQJJQcEBycHBAgoBwQJJwgEBycIBAkmCQQHJQkECCUJBAkmBgUIJwYFCSUHBQcnBwUIKAcFCScIBQcnCAUJJgkFByUJBQglCQUJJgYGCCcGBgklBwYHJwcGCCgHBgknCAYHJwgGCSYJBgclCQYIJQkGCSYABwdIAAcIRgAHCUMBBwZCAQcIQwEHCUEBBwpGAgcHSAIHCEgCBwlGBQcFQgUHBkQFBwdEBQcIQQUHCkUFBwtBBgcBQwYHBUIGBwZDBgcHRgYHCCcGBwklBgcKRwYHDkUHBwBFBwcCQwcHBUUHBwZBBwcHRgcHCCgHBwknBwcKRAcHC0IHBw1EBwcOSAcHD0MHBxBECAcARQgHAUQIBwJFCAcFQggHBkIIBwdDCAcJJggHCkgIBwtHCAcNQQgHDkUIBw9CCAcQRgkHAEQJBwFDCQcCRAkHBkUJBwdICQcIQQkHCUUJBwpICQcLRAkHDUgJBw5FCQcPRgkHEEEKBwFCCgcFQgoHBkEKBwdBCgcIRgoHCkYKBw5HCwcFQgsHC0gNBwdBDQcISA0HCUUOBwZFDgcHQQ4HCEgOBwlGDgcKQQ8HB0QPBwhDDwcJQRAHB0UQBwhIEAcJSAAIB0UACAhBAAgJRAEIB0cBCAhHAQgJRQIIBkQCCAdCAggIRAIICUICCApCAwgFRAMIBkEDCAdGAwgIRwMICUcDCApDAwgLQQQIBkMECAdIBAgIRwQICUMECApBBQgDSAUIBEEFCAVCBQgGQQUIB0EFCAhBBQgJQwUICkgFCAxCBggCRgYIA0IGCARCBggFRAYIBkIGCAdCBggISAYICUYGCApBBggLRwYIDEYGCA1CBggOQwcIAEMHCAFFBwgCQgcIA0gHCARHBwgFQgcIBkIHCAcnBwgIRwcICScHCAtHBwgMRwcIDUQHCA5EBwgPRwgIAEEICAFBCAgCSAgIA0QICARECAgFQwgIBkUICAdBCAgJJggICkIICAtHCAgMQggIDUMICA5CCAgPRwkIAEYJCAFCCQgCRgkIA0EJCARHCQgFRQkIBkUJCAdDCQgIQgkICUgJCApFCQgLRQkIDEMJCA1FCQgOSAkID0EKCAJICggDRwoIBEcKCAVDCggGRwoIB0IKCAhGCggJSAoICkgKCAtHCggMRAoIDUYLCANFCwgGQQsIB0ELCAhBCwgJQQsICkILCAxBDAgFRgwIBkcMCAdBDAgIRQwICUEMCApBDAgLRg0IBkYNCAdEDQgIRg0ICUUNCApBDggGQQ4IB0UOCAhHDggJRg8IB0UPCAhBDwgJQQAJB0cACQlIAQkHRwEJCEEBCQlEAgkGRwIJB0MCCQhEAgkJQgMJBUcDCQZHAwkHQgMJCEEDCQlFAwkKQwQJBUQECQZBBAkHQgQJCEQECQlCBAkKQwUJA0gFCQRIBQkFQQUJCUUFCQpHBQkLQQUJDEUGCQJHBgkDQwYJBEYGCQVHBgkGQQYJB0gGCQlHBgkKSAYJC0gGCQxHBgkNRwYJDkcHCQBCBwkBSAcJAkQHCQNHBwkERAcJBUUHCQZHBwkHQgcJC0IHCQxFBwkNRAcJDkgHCQ9BCAkBQggJAkMICQNBCAkEQQgJBUQICQtICAkMSAgJDUIICQ5ICQkAQwkJAUgJCQJCCQkDQwkJBEcJCQVFCQkLRQkJDEUJCQ1ECQkORgkJD0EKCQNDCgkERwoJBUMKCQZHCgkJRgoJCkgKCQtGCgkMQwoJDUcLCQVBCwkGRgsJB0ELCQhFCwkJQgsJCkgMCQVGDAkGSAwJB0EMCQhCDAkJQQwJCkUNCQZIDQkHSA0JCEcNCQlIDQkKQQ4JBkIOCQdIDgkIRg4JCUUPCQdIDwkJRAEKCEgCCgZGAgoHRAIKCEcCCglGAwoGRQMKB0gDCghIAwoJSAQKBEMECgVGBAoGQwQKB0UECghIBAoJQwQKCkcFCgRGBQoLRwYKAkIGCgNCBgoEQgYKCkgGCgtBBgoMRwYKDUEHCgJGBwoDQQcKBEYHCgpDBwoLQgcKDEYHCg1BCAoCSAgKA0MICgRCCAoLRwgKDEYICg1BCAoOQQkKAkEJCgNGCQoERgkKBUgJCgtECQoMRAkKDUUKCgVDCgoGRgoKCUMKCgpECgoLRAsKBUULCgZBCwoIQwsKCUcLCgpDDAoGRAwKB0EMCghBDAoJRg0KB0QNCghCDQoJRg4KB0UOCghDAgsGRgILB0UCCwhBAgsJQQMLBkcDCwdGAwsISAMLCUQECwRIBAsFRgQLBkYECwdDBAsIRQQLCUUECwpCBQsERQULBUYFCwtDBgsDQwYLBEUGCwpDBgsLRAYLDEYGCw1DBwsCQQcLA0cHCwRCBwsLRgcLDEgHCw1ECAsCRwgLA0MICwRBCAsLRwgLDEMICw1FCQsDRAkLBEEJCwtHCQsMQQkLDUEKCwRICgsFQgoLCUQKCwpHCgsLRAsLBUcLCwhHCwsJQQsLCkQMCwVHDAsGQwwLB0cMCwhCDAsJRwwLCkYNCwdBDQsIRg0LCUICDAdBAgwIRAIMCUEDDAZEAwwHQQMMCEIDDAlEBAwFRwQMBkUEDAdGBAwIQwQMCUEEDApGBQwERwUMBUQFDAlIBQwKRwUMC0IGDANGBgwEQwYMBUgGDAtHBgwMQQcMA0EHDARGBwwLRQcMDEIHDA1BCAwCQwgMA0gIDARHCAwLSAgMDEIIDA1ICQwCQwkMA0MJDARBCQwLRAkMDEgJDA1HCgwESAoMBUYKDApBCgwLQQsMBUYLDAlBCwwKSAwMBUMMDAZDDAwHQgwMCEEMDAlDDAwKRA0MB0MNDAhBDQwJRwMNBkcDDQdHAw0IRAMNCUYEDQVBBA0GQQQNB0IEDQhIBA0JRAUNBUQFDQlDBQ0KRwUNC0UGDQRCBg0FRwYNC0cGDQxIBw0DQwcNBEYHDQpHBw0LRwcNDEcIDQNGCA0ERggNCkYIDQtFCA0MQQkNA0MJDQRHCQ0LRAkNDEcKDQRBCg0FRAoNCkMKDQtICw0FRgsNBkELDQpFDA0GSAwNB0YMDQhCDA0JSAMOB0cDDghBAw4JRAQOBUEEDgZGBA4HRwQOCEEEDglGBQ4FRwUOB0UFDghDBQ4JQQUOCkUFDgtCBg4ERgYOCkIGDgtBBw4DQwcOBEIHDgpDBw4LRAcODEQIDgNFCA4ESAgOCkcIDgtDCA4MRAkOA0cJDgRDCQ4FQwkOC0QKDgVFCg4GRgoOCkUKDgtDCw4GQgsOB0ULDglFCw4KRQwOB0QMDghBDA4JRwQPBUYEDwZCBA8HRwQPCEgEDwlFBQ8EQgUPBUEFDwZDBQ8HRwUPCEQFDwlHBQ8KRAUPC0EGDwRIBg8KRwYPC0cHDwREBw8KRAcPC0IHDwxDCA8ESAgPCkIIDwtICQ8EQgkPBUgJDwpHCQ8LRwkPDEMKDwVGCg8GRgoPCUYKDwpBCw8GRwsPB0QLDwhICw8JQgwPCUcEEAZEBBAHRwQQCEMEEAlBBRAFQwUQBkMFEAdEBRAIQwUQCUUFEApIBRALRAYQBEEGEAVCBhAKRAcQBEcHEApHBxALQggQBEQIEAVBCBAKQggQC0YJEARICRAFQwkQCkQJEAtHChAFQgoQBkQKEAdEChAJRgoQCkQLEAdDCxAIQgsQCUcEEQdCBBEIQwURBUcFEQZCBREHRAURCEQFEQlGBREKRQYRBEcGEQVFBhEKRgcRBUUHEQpEBxELSAgRBEMIEQVECBEKSAgRC0YJEQRHCREFRQkRBkMJEQpDChEGRwoRB0MKEQlBChEKSAsRB0YLEQhBCxEJRQQSCEQFEgVCBRIGQwUSB0UFEghBBRIJRwUSCkYGEgVDBhIJRAYSCkIHEgVHBxIKRQgSBUQIEgpICBILRwkSBUUJEgZBCRIJSAkSCkQKEgZDChIHQwoSCEIKEglDCxIHSAsSCEQLEglIBRMGRwUTB0QFEwhFBhMFRgYTBkYGEwhEBhMJRgYTCkEHEwVGBxMGQwcTCUEHEwpFCBMFSAgTBkYIEwlECBMKQgkTBkUJEwdGCRMJQgkTCkcKEwdHChMIRwoTCUcFFAZIBRQHRAUUCEQGFAVBBhQGQQYUB0YGFAhDBhQJQwcUBUQHFAZHBxQJRAcUCkMIFAVGCBQGRggUCUcIFApECRQFRAkUBkgJFAdBCRQJQQoUB0gKFAhCChQJQgUVBkgFFQdBBhUFRwYVBkMGFQdFBhUIQwYVCUIHFQVCBxUGQwcVCUgIFQZHCBUJRQkVBkIJFQdFCRUJRgoVB0EKFQhGBhYGRQYWB0YGFghEBxYFRwcWBkMHFghBBxYJQggWBkYIFglFCRYGRAkWB0cJFghDCRYJQgoWB0cKFghFBhcGQwYXB0MGFwhEBxcGRQcXCEQHFwlHCBcGQQgXCUgJFwZFCRcHQwkXCEQJFwlGBhgGQQYYB0MHGAZIBxgHRwcYCEEHGAlGCBgGRAgYCUMJGAdCCRgIRQcZBkQHGQdIBxkIRQgZBkEIGQdDCBkIQgkZB0cJGQhIBxoGSAcaB0cHGghGCBoGRggaB0gIGghDCRoHRwcbB0gIGwdECBsIRw=="}
+};
+let packedLitePalette=null;
+function getPackedLitePalette(){
+  if(packedLitePalette) return packedLitePalette;
+  const raw=atob(PACKED_LITE_PALETTE_B64);
+  packedLitePalette=[];
+  for(let i=0;i<256;i++){
+    const o=i*4;
+    packedLitePalette.push([raw.charCodeAt(o),raw.charCodeAt(o+1),raw.charCodeAt(o+2),raw.charCodeAt(o+3)]);
+  }
+  return packedLitePalette;
+}
+function buildPackedLite(key){
+  const model=PACKED_LITE_MODELS[key];
+  if(!model) return false;
+  const pal=getPackedLitePalette();
+  const rawString=atob(model.data);
+  const raw=new Uint8Array(rawString.length);
+  for(let i=0;i<raw.length;i++) raw[i]=rawString.charCodeAt(i);
+  const [width,height,depth]=model.dims;
+  const xOffset=-Math.floor(width/2);
+  const zOffset=-Math.floor(depth/2);
+  const byColor=new Map();
+
+  for(let i=0;i<raw.length;i+=4){
+    const gx=raw[i]+xOffset;
+    const gy=raw[i+1];
+    const gz=raw[i+2]+zOffset;
+    const paletteIndex=raw[i+3];
+    const rgba=pal[Math.max(0,paletteIndex-1)] || [200,200,200,255];
+    const color=((rgba[0]<<16)|(rgba[1]<<8)|rgba[2])>>>0;
+    if(!byColor.has(color)) byColor.set(color,[]);
+    byColor.get(color).push([gx,gy,gz]);
+    occupied.add(cellKey(gx,gy,gz));
+    placed.push({center:[gx+0.5,gy+0.5,gz+0.5],gx,gy,gz,tier:1,color,kind:'packedLite'});
+  }
+
+  const renderSide=Math.max(0.001,GRID_UNIT-GAP_WORLD);
+  const scale=new THREE.Vector3(renderSide,renderSide,renderSide);
+  const quat=new THREE.Quaternion();
+  const matrix=new THREE.Matrix4();
+  for(const [color,cells] of byColor){
+    const mesh=new THREE.InstancedMesh(cubeGeometry,material(color),cells.length);
+    mesh.name=`packed_lite_${key}_${color.toString(16).padStart(6,'0')}`;
+    for(let i=0;i<cells.length;i++){
+      const [gx,gy,gz]=cells[i];
+      matrix.compose(new THREE.Vector3((gx+0.5)*GRID_UNIT,(gy+0.5)*GRID_UNIT,(gz+0.5)*GRID_UNIT),quat,scale);
+      mesh.setMatrixAt(i,matrix);
+    }
+    mesh.instanceMatrix.needsUpdate=true;
+    mesh.castShadow=mesh.receiveShadow=true;
+    mesh.userData={kind:'packedLite',source:'Voxel Nature Pack Lite',preset:key,instances:cells.length};
+    treeGroup.add(mesh);
+  }
+  treeGroup.userData.packedLiteSource={name:model.name,sourceVoxelCount:model.count,sourceScale:model.sourceScale,dims:model.dims};
+  return true;
+}
+
+function build(){
+  if(!cubeGeometry) return;
+  // The first combobox owns the standalone static-asset preview. Building or
+  // regenerating an asset switches back from the animated bird preview.
+  window.dispatchEvent(new CustomEvent('cube-nature-view-mode',{detail:{mode:'asset'}}));
+  treeGroup.visible=true;
+  floor.position.y=-0.02;
+  grid.position.y=0;
+  clearTree();
+  seed=(seed+1)>>>0; rnd=mulberry32(seed);
+  const p=document.getElementById('preset').value;
+  const portalMixSelect=document.getElementById('portalMix');
+  if(portalMixSelect) portalMixSelect.hidden=!['dynamicPortalStanding','dynamicPortalCircle'].includes(p);
+  const builders={pine,broad,orchard,tall,stonePile,ironPile,copperPile,goldPile,roundBush,berryBush,grassTuft,wildBush,compactBush,lowMoundBush,forkedBush,smallBerryBush,travelerChest,gemChest,ironboundChest,royalChest,pickaxe,hatchet,hammer,spade,hoe,rake,sickle,wateringCan,chilliPepper,banana,carrot,eggplant,cornCob,pumpkin,radish,cucumber,dynamicPortalStanding,dynamicPortalCircle,skyPortal,undergroundPortal,blackHolePortal,whiteHolePortal,islandPortal,cityPortal,voidPortal,leavePortal};
+  if(PACKED_LITE_MODELS[p]) buildPackedLite(p); else builders[p]();
+  const family=PACKED_LITE_MODELS[p] ? 'packed_lite'
+    : ['pine','broad','orchard','tall'].includes(p) ? 'tree'
+    : ['stonePile','ironPile','copperPile','goldPile'].includes(p) ? 'rock'
+    : ['travelerChest','gemChest','ironboundChest','royalChest'].includes(p) ? 'chest'
+    : TOOL_PRESETS.includes(p) ? 'tool'
+    : ['chilliPepper','banana','carrot','eggplant','cornCob','pumpkin','radish','cucumber'].includes(p) ? 'vegetable'
+    : ['dynamicPortalStanding','dynamicPortalCircle','skyPortal','undergroundPortal','blackHolePortal','whiteHolePortal','islandPortal','cityPortal','voidPortal','leavePortal'].includes(p) ? 'portal' : 'bush';
+  treeGroup.name=`CubeNature_${p}`;
+  treeGroup.userData={
+    assetType:family,
+    preset:p,
+    gridUnit:GRID_UNIT,
+    cubeSizes:[1,2,3,4],
+    placement:'strict-grid',
+    overlap:false,
+    gapRatioOfGridUnit:GAP,
+    ...(PACKED_LITE_MODELS[p]?{sourcePack:'Voxel Nature Pack Lite',sourceModel:PACKED_LITE_MODELS[p].name,sourceScale:PACKED_LITE_MODELS[p].sourceScale}: {})
+  };
+  const counts=[1,2,3,4].map(t=>placed.filter(q=>q.tier===t).length);
+  const label=PACKED_LITE_MODELS[p]?`packed_lite · ${PACKED_LITE_MODELS[p].name}`:family;
+  status.textContent=`${label} · ${placed.length} cubes · 1x:${counts[0]} 2x:${counts[1]} 3x:${counts[2]} 4x:${counts[3]} · strict grid · no overlap · ${Math.round(GAP*100)}% gap`;
+  frameTree();
+}
+
+function frameTree(){
+  const box=new THREE.Box3().setFromObject(treeGroup);
+  if(box.isEmpty()) return;
+  const size=new THREE.Vector3(); const center=new THREE.Vector3();
+  box.getSize(size); box.getCenter(center);
+  const radius=Math.max(size.x,size.y,size.z)*0.7;
+  controls.target.copy(center);
+  camera.position.copy(center).add(new THREE.Vector3(radius*1.8,radius*0.9,radius*2.2));
+  camera.near=Math.max(0.01,radius/100); camera.far=radius*50; camera.updateProjectionMatrix();
+  controls.update();
+}
+
+async function loadEmbeddedCube(){
+  const raw=atob(EMBEDDED_CUBE_GLB);
+  const bytes=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++) bytes[i]=raw.charCodeAt(i);
+  new GLTFLoader().parse(bytes.buffer,'',(gltf)=>{
+    let sourceMesh=null;
+    gltf.scene.traverse(o=>{if(!sourceMesh && o.isMesh) sourceMesh=o;});
+    if(!sourceMesh) throw new Error('No mesh found in embedded GLB');
+    cubeGeometry=sourceMesh.geometry.clone();
+    cubeGeometry.computeBoundingBox();
+    const box=cubeGeometry.boundingBox;
+    const c=new THREE.Vector3(); const s=new THREE.Vector3();
+    box.getCenter(c); box.getSize(s);
+    cubeGeometry.translate(-c.x,-c.y,-c.z);
+    const maxSide=Math.max(s.x,s.y,s.z);
+    cubeGeometry.scale(1/maxSide,1/maxSide,1/maxSide);
+    cubeGeometry.computeVertexNormals();
+    status.textContent='cube loaded';
+    build();
+    window.dispatchEvent(new Event('cube-nature-geometry-ready'));
+  },err=>{console.error(err);status.textContent='failed to load cube';});
+}
+
+function downloadBlob(blob,name){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+
+// CUBES grid asset format v1, little-endian.
+// Geometry is never duplicated: one 8-byte record describes each cube.
+//
+// 16-byte header:
+//   magic[4]="CUBE", version:u8=1, flags:u8=0, gapPercent:u8=1,
+//   recordSize:u8=8, cubeCount:u16, paletteCount:u8, maxTier:u8=4,
+//   gridUnit:f32
+// palette: RGBA8 x paletteCount
+// cube record (8 bytes): gx:i8, gy:i8, gz:i8, size:u8,
+//                        palette:u8, part:u8, flags:u8, reserved:u8
+function makeCubesBinary(records=placed){
+  if(!records.length) return null;
+  const colors=[]; const colorIndex=new Map();
+  for(const q of records){
+    const k=q.color>>>0;
+    if(!colorIndex.has(k)){ colorIndex.set(k,colors.length); colors.push(k); }
+    if(q.gx < -128 || q.gx > 127 || q.gy < -128 || q.gy > 127 || q.gz < -128 || q.gz > 127){
+      alert('Grid coordinate exceeds compact CUBES v1 i8 range.');
+      return null;
+    }
+  }
+  if(colors.length>255){ alert('Too many colors for compact palette.'); return null; }
+  if(records.length>65535){ alert('Too many cubes for compact CUBES v1.'); return null; }
+
+  const headerBytes=16, paletteBytes=colors.length*4, cubeBytes=records.length*8;
+  const out=new ArrayBuffer(headerBytes+paletteBytes+cubeBytes);
+  const dv=new DataView(out); let o=0;
+  for(const c of [67,85,66,69]) dv.setUint8(o++,c); // CUBE
+  dv.setUint8(o++,1); // version
+  dv.setUint8(o++,0); // flags: strict grid/static
+  dv.setUint8(o++,Math.round(GAP*100));
+  dv.setUint8(o++,8); // cube record size
+  dv.setUint16(o,records.length,true); o+=2;
+  dv.setUint8(o++,colors.length);
+  dv.setUint8(o++,MAX_CUBE_STEP);
+  dv.setFloat32(o,GRID_UNIT,true); o+=4;
+
+  for(const c of colors){
+    dv.setUint8(o++,(c>>16)&255); dv.setUint8(o++,(c>>8)&255); dv.setUint8(o++,c&255); dv.setUint8(o++,255);
+  }
+  for(const q of records){
+    dv.setInt8(o++,q.gx); dv.setInt8(o++,q.gy); dv.setInt8(o++,q.gz);
+    dv.setUint8(o++,q.tier);
+    dv.setUint8(o++,colorIndex.get(q.color>>>0));
+    dv.setUint8(o++,PART_IDS.get(q.kind) ?? 0);
+    dv.setUint8(o++,0); // flags reserved
+    dv.setUint8(o++,0); // reserved
+  }
+  return out;
+}
+
+function downloadCubes(){
+  const mode=window.CUBE_NATURE_THEME_HOST.viewMode;
+  if(mode==='animal'){window.CUBE_NATURE_THEME_HOST.exportAnimalCubes?.();return;}
+  const data=makeCubesBinary(); if(!data) return;
+  downloadBlob(new Blob([data],{type:'application/octet-stream'}),`cube_nature_${document.getElementById('preset').value}.cubes`);
+}
+
+document.getElementById('regen').addEventListener('click',()=>{
+  const host=window.CUBE_NATURE_THEME_HOST;
+  if(host.viewMode==='animal') host.regenerateAnimal?.();
+  else if(host.viewMode==='asset') build();
+});
+const presetSelect=document.getElementById('preset');
+presetSelect.addEventListener('pointerdown',()=>{
+  treeGroup.visible=true;
+  floor.position.y=-0.02;
+  grid.position.y=0;
+  window.dispatchEvent(new CustomEvent('cube-nature-view-mode',{detail:{mode:'asset'}}));
+  if(placed.length){
+    frameTree();
+    const family=treeGroup.userData.assetType || 'asset';
+    const counts=[1,2,3,4].map(t=>placed.filter(q=>q.tier===t).length);
+    status.textContent=`${family} · ${placed.length} cubes · 1x:${counts[0]} 2x:${counts[1]} 3x:${counts[2]} 4x:${counts[3]} · strict grid · no overlap · ${Math.round(GAP*100)}% gap`;
+  }
+});
+presetSelect.addEventListener('focus',()=>{
+  treeGroup.visible=true;
+  floor.position.y=-0.02;
+  grid.position.y=0;
+  window.dispatchEvent(new CustomEvent('cube-nature-view-mode',{detail:{mode:'asset'}}));
+  if(placed.length){
+    frameTree();
+    const family=treeGroup.userData.assetType || 'asset';
+    const counts=[1,2,3,4].map(t=>placed.filter(q=>q.tier===t).length);
+    status.textContent=`${family} · ${placed.length} cubes · 1x:${counts[0]} 2x:${counts[1]} 3x:${counts[2]} 4x:${counts[3]} · strict grid · no overlap · ${Math.round(GAP*100)}% gap`;
+  }
+});
+presetSelect.addEventListener('change',build);
+initDynamicPortalMixUi();
+document.getElementById('portalMix')?.addEventListener('change',()=>{
+  if(['dynamicPortalStanding','dynamicPortalCircle'].includes(presetSelect.value)) build();
+});
+document.getElementById('exportCubes').addEventListener('click',downloadCubes);
+
+function resize(){
+  const w=view.clientWidth,h=view.clientHeight;
+  renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
+}
+addEventListener('resize',resize); resize();
+let lastFrameTime=null;
+document.addEventListener('visibilitychange',()=>{lastFrameTime=null;});
+renderer.setAnimationLoop(time=>{
+  const dt=lastFrameTime===null?0:Math.min(.25,Math.max(0,(time-lastFrameTime)/1000));
+  lastFrameTime=time;
+  if(!document.hidden) for(const tick of window.CUBE_NATURE_THEME_HOST.onFrame) tick(dt);
+  controls.update();renderer.render(scene,camera);
+});
+loadEmbeddedCube();
+</script>
+
+
+<!-- ================================================================
+     ANIMALS / SHARED VOXEL BIRD RIG + FLIGHT STATE MACHINE
+     All three species use the same two-joint wings and flight controller.
+     CUBES v1 exports the static, grid-aligned bind pose; preview motion is not exported.
+     ================================================================ -->
+<script type="module">
+import * as THREE from 'three';
+
+const BIRD_TIMING=Object.freeze({fly:10,landing:1.6,sit:5,takeoff:1.6});
+const BIRD_SPECIES=Object.freeze({
+  robin:{name:'Robin',body:[1.95,1.8,2.6],head:[2.05,1.5,1.75],span:6,tail:3,bill:1,
+    main:[0x795342,0x926954,0xa98062],breast:[0xd76838,0xe87c44,0xf09758],
+    wing:[0x59463a,0x715648,0x977359],tip:[0x483c34,0x625041],headColor:[0x825842,0x9a7052],
+    beak:0x42382e,feet:0x89522f,flapHz:1.8,phase:0},
+  bluebird:{name:'Bluebird',body:[1.95,1.8,2.7],head:[2.05,1.5,1.75],span:7,tail:4,bill:1,
+    main:[0x407eaf,0x5595c3,0x77aed1],breast:[0xcad9df,0xe2e7df,0xf2eee0],
+    wing:[0x376a9e,0x4387bd,0x64a4cf],tip:[0x244d7d,0x315f91],headColor:[0x397eaf,0x5195c0],
+    beak:0x414850,feet:0x675848,flapHz:1.55,phase:1.1},
+  crow:{name:'Crow',body:[2.05,1.95,2.85],head:[2.1,1.6,1.85],span:7,tail:4,bill:2,
+    main:[0x343943,0x424855,0x505667],breast:[0x343a44,0x444953,0x515864],
+    wing:[0x292f3a,0x363d4b,0x485060],tip:[0x202632,0x2c3441],headColor:[0x252c36,0x353d4a],
+    beak:0x646b72,feet:0x58504b,flapHz:1.3,phase:2.2}
+});
+
+// Shared integer-cell authoring. This is the *bind pose*: wings extended,
+// feet at y=0. Motion is applied only to rigid part groups, not cube scale.
+function makeBirdCells(spec,seed=1){
+  const rng=birdRandom(seed),cells=new Map();
+  const pick=palette=>Array.isArray(palette)?palette[Math.floor(rng()*palette.length)]:palette;
+  const put=(x,y,z,part,palette,kind='birdBody')=>{
+    const key=`${x},${y},${z}`;
+    if(!cells.has(key)) cells.set(key,{gx:x,gy:y,gz:z,tier:1,color:pick(palette)>>>0,part,kind});
+  };
+  const [rx,ry,rz]=spec.body;
+  for(let y=2;y<=7;y++) for(let x=-3;x<=2;x++) for(let z=-4;z<=3;z++){
+    if(((x+.5)/rx)**2+((y+.5-4.8)/ry)**2+((z+.5)/rz)**2<=1){
+      put(x,y,z,'body',z>=0&&y<=5?spec.breast:spec.main);
+    }
+  }
+  const [hx,hy,hz]=spec.head;
+  for(let y=5;y<=8;y++) for(let x=-2;x<=1;x++) for(let z=0;z<=3;z++){
+    if(((x+.5)/hx)**2+((y+.5-6.9)/hy)**2+((z+.5-1.65)/hz)**2<=1){
+      put(x,y,z,'head',spec.headColor,'birdHead');
+    }
+  }
+  // Eyes replace their head cells instead of adding protruding overlapping cubes.
+  for(const x of [-2,1]){
+    const c=cells.get(`${x},7,2`);
+    if(c){c.color=0x17212b;c.kind='birdEye';}
+  }
+  for(let z=3;z<=3+spec.bill;z++) for(const x of [-1,0]) put(x,6,z,'head',spec.beak,'birdBeak');
+  for(const side of [-1,1]){
+    for(let i=0;i<spec.span;i++){
+      const rightX=2+i, x=side>0?rightX:-rightX-1;
+      const z0=i>=4?-3:i>=2?-2:-1;
+      const z1=i>=5?-1:i>=4?0:i>=3?1:2;
+      const part=side>0?(i>=3?'wingTipR':'wingR'):(i>=3?'wingTipL':'wingL');
+      for(let z=z0;z<=z1;z++) put(x,5,z,part,i>=3?spec.tip:spec.wing,i>=3?'birdWingTip':'birdWing');
+      if(i<3) for(let z=0;z<=1;z++) put(x,6,z,part,spec.wing,'birdWing');
+    }
+  }
+  for(let i=0;i<spec.tail;i++) for(const x of [-1,0]){
+    put(x,4,-3-i,'tail',i>0?spec.tip:spec.main,'birdTail');
+    if(spec.name==='Crow' && i<2) for(const sx of [-2,1]) put(sx,4,-3-i,'tail',spec.tip,'birdTail');
+  }
+  for(const x of [-2,1]){
+    for(let y=1;y<=2;y++) put(x,y,0,'feet',spec.feet,'birdFeet');
+    for(let z=0;z<=2;z++) put(x,0,z,'feet',spec.feet,'birdFeet');
+  }
+  return [...cells.values()].map(c=>c.part==='feet'?c:{...c,gy:c.gy-1});
+}
+function birdRandom(seed){
+  return ()=>{let t=seed+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return ((t^t>>>14)>>>0)/4294967296;};
+}
+function smooth5(t){t=THREE.MathUtils.clamp(t,0,1);return t*t*t*(t*(t*6-15)+10);}
+
+function makeBirdRig(host,species,seed){
+  const spec=BIRD_SPECIES[species], unit=host.gridUnit;
+  const records=makeBirdCells(spec,seed),root=new THREE.Group(),parts={};
+  root.name=`Bird_${species}`;
+  root.userData={assetType:'animal',species,cubeCount:records.length};
+  const origins={body:[0,0,0],head:[0,5.2,1],tail:[0,3,-2],feet:[0,2,0],
+    wingL:[-1.7,4.5,-.5],wingR:[1.7,4.5,-.5],wingTipL:[-4.8,4.5,-1],wingTipR:[4.8,4.5,-1]};
+  for(const [name,pivot] of Object.entries(origins)){
+    const group=new THREE.Group();group.name=name;parts[name]=group;
+    const parentName=name==='wingTipL'?'wingL':name==='wingTipR'?'wingR':null;
+    const parentOrigin=parentName?origins[parentName]:[0,0,0];
+    group.position.set(...pivot.map((v,i)=>(v-parentOrigin[i])*unit));
+    (parentName?parts[parentName]:root).add(group);
+  }
+  const mat=new THREE.MeshStandardMaterial({roughness:.82,metalness:.02,flatShading:true});
+  const matrix=new THREE.Matrix4(),scale=new THREE.Vector3().setScalar(unit-host.gapWorld),q=new THREE.Quaternion();
+  for(const [part,group] of Object.entries(parts)){
+    const groupCells=records.filter(c=>c.part===part),origin=origins[part];
+    const mesh=new THREE.InstancedMesh(host.getCubeGeometry(),mat,groupCells.length);
+    for(let i=0;i<groupCells.length;i++){
+      const c=groupCells[i];
+      matrix.compose(new THREE.Vector3((c.gx+.5-origin[0])*unit,(c.gy+.5-origin[1])*unit,(c.gz+.5-origin[2])*unit),q,scale);
+      mesh.setMatrixAt(i,matrix);mesh.setColorAt(i,new THREE.Color(c.color));
+    }
+    mesh.instanceMatrix.needsUpdate=true;
+    if(mesh.instanceColor) mesh.instanceColor.needsUpdate=true;
+    mesh.castShadow=mesh.receiveShadow=true;
+    // Bounds are computed once in local space; rigid parent poses preserve them.
+    mesh.computeBoundingSphere();group.add(mesh);
+  }
+  const rig={root,parts,records,spec,unit,
+    pose(air,time){
+      // A small shoulder flap with a delayed wrist; sit folds both joints.
+      // Every cube retains the original shared geometry and uniform 1x size.
+      const wave=time*Math.PI*2*spec.flapHz+spec.phase;
+      const flap=Math.sin(wave)*.085*air;
+      for(const side of [-1,1]){
+        const shoulder=parts[side>0?'wingR':'wingL'],wrist=parts[side>0?'wingTipR':'wingTipL'];
+        shoulder.rotation.set(0,side*1.02*(1-air),side*(-.35*(1-air)+flap),'YXZ');
+        wrist.rotation.set(0,side*.78*(1-air),side*(.12*(1-air)+Math.sin(wave-.65)*.045*air),'YXZ');
+      }
+      parts.feet.rotation.x=.92*air;
+      parts.tail.rotation.x=-.08*air+Math.sin(time*1.9)*.025*air;
+      parts.head.rotation.y=Math.sin(time*.9+spec.phase)*.09*(1-air);
+      parts.head.rotation.x=-.045*air;
+    },
+    dispose(){root.removeFromParent();root.traverse(o=>{if(o.isInstancedMesh)o.dispose();});mat.dispose();}
+  };
+  rig.pose(1,0);return rig;
+}
+
+// One controller for every bird. Cruise uses a centripetal spline, transitions
+// use endpoint-matched cubic Béziers. There are no teleports at cycle boundaries.
+// https://threejs.org/docs/pages/CatmullRomCurve3.html
+class BirdFlightController{
+  constructor(rig,ground,seed){
+    this.rig=rig;this.ground=ground;this.random=birdRandom(seed);this.state='fly';
+    this.elapsed=0;this.totalElapsed=0;this.cycles=0;this.yaw=0;this.bank=0;this.air=1;
+    this.position=new THREE.Vector3(-3,ground.top+4.3,0);
+    this.direction=new THREE.Vector3(1,0,0);
+    this.sample=new THREE.Vector3();this.tangent=new THREE.Vector3();
+    this.planCruise(this.position,this.direction);this.evaluate(0,true);
+  }
+  landPoint(){
+    const {halfExtent,tileSize,top}=this.ground;
+    const tiles=Math.round(2*halfExtent/tileSize),margin=Math.ceil(3.6/tileSize);
+    let p=new THREE.Vector3();
+    for(let attempt=0;attempt<12;attempt++){
+      const ix=margin+Math.floor(this.random()*(tiles-2*margin));
+      const iz=margin+Math.floor(this.random()*(tiles-2*margin));
+      p.set(-halfExtent+(ix+.5)*tileSize,top,-halfExtent+(iz+.5)*tileSize);
+      if(Math.hypot(p.x-this.position.x,p.z-this.position.z)>6) break;
+    }
+    return p;
+  }
+  planCruise(start,heading){
+    const half=this.ground.halfExtent,clamp=v=>THREE.MathUtils.clamp(v,-half+1.5,half-1.5);
+    this.landingTarget=this.landPoint();
+    const approach=new THREE.Vector3().subVectors(this.landingTarget,start);approach.y=0;
+    if(approach.lengthSq()<.01) approach.set(0,0,1);approach.normalize();
+    const end=this.landingTarget.clone().addScaledVector(approach,-3.6);end.y=this.ground.top+3.9;
+    const altitude=this.ground.top+4.3+this.random()*1.4;
+    const mid1=new THREE.Vector3((this.random()-.5)*half*1.35,altitude,(this.random()-.5)*half*1.35);
+    const mid2=start.clone().lerp(end,.62);
+    mid2.x=clamp(mid2.x+(this.random()-.5)*7);mid2.z=clamp(mid2.z+(this.random()-.5)*7);mid2.y=altitude+.3;
+    const lead=start.clone().addScaledVector(heading,2.8);lead.x=clamp(lead.x);lead.z=clamp(lead.z);
+    const beforeEnd=end.clone().addScaledVector(approach,-2.8);
+    this.cruise=new THREE.CatmullRomCurve3([start.clone(),lead,mid1,mid2,beforeEnd,end],false,'centripetal');
+    this.cruise.arcLengthDivisions=240;this.cruise.updateArcLengths();
+    this.cruiseSpeed=this.cruise.getLength()/BIRD_TIMING.fly;
+    const tangent=this.cruise.getTangentAt(1);
+    this.landingCurve=new THREE.CubicBezierCurve3(end.clone(),end.clone().addScaledVector(tangent,this.cruiseSpeed*BIRD_TIMING.landing/3),this.landingTarget.clone(),this.landingTarget.clone());
+  }
+  nextState(){
+    if(this.state==='fly') this.state='landing';
+    else if(this.state==='landing'){
+      this.state='sit';this.position.copy(this.landingTarget);this.bank=0;
+    }else if(this.state==='sit'){
+      const start=this.position.clone();
+      // Take off toward the interior, with variation, never toward a nearby edge.
+      const direction=new THREE.Vector3(-start.x+(this.random()-.5)*8,0,-start.z+(this.random()-.5)*8);
+      if(direction.lengthSq()<.01) direction.set(1,0,0);direction.normalize();
+      const end=start.clone().addScaledVector(direction,3);end.y=this.ground.top+4.3;
+      this.planCruise(end,direction);
+      const tangent=this.cruise.getTangentAt(0);
+      this.takeoffCurve=new THREE.CubicBezierCurve3(start,start.clone(),end.clone().addScaledVector(tangent,-this.cruiseSpeed*BIRD_TIMING.takeoff/3),end);
+      this.state='takeoff';
+    }else{this.state='fly';this.cycles++;}
+    this.elapsed=0;
+  }
+  update(dt){
+    // Substeps keep turns stable for low FPS and for integrations using a larger
+    // delta. State boundaries preserve excess time rather than losing it.
+    let remaining=Math.max(0,dt);
+    while(remaining>1e-8){
+      const step=Math.min(remaining,1/30,BIRD_TIMING[this.state]-this.elapsed);
+      this.elapsed+=step;this.totalElapsed+=step;remaining-=step;
+      this.evaluate(step);
+      if(this.elapsed>=BIRD_TIMING[this.state]-1e-7) this.nextState();
+    }
+  }
+  evaluate(dt,initial=false){
+    const t=THREE.MathUtils.clamp(this.elapsed/BIRD_TIMING[this.state],0,1);
+    let moving=true;
+    if(this.state==='fly'){
+      this.cruise.getPointAt(t,this.position);this.cruise.getTangentAt(t,this.tangent);this.air=1;
+    }else if(this.state==='landing'){
+      this.landingCurve.getPoint(t,this.position);this.landingCurve.getTangent(Math.min(t,.9999),this.tangent);this.air=1-smooth5(t);
+    }else if(this.state==='takeoff'){
+      this.takeoffCurve.getPoint(t,this.position);this.takeoffCurve.getTangent(Math.max(t,.0001),this.tangent);this.air=smooth5(t);
+    }else{this.air=0;moving=false;}
+    if(moving && Math.hypot(this.tangent.x,this.tangent.z)>1e-7){
+      const targetYaw=Math.atan2(this.tangent.x,this.tangent.z);
+      const difference=Math.atan2(Math.sin(targetYaw-this.yaw),Math.cos(targetYaw-this.yaw));
+      this.yaw+=difference*(initial?1:1-Math.exp(-8*dt));
+      const turnBank=THREE.MathUtils.clamp(-difference*.65,-.18,.18)*this.air;
+      this.bank=THREE.MathUtils.lerp(this.bank,turnBank,initial?1:1-Math.exp(-5*dt));
+      this.direction.set(Math.sin(this.yaw),0,Math.cos(this.yaw));
+    }
+    const root=this.rig.root;
+    root.position.copy(this.position);
+    root.position.y+=.045*Math.sin(this.totalElapsed*3.2)*this.air;
+    // Body banking/pitch relax completely before feet touch the surface.
+    root.rotation.set(.035*this.air,this.yaw,this.bank*this.air,'YXZ');
+    this.rig.pose(this.air,this.totalElapsed);
+  }
+  snapshot(){return {species:this.rig.spec.name,cubes:this.rig.records.length,state:this.state,
+    elapsed:this.elapsed,remaining:Math.max(0,BIRD_TIMING[this.state]-this.elapsed),air:this.air,cycles:this.cycles,
+    position:this.position.toArray(),landingTarget:this.landingTarget.toArray(),groundTop:this.ground.top};}
+}
+
+const host=window.CUBE_NATURE_THEME_HOST;
+const animalSelect=document.getElementById('animalPreset');
+const followInput=document.getElementById('followBird');
+const pauseButton=document.getElementById('pauseBird');
+let rig=null,controller=null,seed=301,paused=false,active=false,statusClock=0;
+let shadow=null,shadowTexture=null,shadowMaterial=null;
+const target=new THREE.Vector3(),cameraShift=new THREE.Vector3();
+
+function makeShadow(){
+  if(shadow) return;
+  const canvas=document.createElement('canvas');canvas.width=canvas.height=64;
+  const context=canvas.getContext('2d'),gradient=context.createRadialGradient(32,32,3,32,32,31);
+  gradient.addColorStop(0,'rgba(36,31,28,.32)');gradient.addColorStop(1,'rgba(36,31,28,0)');
+  context.fillStyle=gradient;context.fillRect(0,0,64,64);
+  shadowTexture=new THREE.CanvasTexture(canvas);
+  shadowMaterial=new THREE.MeshBasicMaterial({map:shadowTexture,transparent:true,depthWrite:false,opacity:.8});
+  shadow=new THREE.Mesh(new THREE.PlaneGeometry(2.3,2.3),shadowMaterial);shadow.name='BirdContactShadow_DisplayOnly';
+  shadow.rotation.x=-Math.PI/2;shadow.renderOrder=2;shadow.userData.displayOnly=true;host.scene.add(shadow);
+}
+function frameBird(){
+  if(!rig) return;
+  const position=rig.root.position;
+  host.controls.target.set(position.x,position.y+1,position.z);
+  host.camera.position.copy(host.controls.target).add(new THREE.Vector3(5.4,3.5,6.8));
+  host.camera.near=.02;host.camera.far=200;host.camera.updateProjectionMatrix();host.controls.update();
+}
+function frameHabitat(){
+  host.controls.target.set(0,2.2,0);host.camera.position.set(10,8,12);
+  host.camera.near=.03;host.camera.far=200;host.camera.updateProjectionMatrix();host.controls.update();
+}
+function updateBirdStatus(){
+  if(!active || !controller) return;
+  const state=controller.snapshot();
+  const labels={fly:'Flying',landing:'Landing',sit:'Sitting',takeoff:'Taking off'};
+  document.getElementById('status').textContent=`${state.species} · ${state.cubes} cubes · ${paused?'Paused · ':''}${labels[state.state]} · ${state.remaining.toFixed(1)}s`;
+}
+function showAnimal(species,{rebuild=false}={}){
+  if(!BIRD_SPECIES[species]) return;
+  if(!host.getCubeGeometry()) return;
+  animalSelect.value=species;
+  window.dispatchEvent(new CustomEvent('cube-nature-view-mode',{detail:{mode:'animal'}}));
+  const ground=host.getAnimalGround();
+  if(!rig || rig.root.userData.species!==species || rebuild || controller.ground.id!==ground.id){
+    if(rig) rig.dispose();
+    seed=(seed+1)>>>0;rig=makeBirdRig(host,species,seed);host.scene.add(rig.root);
+    controller=new BirdFlightController(rig,ground,seed+91);paused=false;
+  }
+  active=true;rig.root.visible=true;makeShadow();shadow.visible=true;
+  pauseButton.textContent=paused?'Resume':'Pause';pauseButton.setAttribute('aria-pressed',String(paused));
+  if(followInput.checked) frameBird();else frameHabitat();
+  updateBirdStatus();updateShadow();
+}
+function updateShadow(){
+  if(!rig||!shadow) return;
+  shadow.position.set(rig.root.position.x,controller.ground.top+.006,rig.root.position.z);
+  const altitude=Math.max(0,rig.root.position.y-controller.ground.top);
+  shadow.scale.setScalar(1+altitude*.11);shadowMaterial.opacity=.9/(1+altitude*.25);
+}
+function setPaused(value){
+  paused=!!value;pauseButton.textContent=paused?'Resume':'Pause';pauseButton.setAttribute('aria-pressed',String(paused));updateBirdStatus();
+}
+window.addEventListener('cube-nature-view-mode',event=>{
+  if(event.detail?.mode!=='animal'){
+    active=false;if(rig)rig.root.visible=false;if(shadow)shadow.visible=false;
+  }
+});
+animalSelect.addEventListener('change',()=>{
+  if(animalSelect.value) showAnimal(animalSelect.value);
+  else host.showAssetPreview();
+});
+for(const event of ['pointerdown','focus']) animalSelect.addEventListener(event,()=>{
+  if(animalSelect.value && !active) showAnimal(animalSelect.value);
+});
+window.addEventListener('cube-nature-geometry-ready',()=>{
+  if(animalSelect.value) showAnimal(animalSelect.value);
+});
+pauseButton.addEventListener('click',()=>setPaused(!paused));
+followInput.addEventListener('change',()=>{if(!active)return;if(followInput.checked)frameBird();else frameHabitat();});
+host.regenerateAnimal=()=>showAnimal(animalSelect.value,{rebuild:true});
+host.exportAnimalCubes=()=>{
+  if(!rig) return;
+  host.downloadCubeRecords(rig.records,`cube_nature_${rig.root.userData.species}_bind_pose.cubes`);
+};
+host.onFrame.add(dt=>{
+  if(!active||!controller)return;
+  if(!paused)controller.update(dt);
+  updateShadow();
+  if(followInput.checked){
+    target.copy(rig.root.position);target.y+=1;
+    cameraShift.subVectors(target,host.controls.target).multiplyScalar(1-Math.exp(-7*dt));
+    host.camera.position.add(cameraShift);host.controls.target.add(cameraShift);
+  }
+  statusClock+=dt;if(statusClock>.1){statusClock=0;updateBirdStatus();}
+});
+// Small integration/testing surface: the controller is also usable with a
+// custom clock; the production renderer still owns the single animation loop.
+window.CUBE_NATURE_ANIMALS={species:BIRD_SPECIES,timing:BIRD_TIMING,makeBirdCells,
+  select:showAnimal,setPaused,getState:()=>controller?.snapshot()||null,
+  get controller(){return controller;},get rig(){return rig;}};
+</script>
+
+</body>
+</html>
