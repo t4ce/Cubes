@@ -5,10 +5,10 @@
       "class": 64,
       "endianness": "little",
       "machine": 205,
-      "sha256": "908a4a8c7b521d8968d077b03572289043f44646f0ec58c3416c318857f485bb",
-      "size_bytes": 168128,
+      "sha256": "df09b7c65f3396e479c61d24d296264708af3757e9cb2f36d091d75242f70186",
+      "size_bytes": 167128,
       "type": "relocatable",
-      "ze_info_section_offset": 163496,
+      "ze_info_section_offset": 162496,
       "ze_info_section_size": 3723
     },
     "kernels": [
@@ -207,13 +207,13 @@
         ],
         "text": {
           "entry_offset": 64,
-          "entry_size": 111568,
+          "entry_size": 111552,
           "section_alignment": 0,
           "section_name": ".text.shadertoy_mandelbox",
           "section_offset": 64,
-          "section_size": 111744,
-          "sha256": "3997df8d450b13c1e3f15e64a81dc7c04ca71190c1263ddb574a8a8ef83412c9",
-          "symbol_size": 111568,
+          "section_size": 111680,
+          "sha256": "c5604255ce27dd08fb5d5d65cba1afeb054e07ff38a40446c17ee0dc65abdc86",
+          "symbol_size": 111552,
           "symbol_value": 0
         },
         "user_attributes": {
@@ -229,10 +229,10 @@
       }
     ],
     "spirv": {
-      "embedded_section_offset": 111880,
-      "embedded_section_size": 51520,
-      "sha256": "22bafc55b3dece960145cd42382f47f0fd022041e8e8bc507357472a670440a9",
-      "size_bytes": 51520
+      "embedded_section_offset": 111816,
+      "embedded_section_size": 50580,
+      "sha256": "73f2c84653a8fa440c4e39487b33028da7f9caa367ad64b77063c3544804c7e4",
+      "size_bytes": 50580
     }
   },
   "provenance": {
@@ -431,8 +431,8 @@
     "inputs": [
       {
         "path": "/home/t4ce/Repos/Cubes/Cube/mandelbox/kernel.clcpp",
-        "sha256": "e115c41452d6b3bcad47a673cf1b876fe52441f4d2d3260f8fb002b0344280e3",
-        "size_bytes": 25777
+        "sha256": "3ffbd392b35e21e63e73749b67e964493e2237f7b08d3c3fb514aa3e397324e1",
+        "size_bytes": 25379
       }
     ],
     "language": "C++ for OpenCL",
