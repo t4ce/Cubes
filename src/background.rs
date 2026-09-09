@@ -86,7 +86,9 @@ impl Background {
                 let mut completed = u32::MAX;
                 let mut rendered_extent = None;
                 let mut frame = 0;
-                while !worker.stop.load(Ordering::Acquire) {
+                while !worker.stop.load(Ordering::Acquire)
+                    && !trueos::worker::cancellation_requested()
+                {
                     let sequence = worker.sequence.load(Ordering::SeqCst);
                     if sequence == 0 || sequence & 1 != 0 || sequence == completed {
                         trueos::vsys::sleep_ms(10);
