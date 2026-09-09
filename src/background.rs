@@ -5,58 +5,14 @@ use trueos::ui4_scene::{BackgroundLayer, Error, ShadertoyParamsV1};
 
 const SHADER: u32 = 16;
 const PACKAGE: &[u8] = include_bytes!("../Cube/mandelbox/mandelbox.stpkg");
-// Names and palette order match cube_tree_builder_world_ramps.html.
-const THEMES: [&str; 6] = [
-    "sky",
-    "underground",
-    "black-hole",
-    "white-hole",
-    "island",
-    "city",
-];
+use crate::environment::{Palette, RotationFollower};
 
-pub fn theme_mask(name: &str) -> u32 {
-    let name = name.strip_suffix(".cubes").unwrap_or(name);
-    THEMES.iter().enumerate().fold(0, |mask, (index, theme)| {
-        mask | if name.split('_').any(|word| word == *theme) {
-            1 << index
-        } else {
-            0
-        }
-    })
-}
-
-/// At the upper edge of an unrolled +Y-up view, the unnormalized ray has
-/// y = sin(pitch) + tan(fov/2) * cos(pitch). Horizontal FOV cannot change its
-/// sign. A view wholly below the horizon needs only the retained flat shade.
-fn render_command(
-    enabled: bool,
-    name: &str,
-    yaw: f32,
-    pitch: f32,
-    tan_half_fov: f32,
-    extent: (u32, u32),
-) -> [u32; 7] {
-    let sky_visible = enabled && libm::sinf(pitch) + tan_half_fov * libm::cosf(pitch) > 0.0;
-    if !sky_visible {
-        // Camera/theme changes while the sky is invisible cause no dispatch.
-        return [0, 0, 0, 0, 0, extent.0, extent.1];
-    }
-    [
-        1,
-        theme_mask(name),
-        yaw.to_bits(),
-        pitch.to_bits(),
-        tan_half_fov.to_bits(),
-        extent.0,
-        extent.1,
-    ]
-}
+const COMMAND_WORDS: usize = 14;
 
 struct Shared {
     sequence: AtomicU32,
-    // enabled, theme mask, yaw, pitch, tan(fov/2), width, height.
-    command: [AtomicU32; 7],
+    // enabled, generation, RGB x3, color count, preset, quaternion x4, FOV, extent.
+    command: [AtomicU32; COMMAND_WORDS],
     stop: AtomicBool,
     done: AtomicBool,
     failed: AtomicBool,
@@ -64,7 +20,10 @@ struct Shared {
 
 pub struct Background {
     shared: Arc<Shared>,
-    previous: [u32; 7],
+    previous: [u32; COMMAND_WORDS],
+    generation: u32,
+    palette: Palette,
+    follower: RotationFollower,
 }
 
 impl Background {
@@ -84,8 +43,6 @@ impl Background {
         drop(
             trueos::worker::spawn(move || {
                 let mut completed = u32::MAX;
-                let mut rendered_extent = None;
-                let mut frame = 0;
                 while !worker.stop.load(Ordering::Acquire)
                     && !trueos::worker::cancellation_requested()
                 {
@@ -94,16 +51,12 @@ impl Background {
                         trueos::vsys::sleep_ms(10);
                         continue;
                     }
-                    let command = core::array::from_fn::<_, 7, _>(|i| {
+                    let command = core::array::from_fn::<_, COMMAND_WORDS, _>(|i| {
                         worker.command[i].load(Ordering::SeqCst)
                     });
                     if worker.sequence.load(Ordering::SeqCst) != sequence {
                         continue;
                     }
-                    // First publish at a new extent is a cheap shade. Paired
-                    // resize can then commit without waiting for ray marching.
-                    let extent = (command[5], command[6]);
-                    let preview = rendered_extent != Some(extent);
                     match layer.begin_gpu_frame() {
                         Ok(()) => {}
                         Err(Error::Busy) => {
@@ -115,35 +68,32 @@ impl Background {
                             break;
                         }
                     }
+                    // Program 16 owns one resident cubemap. Only a new generation
+                    // runs the expensive bake; orientation/extent only resample it.
                     let params = ShadertoyParamsV1 {
                         shader_id: SHADER,
-                        frame,
-                        frame_rate: 10.0,
-                        mouse_x: f32::from_bits(command[2]),
-                        mouse_y: f32::from_bits(command[3]),
-                        click_x: f32::from_bits(command[4]).max(0.1),
-                        date_year: command[1] as f32,
-                        date_month: if preview { 0.0 } else { command[0] as f32 },
+                        frame: command[1],
+                        frame_rate: 60.0,
+                        mouse_x: f32::from_bits(command[7]),
+                        mouse_y: f32::from_bits(command[8]),
+                        click_x: f32::from_bits(command[9]),
+                        click_y: f32::from_bits(command[10]),
+                        delta_seconds: f32::from_bits(command[11]),
+                        date_year: command[2] as f32,
+                        date_month: command[3] as f32,
+                        date_day: command[4] as f32,
+                        sample_rate: command[5] as f32,
+                        date_seconds: command[6] as f32,
+                        time_seconds: command[0] as f32,
                         flags: 0,
-                        time_seconds: 0.0,
-                        delta_seconds: 0.0,
-                        sample_rate: 0.0,
-                        click_y: 0.0,
-                        date_day: 0.0,
-                        date_seconds: 0.0,
                     };
                     if let Err(error) = layer.render_shadertoy(&params) {
                         failed(&worker, error);
                         break;
                     }
-                    rendered_extent = Some(extent);
-                    if !preview || command[0] == 0 {
-                        completed = sequence;
-                    }
-                    frame = frame.wrapping_add(1);
-                    // Give the foreground a write-free interval to stage paired
-                    // resizes even when a large background takes over 100 ms.
-                    trueos::vsys::sleep_ms(20);
+                    completed = sequence;
+                    // Leave a write-free interval for paired resize staging.
+                    trueos::vsys::sleep_ms(16);
                 }
                 worker.done.store(true, Ordering::Release);
             })
@@ -151,23 +101,46 @@ impl Background {
         );
         Ok(Self {
             shared,
-            previous: [u32::MAX; 7],
+            previous: [u32::MAX; COMMAND_WORDS],
+            generation: 0,
+            palette: Palette::for_world("world_27_void").unwrap(),
+            follower: RotationFollower::new([0.0, 0.0, 0.0, 1.0]),
         })
+    }
+
+    /// Every Key 5 selection requests a fresh bake, including revisiting a world.
+    pub fn select_world(&mut self, name: &str, rotation: [f32; 4]) -> Result<(), Error> {
+        self.palette = Palette::for_world(name).ok_or(Error::Invalid)?;
+        self.generation = self.generation.wrapping_add(1).max(1);
+        self.follower = RotationFollower::new(rotation);
+        Ok(())
     }
 
     pub fn update(
         &mut self,
         enabled: bool,
-        name: &str,
-        yaw: f32,
-        pitch: f32,
+        rotation: [f32; 4],
+        delta_seconds: f32,
         tan_half_fov: f32,
         extent: (u32, u32),
     ) -> Result<(), Error> {
         if self.shared.failed.load(Ordering::Acquire) {
             return Err(Error::Ui4);
         }
-        let command = render_command(enabled, name, yaw, pitch, tan_half_fov, extent);
+        let mut command = [0; COMMAND_WORDS];
+        if enabled {
+            let q = self.follower.advance(rotation, delta_seconds);
+            command[..12].copy_from_slice(&[
+                1, self.generation,
+                self.palette.colors[0], self.palette.colors[1], self.palette.colors[2],
+                self.palette.count, self.palette.cathedral as u32,
+                q[0].to_bits(), q[1].to_bits(), q[2].to_bits(), q[3].to_bits(),
+                tan_half_fov.to_bits(),
+            ]);
+        }
+        // Other modes retain the neutral shade; their cameras cause no work.
+        command[12] = extent.0;
+        command[13] = extent.1;
         if command != self.previous {
             // A single publisher and atomic fields give the worker one coherent
             // latest command. No camera-update queue accumulates behind a bake.
@@ -185,7 +158,7 @@ impl Background {
 fn failed(shared: &Shared, error: Error) {
     trueos::logl::log(
         trueos::logl::level::ERROR,
-        format_args!("Cubes: independent Mandelbox background failed: {error:?}"),
+        format_args!("Cubes: resident Chroma background failed: {error:?}"),
     );
     shared.failed.store(true, Ordering::Release);
 }

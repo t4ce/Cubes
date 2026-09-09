@@ -2,6 +2,7 @@
 
 extern crate alloc;
 mod background;
+mod environment;
 mod camera_entry;
 mod counters;
 mod floor;
@@ -49,7 +50,6 @@ const IDLE_ORBIT_DELAY_MS: u64 = 3_000;
 const IDLE_ORBIT_RADIANS_PER_SECOND: f32 = 0.18;
 const WORLD_SEED_BUDGET: usize = grid::MAX_SEED_COUNT;
 const WORLD_EYE_HEIGHT: f32 = 1.8;
-const WORLD_INITIAL_LOOK_AHEAD: f32 = 3.0;
 
 struct GridCursor {
     source: CursorSource,
@@ -205,7 +205,7 @@ impl CubeScene {
                 )
             })
             .unwrap_or((120, 96));
-        let frame = Frame::open_layered(x, y, WIDTH, HEIGHT, 10)
+        let frame = Frame::open_layered(x, y, WIDTH, HEIGHT, 60)
             .map_err(|error| CubeError::Ui4("frame-open", error))?;
         let device = Device::open(Capabilities::DEFAULT.union(Capabilities::PRESENT))
             .map_err(|code| CubeError::Vgpu("device-open", code))?;
@@ -587,8 +587,8 @@ impl CubeScene {
             _ => libm::tanf(PUZZLE_YFOV * 0.5),
         };
         self.background.update(
-            self.mode == SceneMode::World, WORLD_ASSETS[self.world_index].0,
-            self.world_yaw, self.world_pitch, tan_half_fov, (width, height),
+            self.mode == SceneMode::World, self.flycam.camera.rotation.0,
+            delta_seconds, tan_half_fov, (width, height),
         ).map_err(|error| CubeError::Ui4("background-update", error))?;
         match self.frame.begin_gpu_frame() {
             Ok(()) => {}
@@ -1059,18 +1059,20 @@ impl CubeScene {
                 );
             } else if mode == SceneMode::World {
                 self.flycam = FlyCam::new(default_camera(), 3.0);
-                self.world_yaw = 0.0;
+                self.world_yaw = world_look::INITIAL_YAW;
                 self.world_pitch = 0.0;
                 self.flycam.camera.position =
                     orchard::world_from_demo([0.0, -WORLD_EYE_HEIGHT, 0.0]);
+                // Entry and mouse look share exactly the same +Y-up angle basis.
+                let direction = world_look::direction(self.world_yaw, self.world_pitch);
                 self.flycam.camera.rotation = look_at_camera_rotation(
                     self.flycam.camera.position,
-                    // Aim straight along the XZ world plane.  Targeting the
-                    // ground at Y=0 here gave the fresh first-person camera
-                    // an unintended atan(1.8 / 3.0) ~= 31 degree down-pitch.
-                    orchard::world_from_demo([0.0, -WORLD_EYE_HEIGHT, -WORLD_INITIAL_LOOK_AHEAD]),
-                    orchard::world_from_demo([0.0, -1.0, 0.0]),
+                    core::array::from_fn(|i| self.flycam.camera.position[i] + direction[i]),
+                    [0.0, 1.0, 0.0],
                 );
+                self.background.select_world(
+                    WORLD_ASSETS[self.world_index].0, self.flycam.camera.rotation.0,
+                ).map_err(|error| CubeError::Ui4("background-world", error))?;
                 let asset = &self.worlds[self.world_index];
                 logl::log(
                     level::INFO,

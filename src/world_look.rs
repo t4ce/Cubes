@@ -4,6 +4,9 @@
 //! explicit world-space angles so looking horizontally can never roll the
 //! camera or the horizon.
 
+/// The demo-to-world half-turn maps the authored initial view to +Z.
+pub const INITIAL_YAW: f32 = core::f32::consts::PI;
+
 pub const MAX_PITCH: f32 = core::f32::consts::FRAC_PI_2 - 0.05;
 
 #[cfg(not(test))]
@@ -50,8 +53,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn zero_angles_face_the_initial_world_direction() {
+    fn zero_angles_face_negative_z() {
         assert_eq!(direction(0.0, 0.0), [0.0, 0.0, -1.0]);
+    }
+
+    #[test]
+    fn first_mouse_event_preserves_the_positive_z_entry_heading() {
+        let mut yaw = INITIAL_YAW;
+        let mut pitch = 0.0;
+        assert!(direction(yaw, pitch)[2] > 0.99999);
+        update(&mut yaw, &mut pitch, 1.0, -1.0, 0.002);
+        let next = direction(yaw, pitch);
+        assert!(next[2] > 0.9999 && next[0].abs() < 0.003 && next[1].abs() < 0.003);
     }
 
     #[test]

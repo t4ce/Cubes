@@ -1,0 +1,871 @@
+<!doctype html>
+<!--
+MIT License
+
+Copyright (c) 2026 INSIDE / BOX contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+-->
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Two bevel-seeded fractal interiors, six fixed colors, instant single/dual/trio palette shuffling. Fixed-origin WebGL, offline and render-on-input.">
+<title>The One Cube / Chroma</title>
+<style>
+:root{color-scheme:dark;--accent:#f4c46b;--ink:#f3f0e9;--muted:#a6aeb1;--line:#ffffff24;--panel:rgba(10,15,20,.91)}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#0b1015;color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button,select,input{font:inherit;color:inherit}button,select{cursor:pointer}button{border:1px solid var(--line);border-radius:7px;background:var(--panel)}button:hover{border-color:var(--accent)}button:disabled{opacity:.45;cursor:default}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:4px}canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab;outline:none}body.locked canvas{cursor:none}canvas.dragging{cursor:grabbing}kbd{font:9px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.03em}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.atmosphere{position:fixed;inset:0;pointer-events:none;background:linear-gradient(180deg,#04080ccd,transparent 25%,transparent 43%,#04080c3b 64%,#04080cea)}.hud{position:fixed;inset:0;pointer-events:none;transition:opacity .12s}.hud button,.hud select,.hud input,.hud label{pointer-events:auto}.hidden-ui .hud,.hidden-ui .atmosphere{opacity:0;pointer-events:none}.hidden-ui .hud *{pointer-events:none!important}
+.topbar{position:absolute;left:32px;right:32px;top:25px;display:flex;justify-content:space-between;align-items:flex-start;gap:22px}.brand{display:flex;align-items:center;gap:12px}.seed-mark{width:44px;height:44px;color:var(--accent)}.seed-mark svg{width:100%;height:100%}.wordmark{font-size:19px;font-weight:600;letter-spacing:.17em;line-height:1.3}.submark{margin-top:6px;font-size:9px;font-weight:500;letter-spacing:.15em;color:var(--muted);text-transform:uppercase}.tools{display:flex;align-items:center;gap:8px}.tool{height:36px;min-width:34px;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 11px;font-size:11px}.tool svg{width:13px;height:13px}.quality-label{display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:7px;background:var(--panel);padding-left:11px;font-size:10px;color:var(--muted)}select{background:transparent;border:0;border-radius:7px;padding:10px 8px 10px 0;font-size:11px;color:var(--ink)}option{background:#131a22}
+.readout{position:absolute;right:33px;top:80px;display:flex;flex-direction:column;align-items:flex-end;gap:7px;font:9px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.045em;color:#d3d9d7}.status-line{display:flex;align-items:center;gap:7px}.dot{width:5px;height:5px;display:inline-block;border-radius:50%;background:var(--accent)}.readout .dim{font-size:8px;opacity:.6}.progress-track{height:2px;width:170px;background:#ffffff20;overflow:hidden}.progress-fill{height:100%;background:var(--accent);width:0;transition:width .1s linear}.progress-track[hidden]{display:none}.crosshair{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:10px;height:10px;opacity:.28}.crosshair:before,.crosshair:after{content:"";position:absolute;background:#fff}.crosshair:before{width:10px;height:1px;top:4px}.crosshair:after{height:10px;width:1px;left:4px}.look-tip{position:absolute;top:132px;right:33px;text-align:right;font-size:10px;line-height:1.8;color:#d9ddd6}.look-tip small{display:block;color:var(--muted);font-size:9px}
+.bottom{position:absolute;left:32px;right:32px;bottom:20px}.workspace{display:grid;grid-template-columns:minmax(0,1fr) minmax(330px,414px);gap:36px;align-items:end}.geometry-panel{min-width:0}.intro{margin-bottom:20px}.eyebrow{font-size:9px;letter-spacing:.17em;text-transform:uppercase;color:var(--accent);margin-bottom:9px}.scene-title{margin:0;font-family:Georgia,"Times New Roman",serif;font-weight:400;font-size:clamp(36px,4.4vw,57px);letter-spacing:-.042em;line-height:1.07}.scene-desc{max-width:510px;margin:10px 0 0;font-size:11px;line-height:1.75;color:#c4cdcb}.preset-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.preset{display:flex;align-items:center;gap:12px;text-align:left;padding:14px;min-width:0;background:rgba(10,15,20,.84)}.preset[aria-pressed="true"]{border-color:var(--accent);background:rgba(10,15,20,.95)}.number{border:1px solid #ffffff24;border-radius:4px;display:grid;place-items:center;width:25px;height:30px;flex-shrink:0;font:11px ui-monospace,monospace;color:#aeb7b7}.preset[aria-pressed="true"] .number{color:var(--accent);border-color:var(--accent)}.preset-copy{min-width:0;flex:1}.preset-name{display:block;font-size:12px;font-weight:600}.preset-note{display:block;font-size:9px;line-height:1.5;color:#a2aeae;margin-top:4px}.preset svg{width:30px;height:30px;flex-shrink:0;color:#a3acaf;opacity:.7}.preset[aria-pressed="true"] svg{color:var(--accent);opacity:1}
+.color-panel{padding:16px 16px 12px;border:1px solid #ffffff30;border-radius:10px;background:var(--panel)}.color-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:13px}.color-head h2{margin:0;font-size:11px;font-weight:550;letter-spacing:.11em;text-transform:uppercase}.live-label{font:8px ui-monospace,monospace;letter-spacing:.12em;color:var(--accent)}.color-count{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;border:0;margin:0 0 12px;padding:0;min-width:0}.count-option{display:flex;align-items:center;gap:7px;min-width:0;cursor:pointer;padding:9px 8px;border:1px solid #ffffff20;border-radius:5px;font-size:10px;color:#b4bfbe}.count-option:hover{border-color:#ffffff50}.count-option:has(input:checked){border-color:color-mix(in srgb,var(--accent) 60%,transparent);color:var(--accent);background:color-mix(in srgb,var(--accent) 9%,transparent)}.count-option input{width:11px;height:11px;flex:0 0 11px;margin:0;accent-color:var(--accent);cursor:pointer}.count-option small{font:8px ui-monospace,monospace;opacity:.65;margin-left:auto}.palette{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}.swatch{padding:5px 4px 6px;min-width:0;border:1px solid transparent;border-radius:5px;background:transparent}.swatch[aria-pressed="true"]{border-color:#ffffff64;background:#ffffff0b}.swatch:hover{border-color:var(--swatch)}.swatch-paint{height:23px;display:flex;align-items:center;justify-content:center;background:var(--swatch);border-radius:3px;box-shadow:inset 0 0 0 1px #ffffff15}.swatch-role{font:9px ui-monospace,monospace;color:#101b24;font-weight:750}.swatch-name{display:block;font-size:8px;letter-spacing:.01em;margin-top:5px;color:#aeb8ba}.swatch[aria-pressed="true"] .swatch-name{color:var(--ink)}.color-selection{display:flex;align-items:center;gap:9px;margin:10px 0 11px;font-size:10px;min-height:14px}.color-selection>span:first-child{font:8px ui-monospace,monospace;letter-spacing:.08em;color:var(--accent);text-transform:uppercase;border-right:1px solid var(--line);padding-right:9px}.color-selection>span:last-child{color:#cbd2d0;font-size:10px}.shuffle{display:flex;align-items:center;gap:9px;width:100%;padding:10px 12px;border-color:color-mix(in srgb,var(--accent) 40%,transparent);background:color-mix(in srgb,var(--accent) 9%,#0c1217);color:var(--ink);font-size:11px;text-align:left}.shuffle svg{width:16px;height:16px;color:var(--accent);flex-shrink:0}.shuffle kbd{margin-left:auto;border:1px solid #ffffff38;border-radius:3px;padding:4px 5px;color:var(--accent);font-size:8px}.palette-tip{font-size:8px;color:#929e9f;margin:9px 0 0;line-height:1.5;display:flex;justify-content:space-between;gap:6px}
+.footer{display:flex;justify-content:space-between;gap:20px;margin-top:17px;font-size:9px;color:#a6b1af}.footer-controls{display:flex;flex-wrap:wrap;column-gap:15px;row-gap:7px}.footer kbd{color:#e0e3db;margin-right:5px;font-size:9px}.origin{font:8px ui-monospace,monospace;letter-spacing:.03em;color:#8d9899;white-space:nowrap}.toast{position:fixed;top:42%;left:50%;transform:translate(-50%,-50%);max-width:calc(100vw - 36px);padding:10px 16px;border:1px solid var(--line);border-radius:7px;background:#101821ed;font-size:11px;color:#eaece4;text-align:center;pointer-events:none;z-index:9}.toast:empty{display:none}.help{position:fixed;inset:0;background:#03090de0;display:grid;place-items:center;z-index:10;padding:20px}.help[hidden]{display:none}.help-card{width:490px;max-width:100%;max-height:calc(100dvh - 40px);overflow-y:auto;background:#11191f;border:1px solid var(--line);border-radius:12px;padding:26px}.help-top{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:22px}.help h2{font-family:Georgia,serif;font-size:25px;font-weight:400;margin:0}.close-help{width:30px;height:30px;font-size:20px;flex-shrink:0}.help dl{margin:0;display:grid;grid-template-columns:134px 1fr;gap:13px;font-size:11px;line-height:1.6}.help dt{font-family:ui-monospace,monospace;color:var(--accent)}.help dd{margin:0;color:#c9d1d2}.help p{margin:23px 0 0;border-top:1px solid var(--line);padding-top:18px;font-size:11px;line-height:1.8;color:#aab7b7}.error{position:fixed;inset:0;z-index:20;background:#10181d;display:grid;place-items:center;padding:32px}.error[hidden]{display:none}.error-content{max-width:580px}.error h1{font-size:26px;font-weight:550}.error p{line-height:1.8;color:#b5c0c5}.error pre{white-space:pre-wrap;max-height:40vh;overflow:auto;font-size:11px;padding:16px;background:#080d11;border:1px solid var(--line);border-radius:6px}.loading-label{position:fixed;left:50%;top:43%;transform:translate(-50%,-50%);text-align:center;font-size:12px;color:#c9cecb;letter-spacing:.06em;pointer-events:none}.loading-label[hidden]{display:none}.no-js{position:fixed;inset:0;z-index:30;background:#10181d;display:grid;place-items:center;padding:40px;text-align:center}
+@media(max-width:1100px){.workspace{grid-template-columns:minmax(0,1fr) 350px;gap:25px}.preset{padding:12px 10px;gap:8px}.preset svg{display:none}.preset-name{font-size:11px}.preset-note{font-size:8px}.footer-controls{column-gap:11px}.origin{display:none}.scene-desc{max-width:410px}}
+@media(max-width:800px){.topbar,.bottom{left:20px;right:20px}.topbar{top:19px}.brand{gap:9px}.seed-mark{width:35px;height:35px}.wordmark{font-size:16px}.submark{font-size:8px}.tool-label{display:none}.quality-label>span{display:none}.quality-label{padding-left:8px}.readout{top:73px;right:21px;font-size:8px}.readout .dim{font-size:7px}.look-tip{display:none}.workspace{grid-template-columns:minmax(0,1fr) 318px;gap:19px}.color-panel{padding:13px 12px 11px}.preset-note{display:none}.preset-name{font-size:10px}.number{width:21px;height:28px}.scene-title{font-size:38px}.scene-desc{font-size:10px}.color-count{gap:4px}.count-option{padding:8px 6px;gap:5px}.palette-tip{font-size:7px}.swatch-name{font-size:7px}.palette{gap:4px}.intro{margin-bottom:14px}}
+@media(max-width:650px){.workspace{grid-template-columns:1fr;gap:14px}.color-panel{padding:12px 12px 10px}.color-head{margin-bottom:10px}.color-head h2{font-size:10px}.color-count{margin-bottom:8px}.count-option{padding:8px}.palette{gap:7px}.swatch{padding:4px 4px 5px}.swatch-paint{height:20px}.swatch-name{font-size:8px}.color-selection{margin:7px 0 8px;font-size:9px;min-height:12px}.color-selection>span:last-child{font-size:9px}.shuffle{padding:8px 10px;font-size:10px}.palette-tip{font-size:8px;margin-top:7px}.scene-desc{display:none}.intro{margin-bottom:11px}.scene-title{font-size:34px}.eyebrow{font-size:8px;margin-bottom:6px}.preset{padding:10px 11px;gap:10px}.preset-name{font-size:11px}.number{width:20px;height:25px}.preset svg{display:block;width:26px;height:26px}.footer{margin-top:12px;font-size:8px}.footer kbd{font-size:8px}.footer-controls{column-gap:12px;row-gap:6px}.bottom{bottom:15px}}
+@media(max-width:460px){.topbar,.bottom{left:16px;right:16px}.topbar{gap:10px}.seed-mark{display:none}.wordmark{font-size:14px;letter-spacing:.11em}.submark{font-size:7px;letter-spacing:.08em}.fullscreen-tool{display:none}.tools{gap:6px}.tool{min-width:30px;height:33px;padding:0 9px}.quality-label select{max-width:100px;padding:9px 5px 9px 0;font-size:10px}.quality-label{padding-left:7px}.readout{right:17px;top:69px}.preset{gap:8px;padding:9px}.preset-name{font-size:10px}.palette{gap:4px}.palette-tip{font-size:7px}.color-panel{padding:11px 10px 9px}.color-count{gap:5px}.color-head h2{font-size:9px}.count-option{font-size:10px}.scene-title{font-size:32px}.workspace{gap:12px}.help-card{padding:21px}.help dl{grid-template-columns:107px 1fr;font-size:10px;gap:11px}.help h2{font-size:22px}}
+@media(max-height:550px) and (min-width:651px){.topbar{top:13px}.readout{top:61px}.look-tip,.submark,.scene-desc,.eyebrow{display:none}.bottom{bottom:12px}.workspace{gap:20px;grid-template-columns:minmax(0,1fr) 338px}.scene-title{font-size:29px}.intro{margin-bottom:13px}.color-panel{padding:10px 12px 9px}.color-head{margin-bottom:8px}.color-count{margin-bottom:6px}.count-option{padding:6px}.swatch-paint{height:17px}.swatch{padding:3px}.color-selection{margin:6px 0}.shuffle{padding:6px 9px}.palette-tip{margin-top:6px;font-size:7px}.preset{padding:10px}.footer{margin-top:10px}.seed-mark{width:34px;height:34px}}
+@media(max-height:650px) and (max-width:650px){.eyebrow{display:none}.scene-title{font-size:27px}.intro{margin-bottom:8px}.workspace{gap:9px}.color-head{margin-bottom:7px}.color-selection{margin:6px 0}.palette-tip{margin-top:5px}.bottom{bottom:11px}.footer{margin-top:10px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+
+</style></head><body>
+<canvas id="viewport" tabindex="0" aria-label="One Cube fractal interior. Click to capture the mouse, or drag to look. Keys 1 and 2 change geometry; Space shuffles colors."></canvas>
+<div class="atmosphere" aria-hidden="true"></div>
+<div id="loading" class="loading-label">Preparing your first interior…</div>
+<div class="hud" id="hud">
+  <header class="topbar">
+    <div class="brand"><div class="seed-mark"><svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" aria-hidden="true"><polygon points="6.54,20.57 9.37,15.67 6.54,17.30" fill="currentColor" fill-opacity="0.073"/><polygon points="6.54,46.70 29.17,59.76 29.17,33.63 6.54,20.57" fill="currentColor" fill-opacity="0.112"/><polygon points="29.17,33.63 32.00,28.73 9.37,15.67 6.54,20.57" fill="currentColor" fill-opacity="0.151"/><polygon points="32.00,28.73 54.63,15.67 32.00,2.61 9.37,15.67" fill="currentColor" fill-opacity="0.112"/><polygon points="32.00,61.39 34.83,59.76 29.17,59.76" fill="currentColor" fill-opacity="0.073"/><polygon points="57.46,20.57 57.46,17.30 54.63,15.67" fill="currentColor" fill-opacity="0.073"/><polygon points="29.17,33.63 34.83,33.63 32.00,28.73" fill="currentColor" fill-opacity="0.180"/><polygon points="29.17,59.76 34.83,59.76 34.83,33.63 29.17,33.63" fill="currentColor" fill-opacity="0.151"/><polygon points="32.00,28.73 34.83,33.63 57.46,20.57 54.63,15.67" fill="currentColor" fill-opacity="0.151"/><polygon points="34.83,59.76 57.46,46.70 57.46,20.57 34.83,33.63" fill="currentColor" fill-opacity="0.112"/></svg></div><div><div class="wordmark">THE ONE CUBE</div><div class="submark">Two interiors · one chromatic seed</div></div></div>
+    <div class="tools">
+      <label class="quality-label" title="Cubemap face resolution. Colors never need a new geometry bake."><span>Detail</span><select id="quality" aria-label="Environment detail"><option value="256">256 · Economy</option><option value="512" selected>512 · Balanced</option><option value="1024">1024 · Fine</option></select></label>
+      <button id="fullscreen" class="tool fullscreen-tool" title="Full screen (F)" aria-label="Toggle full screen"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor"><path d="M1 6V1h5M10 1h5v5M15 10v5h-5M6 15H1v-5"/></svg><span class="tool-label">Full screen</span></button>
+      <button id="help-open" class="tool" aria-label="Show controls and explanation" title="Help (?)">?</button>
+    </div>
+  </header>
+  <div class="readout" aria-live="polite" aria-atomic="true"><div class="status-line"><span class="dot"></span><span id="status">PREPARING GEOMETRY</span></div><div class="dim" id="render-info">FIXED ORIGIN / ROTATION ONLY</div><div id="progress-track" class="progress-track"><div id="progress-fill" class="progress-fill"></div></div></div>
+  <div class="crosshair" aria-hidden="true"></div>
+  <div class="look-tip" id="look-tip">Click to capture · drag to look<small>One fixed point. Infinite small worlds.</small></div>
+  <main class="bottom">
+    <div class="workspace">
+      <section class="geometry-panel" aria-label="Geometry">
+        <div class="intro"><div class="eyebrow" id="scene-label">01 / Original base · 24-vertex seed</div><h1 class="scene-title" id="scene-title">Folded core</h1><p class="scene-desc" id="scene-desc">The beveled cube, folded into the structure at every scale.</p></div>
+        <nav class="preset-grid" aria-label="Two shader paths">
+          <button type="button" class="preset" data-preset="0" aria-pressed="true"><span class="number">1</span><span class="preset-copy"><span class="preset-name">Folded core</span><span class="preset-note">Original base · bevel-plane folds</span></span><svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width=".9" aria-hidden="true"><path d="M20 2 35 11v18l-15 9-15-9V11Z M5 11l15 9 15-9M20 20v18M20 9l9 5v12l-9 5-9-5V14ZM11 14l9 5 9-5M20 19v12"/></svg></button>
+          <button type="button" class="preset" data-preset="1" aria-pressed="false"><span class="number">2</span><span class="preset-copy"><span class="preset-name">Box cathedral</span><span class="preset-note">Original base · recursive seed</span></span><svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width=".9" aria-hidden="true"><path d="M10 4h20l6 6v20l-6 6H10l-6-6V10ZM14 11h12l3 3v12l-3 3H14l-3-3V14ZM18 17h4l2 2v3l-2 2h-4l-2-2v-3Z M4 10l7 4M36 10l-7 4M4 30l7-4M36 30l-7-4"/></svg></button>
+        </nav>
+      </section>
+      <section class="color-panel" aria-label="Six-color palette">
+        <div class="color-head"><h2>Chromatic seed</h2><span class="live-label">LIVE TINT</span></div>
+        <fieldset class="color-count"><legend class="sr-only">Number of active colors</legend>
+          <label class="count-option"><input type="radio" name="color-count" value="1"><span>Single</span><small>01</small></label>
+          <label class="count-option"><input type="radio" name="color-count" value="2"><span>Dual</span><small>02</small></label>
+          <label class="count-option"><input type="radio" name="color-count" value="3" checked><span>Trio</span><small>03</small></label>
+        </fieldset>
+        <div class="palette" id="palette" role="group" aria-label="Fixed palette. Click to add or remove a color. Up to three; a fourth replaces the oldest."></div>
+        <div class="color-selection" role="status" aria-live="polite"><span id="color-mode">Trio</span><span id="color-summary">Amber / Jade / Iris</span></div>
+        <button id="shuffle" class="shuffle" type="button"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M3 5h3l8 10h3M3 15h3L14 5h3M14 2l3 3-3 3M14 12l3 3-3 3"/></svg><span>Shuffle colors + count</span><kbd>SPACE</kbd></button>
+        <p class="palette-tip">Click swatches to compose. <span>⇧ Space keeps the count.</span></p>
+      </section>
+    </div>
+    <footer class="footer"><div class="footer-controls"><span><kbd>1 / 2</kbd>Geometry</span><span><kbd>[ ]</kbd>Color count</span><span><kbd>SCROLL</kbd>FOV</span><span><kbd>R</kbd>Reset</span><span><kbd>H</kbd>Hide UI</span><span><kbd>ESC</kbd>Release mouse</span></div><span class="origin" id="origin">ORIGIN +0.08 −0.12 +0.05 · FOV 74°</span></footer>
+  </main>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<div class="help" id="help" role="dialog" aria-modal="true" aria-labelledby="help-title" hidden>
+  <section class="help-card"><div class="help-top"><h2 id="help-title">Stay still. Change the light.</h2><button id="help-close" class="close-help" aria-label="Close help">×</button></div>
+    <dl><dt>Click / mouse</dt><dd>Capture the pointer and look freely.</dd><dt>Drag / touch</dt><dd>Look without pointer capture.</dd><dt>1 / 2</dt><dd>Folded core / Box cathedral.</dd><dt>Space</dt><dd>Random one-, two-, or three-color preset from six fixed colors.</dd><dt>Shift + Space</dt><dd>New colors, same color count.</dd><dt>Radio buttons / [ ]</dt><dd>Choose single, dual, or trio tint.</dd><dt>Palette swatches</dt><dd>Add/remove colors. The fourth replaces the oldest; the last color cannot be removed. A/B/C show material roles.</dd><dt>Scroll / arrows</dt><dd>Field of view / look direction. Focused radios keep native arrow-key navigation.</dd><dt>R / H / F</dt><dd>Reset view / hide interface / full screen.</dd><dt>Q / Esc</dt><dd>Cycle detail / release the mouse.</dd></dl>
+    <p>Only the two original-base paths remain, each adapted around the uploaded cube’s <strong>24 unique vertices</strong>. Folded core feeds the bevel planes into its recurrence; Cathedral repeats the seed in four scales of solids and apertures. These are artistic adaptations, not unchanged mathematical originals.<br><br>Lighting and material weights are cached in a cubemap. Your palette is applied afterward, so shuffling does not rerun the geometry shader. Tints follow faces, bevels, and recursive detail—not the screen. Both paths share the same active colors. Nothing moves automatically, and the renderer sleeps when idle.<br><br>The six defaults are in <strong>PALETTE</strong>, near the top of <strong>app.js</strong> (also inline in this HTML). No network, fonts, textures, or model files are loaded.</p>
+  </section>
+</div>
+<div class="error" id="error" role="alert" hidden><div class="error-content"><h1>The renderer could not start.</h1><p id="error-message"></p><pre id="error-detail" hidden></pre><button class="tool" onclick="location.reload()">Reload demo</button></div></div>
+<noscript><div class="no-js">This interactive demo needs JavaScript and WebGL. Open the HTML in a browser with JavaScript enabled.</div></noscript>
+
+<script id="vertex-shader" type="x-shader/x-vertex">
+attribute vec2 aPosition;
+void main() { gl_Position=vec4(aPosition,0.0,1.0); }
+
+</script>
+
+<script id="bake-shader" type="x-shader/x-fragment">
+// THE ONE CUBE / CHROMA — palette-independent geometry/light bake.
+// WebGL 1 / GLSL ES 1.00. Only two original-base paths remain.
+// Output RGBA = sqrt(light/1.6), second material weight, third material weight,
+//               fog transmittance. Colors are NOT baked here.
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+uniform vec2 uResolution;
+uniform int uFace;
+uniform int uMode; // 0: Folded core; 1: Box cathedral
+const vec3 CAMERA = vec3(0.08,-0.12,0.05);
+const float FAR = 44.0;
+float max3(vec3 v) { return max(v.x,max(v.y,v.z)); }
+
+// Exact zero isosurface of the uploaded mesh, in local coordinates:
+// 24 unique vertices = signed permutations of (1,0.8,0.8).
+// Six face planes, twelve edge-bevel planes, eight corner planes.
+// This is a conservative distance BOUND, not an exact Euclidean SDF outside.
+float oneCubeUnit(vec3 p) {
+    vec3 a=abs(p);
+    float faces=max3(a)-1.0;
+    float edges=max3(vec3(a.x+a.y,a.x+a.z,a.y+a.z))-1.8;
+    float corners=a.x+a.y+a.z-2.6;
+    return max(faces,max(edges*0.70710678,corners*0.57735027));
+}
+float oneCube(vec3 p,float size) { return oneCubeUnit(p/size)*size; }
+float octagon(vec2 q) {
+    // Projection of the same 20%-inset seed onto an axis-aligned face.
+    return max(max(q.x,q.y)-1.0,(q.x+q.y-1.8)*0.70710678);
+}
+
+// Original cathedral's four recursive scales and factor-three repetition.
+// Each level is now bounded by the 24-vertex seed; apertures have flat bevels.
+// Thus the uploaded silhouette recurs throughout, rather than only enclosing it.
+vec2 cathedral(vec3 p) {
+    p/=7.2;
+    float d=-100.0, scale=1.0, detail=0.0;
+    for (int i=0;i<4;++i) {
+        vec3 a=mod(p*scale,2.0)-1.0;
+        float seed=oneCubeUnit(a)/scale;
+        vec3 r=abs(1.0-3.0*abs(a));
+        float cut=min(octagon(r.xy),min(octagon(r.yz),octagon(r.zx)))/(3.0*scale);
+        float level=max(seed,cut);
+        if (level>d) { d=level; detail=float(i); }
+        scale*=3.0;
+    }
+    return vec2(d*7.2,detail);
+}
+
+// Exact Euclidean projection onto the convex 24-vertex seed, then reflect.
+// The seed is [-0.8,0.8]^3 plus an L1 ball of radius 0.2. Projecting therefore
+// reduces to soft-thresholding the three positive "excess beyond 0.8" values.
+// 2*projection(z)-z is the beveled equivalent of the original box fold. Unlike
+// sequential plane reflections, it preserves escaping orbits far from the seed.
+vec3 seedFold(vec3 z) {
+    vec3 a=abs(z);
+    vec3 excess=max(a-0.8,0.0);
+    float largest=max3(excess);
+    float smallest=min(excess.x,min(excess.y,excess.z));
+    float sum=excess.x+excess.y+excess.z;
+    float threshold=max(0.0,max(largest-0.2,
+                    max((sum-smallest-0.2)*0.5,(sum-0.2)/3.0)));
+    vec3 projected=sign(z)*(min(a,0.8)+max(excess-threshold,0.0));
+    return projected*2.0-z;
+}
+
+// Original Folded core base: scale 3, sphere-fold amplification 1..4,
+// nine recurrences, symmetric world-space aspect ratio. Bevel-seeded adaptation,
+// not a claim that the original mathematical Mandelbox remains unchanged.
+vec2 foldedCore(vec3 p) {
+    vec3 q=mod(p+vec3(0.0,0.0,3.525)+9.4,18.8)-9.4;
+    vec3 c=q/2.35, z=c;
+    float derivative=1.0, orbit=10.0;
+    for (int i=0;i<9;++i) {
+        z=seedFold(z);
+        float k=clamp(1.0/max(dot(z,z),0.00001),1.0,4.0);
+        z*=k; derivative*=k;
+        z=3.0*z+c; derivative=3.0*derivative+1.0;
+        orbit=min(orbit,abs(oneCubeUnit(z)));
+    }
+    float d=length(z)/derivative*2.35-0.0035;
+    // A small chamfered safety pocket keeps the fixed observer in empty space.
+    d=max(d,-oneCube(p,0.62));
+    return vec2(d,clamp(orbit*3.0,0.0,3.0));
+}
+vec2 map(vec3 p) {
+    vec2 inner=uMode==0 ? foldedCore(p) : cathedral(p);
+    float shell=-oneCube(p,17.5);
+    if (shell<inner.x) return vec2(shell,4.0);
+    return inner;
+}
+vec3 cubeRay(vec2 uv) {
+    if (uFace==0) return normalize(vec3(1.0,-uv.y,-uv.x));
+    if (uFace==1) return normalize(vec3(-1.0,-uv.y,uv.x));
+    if (uFace==2) return normalize(vec3(uv.x,1.0,uv.y));
+    if (uFace==3) return normalize(vec3(uv.x,-1.0,-uv.y));
+    if (uFace==4) return normalize(vec3(uv.x,-uv.y,1.0));
+    return normalize(vec3(-uv.x,-uv.y,-1.0));
+}
+vec3 normalAt(vec3 p,float eps) {
+    vec2 e=vec2(1.0,-1.0)*eps;
+    return normalize(e.xyy*map(p+e.xyy).x+e.yyx*map(p+e.yyx).x+
+                     e.yxy*map(p+e.yxy).x+e.xxx*map(p+e.xxx).x);
+}
+float occlusion(vec3 p,vec3 n) {
+    float a=0.0,weight=1.0;
+    for (int i=1;i<=3;++i) {
+        float h=0.10+float(i)*0.18;
+        a+=(h-map(p+n*h).x)*weight; weight*=0.52;
+    }
+    return clamp(1.0-1.75*a,0.18,1.0);
+}
+void main() {
+    vec3 rd=cubeRay(gl_FragCoord.xy/uResolution*2.0-1.0);
+    float travel=0.0, hit=0.0, epsilon=0.002;
+    vec2 value=vec2(1.0);
+    for (int i=0;i<120;++i) {
+        value=map(CAMERA+rd*travel);
+        epsilon=max(0.0015,travel*0.0005);
+        if (value.x<epsilon) { hit=1.0; break; }
+        travel+=max(value.x*0.68,0.0009);
+        if (travel>FAR) break;
+    }
+    if (hit<0.5) { gl_FragColor=vec4(0.0); return; }
+    vec3 p=CAMERA+rd*travel;
+    vec3 n=normalAt(p,max(0.0012,epsilon*1.1));
+    float ao=occlusion(p,n);
+    float facing=max(dot(n,-rd),0.0);
+    float key=max(dot(n,normalize(vec3(-0.45,0.70,-0.55))),0.0);
+    float fill=max(dot(n,normalize(vec3(0.8,-0.2,0.4))),0.0);
+    float tint=0.85+0.15*cos(value.y*1.8);
+    float light=(0.075+0.30*facing+0.65*key+0.14*fill)*ao*tint;
+    vec3 lightDirection=normalize(vec3(0.5,1.8,-0.2)-p);
+    light+=max(dot(n,lightDirection),0.0)/(1.0+0.025*travel*travel)*0.30;
+    light+=pow(1.0-facing,3.0)*0.055*ao;
+    // Surface marks stay fixed in world space and survive every palette change.
+    vec3 nearest=abs(fract(p*0.42+0.5)-0.5), absN=abs(n);
+    float seam=absN.x>absN.y && absN.x>absN.z ? min(nearest.y,nearest.z)
+               : absN.y>absN.z ? min(nearest.x,nearest.z) : min(nearest.x,nearest.y);
+    light*=1.0-(1.0-smoothstep(0.008,0.024,seam))*0.13;
+    float band=1.0-smoothstep(0.016,0.033,abs(fract(p.y*0.23+0.11)-0.5));
+    light+=band*0.11*ao;
+    // Geometry-aware material fields: broad faces, bevels, recursive recesses.
+    // Their weights are baked, never tied to the screen or camera rotation.
+    float bevel=1.0-smoothstep(0.86,0.995,max3(absN));
+    float story=0.5+0.5*sin(value.y*2.1+p.y*0.45+p.z*0.21);
+    float third=smoothstep(0.36,0.88,story)*0.82;
+    float second=(1.0-third)*mix(0.04,0.91,bevel);
+    gl_FragColor=vec4(sqrt(clamp(light/1.6,0.0,1.0)),second,third,exp(-travel*0.039));
+}
+
+</script>
+
+<script id="view-shader" type="x-shader/x-fragment">
+// The only interactive rendering pass: one cubemap sample, simple palette mix.
+// No geometry/raymarching, no shadows, no rebake when colors change.
+precision mediump float;
+uniform vec2 uResolution;
+uniform mat3 uCameraRotation;
+uniform float uTanHalfFov;
+uniform samplerCube uEnvironment;
+uniform vec3 uColorA;
+uniform vec3 uColorB;
+uniform vec3 uColorC;
+uniform int uColorCount;
+void main() {
+    vec2 uv=(2.0*gl_FragCoord.xy-uResolution)/uResolution.y;
+    vec3 ray=normalize(uCameraRotation*vec3(uv*uTanHalfFov,-1.0));
+    vec4 material=textureCube(uEnvironment,ray);
+    float light=material.r*material.r*1.6;
+    float wb=material.g,wc=material.b,wa=max(0.0,1.0-wb-wc);
+    vec3 a=uColorA;
+    vec3 b=uColorCount>1 ? uColorB : a;
+    vec3 c=uColorCount>2 ? uColorC : (uColorCount>1 ? mix(a,b,0.70) : a);
+    // Palette uniforms are converted from sRGB into linear light by JavaScript.
+    // A modest neutral component retains material readability and bright facets.
+    vec3 pigment=wa*a+wb*b+wc*c;
+    vec3 color=(pigment*0.67+0.028)*light;
+    color+=vec3(pow(max(light-0.72,0.0),2.0)*0.16);
+    vec3 fog=0.0025+mix(a,c,0.35)*0.012;
+    color=mix(fog,color,material.a);
+    color=1.0-exp(-color*1.65);
+    color=pow(max(color,0.0),vec3(1.0/2.2));
+    vec2 screen=gl_FragCoord.xy/uResolution;
+    float vignette=16.0*screen.x*screen.y*(1.0-screen.x)*(1.0-screen.y);
+    color*=0.88+0.12*pow(max(vignette,0.0),0.24);
+    gl_FragColor=vec4(color,1.0);
+}
+
+</script>
+
+<script>
+/* THE ONE CUBE / CHROMA. Self-contained, no network, render-on-input.
+   Geometry/material weights are cached independently of the six-color palette.
+   Mouse look and color changes use one texture sample per pixel. */
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const canvas = $('viewport');
+  // EDIT THESE SIX CONSTANTS TO CHANGE THE PALETTE. No color picker or network.
+  // Hex values are sRGB; conversion to linear light happens once at startup.
+  const PALETTE = Object.freeze([
+    {name:'Ember',   hex:'#F16D55'},
+    {name:'Amber',   hex:'#F4C46B'},
+    {name:'Jade',    hex:'#77D4AA'},
+    {name:'Glacier', hex:'#68C9E6'},
+    {name:'Iris',    hex:'#9B8CEC'},
+    {name:'Rose',    hex:'#EB8DB5'}
+  ].map(color => Object.freeze(color)));
+  function linearRGB(hex) {
+    return new Float32Array([1,3,5].map(offset => {
+      const s=parseInt(hex.slice(offset,offset+2),16)/255;
+      return s<=0.04045 ? s/12.92 : ((s+0.055)/1.055)**2.4;
+    }));
+  }
+  const paletteLinear=PALETTE.map(color => linearRGB(color.hex));
+  const presets = [
+    {mode:0, name:'Folded core', label:'01 / Original base · 24-vertex seed',
+     desc:'Box folds and sphere folds, now reflecting through the edge and corner planes of The One Cube at every iteration.'},
+    {mode:1, name:'Box cathedral', label:'02 / Original base · 24-vertex seed',
+     desc:'Four levels of recursive chambers. The same beveled seed shapes the solids and the openings at every scale.'}
+  ];
+  let colorIndices=[1,2,4]; // Start with Amber / Jade / Iris. Shared by both paths.
+  const DEFAULT = Object.freeze({yaw:0.48, pitch:-0.14, fov:74});
+  const PREVIEW_SIZE = 64;
+  const TILE = 128; // At most this much new expensive work is submitted per frame.
+  // Just two geometry maps: at most ~64 MiB at Fine detail, plus previews.
+  // Palette changes do NOT create cache entries or invalidate either map.
+  const MAX_SCREEN_PIXELS = 1600 * 900;
+  const qualities = [256, 512, 1024];
+  let gl, bakeProgram, viewProgram, bakeU, viewU, buffer, framebuffer;
+  let selected = 0, quality = 512;
+  let yaw = DEFAULT.yaw, pitch = DEFAULT.pitch, fov = DEFAULT.fov;
+  let cache = new Map(), displayedEntry = null;
+  let raf = 0, dirty = true, contextLost = false, stopped = false;
+  let drawCount = 0, bakeDraws = 0;
+  let drag = null, toastTimer = 0, pendingLock = false;
+  let previousFocus = null;
+  const rotation = new Float32Array(9);
+
+  function fail(message, detail = '') {
+    stopped = true;
+    cancelAnimationFrame(raf); raf = 0;
+    $('error-message').textContent = message;
+    $('error-detail').textContent = detail;
+    $('error-detail').hidden = !detail;
+    $('error').hidden = false;
+    $('loading').hidden = true;
+  }
+  function notify(message) {
+    $('toast').textContent = message;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { $('toast').textContent = ''; }, 1900);
+  }
+  function createProgram(vertex, fragment) {
+    const vs = gl.createShader(gl.VERTEX_SHADER);
+    const fs = gl.createShader(gl.FRAGMENT_SHADER);
+    const program = gl.createProgram();
+    if (!vs || !fs || !program) throw new Error('WebGL could not allocate a shader program.');
+    gl.shaderSource(vs, vertex); gl.compileShader(vs);
+    gl.shaderSource(fs, fragment); gl.compileShader(fs);
+    gl.attachShader(program, vs); gl.attachShader(program, fs);
+    gl.bindAttribLocation(program, 0, 'aPosition');
+    gl.linkProgram(program);
+    // Compile/link checks happen only at initialization, never during mouse-look.
+    const linked = gl.getProgramParameter(program, gl.LINK_STATUS);
+    const error = linked ? '' : [gl.getProgramInfoLog(program), gl.getShaderInfoLog(vs), gl.getShaderInfoLog(fs)].filter(Boolean).join('\n');
+    gl.deleteShader(vs); gl.deleteShader(fs);
+    if (!linked) { gl.deleteProgram(program); throw new Error(error || 'Shader linking failed.'); }
+    return program;
+  }
+  function uniforms(program, names) {
+    return Object.fromEntries(names.map(name => [name, gl.getUniformLocation(program, name)]));
+  }
+  function initializeGL() {
+    gl = canvas.getContext('webgl', {
+      alpha:false, antialias:false, depth:false, stencil:false,
+      preserveDrawingBuffer:false, powerPreference:'low-power'
+    });
+    if (!gl) throw new Error('WebGL is unavailable. Enable browser hardware acceleration, or try another browser.');
+    const precision = gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT);
+    if (!precision || precision.precision === 0) {
+      throw new Error('This GPU does not support the high-precision fragment arithmetic needed by the Mandelbox preset. Try another browser or device.');
+    }
+    const vertex = $('vertex-shader').textContent;
+    bakeProgram = createProgram(vertex, $('bake-shader').textContent);
+    viewProgram = createProgram(vertex, $('view-shader').textContent);
+    bakeU = uniforms(bakeProgram, ['uResolution','uFace','uMode']);
+    viewU = uniforms(viewProgram, ['uResolution','uCameraRotation','uTanHalfFov','uEnvironment','uColorA','uColorB','uColorC','uColorCount']);
+    buffer = gl.createBuffer();
+    framebuffer = gl.createFramebuffer();
+    if (!buffer || !framebuffer) throw new Error('WebGL could not allocate render resources.');
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND); gl.disable(gl.CULL_FACE);
+    gl.disable(gl.DITHER);
+    gl.clearColor(0.035,0.048,0.055,1);
+    const maxSize = gl.getParameter(gl.MAX_CUBE_MAP_TEXTURE_SIZE);
+    for (const option of $('quality').options) option.disabled = Number(option.value) > maxSize;
+    if (quality > maxSize) quality = maxSize >= 256 ? 256 : 128;
+    $('quality').value = String(quality);
+  }
+  function makeCubemap(size) {
+    const texture = gl.createTexture();
+    if (!texture) throw new Error('WebGL could not allocate an environment map. Try Economy detail.');
+    gl.bindTexture(gl.TEXTURE_CUBE_MAP, texture);
+    for (let face=0; face<6; face++) {
+      gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_X + face, 0, gl.RGBA,
+                    size, size, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    }
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return texture;
+  }
+  function disposeEntry(entry) {
+    if (entry.preview) gl.deleteTexture(entry.preview);
+    if (entry.texture) gl.deleteTexture(entry.texture);
+  }
+  function entryKey(preset=selected) { return `${preset}:${quality}`; }
+  function cacheLimit() { return 2; }
+  function touchEntry(entry) {
+    cache.delete(entry.key); cache.set(entry.key,entry);
+    return entry;
+  }
+  function getEntry() {
+    const key=entryKey();
+    if (cache.has(key)) return cache.get(key);
+    while (cache.size >= cacheLimit()) {
+      // Keep the last usable environment on screen while a new preview bakes.
+      const victim=Array.from(cache.values()).find(entry => entry!==displayedEntry);
+      if (!victim) break;
+      disposeEntry(victim); cache.delete(victim.key);
+    }
+    const entry = {
+      key, preset:selected,
+      size:quality, preview:makeCubemap(PREVIEW_SIZE),
+      texture:null, previewFaces:0, tilesDone:0, complete:false
+    };
+    cache.set(key, entry);
+    return entry;
+  }
+  function checkTarget(texture, size) {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
+                            gl.TEXTURE_CUBE_MAP_POSITIVE_X, texture, 0);
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+      throw new Error(`Could not prepare a ${size}×${size} environment map. Try a lower detail setting.`);
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+  function bakeOneTile(entry) {
+    if (entry.complete) return;
+    const preview = entry.previewFaces < 6;
+    let size, face, x=0, y=0, tileSize;
+    if (preview) {
+      size = PREVIEW_SIZE; face = entry.previewFaces; tileSize = size;
+      if (face===0) checkTarget(entry.preview, size);
+    } else {
+      size = entry.size; tileSize = Math.min(TILE, size);
+      if (!entry.texture) {
+        entry.texture = makeCubemap(size);
+        checkTarget(entry.texture, size);
+      }
+      const columns = Math.ceil(size/tileSize);
+      const perFace = columns * columns;
+      face = Math.floor(entry.tilesDone/perFace);
+      const tile = entry.tilesDone % perFace;
+      x = (tile % columns)*tileSize;
+      y = Math.floor(tile/columns)*tileSize;
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
+                           gl.TEXTURE_CUBE_MAP_POSITIVE_X + face,
+                           preview ? entry.preview : entry.texture, 0);
+    gl.viewport(0,0,size,size);
+    gl.enable(gl.SCISSOR_TEST);
+    gl.scissor(x,y,Math.min(tileSize,size-x),Math.min(tileSize,size-y));
+    gl.useProgram(bakeProgram);
+    gl.uniform2f(bakeU.uResolution, size, size);
+    gl.uniform1i(bakeU.uFace, face);
+    gl.uniform1i(bakeU.uMode, presets[entry.preset].mode);
+    gl.drawArrays(gl.TRIANGLES,0,3);
+    bakeDraws++;
+    gl.disable(gl.SCISSOR_TEST);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+    if (preview) {
+      entry.previewFaces++;
+      if (entry.previewFaces===6) { displayedEntry=entry; dirty=true; }
+    } else {
+      entry.tilesDone++;
+      const total = 6 * Math.ceil(size/tileSize)**2;
+      if (entry.tilesDone===total) {
+        gl.bindTexture(gl.TEXTURE_CUBE_MAP,entry.texture);
+        gl.generateMipmap(gl.TEXTURE_CUBE_MAP);
+        gl.texParameteri(gl.TEXTURE_CUBE_MAP,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);
+        entry.complete=true;
+        gl.deleteTexture(entry.preview); entry.preview=null;
+        displayedEntry=entry; dirty=true;
+      }
+    }
+    updateStatus(entry);
+  }
+  function resizeCanvas() {
+    // High-DPI and 4K displays cannot silently multiply the pixel budget.
+    const width = Math.max(1,window.innerWidth);
+    const height = Math.max(1,window.innerHeight);
+    const scale = Math.min(window.devicePixelRatio || 1, 1.5,
+                           Math.sqrt(MAX_SCREEN_PIXELS/(width*height)));
+    const w=Math.max(1,Math.round(width*scale));
+    const h=Math.max(1,Math.round(height*scale));
+    if (canvas.width!==w || canvas.height!==h) {
+      canvas.width=w; canvas.height=h;
+    }
+    dirty=true;
+  }
+  function cameraMatrix() {
+    // Column-major R_y(-yaw) * R_x(pitch), looking along local -Z.
+    const cy=Math.cos(yaw), sy=Math.sin(yaw), cx=Math.cos(pitch), sx=Math.sin(pitch);
+    rotation.set([cy,0,sy, -sy*sx,cx,cy*sx, -sy*cx,-sx,cy*cx]);
+    return rotation;
+  }
+  function drawView() {
+    gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+    gl.viewport(0,0,canvas.width,canvas.height);
+    if (!displayedEntry) {
+      gl.clear(gl.COLOR_BUFFER_BIT);
+    } else {
+      gl.useProgram(viewProgram);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_CUBE_MAP, displayedEntry.complete ? displayedEntry.texture : displayedEntry.preview);
+      gl.uniform1i(viewU.uEnvironment,0);
+      gl.uniform2f(viewU.uResolution,canvas.width,canvas.height);
+      gl.uniformMatrix3fv(viewU.uCameraRotation,false,cameraMatrix());
+      gl.uniform1f(viewU.uTanHalfFov,Math.tan(fov*Math.PI/360));
+      gl.uniform1i(viewU.uColorCount,colorIndices.length);
+      gl.uniform3fv(viewU.uColorA,paletteLinear[colorIndices[0]]);
+      gl.uniform3fv(viewU.uColorB,paletteLinear[colorIndices[1] ?? colorIndices[0]]);
+      gl.uniform3fv(viewU.uColorC,paletteLinear[colorIndices[2] ?? colorIndices[0]]);
+      gl.drawArrays(gl.TRIANGLES,0,3);
+      drawCount++;
+      $('loading').hidden=true;
+    }
+    $('origin').textContent=`ORIGIN +0.08 −0.12 +0.05 · FOV ${Math.round(fov)}°`;
+    dirty=false;
+  }
+  function updateStatus(entry) {
+    const track=$('progress-track');
+    const status=$('status');
+    if (entry.complete) {
+      status.textContent='GEOMETRY CACHED · COLOR IS LIVE';
+      $('render-info').textContent=`6 × ${entry.size}² · NO REBAKE ON SHUFFLE`;
+      track.hidden=true;
+    } else {
+      const total=6*Math.ceil(entry.size/TILE)**2;
+      const progress=entry.previewFaces<6 ? entry.previewFaces/6*0.08 : 0.08+0.92*entry.tilesDone/total;
+      // Only announce milestones, not every tile, to avoid noisy screen readers.
+      const rounded=Math.floor(progress*10)*10;
+      const text=entry.previewFaces<6 ? 'PREPARING ENVIRONMENT' : `REFINING ENVIRONMENT / ${rounded}%`;
+      if (status.textContent!==text) status.textContent=text;
+      $('render-info').textContent='ONE-TIME PREPARATION / LOOK AROUND WHILE IT REFINES';
+      track.hidden=false;
+      $('progress-fill').style.width=`${progress*100}%`;
+    }
+  }
+  function tick() {
+    raf=0;
+    if (document.hidden || contextLost || stopped) return;
+    try {
+      const entry=getEntry();
+      if (!entry.complete) bakeOneTile(entry);
+      if (entry.previewFaces===6 && displayedEntry!==entry) { displayedEntry=entry; dirty=true; }
+      // Avoid redrawing the view during background refinement unless it changes.
+      if (dirty) drawView();
+      if (!entry.complete || dirty) wake();
+    } catch (error) { fail('The environment renderer encountered an error.', String(error.message || error)); }
+  }
+  function wake() {
+    if (!raf && !document.hidden && !contextLost && !stopped) raf=requestAnimationFrame(tick);
+  }
+  function refreshPresetUI() {
+    const preset=presets[selected];
+    $('scene-title').textContent=preset.name;
+    $('scene-label').textContent=preset.label;
+    $('scene-desc').textContent=preset.desc;
+    document.querySelectorAll('[data-preset]').forEach(button => {
+      const active=Number(button.dataset.preset)===selected;
+      button.setAttribute('aria-pressed',String(active));
+    });
+  }
+  function refreshColorUI() {
+    const names=colorIndices.map(i => PALETTE[i].name);
+    const count=colorIndices.length;
+    document.documentElement.style.setProperty('--accent',PALETTE[colorIndices[0]].hex);
+    $('color-summary').textContent=names.join(' / ');
+    $('color-mode').textContent=['Single','Dual','Trio'][count-1];
+    document.querySelectorAll('input[name="color-count"]').forEach(input => {
+      input.checked=Number(input.value)===count;
+    });
+    document.querySelectorAll('[data-color]').forEach(button => {
+      const index=Number(button.dataset.color), role=colorIndices.indexOf(index);
+      button.setAttribute('aria-pressed',String(role!==-1));
+      button.querySelector('.swatch-role').textContent=role===-1 ? '' : ['A','B','C'][role];
+      button.setAttribute('aria-label',`${PALETTE[index].name}, ${PALETTE[index].hex}${role===-1 ? '' : ', selected as color '+['A','B','C'][role]}`);
+    });
+  }
+  function applyColors(indices) {
+    if (!Array.isArray(indices) || indices.length<1 || indices.length>3 ||
+        new Set(indices).size!==indices.length || indices.some(i => !Number.isInteger(i) || i<0 || i>=PALETTE.length)) return;
+    colorIndices=indices.slice();
+    refreshColorUI();
+    dirty=true; wake(); // Only a redraw: no cache key or geometry uniform changes.
+  }
+  function randomOrder() {
+    const pool=PALETTE.map((_,i)=>i);
+    for (let i=pool.length-1;i>0;--i) {
+      const j=Math.floor(Math.random()*(i+1));
+      [pool[i],pool[j]]=[pool[j],pool[i]];
+    }
+    return pool;
+  }
+  function setColorCount(count) {
+    if (!Number.isInteger(count) || count<1 || count>3) return;
+    const next=colorIndices.slice(0,count);
+    for (const index of randomOrder()) {
+      if (next.length===count) break;
+      if (!next.includes(index)) next.push(index);
+    }
+    applyColors(next);
+  }
+  function chooseColor(index) {
+    const active=colorIndices.includes(index);
+    if (active && colorIndices.length===1) return; // Never allow an empty palette.
+    const next=active ? colorIndices.filter(i=>i!==index) : [...colorIndices,index].slice(-3);
+    applyColors(next);
+  }
+  function shuffleColors(keepCount=false) {
+    const count=keepCount ? colorIndices.length : 1+Math.floor(Math.random()*3);
+    const signature=indices=>indices.slice().sort().join(',');
+    let next=randomOrder().slice(0,count), attempt=0;
+    while (signature(next)===signature(colorIndices) && attempt++<12) next=randomOrder().slice(0,count);
+    if (signature(next)===signature(colorIndices)) next=next.map(i=>(i+1)%PALETTE.length);
+    applyColors(next);
+    notify(`${['Single','Dual','Trio'][count-1]} · ${next.map(i=>PALETTE[i].name).join(' / ')}`);
+  }
+  function cycleColorCount(delta) {
+    setColorCount((colorIndices.length-1+delta+3)%3+1);
+  }
+  function setPreset(index) {
+    if (!Number.isInteger(index) || index<0 || index>=presets.length || stopped) return;
+    selected=index;
+    refreshPresetUI();
+    const key=entryKey();
+    if (cache.has(key)) {
+      const entry=touchEntry(cache.get(key));
+      if (entry.previewFaces===6) displayedEntry=entry;
+      updateStatus(entry);
+    } else {
+      $('status').textContent='PREPARING GEOMETRY';
+      $('render-info').textContent='ONE-TIME PREPARATION / LOOK AROUND WHILE IT REFINES';
+      $('progress-track').hidden=false; $('progress-fill').style.width='0%';
+    }
+    // The camera orientation, position and FOV do not change with the geometry.
+    dirty=true; wake();
+  }
+  function setQuality(value) {
+    const option=Array.from($('quality').options).find(o => Number(o.value)===value && !o.disabled);
+    if (!option || value===quality) return;
+    quality=value; $('quality').value=String(value);
+    // Colors survive detail changes; only geometry maps expire.
+    for (const entry of cache.values()) disposeEntry(entry);
+    cache.clear(); displayedEntry=null;
+    $('loading').hidden=false; $('loading').textContent='Preparing the new detail level…';
+    setPreset(selected);
+  }
+  function rotate(dx,dy) {
+    if (!Number.isFinite(dx) || !Number.isFinite(dy)) return;
+    yaw=(yaw+dx*0.0026)%(2*Math.PI);
+    pitch=Math.max(-1.52,Math.min(1.52,pitch-dy*0.0026));
+    dirty=true; wake();
+  }
+  function reset() {
+    yaw=DEFAULT.yaw; pitch=DEFAULT.pitch; fov=DEFAULT.fov;
+    dirty=true; wake(); notify('View reset · camera position unchanged');
+  }
+  function updateLockUI() {
+    const locked=document.pointerLockElement===canvas;
+    document.body.classList.toggle('locked',locked);
+    $('look-tip').innerHTML=locked ? 'Mouse captured · Esc to release<small>One fixed point. Infinite small worlds.</small>' : 'Click to capture · drag to look<small>One fixed point. Infinite small worlds.</small>';
+    pendingLock=false;
+  }
+  async function capturePointer() {
+    if (pendingLock || document.pointerLockElement===canvas) return;
+    if (!canvas.requestPointerLock) { notify('Pointer capture is unavailable. Drag to look instead.'); return; }
+    pendingLock=true;
+    try { await canvas.requestPointerLock(); }
+    catch (_) { pendingLock=false; notify('Pointer capture was blocked. Drag to look instead.'); }
+  }
+  async function toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen();
+      else notify('Full screen is unavailable in this browser.');
+    } catch (_) { notify('Full screen was blocked by this browser.'); }
+  }
+  function showHelp(show) {
+    if (show) {
+      previousFocus=document.activeElement;
+      if (document.pointerLockElement) document.exitPointerLock();
+      document.body.classList.remove('hidden-ui');
+      document.querySelector('.hud').inert=false;
+      $('help').hidden=false; $('help-close').focus();
+    } else {
+      $('help').hidden=true;
+      (previousFocus && previousFocus.isConnected ? previousFocus : canvas).focus({preventScroll:true});
+    }
+  }
+
+  // Input: ordinary drag is always supported; pointer lock is an optional upgrade.
+  canvas.addEventListener('pointerdown',event => {
+    if (event.button!==0 || document.pointerLockElement===canvas) return;
+    canvas.focus({preventScroll:true});
+    drag={id:event.pointerId,x:event.clientX,y:event.clientY,distance:0,type:event.pointerType};
+    canvas.setPointerCapture(event.pointerId); canvas.classList.add('dragging');
+  });
+  canvas.addEventListener('pointermove',event => {
+    if (!drag || event.pointerId!==drag.id || document.pointerLockElement===canvas) return;
+    const dx=event.clientX-drag.x, dy=event.clientY-drag.y;
+    drag.distance+=Math.abs(dx)+Math.abs(dy);
+    drag.x=event.clientX; drag.y=event.clientY;
+    rotate(dx,dy);
+  });
+  canvas.addEventListener('pointerup',event => {
+    if (!drag || event.pointerId!==drag.id) return;
+    const click=drag.distance<5 && drag.type==='mouse';
+    drag=null; canvas.classList.remove('dragging');
+    if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+    if (click) capturePointer();
+  });
+  function cancelDrag() { drag=null; canvas.classList.remove('dragging'); }
+  canvas.addEventListener('pointercancel',cancelDrag);
+  canvas.addEventListener('lostpointercapture',cancelDrag);
+  document.addEventListener('mousemove',event => {
+    if (document.pointerLockElement===canvas) rotate(event.movementX,event.movementY);
+  });
+  document.addEventListener('pointerlockchange',updateLockUI);
+  document.addEventListener('pointerlockerror',() => { pendingLock=false; notify('Pointer capture is unavailable here. Drag to look instead.'); });
+  window.addEventListener('blur',cancelDrag);
+  canvas.addEventListener('wheel',event => {
+    if (event.ctrlKey) return; // Do not override the browser's own zoom gesture.
+    event.preventDefault();
+    const delta=event.deltaY*(event.deltaMode===1 ? 16 : event.deltaMode===2 ? innerHeight : 1);
+    fov=Math.max(40,Math.min(100,fov+delta*0.035));
+    dirty=true; wake();
+  },{passive:false});
+  document.addEventListener('keydown',event => {
+    if (event.ctrlKey || event.altKey || event.metaKey) return;
+    const key=event.key.toLowerCase();
+    if (!$('help').hidden) {
+      if (key==='escape' || key==='?') { event.preventDefault(); showHelp(false); }
+      if (key==='tab') { event.preventDefault(); $('help-close').focus(); }
+      return;
+    }
+    const radio=event.target instanceof HTMLInputElement && event.target.type==='radio';
+    if (event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement ||
+        (event.target instanceof HTMLInputElement && !radio)) return;
+    if (event.code==='Space' || key===' ') {
+      event.preventDefault();
+      if (!event.repeat) shuffleColors(event.shiftKey);
+    }
+    else if (['1','2'].includes(key)) { event.preventDefault(); setPreset(Number(key)-1); }
+    else if (key==='[' || key===']') {
+      event.preventDefault(); if (!event.repeat) cycleColorCount(key==='[' ? -1 : 1);
+    }
+    // Arrow keys retain their native radio-group behavior while a radio is focused.
+    else if (radio && ['arrowleft','arrowright','arrowup','arrowdown'].includes(key)) return;
+    else if (key==='arrowleft') { event.preventDefault(); rotate(-18,0); }
+    else if (key==='arrowright') { event.preventDefault(); rotate(18,0); }
+    else if (key==='arrowup') { event.preventDefault(); rotate(0,-18); }
+    else if (key==='arrowdown') { event.preventDefault(); rotate(0,18); }
+    else if (!event.repeat && key==='r') reset();
+    else if (!event.repeat && key==='h') {
+      const hidden=document.body.classList.toggle('hidden-ui');
+      document.querySelector('.hud').inert=hidden;
+      if (hidden) canvas.focus({preventScroll:true});
+    }
+    else if (!event.repeat && key==='f') toggleFullscreen();
+    else if (!event.repeat && key==='q') {
+      const available=qualities.filter(q=>!Array.from($('quality').options).find(o=>Number(o.value)===q)?.disabled);
+      setQuality(available[(available.indexOf(quality)+1)%available.length]);
+    } else if (!event.repeat && key==='?') showHelp(true);
+  });
+  document.querySelectorAll('[data-preset]').forEach(button => button.addEventListener('click',() => {
+    setPreset(Number(button.dataset.preset)); canvas.focus({preventScroll:true});
+  }));
+  document.querySelectorAll('input[name="color-count"]').forEach(input => {
+    input.addEventListener('change',()=>setColorCount(Number(input.value)));
+  });
+  const swatches=$('palette');
+  PALETTE.forEach((color,index) => {
+    const button=document.createElement('button');
+    button.type='button'; button.className='swatch'; button.dataset.color=String(index);
+    button.style.setProperty('--swatch',color.hex);
+    button.title=`${color.name} ${color.hex} · click to add/remove; a fourth replaces the oldest`;
+    button.innerHTML='<span class="swatch-paint"><span class="swatch-role"></span></span><span class="swatch-name"></span>';
+    button.querySelector('.swatch-name').textContent=color.name;
+    button.addEventListener('click',()=>chooseColor(index));
+    swatches.appendChild(button);
+  });
+  $('shuffle').addEventListener('click',()=>shuffleColors(false));
+  $('quality').addEventListener('change',event => { setQuality(Number(event.target.value)); canvas.focus({preventScroll:true}); });
+  $('fullscreen').addEventListener('click',toggleFullscreen);
+  $('help-open').addEventListener('click',() => showHelp(true));
+  $('help-close').addEventListener('click',() => showHelp(false));
+  $('help').addEventListener('click',event => { if (event.target===$('help')) showHelp(false); });
+  window.addEventListener('resize',() => { resizeCanvas(); wake(); });
+  document.addEventListener('visibilitychange',() => {
+    if (document.hidden) { cancelAnimationFrame(raf); raf=0; }
+    else { dirty=true; wake(); }
+  });
+  canvas.addEventListener('webglcontextlost',event => {
+    event.preventDefault(); contextLost=true; cancelAnimationFrame(raf); raf=0;
+    $('status').textContent='GRAPHICS CONTEXT PAUSED';
+    notify('Graphics context lost. Waiting for the browser to restore it.');
+  });
+  canvas.addEventListener('webglcontextrestored',() => {
+    contextLost=false; stopped=false; cache=new Map(); displayedEntry=null;
+    try { initializeGL(); resizeCanvas(); wake(); }
+    catch (error) { fail('Could not restore the graphics context.',String(error.message || error)); }
+  });
+
+  // Public API: scene IDs 1..2; palette indices 0..5, in A/B/C role order.
+  const api=Object.freeze({
+    setPreset(number) { setPreset(number-1); },
+    setColorCount, setColors:applyColors, shuffle:shuffleColors, reset,
+    getState() {
+      const entry=cache.get(entryKey());
+      const complete=Array.from(cache.values()).filter(e=>e.complete);
+      return {
+        preset:selected+1, name:presets[selected].name, quality,
+        colorCount:colorIndices.length, colorMode:['Single','Dual','Trio'][colorIndices.length-1],
+        colorIndices:colorIndices.slice(), colors:colorIndices.map(i=>({...PALETTE[i]})),
+        palette:PALETTE.map(color=>({...color})),
+        camera:{position:[0.08,-0.12,0.05],yaw,pitch,fov},
+        ready:!!entry?.complete, previewReady:entry?.previewFaces===6,
+        cachedPresets:complete.map(e=>e.preset+1),
+        cachedEnvironments:complete.map(e=>({preset:e.preset+1,size:e.size})),
+        cacheEntries:cache.size, cacheLimit:2,
+        displayedEnvironment:displayedEntry ? {preset:displayedEntry.preset+1} : null,
+        viewDraws:drawCount, bakeDraws, frameScheduled:!!raf,
+        renderingResolution:[canvas.width,canvas.height]
+      };
+    }
+  });
+  window.oneCube=api;
+  window.insideBox=api; // Retain the baseline integration name.
+  refreshColorUI();
+  try { initializeGL(); resizeCanvas(); setPreset(0); }
+  catch (error) { fail('This demo needs a working WebGL context. Try enabling hardware acceleration or opening the file in another browser.',String(error.message || error)); }
+})();
+
+</script></body></html>
