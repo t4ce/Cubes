@@ -3,12 +3,30 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="An offline, sparse 27-world cubic level-generation playground.">
-<title>Little Worlds — Cube World Studio</title>
+<title>Little Worlds — Edge walking</title>
 <style>
 :root{--paper:#fafaf5;--canvas:#eef0e7;--ink:#293b33;--muted:#7e877f;--line:#e0e5da;--green:#426b50;--soft:#e8efe3;--purple:#77698a;--red:#bd695e;--mono:ui-monospace,SFMono-Regular,Consolas,monospace}*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden}body{font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);background:var(--paper);font-size:13px}button,input,select{font:inherit;color:inherit}button{cursor:pointer}button:disabled{cursor:default;opacity:.4}button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--green);outline-offset:3px}button{border:1px solid var(--line);background:var(--paper);border-radius:8px;transition:background .16s,border-color .16s,transform .16s}button:hover:not(:disabled){background:#eaf0e4;border-color:#b5c5b0}button:active:not(:disabled):not(.portal-label){transform:translateY(1px)}svg{vertical-align:middle}#app{display:grid;grid-template-rows:70px minmax(0,1fr);height:100dvh}#bar{display:flex;align-items:center;gap:24px;padding:0 24px;border-bottom:1px solid var(--line);position:relative;z-index:10;background:var(--paper)}.brand{display:flex;align-items:center;gap:10px;min-width:272px}.brand-icon{width:36px;height:36px;display:grid;place-items:center;background:var(--soft);border:1px solid #d7e3cf;border-radius:11px}.brand-title{font-size:19px;font-weight:670;letter-spacing:-.8px;line-height:1.1}.brand-sub{font-size:10px;letter-spacing:.10em;color:var(--muted);margin-top:5px;text-transform:uppercase}.modes{display:flex;gap:3px;border:1px solid var(--line);border-radius:10px;padding:3px;background:#f0f3eb}.modes button{min-width:100px;border:none;background:transparent;padding:8px 15px;font-size:12px}.modes .active{background:#fff;box-shadow:0 1px 4px #33442213;font-weight:650}.header-actions{margin-left:auto;display:flex;gap:7px;align-items:center}.header-actions button{padding:8px 11px;font-size:11px;background:transparent}.header-actions .help-button{width:33px;height:33px;padding:0;border-radius:50%;font-size:14px}.offline{font-size:10px;letter-spacing:.05em;color:#8a9489;margin-right:5px}.offline:before{content:'';display:inline-block;width:5px;height:5px;border-radius:50%;background:#809b77;vertical-align:2px;margin-right:5px}#workspace{display:grid;grid-template-columns:310px minmax(0,1fr);min-height:0;transition:grid-template-columns .24s}#sidebar{border-right:1px solid var(--line);background:var(--paper);overflow:auto;scrollbar-width:thin;scrollbar-color:#cbd6c6 transparent}.panel{padding:21px 21px 19px;border-bottom:1px solid var(--line)}.eyebrow{font-family:var(--mono);font-size:9px;letter-spacing:.15em;color:var(--muted);text-transform:uppercase;display:flex;justify-content:space-between;align-items:center;margin-bottom:11px}.eyebrow .num{color:#a6aea0}.world-line{display:flex;gap:5px;align-items:center}.world-line select{width:100%;font-weight:620;letter-spacing:-.35px;font-size:17px;border:0;outline-offset:0;padding:3px 0;background:transparent;min-width:0}.world-line .step{height:28px;width:25px;flex-shrink:0;padding:0;border-color:transparent;background:transparent;font-size:17px}.theme-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}.theme-chip{font-size:10px;border:1px solid #dde3d6;border-radius:4px;padding:4px 6px;display:flex;align-items:center;gap:5px;background:#fff}.swatch{width:7px;height:7px;border-radius:2px;display:inline-block;flex-shrink:0}.small{font-size:10px;color:var(--muted);line-height:1.65}.atlas-toggle{font-size:10px;color:var(--muted);cursor:pointer;margin-top:13px}.atlas-toggle summary{list-style:none;display:flex;align-items:center;justify-content:space-between}.atlas-toggle summary:after{content:'+';font-size:14px}.atlas-toggle[open] summary:after{content:'−'}.atlas{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:13px}.atlas-layer{display:grid;grid-template-columns:repeat(3,1fr);gap:3px}.atlas-layer small{grid-column:1/-1;font:8px var(--mono);color:#8d978b;text-align:center;margin-bottom:2px}.world-dot{aspect-ratio:1;border-radius:4px;padding:0;font:9px var(--mono);border-color:transparent;position:relative}.world-dot.active{box-shadow:0 0 0 2px var(--green);z-index:1}.world-dot.filled:after{content:'';width:3px;height:3px;background:#426b50;position:absolute;right:2px;bottom:2px;border-radius:50%}.dimension-row{display:flex;gap:4px;padding:3px;background:#f0f3eb;border-radius:7px;margin-top:17px}.dimension-row button{border:0;background:transparent;flex:1;padding:7px 4px;font-size:10px}.dimension-row .active{background:#fff;box-shadow:0 1px 3px #0000000d;font-weight:620}.dimension-note{margin-top:7px;font-size:9px;color:#8a9287;line-height:1.5}.patterns{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:15px}.pattern{height:62px;text-align:left;padding:10px;display:flex;align-items:center;gap:9px;font-size:11px;color:#75806f;background:#f8f9f3}.pattern svg{width:29px;height:29px;stroke:currentColor;fill:none;stroke-width:1.25;flex-shrink:0}.pattern.active{background:#e9f0e2;border-color:#a1b498;color:#3c5a3b;font-weight:600}.field{margin-top:12px}.field-head{display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#5e6b5d;margin-bottom:6px}.field-head output{font-family:var(--mono);font-size:10px;color:#426b50}.field input[type=range]{width:100%;accent-color:var(--green);height:13px;cursor:pointer;margin:0}.seed-row{display:flex;gap:5px}.seed-row input{width:100%;min-width:0;border:1px solid var(--line);border-radius:6px;padding:8px 9px;background:#fff;font:11px var(--mono);outline-offset:1px}.seed-row button{width:34px;flex-shrink:0;padding:0;font-size:18px}.checks{display:flex;align-items:center;gap:7px;font-size:10px;margin-top:12px;color:#5d715b}.checks input{accent-color:var(--green);margin:0}.checks span:last-child{font:8px var(--mono);margin-left:auto;letter-spacing:.05em;background:#edf2e8;padding:3px 4px;border-radius:3px;color:#809475}.advanced{margin-top:12px}.advanced summary{font-size:10px;color:var(--muted);cursor:pointer;list-style:none}.advanced summary:after{content:' +';float:right}.advanced[open] summary:after{content:' −'}.primary{background:var(--green);border-color:var(--green);color:#fff;font-weight:500}.primary:hover:not(:disabled){background:#33593f;border-color:#33593f}.generate-row{display:flex;gap:6px;margin-top:16px}.generate-row .primary{flex:1;padding:11px 10px;font-size:11px}.generate-row button:last-child{width:37px}.minor-actions{display:flex;align-items:center;justify-content:space-between;margin-top:9px}.text-button{border:0;background:transparent;font-size:10px;color:var(--muted);padding:5px 0}.text-button:hover:not(:disabled){background:transparent;color:var(--green);text-decoration:underline}.text-button.danger:hover{color:var(--red)}.tool-row{display:flex;gap:4px}.tool-row button{flex:1;padding:8px 2px;font-size:10px;background:#f5f7ef}.tool-row button.active{background:#e8efe3;border-color:#abc1a3;color:#3b653e;font-weight:600}.tool-row button[data-tool=remove].active{background:#fbede7;border-color:#d3a596;color:#b36151}.slice-row{display:flex;gap:8px;margin-top:14px;align-items:center}.slice-row select{width:52px;background:#fff;border:1px solid var(--line);border-radius:6px;padding:5px 3px;font:10px var(--mono)}.slice-row input{width:100%;accent-color:var(--green);min-width:0}.slice-row output{min-width:30px;text-align:right;font:10px var(--mono)}.slice-note{font-size:9px;color:var(--muted);margin-top:6px;line-height:1.5}.budget-head{display:flex;align-items:center;justify-content:space-between;margin-top:16px;font-size:10px;color:#7d897a}.budget-head strong{font:11px var(--mono);color:#506b4d}.budget-bar{display:flex;gap:3px;margin:7px 0}.budget-bar i{height:4px;flex:1;background:#e6ebdf;border-radius:2px}.budget-bar i.on{background:#8cab7e}.budget-bar.over i{background:#c89872}.budget-warning{font-size:9px;line-height:1.5;color:#a47346;margin:5px 0}.history{display:flex;gap:6px;margin-top:12px}.history button{padding:6px 9px;font-size:10px;flex:1}.history button:last-child{flex:1.35}.sidebar-foot{padding:14px 21px;color:#96a08f;font-size:9px;line-height:1.6}.view{position:relative;overflow:hidden;min-width:0;min-height:0;background:radial-gradient(ellipse at 48% 43%,#fafbf4 0%,#edf0e5 66%,#e5eadd 100%)}canvas{width:100%;height:100%;display:block;touch-action:none;outline:none}.view-top{position:absolute;top:24px;left:28px;pointer-events:none}.scene-kicker{font:9px var(--mono);letter-spacing:.15em;color:#8d9b85;text-transform:uppercase}.view-top h1{font-size:21px;line-height:1.2;font-weight:470;letter-spacing:-.7px;margin:9px 0 6px}.view-top p{font-size:10px;color:#8c9785;line-height:1.5;margin:0}.view-meta{position:absolute;right:24px;top:23px;display:flex;gap:7px;align-items:center}.meta-chip{padding:6px 9px;border:1px solid #d7dfcf;border-radius:5px;background:#f9fbf488;color:#7c8b72;font:9px var(--mono);backdrop-filter:blur(8px)}.guides-toggle{cursor:pointer;font:9px var(--mono);color:#87947e;display:flex;gap:4px;align-items:center;margin-right:4px}.guides-toggle input{accent-color:var(--green);height:11px;width:11px}.view-bottom{position:absolute;bottom:20px;left:26px;right:26px;display:flex;justify-content:space-between;align-items:end;gap:12px;pointer-events:none}.view-bottom .left{font:9px/1.8 var(--mono);color:#8c9982}.view-bottom .right{font-size:9px;color:#8a9780;text-align:right}.view-actions{display:flex;gap:5px;position:absolute;bottom:60px;right:24px}.view-actions button{width:31px;height:31px;background:#f9fbf4c9;color:#788b6e;border-color:#d4decc}.view-actions button svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.4}.hint-bar{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);padding:9px 15px;border-radius:7px;white-space:nowrap;background:#fafcf5d9;border:1px solid #d8e1cf;box-shadow:0 2px 6px #34442204;font-size:9px;color:#7c8c70;pointer-events:none;backdrop-filter:blur(10px)}kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px 4px;border-radius:3px;color:#6c7d60}.empty-card{position:absolute;bottom:93px;left:28px;max-width:224px;padding:15px 16px;border:1px solid #d5dfcb;border-radius:10px;background:#f9fbf3d9;backdrop-filter:blur(10px);box-shadow:0 5px 30px #41593405}.empty-card h2{font-size:12px;font-weight:550;letter-spacing:-.2px;margin:0 0 6px}.empty-card p{font-size:10px;color:#849377;line-height:1.6;margin:0 0 10px}.empty-card button{padding:6px 9px;font-size:10px}.empty-card .tiny{font:8px var(--mono);margin-left:8px;color:#92a087}.portal-label{position:absolute;z-index:2;transform:translate(-50%,-50%);border:1px solid #ffffffba;border-radius:5px;box-shadow:0 1px 6px #5268480a;background:#fafcf4d9;backdrop-filter:blur(3px);padding:4px 6px;font:8px var(--mono);color:#7e8b74;white-space:nowrap;transition:opacity .15s}.portal-label i{width:4px;height:6px;display:inline-block;border-radius:1px;margin-right:2px}.portal-label strong{font-weight:600;margin-right:3px}.portal-label:hover{color:#354a31;background:#fff;box-shadow:0 2px 10px #33552220}.portal-label .target{margin-left:3px}.crosshair{display:none;position:absolute;left:50%;top:50%;width:13px;height:13px;transform:translate(-50%,-50%);pointer-events:none}.crosshair:before,.crosshair:after{content:'';position:absolute;background:#435b43bb;box-shadow:0 0 1px #fff}.crosshair:before{width:13px;height:1px;top:6px}.crosshair:after{height:13px;width:1px;left:6px}.walk-hud{position:absolute;top:100px;left:28px;display:none;font:10px/1.8 var(--mono);color:#7d8d70;pointer-events:none}.grip-tag{display:inline-block;padding:4px 7px;border-radius:4px;border:1px solid #cad7bf;background:#f8fbf0cd;margin-bottom:6px;color:#496746;font:9px var(--mono);letter-spacing:.06em}.portal-prompt{display:none;position:absolute;left:50%;top:60%;transform:translateX(-50%);padding:10px 16px;border-radius:8px;background:#fafbf3e8;border:1px solid #c5d4bb;font-size:11px;color:#527047;pointer-events:none}.toast{position:absolute;left:50%;bottom:75px;transform:translate(-50%,10px);background:#2f4539eb;color:#f6f9f1;border:1px solid #48654e;padding:11px 16px;border-radius:9px;font-size:11px;max-width:min(530px,90%);text-align:center;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:30}.toast.show{opacity:1;transform:translate(-50%,0)}.toast.error{background:#744c3fed;border-color:#aa7b69}.overlay{position:fixed;inset:0;background:#edf2e6d4;backdrop-filter:blur(14px);z-index:100;display:grid;place-items:center;padding:24px}.overlay[hidden]{display:none}.dialog{width:min(485px,100%);background:#fafbf5;border:1px solid #d3deca;border-radius:17px;padding:35px;box-shadow:0 20px 80px #20371913}.dialog .eyebrow{margin-bottom:16px}.dialog h2{font-size:29px;font-weight:460;letter-spacing:-1px;line-height:1.15;margin:0 0 14px}.dialog p{color:#85927c;font-size:12px;line-height:1.8;margin:10px 0 20px}.dialog button{padding:10px 14px;font-size:11px;margin-right:5px}.help-grid{display:grid;grid-template-columns:122px 1fr;gap:10px;font-size:11px;line-height:1.5;color:#75876a;margin:20px 0 24px}.help-grid strong{font-weight:500;color:#506648}.dialog-footer{font-size:9px!important;margin:15px 0 0!important;color:#929d8b!important}.loading{position:absolute;inset:0;background:#edf1e5;display:grid;place-items:center;z-index:40;text-align:center;color:#849475}.loading span{font:10px var(--mono);letter-spacing:.1em}.loading.error{padding:40px}.loading.error span{max-width:450px;line-height:1.9;color:#8c5746}.is-exploring #workspace{grid-template-columns:0 minmax(0,1fr)}.is-exploring #sidebar{visibility:hidden}.is-exploring .empty-card,.is-exploring .view-actions{display:none!important}.is-exploring .crosshair,.is-exploring .walk-hud{display:block}.is-exploring .hint-bar{bottom:26px}.is-exploring .view-top h1{font-size:20px}.is-exploring .portal-label{opacity:.6}.is-exploring .portal-label.near{opacity:1}.is-exploring .view-meta{right:26px}.is-exploring canvas{cursor:crosshair}.over-budget{color:#b07d43!important}.mobile-note{display:none}[hidden]{display:none!important}
 @media(max-width:1050px){.brand{min-width:248px}#bar{padding:0 18px;gap:12px}.offline{display:none}#workspace{grid-template-columns:280px minmax(0,1fr)}.panel{padding-left:17px;padding-right:17px}.view-top{left:20px}.view-meta{right:16px}.view-top h1{font-size:18px}.view-meta .meta-chip:last-child{display:none}.hint-bar{font-size:8px;padding:8px 10px}.view-bottom .right{display:none}.empty-card{left:20px;bottom:105px}}
 @media(max-width:720px){#app{grid-template-rows:60px minmax(0,1fr)}#bar{padding:0 10px;gap:8px}.brand{min-width:0;gap:7px}.brand-title{font-size:16px}.brand-sub{font-size:7px;letter-spacing:.04em}.brand-icon{width:30px;height:30px}.modes{margin-left:auto}.modes button{min-width:55px;padding:7px 8px;font-size:10px}.header-actions{margin-left:0;gap:3px}.header-actions .file-button{font-size:0;padding:7px}.header-actions .file-button svg{width:14px;height:14px;margin:0!important}.header-actions .help-button{height:28px;width:28px}.header-actions .file-button .button-text{display:none}#workspace{grid-template-columns:230px minmax(0,1fr)}.panel{padding:15px 12px}.pattern{padding:7px;font-size:10px;height:53px;gap:6px}.pattern svg{width:24px;height:24px}.view-top{left:14px;top:17px}.view-top h1{font-size:15px;max-width:160px}.view-top p{max-width:160px}.view-meta{top:auto;bottom:73px;right:12px}.view-meta .meta-chip{display:none}.empty-card{display:none!important}.hint-bar{white-space:normal;max-width:90%;width:200px;bottom:21px;text-align:center;line-height:1.7}.view-bottom{bottom:5px;left:12px;right:12px}.view-bottom .left{font-size:7px}.view-actions{right:11px;bottom:109px}.portal-label{font-size:7px;padding:3px 4px}.portal-label .target{display:none}.walk-hud{left:16px}.is-exploring .hint-bar{width:auto;white-space:nowrap}.is-exploring .mobile-note{display:block;position:absolute;bottom:70px;left:15px;right:15px;font-size:10px;color:#7f8e71;text-align:center}.sidebar-foot{padding:13px;font-size:8px}.dialog{padding:25px}.dialog h2{font-size:24px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+
+.dialog{max-height:calc(100dvh - 48px);overflow:auto;scrollbar-width:thin}
+/* Explore controls stay available when the authoring sidebar is hidden. */
+.explore-feel{display:none;position:absolute;right:26px;top:72px;width:235px;padding:15px 16px 13px;border:1px solid #d8e1cf;border-radius:11px;background:#fafcf5ed;backdrop-filter:blur(12px);box-shadow:0 5px 20px #34442208;z-index:12}
+.is-exploring .explore-feel{display:block}
+.explore-feel .eyebrow{margin-bottom:11px;font-size:8px;letter-spacing:.10em}
+.explore-feel .scale-note{font-size:9px;color:#7e8c76;display:flex;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #e2e8db}
+.explore-feel .scale-note strong{color:#4c6d43;font:10px var(--mono)}
+.explore-feel .field{margin-top:0}.explore-feel .field-head{font-size:11px}
+.assist-limits{display:flex;justify-content:space-between;font:8px var(--mono);color:#8c9881;margin:4px 0 7px}
+.assist-note{font-size:9px;color:#7f8f73;line-height:1.55;margin:0}
+.perch-toggle{display:flex;align-items:center;gap:6px;font-size:10px;margin:13px 0 10px;color:#5c7450;cursor:pointer}.perch-toggle input{accent-color:var(--green);margin:0}
+.edge-meter{height:3px;background:#e2e9d9;border-radius:3px;margin-top:12px;position:relative;overflow:hidden}.edge-meter:after{content:'';position:absolute;top:0;bottom:0;left:50%;width:2px;background:#a9b79f}
+.edge-meter i{display:block;height:100%;width:0;background:#8d9f7f;transition:width .1s linear}.edge-meter.perched i{background:#496b43}
+.edge-readout{font:8px/1.7 var(--mono);color:#819074;margin:7px 0 9px;min-height:27px}
+.align-view{width:100%;padding:6px;font-size:9px;color:#6f8164;background:transparent}.align-view kbd{margin-right:4px}
+@media(max-width:720px){.explore-feel{right:12px;top:170px;width:210px;padding:12px}.is-exploring .hint-bar{white-space:normal;width:calc(100% - 24px)}.is-exploring .mobile-note{bottom:84px}}
+@media(max-height:650px){.explore-feel{top:58px;padding:10px 12px}.explore-feel .scale-note{margin-bottom:9px;padding-bottom:6px}.explore-feel .eyebrow{margin-bottom:7px}.edge-readout{min-height:0}.perch-toggle{margin:9px 0 6px}}
 </style>
 </head>
 <body>
@@ -69,6 +87,21 @@
  <div class="view-bottom"><div class="left"><div id="voxelStats">0 SURFACE VOXELS · 6 PORTALS</div><div id="selectionStatus">ORIGIN [0, 0, 0]</div></div><div class="right" id="sessionNote">a small place, in three dimensions</div></div>
  <div id="hintBar" class="hint-bar">Drag to orbit &nbsp; · &nbsp; Scroll to zoom &nbsp; · &nbsp; Click a portal to travel</div>
  <div class="crosshair"></div><div id="walkHud" class="walk-hud"><span id="gripTag" class="grip-tag">FREE DRIFT</span><div id="walkCoords"></div></div><div id="portalPrompt" class="portal-prompt"></div>
+
+ <section id="exploreFeel" class="explore-feel" aria-label="Exploration settings">
+  <div class="eyebrow"><span>Explore feel</span><span>MOVE, NOT WAIT</span></div>
+  <div class="scale-note"><span>Explorer scale</span><strong>50% · SMALLER STEPS</strong></div>
+  <div class="field"><div class="field-head"><label for="cameraAssistInput">Camera assist</label><output for="cameraAssistInput" id="cameraAssistValue">100%</output></div>
+   <input id="cameraAssistInput" type="range" min="50" max="100" step="1" value="100" aria-describedby="cameraAssistNote">
+  </div>
+  <div class="assist-limits"><span>50% · MORE MANUAL</span><span>100% · FULL FOLLOW</span></div>
+  <p id="cameraAssistNote" class="assist-note">90° camera help per 90° turn</p>
+  <label class="perch-toggle"><input id="edgePerchInput" type="checkbox" checked>45° edge perch</label>
+  <div id="edgeMeter" class="edge-meter" aria-hidden="true"><i id="edgeMeterFill"></i></div>
+  <p id="edgeReadout" class="edge-readout">Move to turn · reverse to return.</p>
+  <button id="alignViewButton" class="align-view" title="Smoothly align the view to your current stance"><kbd>R</kbd> Align view to surface</button>
+  <p class="assist-note" style="margin-top:8px">Esc releases the mouse to adjust settings.</p>
+ </section>
  <div class="mobile-note">Exploration uses a keyboard: WASD to move, F to grip or drift. Drag to look.</div>
  <div id="toast" class="toast" role="status" aria-live="polite"></div>
  <div id="loading" class="loading"><span>PREPARING AN EMPTY WORLD…</span></div>
@@ -76,7 +109,7 @@
 </div>
 </div>
 <div id="leaveOverlay" class="overlay" hidden><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="leaveTitle"><div class="eyebrow">LEAVE PORTAL / OUTSIDE THE SYSTEM</div><h2 id="leaveTitle">A little space<br>between worlds.</h2><p>You have left the 27-world system. This is its exit lobby; no external destination has been assigned. Your worlds are still here.</p><button id="returnFromLeave" class="primary">Return to the world</button><button id="atlasFromLeave">Back to the atlas</button></section></div>
-<div id="helpOverlay" class="overlay" hidden><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="helpTitle"><div class="eyebrow">FIELD NOTES / CONTROLS</div><h2 id="helpTitle">Make a little world.<br>Walk all over it.</h2><div class="help-grid"><strong>Build</strong><span>Drag to orbit. Scroll to zoom. Right-drag to pan. Home frames the world.</span><strong>Place / remove</strong><span>Choose an axis and slice, then click the virtual cube. Alt-drag to orbit while editing. Delete removes the selected cube.</span><strong>Undo / redo</strong><span>Ctrl or Cmd + Z / Shift + Z. History is independent for every world.</span><strong>Explore</strong><span>WASD to move. Drag to look, or click to capture the mouse. Shift moves faster. Esc releases the mouse.</span><strong>Spider grip</strong><span>F switches grip / drift. Attached movement follows walls, ceilings, and 90° edges with a rolling camera.</span><strong>Free drift</strong><span>Space rises; Q descends. Empty worlds start at the center in drift mode.</span><strong>Travel</strong><span>Click portals in Build. In Explore, approach a portal and press E.</span></div><button id="closeHelp" class="primary">Back to making</button><p class="dialog-footer">Each level begins empty. An 8³ virtual cell owns one platform; paths are derived and cannot be individually edited. 16 is a soft budget, not a hard cap. Export keeps all 27 worlds.</p></section></div>
+<div id="helpOverlay" class="overlay" hidden><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="helpTitle"><div class="eyebrow">FIELD NOTES / CONTROLS · EDGE-WALKING UPDATE</div><h2 id="helpTitle">Make a little world.<br>Walk all over it.</h2><div class="help-grid"><strong>Build</strong><span>Drag to orbit. Scroll to zoom. Right-drag to pan. Home frames the world.</span><strong>Place / remove</strong><span>Choose an axis and slice, then click the virtual cube. Alt-drag to orbit while editing. Delete removes the selected cube.</span><strong>Undo / redo</strong><span>Ctrl or Cmd + Z / Shift + Z. History is independent for every world.</span><strong>Explore</strong><span>WASD to move. Drag to look, or click to capture the mouse. Shift moves faster. Esc releases the mouse.</span><strong>Spider grip</strong><span>F switches grip / drift. All six faces are walkable. Edge turns follow your movement: continue to cross, stop to hold, and walk backward to reverse. Small stairs still step normally.</span><strong>45° edge perch</strong><span>Release cross-edge movement near the midpoint to settle at 45°. Walk along the shared edge, or move across to leave. At a three-face corner, choose a face before continuing.</span><strong>Camera assist</strong><span>The Explore slider supplies 50–100% of each turn to the camera. It does not change surface grip. Reduced assist leaves some orientation to you; drag to look or press R to align. There is no automatic catch-up to a full turn.</span><strong>Explorer scale</strong><span>Half the previous eye height and ground speed. The viewport and all world dimensions stay unchanged.</span><strong>Free drift</strong><span>Space rises; Q descends. Empty worlds start at the center in drift mode.</span><strong>Travel</strong><span>Click portals in Build. In Explore, approach a portal and press E.</span></div><button id="closeHelp" class="primary">Back to making</button><p class="dialog-footer">Each level begins empty. An 8³ virtual cell owns one platform; paths are derived and cannot be individually edited. 16 is a soft budget, not a hard cap. Export keeps all 27 worlds.</p></section></div>
 <input id="importInput" type="file" accept=".json,application/json" hidden>
 <script>
 /* Little Worlds — dependency-free math and WebGL2 renderer.
@@ -375,8 +408,224 @@ function routeVoxels(world,d,a,b,edgeIndex,put){const rand=rng(d.config.seed+'|'
 function buildGeometry(world,d){const voxels=new Map(),h=halfOf(d);function put(x,y,z,kind,owner,variant){if(x<-h||x>=h||y<-h||y>=h||z<-h||z>=h)return;const key=voxelKey(x,y,z);if(voxels.has(key))return;voxels.set(key,{x,y,z,kind,owner,variant});}for(const m of d.modules)moduleVoxels(world,d,m,put);let nodes=[],edges=[];if(d.modules.length&&d.config.autoPaths){nodes=routeNodes(world,d);edges=connectGraph(nodes,d);edges.forEach(([a,b],i)=>routeVoxels(world,d,nodes[a].p,nodes[b].p,i,put));}return {voxels,nodes,edges};}
 /* Grid DDA. Collision uses the ideal voxel union, not decorative bevel gaps. */
 function gridRay(voxels,origin,direction,maxDistance=10){const dir=direction.clone().normalize(),p=origin.toArray().map(Math.floor),ds=dir.toArray(),os=origin.toArray(),step=ds.map(x=>Math.sign(x)),delta=ds.map(x=>x===0?Infinity:Math.abs(1/x)),next=ds.map((x,i)=>x===0?Infinity:((x>0?p[i]+1:p[i])-os[i])/x);let distance=0,normal=dir.clone().multiplyScalar(-1);for(let i=0;i<2048&&distance<=maxDistance;i++){const v=voxels.get(voxelKey(...p));if(v)return {distance,normal,point:origin.clone().addScaledVector(dir,distance),voxel:v};let ax=0;if(next[1]<next[ax])ax=1;if(next[2]<next[ax])ax=2;if(!Number.isFinite(next[ax]))break;distance=next[ax];next[ax]+=delta[ax];p[ax]+=step[ax];normal=new V3();normal[['x','y','z'][ax]]=-step[ax];}return null;}
-function nearestSurface(voxels,point){let best=null;for(const v of voxels.values()){if(voxels.has(voxelKey(v.x,v.y+1,v.z)))continue;const p=new V3(v.x+.5,v.y+1.025,v.z+.5),dist=p.distanceTo(point);if(!best||dist<best.distance)best={point:p,normal:new V3(0,1,0),distance:dist};}return best;}
+/* Closest exposed face, not just a top surface. Used only for spawning / F,
+   never to choose the next face while already walking on a solid. */
+function nearestSurface(voxels,point){
+ let best=null;
+ for(const v of voxels.values())for(const axis of ['x','y','z'])for(const sign of [-1,1]){
+  const neighbor={x:v.x,y:v.y,z:v.z};neighbor[axis]+=sign;
+  if(voxels.has(voxelKey(neighbor.x,neighbor.y,neighbor.z)))continue;
+  const p=point.clone(),normal=new V3();normal[axis]=sign;
+  for(const a of ['x','y','z'])p[a]=a===axis?v[a]+(sign>0?1:0):clamp(point[a],v[a]+1e-5,v[a]+1-1e-5);
+  const dist=p.distanceTo(point);
+  if(!best||dist<best.distance-1e-9)best={point:p,normal,distance:dist};
+ }
+ return best;
+}
 function validateProject(json){if(!json||json.format!=='little-worlds'||json.version!==1||!Array.isArray(json.levels)||json.levels.length!==27)throw new Error('Expected a Little Worlds v1 project with 27 levels.');const ids=new Set();const result=json.levels.map(raw=>{if(!Number.isInteger(raw.id)||raw.id<1||raw.id>27||ids.has(raw.id))throw new Error('Invalid or duplicate world ID.');ids.add(raw.id);if(raw.spanChunks!==1&&raw.spanChunks!==3)throw new Error('Chunk layout must be 1 or 3 per axis.');if(!Array.isArray(raw.modules)||raw.modules.length>MAX_MODULES)throw new Error('Invalid platform list (maximum 128 per level).');const world=WORLDS[raw.id-1],out=makeData(world);out.spanChunks=raw.spanChunks;const c=raw.config;if(!c||typeof c.seed!=='string'||c.seed.length>96||!STYLES.includes(c.style)||typeof c.autoPaths!=='boolean')throw new Error('Invalid generation settings.');for(const [k,lo,hi] of [['count',0,16],['bend',0,100],['height',0,100],['loops',0,100]])if(!Number.isFinite(c[k])||c[k]<lo||c[k]>hi)throw new Error('Invalid '+k+' value.');out.config={seed:c.seed,style:c.style,count:Math.round(c.count),bend:c.bend,height:c.height,loops:c.loops,autoPaths:c.autoPaths};const seen=new Set();out.modules=raw.modules.map(m=>{if(!m||!Array.isArray(m.cell)||!validCell(out,m.cell)||seen.has(cellKey(m.cell))||reservedCell(world,out,m.cell))throw new Error('A platform is outside the grid, duplicated, or blocks a portal.');if(!['manual','generated'].includes(m.kind)||!Number.isInteger(m.variant)||m.variant<0||m.variant>1e9)throw new Error('Invalid platform metadata.');seen.add(cellKey(m.cell));return {cell:m.cell.slice(),kind:m.kind,variant:m.variant};});out.generated=out.modules.length>0;return out;});return result.sort((a,b)=>a.id-b.id);}
+
+/* Movement-driven six-face walking.
+ * A turn is a piece of traversable surface, not an animation that owns input.
+ * Its signed distance determines progress, so reversing exactly retraces it.
+ * The 45-degree virtual bevel can be held and walked along. No time lock.
+ */
+const SURFACE_SKIN=.025;
+const SURFACE_EPS=1e-5;
+const SURFACE_AXES=['x','y','z'];
+const EXPLORER_SCALE=.5;
+const EXPLORER_EYE_HEIGHT=1.5*EXPLORER_SCALE;
+const EDGE_TRAVEL=1.8; // virtual walking distance for a full quarter turn
+const EDGE_PERCH_BAND=.15; // soft catch only when cross-edge input is released
+
+function surfaceTangent(vector,normal){
+ const tangent=vector.clone().addScaledVector(normal,-vector.dot(normal));
+ if(tangent.lengthSq()<1e-10){
+  tangent.copy(Math.abs(normal.z)<.9?new V3(0,0,-1):new V3(0,1,0));
+  tangent.addScaledVector(normal,-tangent.dot(normal));
+ }
+ return tangent.normalize();
+}
+function edgeAngle(progress){return Math.PI*.5*progress*progress*(3-2*progress);}
+function bodyLook(){
+ return explorer.forward.clone().multiplyScalar(Math.cos(explorer.pitch))
+  .addScaledVector(explorer.up,Math.sin(explorer.pitch)).normalize();
+}
+function resetView(){explorer.view.copy(lookQuaternion(bodyLook(),explorer.up));}
+function rotateSurfaceFrame(axis,angle){
+ if(Math.abs(angle)<1e-14)return;
+ const rotation=new Q4().setFromAxisAngle(axis,angle);
+ explorer.forward.applyQuaternion(rotation).normalize();
+ // Camera orientation is independent of the contact frame. At 50%, a 90°
+ // surface turn contributes 45° of camera rotation, with no forced catch-up.
+ const assist=new Q4().setFromAxisAngle(axis,angle*exploreSettings.cameraAssist/100);
+ explorer.view.copy(assist.multiply(explorer.view)).normalize();
+}
+
+function validEdgeSegment(turn,segment){
+ const p=turn.edge.clone();p[turn.edgeAxis]=segment+.5;
+ p.addScaledVector(turn.fromUp,-.5).addScaledVector(turn.toUp,turn.convex?-.5:.5);
+ for(const a of SURFACE_AXES)p[a]=Math.floor(p[a]);
+ const occupied=c=>currentGeometry.voxels.has(voxelKey(c.x,c.y,c.z));
+ if(turn.convex){
+  return occupied(p)&&!occupied(p.clone().add(turn.fromUp))&&
+   !occupied(p.clone().add(turn.toUp))&&
+   !occupied(p.clone().add(turn.fromUp).add(turn.toUp));
+ }
+ return occupied(p)&&!occupied(p.clone().add(turn.fromUp))&&
+  occupied(p.clone().add(turn.fromUp).sub(turn.toUp));
+}
+function edgeRun(turn){
+ let lo=Math.floor(turn.edge[turn.edgeAxis]),hi=lo+1;
+ const limit=CHUNK*data().spanChunks+2;
+ for(let i=0;i<limit&&validEdgeSegment(turn,lo-1);i++)lo--;
+ for(let i=0;i<limit&&validEdgeSegment(turn,hi);i++)hi++;
+ return [lo+SURFACE_EPS,hi-SURFACE_EPS];
+}
+function updateEdgePose(progress){
+ const turn=explorer.turn;if(!turn)return;
+ const oldAngle=edgeAngle(turn.progress),angle=edgeAngle(clamp(progress,0,1));
+ turn.progress=clamp(progress,0,1);
+ rotateSurfaceFrame(turn.axis,angle-oldAngle);
+ explorer.up.copy(turn.fromUp).applyQuaternion(new Q4().setFromAxisAngle(turn.axis,angle)).normalize();
+ explorer.forward.copy(surfaceTangent(explorer.forward,explorer.up));
+ if(turn.convex){
+  // Offset around the outside of the shared edge. In particular, do not
+  // interpolate a straight chord through the occupied voxel.
+  explorer.foot.copy(turn.edge).addScaledVector(explorer.up,SURFACE_SKIN)
+   .addScaledVector(turn.toUp,-SURFACE_EPS*(1-turn.progress))
+   .addScaledVector(turn.fromUp,-SURFACE_EPS*turn.progress);
+ }else{
+  // An inner corner's safe skin lies in the empty intersection of both
+  // face half-spaces. This also keeps the eye out of thin overhangs.
+  explorer.foot.copy(turn.edge).addScaledVector(turn.fromUp,SURFACE_SKIN)
+   .addScaledVector(turn.toUp,SURFACE_SKIN);
+ }
+ turn.perched=exploreSettings.edgePerch&&Math.abs(turn.progress-.5)<1e-5&&Math.abs(turn.crossInput)<.12;
+}
+function beginSurfaceTurn(normal,edge,convex=true){
+ // Opposite normals are never a valid edge, nor is a new turn inside a turn.
+ if(explorer.turn||Math.abs(explorer.up.dot(normal))>1e-6)return false;
+ const fromUp=explorer.up.clone(),axis=fromUp.clone().cross(normal).normalize();
+ const edgeAxis=SURFACE_AXES.find(a=>Math.abs(axis[a])>.9999);
+ if(!edgeAxis)return false;
+ explorer.turn={fromUp,toUp:normal.clone(),axis,edgeAxis,edge:edge.clone(),
+  convex,progress:0,crossInput:0,perched:false,atEnd:false};
+ explorer.turn.run=edgeRun(explorer.turn);
+ updateEdgePose(0);
+ return true;
+}
+// Kept for host/test compatibility; only an adjacent contact can be requested.
+function transportNormal(normal,point){return beginSurfaceTurn(normal,point,true);}
+function finishSurfaceTurn(toNextFace){
+ const turn=explorer.turn;if(!turn)return;
+ explorer.up.copy(toNextFace?turn.toUp:turn.fromUp);
+ explorer.forward.copy(surfaceTangent(explorer.forward,explorer.up));
+ if(turn.convex){
+  explorer.foot.copy(turn.edge).addScaledVector(explorer.up,SURFACE_SKIN)
+   .addScaledVector(toNextFace?turn.fromUp:turn.toUp,-SURFACE_EPS);
+ }else{
+  explorer.foot.copy(turn.edge).addScaledVector(turn.fromUp,SURFACE_SKIN)
+   .addScaledVector(turn.toUp,SURFACE_SKIN);
+ }
+ if(toNextFace)explorer.transitions++;
+ explorer.turn=null;
+}
+function advanceSurfaceTurn(direction,distance){
+ const turn=explorer.turn;
+ const angle=edgeAngle(turn.progress);
+ const across=turn.toUp.clone().multiplyScalar(turn.convex?1:-1)
+  .applyQuaternion(new Q4().setFromAxisAngle(turn.axis,angle));
+ const cross=clamp(direction.dot(across),-1,1);
+ const along=direction[turn.edgeAxis];
+ turn.crossInput=cross;turn.perched=false;
+ let used=distance,endpoint=null;
+ if(cross>1e-9&&turn.progress+cross*distance/EDGE_TRAVEL>=1){
+  used=(1-turn.progress)*EDGE_TRAVEL/cross;endpoint=1;
+ }else if(cross< -1e-9&&turn.progress+cross*distance/EDGE_TRAVEL<=0){
+  used=-turn.progress*EDGE_TRAVEL/cross;endpoint=0;
+ }
+ const raw=turn.edge[turn.edgeAxis]+along*used;
+ turn.edge[turn.edgeAxis]=clamp(raw,turn.run[0],turn.run[1]);
+ turn.atEnd=Math.abs(raw-turn.edge[turn.edgeAxis])>SURFACE_EPS;
+ const next=endpoint===null?turn.progress+cross*used/EDGE_TRAVEL:endpoint;
+ updateEdgePose(next);
+ const rotation=new Q4().setFromAxisAngle(turn.axis,edgeAngle(next)-angle);
+ if(endpoint!==null){finishSurfaceTurn(endpoint===1);return {remaining:Math.max(0,distance-used),rotation};}
+ return {remaining:0,rotation};
+}
+
+function spiderStep(direction,distance){
+ if(!Number.isFinite(distance)||distance<=0||!direction.toArray().every(Number.isFinite))return;
+ const tangent=direction.clone().addScaledVector(explorer.up,-direction.dot(explorer.up));
+ if(tangent.lengthSq()<1e-12)return;
+ tangent.normalize();
+ const vox=currentGeometry.voxels,occupied=c=>vox.has(voxelKey(c.x,c.y,c.z));
+ let remaining=distance;
+ for(let events=0;events<96&&remaining>SURFACE_EPS;events++){
+  if(explorer.turn){
+   const result=advanceSurfaceTurn(tangent,remaining);
+   tangent.applyQuaternion(result.rotation).normalize();remaining=result.remaining;
+   if(remaining<=SURFACE_EPS)return;
+   continue;
+  }
+  const up=explorer.up,foot=explorer.foot;
+  const normalAxis=SURFACE_AXES.find(a=>Math.abs(up[a])>.999999);
+  if(!normalAxis)return;
+  const normalSign=Math.sign(up[normalAxis]);
+  const contact=foot.clone().addScaledVector(up,-SURFACE_SKIN);
+  const cell=contact.clone().addScaledVector(up,-SURFACE_EPS);
+  for(const a of SURFACE_AXES)cell[a]=Math.floor(cell[a]);
+  // No searching for remote support: a flat contact must be an exposed face.
+  if(!occupied(cell)||occupied(cell.clone().add(up)))return;
+  let edgeAxis=null,edgeDistance=Infinity;
+  for(const a of SURFACE_AXES){
+   if(a===normalAxis||Math.abs(tangent[a])<1e-9)continue;
+   const boundary=cell[a]+(tangent[a]>0?1:0);
+   const t=Math.max(0,(boundary-contact[a])/tangent[a]);
+   if(t<edgeDistance-1e-9){edgeDistance=t;edgeAxis=a;}
+  }
+  if(edgeAxis===null)return;
+  if(remaining<edgeDistance){foot.addScaledVector(tangent,remaining);return;}
+  const edge=contact.clone().addScaledVector(tangent,edgeDistance);
+  edge[normalAxis]=cell[normalAxis]+(normalSign>0?1:0);
+  const side=new V3();side[edgeAxis]=Math.sign(tangent[edgeAxis]);
+  edge[edgeAxis]=cell[edgeAxis]+(side[edgeAxis]>0?1:0);
+  // A three-face vertex has no unique next face. Resolve one shared edge
+  // at a time. Edge walking stops at such a vertex until a face is chosen.
+  for(const a of SURFACE_AXES)if(a!==normalAxis&&a!==edgeAxis)
+   edge[a]=clamp(edge[a],cell[a]+SURFACE_EPS,cell[a]+1-SURFACE_EPS);
+  remaining=Math.max(0,remaining-edgeDistance);
+  const across=cell.clone().add(side),above=across.clone().add(up);
+  const after=edge.clone().addScaledVector(side,SURFACE_EPS);
+  if(occupied(above)){
+   const landing=after.clone().add(up);
+   const clear=occupied(across)&&!occupied(above.clone().add(up))&&
+    !gridRay(vox,landing.clone().addScaledVector(up,.07),up,EXPLORER_EYE_HEIGHT);
+   if(clear){foot.copy(landing).addScaledVector(up,SURFACE_SKIN);remaining=Math.max(0,remaining-SURFACE_EPS);continue;}
+   foot.copy(edge).addScaledVector(side,-SURFACE_EPS).addScaledVector(up,SURFACE_SKIN);
+   if(!beginSurfaceTurn(side.clone().multiplyScalar(-1),edge,false))return;
+   continue;
+  }
+  if(occupied(across)){
+   foot.copy(after).addScaledVector(up,SURFACE_SKIN);
+   remaining=Math.max(0,remaining-SURFACE_EPS);continue;
+  }
+  if(occupied(cell.clone().sub(up))&&occupied(across.clone().sub(up))){
+   foot.copy(after).addScaledVector(up,-1+SURFACE_SKIN);
+   remaining=Math.max(0,remaining-SURFACE_EPS);continue;
+  }
+  foot.copy(edge).addScaledVector(side,-SURFACE_EPS).addScaledVector(up,SURFACE_SKIN);
+  if(!beginSurfaceTurn(side,edge,true))return;
+ }
+}
+function settleEdgePerch(dt){
+ const turn=explorer.turn;
+ if(!turn||!exploreSettings.edgePerch||Math.abs(turn.crossInput)>.12||
+   Math.abs(turn.progress-.5)>EDGE_PERCH_BAND)return;
+ const difference=.5-turn.progress;
+ const next=Math.abs(difference)<1e-5?.5:turn.progress+difference*(1-Math.exp(-16*dt));
+ updateEdgePose(next);
+}
 
 /* App / editor / six-face surface controller. No network requests or persistence
    on boot. Export and import are explicit, so every fresh opening is empty. */
@@ -386,7 +635,8 @@ let renderEngine,selectedWorldId=1,mode='build',tool='select',sliceAxis='y',slic
 let currentGeometry={voxels:new Map(),nodes:[],edges:[]},currentPortals=[],portalElements=[],showGuides=true;
 const camera={pos:new V3(85,62,90),q:new Q4(),fov:45*Math.PI/180};
 const orbit={target:new V3(),yaw:.76,pitch:.48,radius:142};
-const explorer={foot:new V3(),up:new V3(0,1,0),forward:new V3(0,0,-1),pitch:0,fly:true,transitions:0};
+const explorer={foot:new V3(),up:new V3(0,1,0),forward:new V3(0,0,-1),pitch:0,fly:true,transitions:0,turn:null,view:new Q4()};
+const exploreSettings={cameraAssist:100,edgePerch:true};
 const keys=new Set();
 let pointer=null,lastPointer=null,toastTimer=0,nearPortal=null,frameTime=0,lastHUD=0,lastFrame=0,paused=false;
 const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -402,11 +652,11 @@ function fillPortalLabels(){const parent=$('portalLabels');parent.replaceChildre
 function updatePortalLabels(){for(const {el,portal:o} of portalElements){const up=new V3(0,1,0).applyQuaternion(o.q);const point=o.pos.clone().addScaledVector(up,o.circle?4.2:4.8),p=project(point);if(!p||p.x<-50||p.x>canvas.clientWidth+50||p.y<0||p.y>canvas.clientHeight){el.style.display='none';continue;}el.style.display='';el.style.left=p.x+'px';el.style.top=p.y+'px';el.classList.toggle('near',nearPortal?.face===o.face);}}
 function updateScene(){const w=world(),d=data(),seed=hashSeed(d.config.seed);currentGeometry=buildGeometry(w,d);currentPortals=portalInfo(w,d);const terrain=[];let surfaceCount=0;for(const v of currentGeometry.voxels.values()){if([[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]].every(a=>currentGeometry.voxels.has(voxelKey(v.x+a[0],v.y+a[1],v.z+a[2]))))continue;const p=new V3(v.x+.5,v.y+.5,v.z+.5),id=w.themes[themeIndexAt(w,p,seed)],base=hexRGB(PALETTES[id]);const noise=((Math.imul(v.x+57,73856093)^Math.imul(v.z-19,19349663)^Math.imul(v.y+87,83492791))>>>0)%100/100;let col=mixRGB(base,[.97,.975,.94],v.kind==='platform'?.04+noise*.035:.12+noise*.025);if(v.kind==='platform'&&v.y%8< -1)col=col.map(x=>x*.96);instance(terrain,p,.986,col);surfaceCount++;}renderEngine.setBatch('terrain',terrain);
  const ports=[];for(const o of currentPortals){const cells=WORLD_PORTAL_CELLS[o.circle?'circle':'standing'];const xs=cells.map(c=>c.x),ys=cells.map(c=>c.y),cx=(Math.min(...xs)+Math.max(...xs))/2,cy=(Math.min(...ys)+Math.max(...ys))/2;for(const c of cells){const p=new V3((c.x-cx)*.40,(c.y-cy)*.40,(c.z+.5)*.40).applyQuaternion(o.q).add(o.pos);const pseudo={themes:o.mix};const id=o.mix[themeIndexAt(pseudo,new V3(c.x,0,c.y),o.edge.targetWorldId*37||0)];let col=hexRGB(themeFor(id).color);col=mixRGB(col,[.97,.98,.95],c.accent?.32:.08);instance(ports,p,.389,col,o.q,.04);}}renderEngine.setBatch('portals',ports);renderEngine.setBatch('ghost',[],.085);fillPortalLabels();updateGuides();updateSelectionGraphics();updateUI();$('voxelStats').textContent=`${surfaceCount.toLocaleString()} SURFACE VOXELS · ${currentPortals.length} PORTALS`;
- if(mode==='explore'&&!explorer.fly){const under=gridRay(currentGeometry.voxels,explorer.foot.clone().addScaledVector(explorer.up,.15),explorer.up.clone().multiplyScalar(-1),.4);if(!under)spawnExplorer();}}
+ if(mode==='explore'&&!explorer.fly){if(explorer.turn){explorer.turn=null;spawnExplorer();return;}const under=gridRay(currentGeometry.voxels,explorer.foot.clone().addScaledVector(explorer.up,.15),explorer.up.clone().multiplyScalar(-1),.4);if(!under)spawnExplorer();}}
 function updateGuides(){const d=data(),h=halfOf(d),bounds=[],chunks=[],slice=[];wireCube(bounds,new V3(),h*2,[.49,.57,.44],.42,true);for(let i=0;i<3;i++){const a=new V3(),b=new V3();a[['x','y','z'][i]]=-1.2;b[['x','y','z'][i]]=1.2;line(bounds,a,b,[.52,.61,.46],.5);}if(d.spanChunks===3){for(let x=-1;x<=1;x++)for(let y=-1;y<=1;y++)for(let z=-1;z<=1;z++)wireCube(chunks,new V3(x*64,y*64,z*64),64,[.5,.59,.44],.11);}if(tool==='place'&&mode==='build'){const axes=['x','y','z'].filter(a=>a!==sliceAxis),v=-h+(sliceIndex+.5)*SLOT;for(let i=0;i<=d.spanChunks*8;i++){for(let a=0;a<2;a++){const p=new V3(),q=new V3();p[sliceAxis]=q[sliceAxis]=v;p[axes[a]]=q[axes[a]]=-h+i*SLOT;p[axes[1-a]]=-h;q[axes[1-a]]=h;line(slice,p,q,[.38,.57,.39],.26);}}}renderEngine.setLines('boundary',bounds);renderEngine.setLines('chunks',chunks);renderEngine.setLines('slice',slice);}
 function updateSelectionGraphics(){const lines=[],ghost=[],d=data();if(selectedCell&&d.modules.some(m=>cellKey(m.cell)===cellKey(selectedCell)))wireCube(lines,cellCenter(d,selectedCell),SLOT,[.31,.45,.35],.95);else selectedCell=null;if(hoverCell&&mode==='build'){const color=tool==='remove'||!hoverValid?[.75,.39,.32]:[.33,.56,.37];wireCube(lines,cellCenter(d,hoverCell),SLOT+.03,color,.9);if(tool==='place'&&hoverValid)instance(ghost,cellCenter(d,hoverCell),SLOT,color);}renderEngine.setLines('selection',lines,true);renderEngine.setBatch('ghost',ghost,.065);const c=hoverCell||selectedCell;$('selectionStatus').textContent=c?`${hoverCell&&tool==='place'?'PLACE':'CELL'} [${c.join(', ')}] · CENTER [${cellCenter(d,c).toArray().join(', ')}] · 8³`:'ORIGIN [0, 0, 0]';$('deleteButton').disabled=!selectedCell;}
 function updateUI(){const w=world(),d=data(),names=w.themes.map(id=>themeFor(id).name),count=d.modules.length;$('worldSelect').value=w.id;$('worldAddress').textContent=`${pad(w.id)} / 27 · [${w.iterator.join(',')}]`;$('themeChips').replaceChildren();for(const id of w.themes){const chip=document.createElement('span');chip.className='theme-chip';const dot=document.createElement('i');dot.className='swatch';dot.style.background=themeFor(id).color;chip.append(dot,document.createTextNode(themeFor(id).name));$('themeChips').append(chip);}for(const b of document.querySelectorAll('[data-world]')){b.classList.toggle('active',+b.dataset.world===w.id);b.classList.toggle('filled',levelData[+b.dataset.world-1].modules.length>0);}for(const b of document.querySelectorAll('[data-pattern]')){b.classList.toggle('active',b.dataset.pattern===d.config.style);b.setAttribute('aria-pressed',b.dataset.pattern===d.config.style);}for(const b of document.querySelectorAll('[data-tool]')){b.classList.toggle('active',b.dataset.tool===tool);b.setAttribute('aria-pressed',b.dataset.tool===tool);}for(const key of ['count','height','bend','loops']){$(key+'Input').value=d.config[key];$(key+'Value').textContent=d.config[key]+(key==='count'?'':'%');}$('seedInput').value=d.config.seed;$('autoPaths').checked=d.config.autoPaths;$('singleChunk').classList.toggle('active',d.spanChunks===1);$('clusterChunks').classList.toggle('active',d.spanChunks===3);$('singleChunk').setAttribute('aria-pressed',d.spanChunks===1);$('clusterChunks').setAttribute('aria-pressed',d.spanChunks===3);const span=d.spanChunks*CHUNK;$('dimensionNote').textContent=d.spanChunks===1?'64³ cells · portals inside the six face centers':'192³ cells · 27 × 64³ chunks · outer portals only';$('sizeChip').textContent=`${span} × ${span} × ${span}`;$('stateChip').textContent=count?`${count} PLATFORMS`:'EMPTY';$('sceneKicker').textContent=`WORLD ${pad(w.id)} / ${w.kind==='special'?'SPECIAL WORLD':w.kind.toUpperCase()+' THEME'}`;$('sceneTitle').textContent=mode==='explore'?names.join(' + '):count?'A small world, taking shape.':'Room to make a world.';$('sceneSubtitle').textContent=mode==='explore'?'Any face can be the floor.':count?`${currentGeometry.edges.length} route links · ${d.modules.filter(m=>m.kind==='manual').length} hand-placed cubes · ${names.join(' + ')}`:w.kind==='special'?'An empty void. Six returns. A centered leave portal.':'An empty volume. Six possible directions.';$('emptyCard').hidden=count>0;$('budgetCount').textContent=`${count} / ${SOFT_CAP}`;$('budgetCount').classList.toggle('over-budget',count>SOFT_CAP);$('budgetWarning').hidden=count<=SOFT_CAP;$('budgetBar').classList.toggle('over',count>SOFT_CAP);[...$('budgetBar').children].forEach((el,i)=>el.classList.toggle('on',i<count));const h=histories[w.id-1];$('undoButton').disabled=!h.undo.length;$('redoButton').disabled=!h.redo.length;$('deleteButton').disabled=!selectedCell;$('sliceInput').max=d.spanChunks*8-1;sliceIndex=clamp(sliceIndex,0,d.spanChunks*8-1);$('sliceInput').value=sliceIndex;$('sliceAxis').value=sliceAxis;const sv=-halfOf(d)+(sliceIndex+.5)*8;$('sliceValue').textContent=(sv<0?'−':'+')+Math.abs(sv);updateHint();}
-function updateHint(){if(mode==='explore'){$('hintBar').innerHTML='<kbd>WASD</kbd> move &nbsp; · &nbsp; '+(document.pointerLockElement===canvas?'Mouse to look':'Drag to look / click to capture')+' &nbsp; · &nbsp; <kbd>F</kbd> grip / drift &nbsp; · &nbsp; <kbd>E</kbd> portal';return;}if(tool==='place')$('hintBar').innerHTML='Click an outlined cell to place &nbsp; · &nbsp; <kbd>Alt</kbd> + drag to orbit &nbsp; · &nbsp; Shift + scroll changes slice';else if(tool==='remove')$('hintBar').innerHTML='Click a platform cube to remove it &nbsp; · &nbsp; Paths rebuild automatically';else $('hintBar').innerHTML='Drag to orbit &nbsp; · &nbsp; Scroll to zoom &nbsp; · &nbsp; Click a portal to travel';}
+function updateHint(){if(mode==='explore'){$('hintBar').innerHTML='<kbd>WASD</kbd> move &nbsp; · &nbsp; '+(document.pointerLockElement===canvas?'Mouse to look':'Drag to look / click to capture')+' &nbsp; · &nbsp; <kbd>F</kbd> grip / drift &nbsp; · &nbsp; <kbd>R</kbd> align view &nbsp; · &nbsp; <kbd>E</kbd> portal';return;}if(tool==='place')$('hintBar').innerHTML='Click an outlined cell to place &nbsp; · &nbsp; <kbd>Alt</kbd> + drag to orbit &nbsp; · &nbsp; Shift + scroll changes slice';else if(tool==='remove')$('hintBar').innerHTML='Click a platform cube to remove it &nbsp; · &nbsp; Paths rebuild automatically';else $('hintBar').innerHTML='Drag to orbit &nbsp; · &nbsp; Scroll to zoom &nbsp; · &nbsp; Click a portal to travel';}
 function selectWorld(id,{keepMode=true,arrivalFrom=null}={}){id=Number(id);if(!Number.isInteger(id)||id<1||id>27)return;selectedWorldId=id;selectedCell=null;hoverCell=null;sliceIndex=data().spanChunks*4-1;updateScene();if(mode==='explore'&&keepMode)spawnExplorer(arrivalFrom);else{mode='build';frameWorld();}updateUI();}
 function setTool(next){if(!['select','place','remove'].includes(next))return;tool=next;hoverCell=null;updateGuides();updateSelectionGraphics();updateUI();if(next==='place')toast('Choose an axis and slice; click the virtual 8³ cell.');}
 function pickModule(ray){let best=null;for(const m of data().modules){const c=cellCenter(data(),m.cell),lo=c.clone().add(new V3(-4,-4,-4)),hi=c.clone().add(new V3(4,4,4)),hit=rayAABB(ray.origin,ray.dir,lo,hi);if(hit&&(!best||hit.distance<best.distance))best={...hit,module:m};}return best;}
@@ -419,49 +669,165 @@ function generateCurrent(){snapshot(selectedWorldId);generatePlatforms(world(),d
 function clearWorld(){if(!data().modules.length)return;snapshot(selectedWorldId);data().modules=[];data().generated=false;selectedCell=null;hoverCell=null;updateScene();toast('Empty again. The boundary guides and portals are all that remain.');}
 function changeLayout(n){if(data().spanChunks===n)return;const d=data(),copy=JSON.parse(JSON.stringify(d)),offset=(n-d.spanChunks)*4;copy.spanChunks=n;copy.modules=copy.modules.map(m=>({...m,cell:m.cell.map(c=>c+offset)}));if(copy.modules.some(m=>!validCell(copy,m.cell)||reservedCell(world(),copy,m.cell))){toast('Some cubes do not fit the smaller volume or its portal clearances. Clear or remove those cubes before shrinking.',true);return;}snapshot(selectedWorldId);levelData[selectedWorldId-1]=copy;selectedCell=null;hoverCell=null;sliceIndex=n*4-1;updateScene();frameWorld();toast(n===3?'27 chunks in this level: 192³ cells, with portals only on the outer six faces.':'One 64³ chunk. Platform positions were preserved.');}
 function updateSetting(key,value){if(data().config[key]===value)return;snapshot(selectedWorldId);data().config[key]=value;updateScene();}
-function exportProject(){return {format:'little-worlds',version:1,chunkSize:64,platformCellSize:8,softCap:16,levels:JSON.parse(JSON.stringify(levelData))};}
+function exportProject(){return {format:'little-worlds',version:1,chunkSize:64,platformCellSize:8,softCap:16,exploration:{...exploreSettings},levels:JSON.parse(JSON.stringify(levelData))};}
 function downloadProject(){const blob=new Blob([JSON.stringify(exportProject(),null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='little-worlds-project.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);toast('Exported all 27 levels. Fresh openings still begin empty; import to restore.');}
-function importProject(json){const result=validateProject(json);for(const w of WORLDS)snapshot(w.id);levelData=result;selectedCell=null;hoverCell=null;if(mode==='explore')setMode('build');sliceIndex=data().spanChunks*4-1;updateScene();frameWorld();toast('Imported all 27 worlds. No geometry was added beyond your saved platforms and routes.');}
+function importProject(json){const result=validateProject(json),settings=readExploreSettings(json);Object.assign(exploreSettings,settings);updateExploreSettingsUI();for(const w of WORLDS)snapshot(w.id);levelData=result;selectedCell=null;hoverCell=null;if(mode==='explore')setMode('build');sliceIndex=data().spanChunks*4-1;updateScene();frameWorld();toast('Imported all 27 worlds. No geometry was added beyond your saved platforms and routes.');}
 function activatePortal(o){keys.clear();if(o.edge.action==='leave'){paused=true;document.exitPointerLock?.();$('leaveOverlay').hidden=false;$('returnFromLeave').focus();return;}const prev=selectedWorldId;selectWorld(o.edge.targetWorldId,{arrivalFrom:prev});toast(`World ${pad(selectedWorldId)} · ${world().themes.map(id=>themeFor(id).name).join(' + ')}`);}
-function explorerLook(){return explorer.forward.clone().multiplyScalar(Math.cos(explorer.pitch)).addScaledVector(explorer.up,Math.sin(explorer.pitch)).normalize();}
-function cameraTarget(){if(explorer.fly)return explorer.foot.clone();const start=explorer.foot.clone().addScaledVector(explorer.up,.06),hit=gridRay(currentGeometry.voxels,start,explorer.up,1.5),height=hit?Math.max(.28,hit.distance-.13):1.5;return explorer.foot.clone().addScaledVector(explorer.up,height);}
-function spawnExplorer(arrivalFrom=null){explorer.up.set(0,1,0);explorer.forward.set(0,0,-1);explorer.pitch=0;let target=new V3();if(arrivalFrom){const o=currentPortals.find(p=>p.edge.targetWorldId===arrivalFrom);if(o)target=o.pos.clone().addScaledVector(o.normal,5);}const surface=currentGeometry.voxels.size?nearestSurface(currentGeometry.voxels,target):null;if(surface){explorer.fly=false;explorer.foot.copy(surface.point);}else{explorer.fly=true;explorer.foot.copy(target);}camera.pos.copy(cameraTarget());camera.q.copy(lookQuaternion(explorerLook(),explorer.up));nearPortal=null;updateUI();}
-function setMode(next){if(next===mode)return;keys.clear();pointer=null;mode=next;document.body.classList.toggle('is-exploring',next==='explore');$('buildMode').classList.toggle('active',next==='build');$('exploreMode').classList.toggle('active',next==='explore');$('buildMode').setAttribute('aria-pressed',next==='build');$('exploreMode').setAttribute('aria-pressed',next==='explore');hoverCell=null;updateSelectionGraphics();updateGuides();if(next==='explore'){spawnExplorer();canvas.focus();toast(currentGeometry.voxels.size?'Spider grip: WASD moves across surfaces. F switches to free drift.':'An empty world: you start at the center in free drift. WASD moves; Space / Q rises / descends.');}else{document.exitPointerLock?.();nearPortal=null;$('portalPrompt').style.display='none';frameWorld();canvas.style.cursor='grab';}updateUI();}
-function transportNormal(normal,point){const q=new Q4().setFromUnitVectors(explorer.up,normal);explorer.forward.applyQuaternion(q).normalize();explorer.up.copy(normal);explorer.foot.copy(point).addScaledVector(normal,.025);explorer.transitions++;}
-function spiderStep(direction,distance){const up=explorer.up,foot=explorer.foot,vox=currentGeometry.voxels,next=foot.clone().addScaledVector(direction,distance);
- const ahead=gridRay(vox,foot.clone().addScaledVector(up,.22),direction,distance+.10);
- if(ahead&&ahead.normal.dot(direction)<-.2){
-  // Step small voxel stairs without rolling 90 degrees at every tread.
-  const high=next.clone().addScaledVector(direction,.16).addScaledVector(up,1.4);const step=gridRay(vox,high,up.clone().multiplyScalar(-1),1.6);
-  if(step&&step.normal.dot(up)>.95){const rise=step.point.clone().sub(foot).dot(up);const headClear=gridRay(vox,step.point.clone().addScaledVector(up,.07),up,1.2);if(rise>.06&&rise<=1.05&&!headClear){foot.copy(step.point).addScaledVector(up,.025);return;}}
-  transportNormal(ahead.normal,ahead.point);return;
- }
- const below=gridRay(vox,next.clone().addScaledVector(up,.5),up.clone().multiplyScalar(-1),1.65);
- if(below&&below.normal.dot(up)>.8){foot.copy(below.point).addScaledVector(up,.025);return;}
- // No support ahead: fold around the outer convex edge, not into the void.
- const reach=next.clone().addScaledVector(direction,.20).addScaledVector(up,-.24);
- const wrap=gridRay(vox,reach,direction.clone().multiplyScalar(-1),distance+.9);
- if(wrap&&wrap.normal.dot(up)<.25&&wrap.normal.dot(direction)>.3){transportNormal(wrap.normal,wrap.point);return;}
- // Stable edge stop, rather than falling or teleporting to a distant surface.
+function explorerLook(){return new V3(0,0,-1).applyQuaternion(explorer.view).normalize();}
+
+function cameraTarget(){
+ if(explorer.fly)return explorer.foot.clone();
+ const start=explorer.foot.clone().addScaledVector(explorer.up,.03);
+ const hit=gridRay(currentGeometry.voxels,start,explorer.up,EXPLORER_EYE_HEIGHT);
+ const height=hit?Math.max(.12,hit.distance-.065):EXPLORER_EYE_HEIGHT;
+ return explorer.foot.clone().addScaledVector(explorer.up,height);
 }
-function toggleGrip(){if(!explorer.fly){explorer.foot.copy(camera.pos);explorer.fly=true;toast('Free drift. Space rises; Q descends. F grips a nearby surface.');return;}const hit=gridRay(currentGeometry.voxels,camera.pos,explorerLook(),12);let s=hit;if(!s){s=nearestSurface(currentGeometry.voxels,camera.pos);if(s&&s.distance>6)s=null;}if(!s){toast('No surface within reach. Look toward a platform, move closer, and press F.');return;}const oldForward=explorerLook();explorer.up.copy(s.normal);explorer.foot.copy(s.point).addScaledVector(s.normal,.025);let tangent=oldForward.clone().addScaledVector(s.normal,-oldForward.dot(s.normal));if(tangent.length()<.1)tangent=(Math.abs(s.normal.y)<.9?new V3(0,1,0):new V3(0,0,-1));explorer.forward.copy(tangent.normalize());explorer.pitch=0;explorer.fly=false;toast('Spider grip attached. Walls and ceilings are walkable.');}
-function applyLook(dx,dy){const q=new Q4().setFromAxisAngle(explorer.up,-dx*.003);explorer.forward.applyQuaternion(q).normalize();explorer.pitch=clamp(explorer.pitch-dy*.003,-1.32,1.32);}
-function updateExplorer(dt,time){const up=explorer.up,forward=explorer.forward,right=forward.clone().cross(up).normalize();let move=new V3();const f=(keys.has('KeyW')||keys.has('ArrowUp')?1:0)-(keys.has('KeyS')||keys.has('ArrowDown')?1:0),r=(keys.has('KeyD')||keys.has('ArrowRight')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')?1:0),boost=keys.has('ShiftLeft')||keys.has('ShiftRight');if(explorer.fly){move.addScaledVector(explorerLook(),f).addScaledVector(right,r);move.addScaledVector(up,(keys.has('Space')?1:0)-(keys.has('KeyQ')||keys.has('ControlLeft')?1:0));if(move.lengthSq()>0){move.normalize();const speed=(data().spanChunks===3?24:12)*(boost?2.8:1),dist=speed*dt;const wall=gridRay(currentGeometry.voxels,explorer.foot,move,dist+.24);explorer.foot.addScaledVector(move,wall?Math.max(0,wall.distance-.24):dist);const h=halfOf(data())-.55;for(const a of ['x','y','z'])explorer.foot[a]=clamp(explorer.foot[a],-h,h);}}else if(f||r){const total=(boost?9:5.8)*dt,steps=Math.max(1,Math.ceil(total/.11));for(let i=0;i<steps;i++){const lateral=explorer.forward.clone().cross(explorer.up).normalize();move.copy(explorer.forward).multiplyScalar(f).addScaledVector(lateral,r).normalize();spiderStep(move,total/steps);}}
- const target=cameraTarget(),desired=lookQuaternion(explorerLook(),explorer.up);camera.pos.lerp(target,1-Math.exp(-16*dt));if(currentGeometry.voxels.has(voxelKey(...camera.pos.toArray().map(Math.floor))))camera.pos.copy(target);camera.q.slerp(desired,1-Math.exp(-(reduceMotion?28:10)*dt));nearPortal=null;let closest=7.2;for(const o of currentPortals){const dist=explorer.foot.distanceTo(o.pos);if(dist<closest){closest=dist;nearPortal=o;}}const prompt=$('portalPrompt');prompt.style.display=nearPortal?'block':'none';if(nearPortal)prompt.innerHTML='<kbd>E</kbd> &nbsp; '+(nearPortal.edge.action==='leave'?'Leave this world system':`Travel to World ${pad(nearPortal.edge.targetWorldId)}`);
- if(time-lastHUD>110){$('gripTag').textContent=explorer.fly?'FREE DRIFT':'SPIDER GRIP';const axis=['x','y','z'].find(a=>Math.abs(explorer.up[a])>.9)||'y';$('walkCoords').textContent=`[${explorer.foot.toArray().map(x=>x.toFixed(1)).join(', ')}] · UP ${explorer.up[axis]>=0?'+':'−'}${axis.toUpperCase()}`;lastHUD=time;}}
-function buildUI(){for(const w of WORLDS){const option=document.createElement('option');option.value=w.id;option.textContent=`${pad(w.id)}  ${w.themes.map(id=>themeFor(id).name).join(' + ')}`;$('worldSelect').append(option);}for(let z=0;z<3;z++){const layer=document.createElement('div');layer.className='atlas-layer';const label=document.createElement('small');label.textContent='z = '+z;layer.append(label);for(let i=0;i<9;i++){const w=WORLDS[z*9+i],b=document.createElement('button');b.className='world-dot';b.dataset.world=w.id;b.textContent=pad(w.id);b.title=`World ${pad(w.id)} · ${w.themes.map(id=>themeFor(id).name).join(' + ')} · [${w.iterator}]`;b.setAttribute('aria-label',b.title);const colors=w.themes.map(id=>PALETTES[id]);b.style.background=colors.length===1?colors[0]+'48':`linear-gradient(130deg,${colors.map((c,i)=>`${c}66 ${i*100/colors.length}% ${(i+1)*100/colors.length}%`).join(',')})`;b.addEventListener('click',()=>selectWorld(w.id));layer.append(b);}$('atlas').append(layer);}for(let i=0;i<16;i++)$('budgetBar').append(document.createElement('i'));
+
+function spawnExplorer(arrivalFrom=null){
+ explorer.turn=null;explorer.up.set(0,1,0);explorer.forward.set(0,0,-1);explorer.pitch=0;
+ let target=new V3();
+ if(arrivalFrom){const o=currentPortals.find(p=>p.edge.targetWorldId===arrivalFrom);if(o)target=o.pos.clone().addScaledVector(o.normal,5);}
+ const surface=currentGeometry.voxels.size?nearestSurface(currentGeometry.voxels,target):null;
+ if(surface){
+  explorer.fly=false;explorer.up.copy(surface.normal);
+  explorer.forward.copy(surfaceTangent(explorer.forward,surface.normal));
+  explorer.foot.copy(surface.point).addScaledVector(surface.normal,SURFACE_SKIN);
+ }else{explorer.fly=true;explorer.foot.copy(target);}
+ resetView();camera.pos.copy(cameraTarget());camera.q.copy(explorer.view);
+ nearPortal=null;updateUI();
+}
+
+function setMode(next){if(next===mode)return;keys.clear();pointer=null;mode=next;document.body.classList.toggle('is-exploring',next==='explore');$('buildMode').classList.toggle('active',next==='build');$('exploreMode').classList.toggle('active',next==='explore');$('buildMode').setAttribute('aria-pressed',next==='build');$('exploreMode').setAttribute('aria-pressed',next==='explore');hoverCell=null;explorer.turn=null;updateSelectionGraphics();updateGuides();if(next==='explore'){spawnExplorer();canvas.focus();toast(currentGeometry.voxels.size?'Half-size explorer. Move to turn; reverse to return. Pause near 45° to perch.':'An empty world: you start at the center in free drift. WASD moves; Space / Q rises / descends.');}else{document.exitPointerLock?.();nearPortal=null;$('portalPrompt').style.display='none';frameWorld();canvas.style.cursor='grab';}updateUI();}
+function toggleGrip(){
+ explorer.turn=null;
+ if(!explorer.fly){
+  explorer.foot.copy(camera.pos);explorer.view.copy(camera.q);
+  explorer.up.set(0,1,0).applyQuaternion(camera.q);
+  explorer.forward.set(0,0,-1).applyQuaternion(camera.q);explorer.pitch=0;
+  explorer.fly=true;toast('Free drift. Space rises; Q descends. F grips a nearby surface.');return;
+ }
+ const hit=gridRay(currentGeometry.voxels,camera.pos,explorerLook(),12);
+ let surface=hit;
+ if(!surface){surface=nearestSurface(currentGeometry.voxels,camera.pos);if(surface&&surface.distance>6)surface=null;}
+ if(!surface){toast('No surface within reach. Look toward a platform, move closer, and press F.');return;}
+ const oldForward=explorerLook();explorer.up.copy(surface.normal);
+ explorer.foot.copy(surface.point).addScaledVector(surface.normal,SURFACE_SKIN);
+ explorer.forward.copy(surfaceTangent(oldForward,surface.normal));
+ explorer.pitch=0;explorer.fly=false;resetView();
+ toast('Spider grip attached. Move to turn; reverse to retrace an edge.');
+}
+
+function applyLook(dx,dy){
+ if(!Number.isFinite(dx)||!Number.isFinite(dy))return;
+ const yaw=new Q4().setFromAxisAngle(explorer.up,-dx*.003);
+ explorer.forward.applyQuaternion(yaw).normalize();
+ explorer.view.copy(yaw.multiply(explorer.view)).normalize();
+ const pitch=clamp(explorer.pitch-dy*.003,-1.42,1.42),delta=pitch-explorer.pitch;
+ const right=new V3(1,0,0).applyQuaternion(explorer.view);
+ explorer.view.copy(new Q4().setFromAxisAngle(right,delta).multiply(explorer.view)).normalize();
+ explorer.pitch=pitch;
+}
+function alignExplorerView(){
+ if(mode!=='explore')return;
+ explorer.pitch=0;resetView();
+ toast(explorer.turn?'View aligned to the current edge stance.':'View aligned to your current surface.');
+}
+function updateExploreSettingsUI(){
+ $('cameraAssistInput').value=exploreSettings.cameraAssist;
+ $('cameraAssistValue').textContent=exploreSettings.cameraAssist+'%';
+ $('cameraAssistInput').setAttribute('aria-valuetext',exploreSettings.cameraAssist+' percent camera assistance');
+ $('cameraAssistNote').textContent=(exploreSettings.cameraAssist*.9).toFixed(1).replace(/\.0$/,'')+'° camera help per 90° turn';
+ $('edgePerchInput').checked=exploreSettings.edgePerch;
+}
+function setCameraAssist(value){
+ value=Number(value);if(!Number.isFinite(value))return false;
+ exploreSettings.cameraAssist=clamp(Math.round(value),50,100);
+ updateExploreSettingsUI();return true;
+}
+function setEdgePerch(enabled){
+ exploreSettings.edgePerch=!!enabled;
+ if(explorer.turn&&!enabled)explorer.turn.perched=false;
+ updateExploreSettingsUI();
+}
+function readExploreSettings(json){
+ const settings=json.exploration;
+ if(settings===undefined)return {cameraAssist:100,edgePerch:true};
+ if(!settings||!Number.isFinite(settings.cameraAssist)||settings.cameraAssist<50||settings.cameraAssist>100||typeof settings.edgePerch!=='boolean')
+  throw new Error('Invalid exploration settings. Camera assist must be 50–100%.');
+ return {cameraAssist:Math.round(settings.cameraAssist),edgePerch:settings.edgePerch};
+}
+
+function updateExplorer(dt,time){
+ if(!Number.isFinite(dt)||dt<=0)return;
+ // This method is also used by tests/hosts; clamp long hitches rather than
+ // applying seconds of queued input after an inactive tab resumes.
+ dt=Math.min(dt,.05);
+ const f=(keys.has('KeyW')||keys.has('ArrowUp')?1:0)-(keys.has('KeyS')||keys.has('ArrowDown')?1:0);
+ const r=(keys.has('KeyD')||keys.has('ArrowRight')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')?1:0);
+ const boost=keys.has('ShiftLeft')||keys.has('ShiftRight');
+ let move=new V3();
+ if(explorer.turn)explorer.turn.crossInput=0;
+ if(explorer.fly){
+  const right=new V3(1,0,0).applyQuaternion(explorer.view);
+  move.addScaledVector(explorerLook(),f).addScaledVector(right,r);
+  move.addScaledVector(explorer.up,(keys.has('Space')?1:0)-(keys.has('KeyQ')||keys.has('ControlLeft')?1:0));
+  if(move.lengthSq()>0){
+   move.normalize();
+   const speed=(data().spanChunks===3?24:12)*(boost?2.8:1),distance=speed*dt;
+   const wall=gridRay(currentGeometry.voxels,explorer.foot,move,distance+.12);
+   explorer.foot.addScaledVector(move,wall?Math.max(0,wall.distance-.12):distance);
+   const h=halfOf(data())-.55;for(const a of SURFACE_AXES)explorer.foot[a]=clamp(explorer.foot[a],-h,h);
+  }
+ }else if(f||r){
+  const total=(boost?9:5.8)*EXPLORER_SCALE*dt;
+  const steps=Math.max(1,Math.ceil(total/.055));
+  for(let i=0;i<steps;i++){
+   const lateral=explorer.forward.clone().cross(explorer.up).normalize();
+   move.copy(explorer.forward).multiplyScalar(f).addScaledVector(lateral,r).normalize();
+   spiderStep(move,total/steps);
+  }
+ }
+ settleEdgePerch(dt);
+ const target=cameraTarget();
+ camera.pos.lerp(target,1-Math.exp(-20*dt));
+ // Safety on generated geometry: never leave a lagging camera inside solid.
+ if(currentGeometry.voxels.has(voxelKey(...camera.pos.toArray().map(Math.floor))))camera.pos.copy(target);
+ camera.q.slerp(explorer.view,1-Math.exp(-(reduceMotion?32:20)*dt));
+ nearPortal=null;let closest=7.2;
+ for(const o of currentPortals){const distance=explorer.foot.distanceTo(o.pos);if(distance<closest){closest=distance;nearPortal=o;}}
+ const prompt=$('portalPrompt');prompt.style.display=nearPortal?'block':'none';
+ if(nearPortal)prompt.innerHTML='<kbd>E</kbd> &nbsp; '+(nearPortal.edge.action==='leave'?'Leave this world system':`Travel to World ${pad(nearPortal.edge.targetWorldId)}`);
+ if(time-lastHUD>100){
+  const turn=explorer.turn,angle=turn?Math.round(edgeAngle(turn.progress)*180/Math.PI):0;
+  $('gripTag').textContent=explorer.fly?'FREE DRIFT':turn?.perched?'45° EDGE PERCH':turn?'EDGE TRAVERSE':'SPIDER GRIP';
+  const axis=SURFACE_AXES.find(a=>Math.abs(explorer.up[a])>.999);
+  $('walkCoords').textContent=`[${explorer.foot.toArray().map(x=>x.toFixed(1)).join(', ')}] · `+(turn?`${angle}° EDGE`:axis?`UP ${explorer.up[axis]>=0?'+':'−'}${axis.toUpperCase()}`:'SURFACE');
+  $('edgeReadout').textContent=explorer.fly?'F to grip a nearby surface.':turn?.atEnd?'Edge end · move across to choose a face.':turn?.perched?'45° perch · move along the edge, cross to leave.':turn?`${angle}° / 90° · stop to hold, reverse to return.`:'Move to turn · reverse to return.';
+  $('edgeMeterFill').style.width=(turn?angle/90*100:0)+'%';
+  $('edgeMeter').classList.toggle('perched',!!turn?.perched);
+  lastHUD=time;
+ }
+}
+
+function buildUI(){
+ updateExploreSettingsUI();
+ $('cameraAssistInput').addEventListener('input',e=>setCameraAssist(e.target.value));
+ $('edgePerchInput').addEventListener('change',e=>setEdgePerch(e.target.checked));
+ $('alignViewButton').onclick=()=>{alignExplorerView();canvas.focus();};
+ for(const id of ['cameraAssistInput','edgePerchInput'])$(id).addEventListener('focus',()=>keys.clear());
+for(const w of WORLDS){const option=document.createElement('option');option.value=w.id;option.textContent=`${pad(w.id)}  ${w.themes.map(id=>themeFor(id).name).join(' + ')}`;$('worldSelect').append(option);}for(let z=0;z<3;z++){const layer=document.createElement('div');layer.className='atlas-layer';const label=document.createElement('small');label.textContent='z = '+z;layer.append(label);for(let i=0;i<9;i++){const w=WORLDS[z*9+i],b=document.createElement('button');b.className='world-dot';b.dataset.world=w.id;b.textContent=pad(w.id);b.title=`World ${pad(w.id)} · ${w.themes.map(id=>themeFor(id).name).join(' + ')} · [${w.iterator}]`;b.setAttribute('aria-label',b.title);const colors=w.themes.map(id=>PALETTES[id]);b.style.background=colors.length===1?colors[0]+'48':`linear-gradient(130deg,${colors.map((c,i)=>`${c}66 ${i*100/colors.length}% ${(i+1)*100/colors.length}%`).join(',')})`;b.addEventListener('click',()=>selectWorld(w.id));layer.append(b);}$('atlas').append(layer);}for(let i=0;i<16;i++)$('budgetBar').append(document.createElement('i'));
  $('worldSelect').addEventListener('change',e=>selectWorld(e.target.value));$('prevWorld').onclick=()=>selectWorld((selectedWorldId+25)%27+1);$('nextWorld').onclick=()=>selectWorld(selectedWorldId%27+1);$('singleChunk').onclick=()=>changeLayout(1);$('clusterChunks').onclick=()=>changeLayout(3);document.querySelectorAll('[data-pattern]').forEach(b=>b.addEventListener('click',()=>updateSetting('style',b.dataset.pattern)));document.querySelectorAll('[data-tool]').forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.tool)));
  for(const key of ['count','height','bend','loops']){$(key+'Input').addEventListener('input',e=>$(key+'Value').textContent=e.target.value+(key==='count'?'':'%'));$(key+'Input').addEventListener('change',e=>updateSetting(key,Number(e.target.value)));}$('seedInput').addEventListener('change',e=>updateSetting('seed',e.target.value||'little'));$('autoPaths').addEventListener('change',e=>updateSetting('autoPaths',e.target.checked));$('shuffleSeed').onclick=()=>{snapshot(selectedWorldId);data().config.seed='little-'+Math.floor(Math.random()*1e7).toString(36);generatePlatforms(world(),data());selectedCell=null;hoverCell=null;updateScene();toast('A new variation. Your hand-placed cubes were kept.');};$('generateButton').onclick=generateCurrent;$('startGenerate').onclick=generateCurrent;$('rebuildButton').onclick=()=>{updateScene();toast(data().modules.length?'Paths rebuilt from the current cubes and seed.':'Place a cube or generate platforms first. The empty world stays empty.');};$('generateAllButton').onclick=()=>{for(const w of WORLDS){snapshot(w.id);generatePlatforms(w,levelData[w.id-1]);}selectedCell=null;hoverCell=null;updateScene();toast('All 27 levels generated independently. Hand-placed cubes were preserved.');};$('clearButton').onclick=clearWorld;
  $('sliceAxis').onchange=e=>{sliceAxis=e.target.value;hoverCell=null;updateGuides();updateSelectionGraphics();updateUI();};$('sliceInput').oninput=e=>{sliceIndex=Number(e.target.value);hoverCell=null;updateGuides();updateSelectionGraphics();updateUI();};$('undoButton').onclick=()=>{if(changeHistory(selectedWorldId)){hoverCell=null;selectedCell=null;updateScene();}};$('redoButton').onclick=()=>{if(changeHistory(selectedWorldId,true)){hoverCell=null;selectedCell=null;updateScene();}};$('deleteButton').onclick=()=>removeModule(selectedCell);$('guidesInput').onchange=e=>showGuides=e.target.checked;$('frameButton').onclick=frameWorld;$('topButton').onclick=()=>{orbit.pitch=Math.PI/2-.001;orbit.target.set(0,0,0);orbit.radius=halfOf(data())*3.3;setOrbitCamera();};$('buildMode').onclick=()=>setMode('build');$('exploreMode').onclick=()=>setMode('explore');
  $('exportButton').onclick=downloadProject;$('importButton').onclick=()=>$('importInput').click();$('importInput').onchange=async e=>{const file=e.target.files?.[0];if(!file)return;try{if(file.size>3*1024*1024)throw new Error('Project is too large (3 MB maximum).');importProject(JSON.parse(await file.text()));}catch(err){toast('Import rejected: '+err.message,true);}e.target.value='';};$('helpButton').onclick=()=>{keys.clear();paused=true;document.exitPointerLock?.();$('helpOverlay').hidden=false;$('closeHelp').focus();};$('closeHelp').onclick=()=>{paused=false;$('helpOverlay').hidden=true;canvas.focus();};$('returnFromLeave').onclick=()=>{paused=false;$('leaveOverlay').hidden=true;canvas.focus();};$('atlasFromLeave').onclick=()=>{paused=false;$('leaveOverlay').hidden=true;setMode('build');document.querySelector('.atlas-toggle').open=true;};
 }
 function attachInput(){canvas.addEventListener('contextmenu',e=>e.preventDefault());canvas.addEventListener('pointerdown',e=>{if(paused)return;canvas.focus();pointer={x:e.clientX,y:e.clientY,lastX:e.clientX,lastY:e.clientY,button:e.button,alt:e.altKey,moved:0};try{canvas.setPointerCapture(e.pointerId);}catch{}e.preventDefault();});canvas.addEventListener('pointermove',e=>{lastPointer=e;if(paused)return;if(mode==='explore'&&document.pointerLockElement===canvas)return;if(pointer){const dx=e.clientX-pointer.lastX,dy=e.clientY-pointer.lastY;pointer.lastX=e.clientX;pointer.lastY=e.clientY;pointer.moved=Math.max(pointer.moved,Math.hypot(e.clientX-pointer.x,e.clientY-pointer.y));if(mode==='explore'){applyLook(dx,dy);}else if(pointer.button===2){const right=new V3(1,0,0).applyQuaternion(camera.q),up=new V3(0,1,0).applyQuaternion(camera.q);orbit.target.addScaledVector(right,-dx*orbit.radius*.0012).addScaledVector(up,dy*orbit.radius*.0012);setOrbitCamera();}else if(tool==='select'||pointer.alt||pointer.button===1){orbit.yaw-=dx*.007;orbit.pitch=clamp(orbit.pitch+dy*.006,-1.50,1.50);setOrbitCamera();}}if(mode==='build')updateHover(e);});canvas.addEventListener('pointerup',e=>{const p=pointer;pointer=null;if(!p||paused||p.moved>5||p.button!==0)return;if(mode==='explore'){if(document.pointerLockElement!==canvas&&canvas.requestPointerLock){try{const promise=canvas.requestPointerLock();promise?.catch?.(()=>toast('Mouse capture is unavailable here. Drag on the view to look instead.'));}catch{toast('Drag on the view to look.');}}return;}const ray=screenRay(e);if(tool==='place'){const c=placementCell(ray);placeModule(c);return;}const hit=pickModule(ray),portal=pickPortal(ray);if(portal&&(!hit||portal.distance<hit.distance)){activatePortal(portal.portal);return;}if(hit){selectedCell=hit.module.cell.slice();if(tool==='remove')removeModule(selectedCell);else updateSelectionGraphics();}else{selectedCell=null;updateSelectionGraphics();}});canvas.addEventListener('pointercancel',()=>pointer=null);canvas.addEventListener('pointerleave',()=>{if(!pointer){hoverCell=null;updateSelectionGraphics();}});canvas.addEventListener('wheel',e=>{e.preventDefault();if(mode!=='build'||paused)return;if(e.shiftKey&&tool==='place'){sliceIndex=clamp(sliceIndex+Math.sign(e.deltaY),0,data().spanChunks*8-1);updateGuides();updateUI();updateHover(e);}else{orbit.radius=clamp(orbit.radius*Math.exp(e.deltaY*.001),6,halfOf(data())*10);setOrbitCamera();if(lastPointer)updateHover(lastPointer);}},{passive:false});document.addEventListener('mousemove',e=>{if(!paused&&mode==='explore'&&document.pointerLockElement===canvas)applyLook(e.movementX,e.movementY);});document.addEventListener('pointerlockchange',()=>{keys.clear();updateHint();});document.addEventListener('pointerlockerror',()=>toast('Mouse capture is unavailable here. Drag to look instead.'));
- window.addEventListener('keydown',e=>{const input=/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);if(input)return;if(e.code==='Escape'){keys.clear();if(!$('helpOverlay').hidden){$('closeHelp').click();return;}if(!$('leaveOverlay').hidden){$('returnFromLeave').click();return;}}if(paused)return;const meta=e.ctrlKey||e.metaKey;if(meta&&e.code==='KeyZ'){e.preventDefault();if(changeHistory(selectedWorldId,e.shiftKey)){selectedCell=null;hoverCell=null;updateScene();}return;}if(meta&&e.code==='KeyY'){e.preventDefault();if(changeHistory(selectedWorldId,true))updateScene();return;}if(mode==='explore'){if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Tab'].includes(e.code))e.preventDefault();keys.add(e.code);if(!e.repeat&&e.code==='KeyF')toggleGrip();if(!e.repeat&&e.code==='KeyE'&&nearPortal)activatePortal(nearPortal);}else{if((e.code==='Delete'||e.code==='Backspace')&&selectedCell){e.preventDefault();removeModule(selectedCell);}if(e.code==='Home'){e.preventDefault();frameWorld();}if(e.code==='Digit1')setTool('select');if(e.code==='Digit2')setTool('place');if(e.code==='Digit3')setTool('remove');}});window.addEventListener('keyup',e=>keys.delete(e.code));window.addEventListener('blur',()=>{keys.clear();pointer=null;});document.addEventListener('visibilitychange',()=>{keys.clear();lastFrame=performance.now();});window.addEventListener('beforeunload',e=>{if(levelData.some(d=>d.modules.length)){e.preventDefault();e.returnValue='';}});
+ window.addEventListener('keydown',e=>{const input=/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);if(input)return;if(e.code==='Escape'){keys.clear();if(!$('helpOverlay').hidden){$('closeHelp').click();return;}if(!$('leaveOverlay').hidden){$('returnFromLeave').click();return;}}if(paused)return;const meta=e.ctrlKey||e.metaKey;if(meta&&e.code==='KeyZ'){e.preventDefault();if(changeHistory(selectedWorldId,e.shiftKey)){selectedCell=null;hoverCell=null;updateScene();}return;}if(meta&&e.code==='KeyY'){e.preventDefault();if(changeHistory(selectedWorldId,true))updateScene();return;}if(mode==='explore'){if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Tab'].includes(e.code))e.preventDefault();keys.add(e.code);if(!e.repeat&&e.code==='KeyF')toggleGrip();if(!e.repeat&&e.code==='KeyR')alignExplorerView();if(!e.repeat&&e.code==='KeyE'&&nearPortal)activatePortal(nearPortal);}else{if((e.code==='Delete'||e.code==='Backspace')&&selectedCell){e.preventDefault();removeModule(selectedCell);}if(e.code==='Home'){e.preventDefault();frameWorld();}if(e.code==='Digit1')setTool('select');if(e.code==='Digit2')setTool('place');if(e.code==='Digit3')setTool('remove');}});window.addEventListener('keyup',e=>keys.delete(e.code));window.addEventListener('blur',()=>{keys.clear();pointer=null;});document.addEventListener('visibilitychange',()=>{keys.clear();lastFrame=performance.now();});window.addEventListener('beforeunload',e=>{if(levelData.some(d=>d.modules.length)){e.preventDefault();e.returnValue='';}});
 }
 function animate(time){requestAnimationFrame(animate);const dt=Math.min(.035,Math.max(.001,(time-lastFrame)/1000));lastFrame=time;if(!renderEngine)return;if(!paused){if(mode==='build')setOrbitCamera();else updateExplorer(dt,time);}renderEngine.render(camera,halfOf(data())*2,showGuides);updatePortalLabels();frameTime=time;}
 /* Read-only diagnostics plus explicit test actions: browser tests exercise the
    same model and input functions as the visible editor. No hidden terrain. */
-window.LITTLE_WORLDS={getState:()=>({selectedWorldId,mode,tool,level:JSON.parse(JSON.stringify(data())),allEmpty:levelData.every(d=>d.modules.length===0),renderer:renderEngine?.kind,portalCount:currentPortals.length,voxels:currentGeometry.voxels.size,surfaceTransitions:explorer.transitions,explorer:{fly:explorer.fly,foot:explorer.foot.toArray(),up:explorer.up.toArray()},camera:{pos:camera.pos.toArray(),quaternion:camera.q.toArray()}}),exportProject,importProject,selectWorld,generate:generateCurrent,clear:clearWorld,place:placeModule,remove:removeModule,layout:changeLayout,setMode,setTool,updateSetting,buildGeometry:(id)=>buildGeometry(WORLDS[id-1],levelData[id-1]),portalInfo:(id)=>portalInfo(WORLDS[id-1],levelData[id-1]),project:(a)=>project(V3.from(a)),setExplorer:(p,n,f)=>{explorer.foot.copy(V3.from(p));explorer.up.copy(V3.from(n));explorer.forward.copy(V3.from(f));explorer.fly=false;camera.pos.copy(cameraTarget());camera.q.copy(lookQuaternion(explorerLook(),explorer.up));},spiderStep:(v,d)=>spiderStep(V3.from(v),d),testMath:{V3,Q4,rayAABB,gridRay},get geometry(){return currentGeometry;},get roster(){return WORLDS;}};
+window.LITTLE_WORLDS={getState:()=>({selectedWorldId,mode,tool,level:JSON.parse(JSON.stringify(data())),allEmpty:levelData.every(d=>d.modules.length===0),renderer:renderEngine?.kind,portalCount:currentPortals.length,voxels:currentGeometry.voxels.size,surfaceTransitions:explorer.transitions,exploration:{...exploreSettings,scale:EXPLORER_SCALE,eyeHeight:EXPLORER_EYE_HEIGHT,edgeTravel:EDGE_TRAVEL},explorer:{fly:explorer.fly,foot:explorer.foot.toArray(),up:explorer.up.toArray(),forward:explorer.forward.toArray(),turnProgress:explorer.turn?explorer.turn.progress:null,edgeAngle:explorer.turn?edgeAngle(explorer.turn.progress)*180/Math.PI:null,perched:!!explorer.turn?.perched,edgeEnd:!!explorer.turn?.atEnd,viewQuaternion:explorer.view.toArray()},camera:{pos:camera.pos.toArray(),quaternion:camera.q.toArray()}}),setCameraAssist,setEdgePerch,alignView:alignExplorerView,exportProject,importProject,selectWorld,generate:generateCurrent,clear:clearWorld,place:placeModule,remove:removeModule,layout:changeLayout,setMode,setTool,updateSetting,buildGeometry:(id)=>buildGeometry(WORLDS[id-1],levelData[id-1]),portalInfo:(id)=>portalInfo(WORLDS[id-1],levelData[id-1]),project:(a)=>project(V3.from(a)),setExplorer:(p,n,f)=>{explorer.turn=null;explorer.pitch=0;explorer.foot.copy(V3.from(p));explorer.up.copy(V3.from(n));explorer.forward.copy(surfaceTangent(V3.from(f),explorer.up));explorer.fly=false;resetView();camera.pos.copy(cameraTarget());camera.q.copy(explorer.view);},spiderStep:(v,d)=>spiderStep(V3.from(v),d),testMath:{V3,Q4,rayAABB,gridRay},get geometry(){return currentGeometry;},get roster(){return WORLDS;}};
 try{renderEngine=new CubeRenderer(canvas,cubeGeometryFromGLB(EMBEDDED_CUBE_GLB));buildUI();attachInput();frameWorld();updateScene();$('loading').hidden=true;requestAnimationFrame(animate);window.LITTLE_WORLDS.ready=true;}catch(err){console.error(err);$('loading').classList.add('error');$('loading').firstElementChild.textContent=err.message;window.LITTLE_WORLDS.error=err.message;}
 
 </script>

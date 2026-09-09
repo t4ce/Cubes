@@ -11,8 +11,13 @@ mod exported {
 
 fn main() {
     let background_package = fs::read("Cube/mandelbox/mandelbox.stpkg").expect("Mandelbox package");
-    let expected = fs::read_to_string("Cube/mandelbox/package.sha256").expect("Mandelbox package hash");
-    assert_eq!(format!("{:x}", Sha256::digest(&background_package)), expected.trim(), "stale Mandelbox package; run tools/bake_mandelbox.py");
+    let expected =
+        fs::read_to_string("Cube/mandelbox/package.sha256").expect("Mandelbox package hash");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&background_package)),
+        expected.trim(),
+        "stale Mandelbox package; run tools/bake_mandelbox.py"
+    );
     println!("cargo:rerun-if-changed=Cube");
     let mut assets: Vec<_> = fs::read_dir("Cube")
         .expect("Cube asset directory")
@@ -42,6 +47,19 @@ fn main() {
         registry
     };
     let mut registry = write_registry("ORCHARD_ASSETS", assets);
+    let asset_dir = std::path::Path::new("Cube/Assets");
+    let mut showcase_assets: Vec<_> = fs::read_dir(asset_dir)
+        .expect("Cube/Assets directory")
+        .map(|e| e.unwrap().path())
+        .filter(|p| p.extension().is_some_and(|e| e == "cubes"))
+        .collect();
+    showcase_assets.sort();
+    assert_eq!(
+        showcase_assets.len(),
+        49,
+        "expected all generated showcase assets"
+    );
+    registry.push_str(&write_registry("ASSET_GRID_ASSETS", showcase_assets));
     let world_dir = std::path::Path::new("Cube/lvl27");
     let mut worlds: Vec<_> = fs::read_dir(world_dir)
         .expect("Cube/lvl27 world directory")

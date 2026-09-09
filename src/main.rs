@@ -282,7 +282,7 @@ impl CubeScene {
                 grid::COUNT,
             ),
         );
-        let orchards = orchard::Pages::new(ORCHARD_ASSETS, true);
+        let orchards = orchard::Pages::new_grid(ASSET_GRID_ASSETS);
         let worlds = orchard::Pages::new(WORLD_ASSETS, false);
         let background = background::Background::start(
             frame
@@ -628,11 +628,12 @@ impl CubeScene {
                 let asset = &self.orchards[self.orchard_index];
                 self.orchard_reveal
                     .begin_frame(elapsed_millis, asset.cubes.len());
-                let (ids, stats) = orchard::visible_when(
+                let (ids, stats) = orchard::visible_when_limited(
                     &mut self.visibility_scratch,
                     asset,
                     self.flycam.camera.position,
                     &camera.view_projection,
+                    grid::MAX_SEED_COUNT,
                     |id| self.orchard_reveal.admit(id),
                 );
                 self.orchard_reveal.end_frame();
@@ -1109,10 +1110,11 @@ impl CubeScene {
                 logl::log(
                     level::INFO,
                     format_args!(
-                        "Cubes: Key4 asset={} cubes={} assets={} visibility=collective-cpu-before-HS reveal=pop delay={}ms rate={}/s burst={} rearm={}ms",
+                        "Cubes: Key4 asset-grid={} cubes={} assets={} visible_budget={} visibility=collective-cpu-before-HS reveal=pop delay={}ms rate={}/s burst={} rearm={}ms",
                         asset.name,
                         asset.cubes.len(),
                         self.orchards.len(),
+                        grid::MAX_SEED_COUNT,
                         reveal::DELAY_MS,
                         reveal::STARTS_PER_SECOND,
                         reveal::MAX_STARTS_PER_FRAME,
@@ -1187,8 +1189,7 @@ impl CubeScene {
                             "2 compact-puzzle click=edge/corner turns=3x1s camera=WASD-orbit idle=3s-auto-orbit",
                         SceneMode::Sphere =>
                             "3 sphere=1024 camera=center WASD=look cursor-expand=10%-area",
-                        SceneMode::Orchard =>
-                            "4 cubes-pair WASD=orbit idle=auto-orbit Key4=next-pair",
+                        SceneMode::Orchard => "4 asset-grid WASD=orbit idle=auto-orbit",
                         SceneMode::World =>
                             "5 lvl27-world first-person mouse-look WASD=plane-walk Key5=next-world R=display-cube",
                     },

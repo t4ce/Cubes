@@ -1,12 +1,15 @@
 # Key 4: compact opaque cube assets
 
-Put `.cubes` files in `Cube/` and rebuild Cubes. The build discovers them in
-filename order; runtime decodes only the selected page and caches it. Key 4 shows adjacent
-pairs of assets side by side; subsequent presses cycle pairs. Each pair is
-limited to 1024 total seeds. The orchard and pine use 900 together, retain
-their authored scales/colors, align their bases, and have a one-world-unit gap.
-Camera bounds and visibility cover the combined pair. No placeholder copies are
-created for missing assets. Each asset may contain 1–1024 cubes. This stage
+Put `.cubes` files in `Cube/` and rebuild Cubes. The build discovers the 49
+showcase files in `Cube/Assets` in filename order; runtime decodes the grid
+page on first Key-4 entry and caches it. Key 4 shows every showcase asset
+once in a centered 7×7 2-D grid. The authored grid contains 12,760 cubes;
+per-frame visibility is limited to the renderer's 2,048-seed capacity while
+all authored instances remain available to culling and reveal.
+The legacy orchard and pine pair path remains available in the asset module;
+their authored scales/colors, base alignment, and one-world-unit gap are unchanged.
+Camera bounds and visibility cover the complete grid. No placeholder copies are
+created for missing assets. Each individual asset may contain 1–1024 cubes. This stage
 accepts version-1 opaque static assets only; rigs, alpha palettes, unsupported
 flags, malformed records and unsupported scales fail explicitly.
 

@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 pub const CUSTOM_RGB555: u32 = 1 << 15;
 /// Authored world assets may exceed the renderer's per-frame seed budget.
 /// They are compacted by `visible_when_limited` before reaching the HS path.
-pub const MAX_ASSET_CUBES: usize = 4096;
+pub const MAX_ASSET_CUBES: usize = 16384;
 #[derive(Clone, Copy, Debug)]
 pub struct Cube {
     pub center: [f32; 3],
@@ -29,6 +29,7 @@ pub fn world_from_demo([x, y, z]: [f32; 3]) -> [f32; 3] {
 pub struct Pages {
     sources: &'static [(&'static str, &'static [u8])],
     paired: bool,
+    grid: bool,
     decoded: Vec<Option<Asset>>,
 }
 
@@ -42,7 +43,18 @@ impl Pages {
         Self {
             sources,
             paired,
+            grid: false,
             decoded: (0..len).map(|_| None).collect(),
+        }
+    }
+
+    /// Build one page containing every source asset in a centered 2-D grid.
+    pub fn new_grid(sources: &'static [(&'static str, &'static [u8])]) -> Self {
+        Self {
+            sources,
+            paired: false,
+            grid: true,
+            decoded: (0..1).map(|_| None).collect(),
         }
     }
 
@@ -68,7 +80,14 @@ impl Pages {
         if slot.is_some() {
             return Ok(false);
         }
-        let asset = if self.paired {
+        let asset = if self.grid {
+            let assets = self
+                .sources
+                .iter()
+                .map(|&(name, bytes)| decode(name, bytes))
+                .collect::<Result<Vec<_>, _>>()?;
+            grid_layout(&assets)?
+        } else if self.paired {
             let first = index * 2;
             let pair = self.sources[first..(first + 2).min(self.sources.len())]
                 .iter()
@@ -93,8 +112,68 @@ impl core::ops::Index<usize> for Pages {
     }
 }
 
-/// Arrange an asset pair on a shared base, without changing authored scales.
-/// The combined seeds share the existing visibility pass and orbit bounds.
+/// Arrange all showcase assets once on a centered 2-D 7-column grid.
+/// Each source keeps its authored cube scales, colors, and internal shape;
+/// only the asset origin is translated to its grid slot and common base.
+pub fn grid_layout(assets: &[Asset]) -> Result<Asset, &'static str> {
+    if assets.is_empty() {
+        return Err("cubes-grid-empty");
+    }
+    const COLUMNS: usize = 7;
+    const CELL_SPACING: f32 = 6.0;
+    let mut cubes = Vec::new();
+    for (index, asset) in assets.iter().enumerate() {
+        let column = index % COLUMNS;
+        let row = index / COLUMNS;
+        let offset = [
+            (column as f32 - (COLUMNS as f32 - 1.0) * 0.5) * CELL_SPACING,
+            0.0,
+            (row as f32 - ((assets.len().div_ceil(COLUMNS) as f32 - 1.0) * 0.5)) * CELL_SPACING,
+        ];
+        let lo: [f32; 3] = core::array::from_fn(|axis| {
+            asset
+                .cubes
+                .iter()
+                .map(|c| c.center[axis] - c.scale)
+                .fold(f32::INFINITY, f32::min)
+        });
+        let hi: [f32; 3] = core::array::from_fn(|axis| {
+            asset
+                .cubes
+                .iter()
+                .map(|c| c.center[axis] + c.scale)
+                .fold(f32::NEG_INFINITY, f32::max)
+        });
+        let bottom = hi[1];
+        let center_x = (lo[0] + hi[0]) * 0.5;
+        let center_z = (lo[2] + hi[2]) * 0.5;
+        for &cube in &asset.cubes {
+            let mut placed = cube;
+            placed.center[0] += offset[0] - center_x;
+            placed.center[1] -= bottom;
+            placed.center[2] += offset[2] - center_z;
+            cubes.push(placed);
+        }
+    }
+    let lo: [f32; 3] = core::array::from_fn(|a| {
+        cubes
+            .iter()
+            .map(|c| c.center[a] - c.scale)
+            .fold(f32::INFINITY, f32::min)
+    });
+    let hi: [f32; 3] = core::array::from_fn(|a| {
+        cubes
+            .iter()
+            .map(|c| c.center[a] + c.scale)
+            .fold(f32::NEG_INFINITY, f32::max)
+    });
+    Ok(Asset {
+        name: "asset showcase grid",
+        cubes,
+        radius: (0..3).map(|a| (hi[a] - lo[a]) * 0.5).fold(0.0, f32::max),
+    })
+}
+
 pub fn side_by_side(assets: &[Asset]) -> Result<Asset, &'static str> {
     let count: usize = assets.iter().map(|a| a.cubes.len()).sum();
     if count == 0 || count > 1024 {
