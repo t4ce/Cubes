@@ -78,3 +78,36 @@ mod tests {
         assert!(clip([0., 0., -1., -1.], [0., 0., 0.5, 1.]).is_some());
     }
 }
+
+/// Reuse the static line pass for the drift-mode grip target (12 cube edges).
+/// Unused vertices remain clipped, keeping the existing buffer contract fixed.
+pub fn cube_outline(matrix: &[f32; 16], lo: [f32; 3], hi: [f32; 3]) -> [u8; VERTICES * 12] {
+    let mut bytes = vertices(matrix, false);
+    let mut line = 0;
+    for corner in 0..8 {
+        for axis in 0..3 {
+            if corner & (1 << axis) != 0 {
+                continue;
+            }
+            let a: [f32; 3] =
+                core::array::from_fn(|i| if corner & (1 << i) == 0 { lo[i] } else { hi[i] });
+            let mut b = a;
+            b[axis] = hi[axis];
+            let project = |p: [f32; 3]| {
+                core::array::from_fn(|r| {
+                    matrix[r] * p[0] + matrix[4 + r] * p[1] + matrix[8 + r] * p[2] + matrix[12 + r]
+                })
+            };
+            if let Some(pair) = clip(project(a), project(b)) {
+                for (j, p) in pair.iter().enumerate() {
+                    for k in 0..3 {
+                        let offset = ((line * 2 + j) * 3 + k) * 4;
+                        bytes[offset..offset + 4].copy_from_slice(&p[k].to_le_bytes());
+                    }
+                }
+            }
+            line += 1;
+        }
+    }
+    bytes
+}

@@ -15,9 +15,9 @@ mod picking;
 mod reveal;
 mod rubik;
 mod transition;
-mod world_bounds;
+#[path = "CubesWalkerCam.rs"]
+mod walker_camera;
 mod world_cube;
-mod world_look;
 mod world_portals;
 mod world_topology;
 use alloc::vec::Vec;
@@ -52,7 +52,6 @@ const ROOM_YFOV: f32 = 5.0 * core::f32::consts::PI / 12.0;
 const IDLE_ORBIT_DELAY_MS: u64 = 3_000;
 const IDLE_ORBIT_RADIANS_PER_SECOND: f32 = 0.18;
 const WORLD_SEED_BUDGET: usize = grid::MAX_SEED_COUNT;
-const WORLD_EYE_HEIGHT: f32 = 1.8;
 
 struct GridCursor {
     source: CursorSource,
@@ -122,8 +121,7 @@ struct CubeScene {
     flight: Option<transition::Flight>,
     number_keys: ModeKeys,
     demo_camera: Option<FlyCam>,
-    world_yaw: f32,
-    world_pitch: f32,
+    walker_camera: Option<walker_camera::CubesWalkerCam>,
     pending_resize: Option<ResizeEvent>,
     previous_elapsed_millis: u64,
     first_frame: bool,
@@ -322,8 +320,7 @@ impl CubeScene {
             flight: None,
             number_keys: ModeKeys::default(),
             demo_camera: None,
-            world_yaw: 0.0,
-            world_pitch: 0.0,
+            walker_camera: None,
             pending_resize: None,
             previous_elapsed_millis: 0,
             first_frame: true,
@@ -378,22 +375,9 @@ impl CubeScene {
                 self.last_camera_activity_millis = elapsed_millis;
             }
             if self.mode == SceneMode::World {
-                // Worlds are flat XZ planes. Rebuild from world yaw/pitch with
-                // +Y fixed as up: FlyCam::look is intentionally camera-local
-                // and can otherwise accumulate roll after a pitch.
-                world_look::update(
-                    &mut self.world_yaw,
-                    &mut self.world_pitch,
-                    event.dx as f32,
-                    event.dy as f32,
-                    self.flycam.look_sensitivity(),
-                );
-                let direction = world_look::direction(self.world_yaw, self.world_pitch);
-                self.flycam.camera.rotation = look_at_camera_rotation(
-                    self.flycam.camera.position,
-                    core::array::from_fn(|i| self.flycam.camera.position[i] + direction[i]),
-                    [0.0, 1.0, 0.0],
-                );
+                if let Some(camera) = self.walker_camera.as_mut() {
+                    camera.look(event.dx as f32, event.dy as f32);
+                }
             }
             if self.mode == SceneMode::StaticCube
                 && self.puzzle.selected().is_none()
@@ -451,28 +435,27 @@ impl CubeScene {
             }
             let mut target = [0.0; 3];
             if self.mode == SceneMode::World {
-                let local = [
-                    (held(0x07) as i32 - held(0x04) as i32) as f32,
-                    0.0,
-                    (held(0x16) as i32 - held(0x1a) as i32) as f32,
-                ];
-                let mut walk = self.flycam.camera.rotation.rotate(local);
-                // Keep movement on the common 2D world plane even while the
-                // user looks up or down.
-                walk[1] = 0.0;
-                let length = libm::sqrtf(walk[0] * walk[0] + walk[2] * walk[2]);
-                if length > f32::EPSILON {
-                    let distance = self.flycam.speed() * dt / length;
-                    let bounded = world_bounds::advance(
-                        [
-                            self.flycam.camera.position[0],
-                            self.flycam.camera.position[2],
-                        ],
-                        [walk[0] * distance, walk[2] * distance],
-                        world_bounds::has_horizontal_ramps(self.world_index),
+                if let Some(camera) = self.walker_camera.as_mut() {
+                    camera.update(
+                        walker_camera::Input {
+                            forward: ((held(0x1a) || held(0x52)) as i32
+                                - (held(0x16) || held(0x51)) as i32)
+                                as f32,
+                            right: ((held(0x07) || held(0x4f)) as i32
+                                - (held(0x04) || held(0x50)) as i32)
+                                as f32,
+                            vertical: (held(0x2c) as i32 - (held(0x14) || held(0xe0)) as i32)
+                                as f32,
+                            boost: held(0xe1) || held(0xe5),
+                            grip: held(0x09),
+                            // R already opens the world cube. Home aligns the walk view.
+                            align: held(0x4a),
+                        },
+                        delta_seconds,
                     );
-                    self.flycam.camera.position[0] = bounded[0];
-                    self.flycam.camera.position[2] = bounded[1];
+                    let (position, rotation) = camera.pose();
+                    self.flycam.camera.position = position;
+                    self.flycam.camera.rotation = rotation;
                 }
             }
             if self.mode == SceneMode::StaticCube && self.puzzle.locked() {
@@ -869,8 +852,22 @@ impl CubeScene {
             &seed_bytes[..seed_count * 64],
         )
         .map_err(|code| CubeError::Vgpu("grid-seed-upload", code))?;
-        let floor_bytes =
-            floor::vertices(&camera.view_projection, self.mode == SceneMode::StaticCube);
+        let outline = self.walker_camera.as_ref().and_then(|c| c.snap_outline());
+        let (floor_bytes, line_color) = if let Some(target) = outline {
+            (
+                floor::cube_outline(&camera.view_projection, target.lo, target.hi),
+                if target.reachable {
+                    [255, 255, 255, 255]
+                } else {
+                    [0, 0, 0, 255]
+                },
+            )
+        } else {
+            (
+                floor::vertices(&camera.view_projection, self.mode == SceneMode::StaticCube),
+                [100, 100, 100, 255],
+            )
+        };
         write_exact(self.device, self.floor_vertices, &floor_bytes)
             .map_err(|code| CubeError::Vgpu("floor-upload", code))?;
         self.floor_revision = self.floor_revision.wrapping_add(1);
@@ -904,7 +901,7 @@ impl CubeScene {
                                 trueos::vgpu::IndexedBatchDrawV2 {
                                     index_count: floor::VERTICES as u32,
                                     topology: trueos::vgpu::PRIMITIVE_TOPOLOGY_LINE_LIST,
-                                    rgba8_srgb: u32::from_le_bytes([100, 100, 100, 255]),
+                                    rgba8_srgb: u32::from_le_bytes(line_color),
                                     ..trueos::vgpu::IndexedBatchDrawV2::default()
                                 },
                                 trueos::vgpu::IndexedBatchDrawV2::default(),
@@ -1021,7 +1018,7 @@ impl CubeScene {
                 | ((keyboard.is_down(0x1f) as u8) << 1)
                 | ((keyboard.is_down(0x20) as u8) << 2)
                 | ((keyboard.is_down(0x21) as u8) << 3)
-                | ((keyboard.is_down(0x22) as u8) << 4)
+                | (((keyboard.is_down(0x22) || keyboard.is_down(0x3e)) as u8) << 4)
         });
         if let Some(selection) = self.number_keys.update(
             current,
@@ -1075,6 +1072,7 @@ impl CubeScene {
             if mode == SceneMode::World && self.mode != SceneMode::World {
                 self.demo_camera = Some(self.flycam);
             } else if mode != SceneMode::World && self.mode == SceneMode::World {
+                self.walker_camera = None;
                 if let Some(camera) = self.demo_camera.take() {
                     self.flycam = camera;
                 }
@@ -1123,17 +1121,14 @@ impl CubeScene {
                 );
             } else if mode == SceneMode::World {
                 self.flycam = FlyCam::new(default_camera(), 3.0);
-                self.world_yaw = world_look::INITIAL_YAW;
-                self.world_pitch = 0.0;
-                self.flycam.camera.position =
-                    orchard::world_from_demo([0.0, -WORLD_EYE_HEIGHT, 0.0]);
-                // Entry and mouse look share exactly the same +Y-up angle basis.
-                let direction = world_look::direction(self.world_yaw, self.world_pitch);
-                self.flycam.camera.rotation = look_at_camera_rotation(
-                    self.flycam.camera.position,
-                    core::array::from_fn(|i| self.flycam.camera.position[i] + direction[i]),
-                    [0.0, 1.0, 0.0],
+                let camera = walker_camera::CubesWalkerCam::from_world(
+                    WORLD_ASSETS[self.world_index].1,
+                    self.world_index == world_topology::VOID,
                 );
+                let (position, rotation) = camera.pose();
+                self.flycam.camera.position = position;
+                self.flycam.camera.rotation = rotation;
+                self.walker_camera = Some(camera);
                 self.background
                     .select_world(
                         WORLD_ASSETS[self.world_index].0,
@@ -1160,7 +1155,7 @@ impl CubeScene {
                 logl::log(
                     level::INFO,
                     format_args!(
-                        "Cubes: Key5 world={}/{} asset={} authored={} first_person=plane_walk streamed_nearest={} renderer_seed_limit={}",
+                        "Cubes: Key5 world={}/{} asset={} authored={} first_person=surface_walk streamed_nearest={} renderer_seed_limit={}",
                         self.world_index + 1,
                         self.worlds.len(),
                         asset.name,
@@ -1191,7 +1186,7 @@ impl CubeScene {
                             "3 sphere=1024 camera=center WASD=look cursor-expand=10%-area",
                         SceneMode::Orchard => "4 asset-grid WASD=orbit idle=auto-orbit",
                         SceneMode::World =>
-                            "5 lvl27-world first-person mouse-look WASD=plane-walk Key5=next-world R=display-cube",
+                            "5 lvl27-world first-person mouse-look WASD=surface-walk Shift=boost F=grip-drift Home=align Key5=next-world R=display-cube",
                     },
                     if mode == SceneMode::Orchard {
                         self.orchards[self.orchard_index].cubes.len()
@@ -1223,9 +1218,13 @@ impl CubeScene {
                 SceneMode::StaticCube => PUZZLE_YFOV,
                 SceneMode::Sphere => ROOM_YFOV,
                 SceneMode::Orchard => PUZZLE_YFOV,
-                SceneMode::World => PUZZLE_YFOV,
+                SceneMode::World => walker_camera::FOV,
             },
-            znear: 0.1,
+            znear: if mode == SceneMode::World {
+                walker_camera::NEAR
+            } else {
+                0.1
+            },
             zfar: Some(if mode == SceneMode::Orchard {
                 (self.orchards[self.orchard_index].radius * 10.0).max(100.0)
             } else {
