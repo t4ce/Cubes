@@ -10,6 +10,9 @@ mod exported {
 }
 
 fn main() {
+    let background_package = fs::read("Cube/mandelbox/mandelbox.stpkg").expect("Mandelbox package");
+    let expected = fs::read_to_string("Cube/mandelbox/package.sha256").expect("Mandelbox package hash");
+    assert_eq!(format!("{:x}", Sha256::digest(&background_package)), expected.trim(), "stale Mandelbox package; run tools/bake_mandelbox.py");
     println!("cargo:rerun-if-changed=Cube");
     let mut assets: Vec<_> = fs::read_dir("Cube")
         .expect("Cube asset directory")

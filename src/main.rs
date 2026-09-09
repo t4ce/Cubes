@@ -1,6 +1,7 @@
 #![no_std]
 
 extern crate alloc;
+mod background;
 mod camera_entry;
 mod counters;
 mod floor;
@@ -87,6 +88,7 @@ enum CubeError {
 }
 
 struct CubeScene {
+    background: background::Background,
     frame: Frame,
     counters: counters::Sampler,
     device: Device,
@@ -203,7 +205,7 @@ impl CubeScene {
                 )
             })
             .unwrap_or((120, 96));
-        let frame = Frame::open_streaming(x, y, WIDTH, HEIGHT)
+        let frame = Frame::open_layered(x, y, WIDTH, HEIGHT, 10)
             .map_err(|error| CubeError::Ui4("frame-open", error))?;
         let device = Device::open(Capabilities::DEFAULT.union(Capabilities::PRESENT))
             .map_err(|code| CubeError::Vgpu("device-open", code))?;
@@ -277,7 +279,11 @@ impl CubeScene {
         );
         let orchards = orchard::Pages::new(ORCHARD_ASSETS, true);
         let worlds = orchard::Pages::new(WORLD_ASSETS, false);
+        let background = background::Background::start(
+            frame.background().map_err(|error| CubeError::Ui4("background-target", error))?
+        ).map_err(|error| CubeError::Ui4("background-start", error))?;
         Ok(Self {
+            background,
             counters: counters::Sampler::new(clock::monotonic_millis()),
             orchards,
             orchard_index: 0,
@@ -576,6 +582,14 @@ impl CubeScene {
             .flycam
             .camera
             .retained(width, height, self.previous_view_projection);
+        let tan_half_fov = match self.flycam.camera.projection {
+            Projection::Perspective { yfov, .. } => libm::tanf(yfov * 0.5),
+            _ => libm::tanf(PUZZLE_YFOV * 0.5),
+        };
+        self.background.update(
+            self.mode == SceneMode::World, WORLD_ASSETS[self.world_index].0,
+            self.world_yaw, self.world_pitch, tan_half_fov, (width, height),
+        ).map_err(|error| CubeError::Ui4("background-update", error))?;
         match self.frame.begin_gpu_frame() {
             Ok(()) => {}
             Err(Ui4Error::Busy) => return Ok(()),
@@ -839,7 +853,7 @@ impl CubeScene {
                                 trueos::vgpu::IndexedBatchDrawV2::default(),
                                 trueos::vgpu::IndexedBatchDrawV2::default(),
                             ],
-                            clear_rgba8_srgb: u32::from_le_bytes([0, 128, 0, 0]),
+                            clear_rgba8_srgb: 0, // Transparent premultiplied foreground reveals the independent background.
                             ..RetainedFrameSubmit::default()
                         },
                         ..RetainedFrameSubmitV2::default()
