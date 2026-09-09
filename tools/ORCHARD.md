@@ -37,6 +37,10 @@ terrain footprint. Worlds 1--26 permit the 32×32 core and their four centered
 (World 27) permits its core only. Boundary movement slides along a wall, so a
 diagonal walk cannot leave the terrain or pass through a portal.
 
+Mouse-look in Key 5 uses world-space yaw and clamped pitch with +Y fixed as
+up. Horizontal mouse motion therefore turns around the terrain normal and
+cannot permanently roll the camera or horizon.
+
 ## Key 4 camera and reveal
 
 WASD orbits the centered asset; after three seconds without camera input it

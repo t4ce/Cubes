@@ -1,8 +1,8 @@
 #![no_std]
 
 extern crate alloc;
-mod counters;
 mod camera_entry;
+mod counters;
 mod floor;
 mod grid;
 mod modes;
@@ -14,6 +14,7 @@ mod reveal;
 mod rubik;
 mod transition;
 mod world_bounds;
+mod world_look;
 use alloc::vec::Vec;
 
 use trueos::ui4_scene::{
@@ -114,6 +115,8 @@ struct CubeScene {
     flight: Option<transition::Flight>,
     number_keys: ModeKeys,
     demo_camera: Option<FlyCam>,
+    world_yaw: f32,
+    world_pitch: f32,
     pending_resize: Option<ResizeEvent>,
     previous_elapsed_millis: u64,
     first_frame: bool,
@@ -303,6 +306,8 @@ impl CubeScene {
             flight: None,
             number_keys: ModeKeys::default(),
             demo_camera: None,
+            world_yaw: 0.0,
+            world_pitch: 0.0,
             pending_resize: None,
             previous_elapsed_millis: 0,
             first_frame: true,
@@ -348,9 +353,22 @@ impl CubeScene {
                 self.last_camera_activity_millis = elapsed_millis;
             }
             if self.mode == SceneMode::World {
-                // Worlds are flat XZ planes: simple raw pointer look has no
-                // button gesture or orbit target, just first-person yaw/pitch.
-                self.flycam.look(event.dx as f32, event.dy as f32);
+                // Worlds are flat XZ planes. Rebuild from world yaw/pitch with
+                // +Y fixed as up: FlyCam::look is intentionally camera-local
+                // and can otherwise accumulate roll after a pitch.
+                world_look::update(
+                    &mut self.world_yaw,
+                    &mut self.world_pitch,
+                    event.dx as f32,
+                    event.dy as f32,
+                    self.flycam.look_sensitivity(),
+                );
+                let direction = world_look::direction(self.world_yaw, self.world_pitch);
+                self.flycam.camera.rotation = look_at_camera_rotation(
+                    self.flycam.camera.position,
+                    core::array::from_fn(|i| self.flycam.camera.position[i] + direction[i]),
+                    [0.0, 1.0, 0.0],
+                );
             }
             if self.mode == SceneMode::StaticCube
                 && self.puzzle.selected().is_none()
@@ -1027,6 +1045,8 @@ impl CubeScene {
                 );
             } else if mode == SceneMode::World {
                 self.flycam = FlyCam::new(default_camera(), 3.0);
+                self.world_yaw = 0.0;
+                self.world_pitch = 0.0;
                 self.flycam.camera.position =
                     orchard::world_from_demo([0.0, -WORLD_EYE_HEIGHT, 0.0]);
                 self.flycam.camera.rotation = look_at_camera_rotation(

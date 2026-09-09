@@ -1,0 +1,738 @@
+<!doctype html>
+<!--
+MIT License
+
+Copyright (c) 2026 INSIDE / BOX contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Three lightweight fractal interiors. A fixed camera, mouse-look and cached procedural cubemaps.">
+<title>INSIDE / BOX — a fractal interior study</title>
+<style>
+:root{color-scheme:dark;--accent:#f5bb78;--ink:#f2eee7;--muted:#b8b4af;--line:rgba(255,255,255,.16);--panel:rgba(12,15,18,.84)}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101619;color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button,select{font:inherit;color:inherit}button,select{cursor:pointer}button:focus-visible,select:focus-visible,canvas:focus-visible{outline:2px solid var(--accent);outline-offset:4px}button{border:1px solid var(--line);background:var(--panel)}button:hover{border-color:var(--accent)}button:disabled{opacity:.45;cursor:default}button,select{border-radius:7px}canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab;outline:none!important}body.locked canvas{cursor:none}canvas.dragging{cursor:grabbing}.atmosphere{position:fixed;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(4,8,11,.70),transparent 27%,transparent 48%,rgba(4,8,11,.30) 67%,rgba(4,8,11,.94))}.hud{position:fixed;inset:0;pointer-events:none;transition:opacity .15s}.hud button,.hud select,.hud a{pointer-events:auto}.hidden-ui .hud,.hidden-ui .atmosphere{opacity:0;pointer-events:none}.hidden-ui .hud *{pointer-events:none!important}.topbar{position:absolute;left:32px;right:32px;top:28px;display:flex;justify-content:space-between;align-items:flex-start;gap:24px}.brand{display:flex;gap:14px;align-items:center}.brand svg{width:32px;height:36px;color:var(--accent)}.wordmark{font-size:20px;font-weight:650;letter-spacing:.18em;line-height:1.2}.wordmark span{color:var(--accent);font-weight:300;margin:0 6px}.submark{font-size:10px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;margin-top:8px;color:var(--muted)}.tools{display:flex;gap:8px;align-items:center}.tool{height:37px;padding:0 12px;font-size:11px;font-weight:550;letter-spacing:.035em;display:flex;gap:9px;align-items:center}.tool svg{width:13px;height:13px}.quality-label{display:flex;align-items:center;gap:8px;font-size:11px;padding-left:10px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--muted)}select{background:transparent;border:0;padding:10px 22px 10px 0;font-size:11px;font-weight:600;outline-offset:0;color:var(--ink)}option{background:#151b20}.readout{position:absolute;top:91px;right:33px;display:flex;flex-direction:column;align-items:flex-end;gap:7px;font-size:10px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.065em;color:#d8d8d2}.status-line{display:flex;align-items:center;gap:7px}.dot{width:5px;height:5px;border-radius:50%;background:var(--accent);display:inline-block}.readout .dim{font-size:9px;opacity:.60}.progress-track{height:2px;width:180px;background:#ffffff20;overflow:hidden}.progress-fill{height:100%;background:var(--accent);width:0;transition:width .08s linear}.progress-track[hidden]{display:none}.crosshair{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:12px;height:12px;opacity:.38}.crosshair:before,.crosshair:after{content:"";position:absolute;background:#fff}.crosshair:before{width:12px;height:1px;top:5px}.crosshair:after{height:12px;width:1px;left:5px}.bottom{position:absolute;left:32px;right:32px;bottom:22px}.intro{display:flex;align-items:flex-end;justify-content:space-between;gap:30px;margin-bottom:22px}.eyebrow{font-size:10px;font-weight:550;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin-bottom:9px}.scene-title{margin:0;font-family:Georgia,"Times New Roman",serif;font-size:clamp(34px,4.5vw,56px);font-weight:400;letter-spacing:-.045em;line-height:1.07}.scene-desc{font-size:12px;line-height:1.65;color:#c6c6c0;max-width:490px;margin:10px 0 0}.look-tip{text-align:right;font-size:12px;line-height:1.75;color:#e1dfd8;padding-bottom:3px;flex-shrink:0}.look-tip small{display:block;color:var(--muted);font-size:10px;letter-spacing:.02em}.preset-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.preset{padding:16px 18px;text-align:left;display:flex;align-items:center;gap:15px;min-width:0;border-radius:7px;background:rgba(12,15,18,.78);transition:background .15s,border-color .15s}.preset[aria-pressed="true"]{background:rgba(12,15,18,.92);border-color:var(--accent)}.number{width:27px;height:32px;border-radius:4px;border:1px solid #ffffff24;display:grid;place-items:center;color:#adaea9;font:12px ui-monospace,monospace;flex-shrink:0}.preset[aria-pressed="true"] .number{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 50%,transparent)}.preset-name{display:block;font-size:12px;font-weight:600;letter-spacing:.015em}.preset-note{display:block;font-size:10px;line-height:1.5;color:#aaaead;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.preset-copy{min-width:0;flex:1}.preset svg{width:36px;height:36px;color:#a1a7a5;flex-shrink:0;opacity:.7}.preset[aria-pressed="true"] svg{color:var(--accent);opacity:1}.footer{display:flex;justify-content:space-between;gap:20px;margin-top:17px;font-size:10px;line-height:1.5;color:#a4aaa9}.footer-controls{display:flex;flex-wrap:wrap;gap:16px}.key{font:10px ui-monospace,SFMono-Regular,Consolas,monospace;color:#e4e5dc;margin-right:5px}.origin{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:9px;letter-spacing:.035em;color:#858e90;white-space:nowrap}.toast{position:fixed;top:46%;left:50%;transform:translate(-50%,-50%);max-width:calc(100vw - 48px);padding:12px 18px;border:1px solid var(--line);border-radius:8px;background:#11191fed;color:#f2efe5;font-size:12px;line-height:1.6;text-align:center;pointer-events:none;z-index:9}.toast:empty{display:none}.help{position:fixed;inset:0;background:#04090bd1;display:grid;place-items:center;z-index:10;padding:20px}.help[hidden]{display:none}.help-card{width:440px;max-width:100%;border:1px solid var(--line);border-radius:12px;background:#121b20;padding:28px}.help-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}.help h2{font-family:Georgia,serif;font-size:28px;font-weight:400;margin:0}.close-help{width:30px;height:30px;line-height:1;font-size:20px}.help dl{margin:0;display:grid;grid-template-columns:135px 1fr;gap:13px;font-size:12px;line-height:1.5}.help dt{font-family:ui-monospace,monospace;color:var(--accent)}.help dd{margin:0;color:#d0d5d5}.help p{font-size:12px;line-height:1.8;color:#aeb9b9;margin:23px 0 0;padding-top:18px;border-top:1px solid var(--line)}.error{position:fixed;inset:0;background:#10181d;display:grid;place-items:center;z-index:20;padding:32px}.error[hidden]{display:none}.error-content{max-width:580px}.error h1{font-size:26px;font-weight:550}.error p{line-height:1.8;color:#b5c0c5}.error pre{white-space:pre-wrap;max-height:40vh;overflow:auto;font-size:11px;padding:16px;background:#080d11;border:1px solid var(--line);border-radius:6px}.no-js{position:fixed;inset:0;z-index:30;background:#10181d;display:grid;place-items:center;padding:40px;text-align:center}.loading-label{position:fixed;left:50%;top:45%;transform:translate(-50%,-50%);text-align:center;font-size:12px;color:#c9cecb;letter-spacing:.06em;pointer-events:none}.loading-label[hidden]{display:none}
+@media(max-width:760px){.topbar{left:20px;right:20px;top:20px}.brand{gap:10px}.wordmark{font-size:17px}.submark{font-size:8px}.brand svg{width:27px}.tools{gap:6px}.quality-label{padding-left:7px}.quality-label>span{display:none}.quality-label select{padding-left:7px;max-width:106px}.tool{padding:0 10px}.tool-label{display:none}.readout{top:79px;right:21px}.bottom{left:20px;right:20px;bottom:17px}.intro{margin-bottom:16px}.scene-desc{font-size:11px;max-width:380px}.look-tip{display:none}.preset{padding:12px 10px;gap:9px}.preset svg{display:none}.preset-note{font-size:9px}.number{width:20px;height:26px}.preset-name{font-size:10px}.preset-grid{gap:7px}.origin{display:none}.footer-controls{gap:13px}.footer{margin-top:13px;font-size:9px}.eyebrow{font-size:9px}}
+@media(max-width:440px){.brand svg{display:none}.submark{font-size:7px;letter-spacing:.1em}.wordmark{font-size:15px;letter-spacing:.1em}.tools .fullscreen-tool{display:none}.preset{padding:10px 8px;gap:6px}.preset-note{display:none}.preset-name{line-height:1.5}.scene-title{font-size:38px}.scene-desc{max-width:310px}.footer-controls{gap:10px}.quality-label select{max-width:98px}.bottom,.topbar{left:16px;right:16px}.readout{right:17px}.scene-desc{line-height:1.65}}
+@media(max-height:530px){.scene-desc,.submark,.eyebrow{display:none}.topbar{top:14px}.bottom{bottom:12px}.intro{margin-bottom:10px}.scene-title{font-size:28px}.preset{padding:9px 12px}.preset-note{display:none}.preset svg{height:25px}.footer{margin-top:9px}.readout{top:65px}.number{height:25px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+
+</style>
+</head>
+<body>
+<canvas id="viewport" tabindex="0" aria-label="Interactive fractal interior. Click to capture the mouse, or drag to look around. Press 1, 2, or 3 to change the interior."></canvas>
+<div class="atmosphere" aria-hidden="true"></div>
+<div id="loading" class="loading-label">Preparing your first interior…</div>
+<div class="hud" id="hud">
+  <header class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 32 36" fill="none" stroke="currentColor" stroke-width="1.1" aria-hidden="true"><path d="M16 1 30 9v17l-14 9L2 26V9Z M2 9l14 9 14-9 M16 18v17"/><path d="m16 8 8 5v10l-8 5-8-5V13Z" opacity=".6"/></svg>
+      <div><div class="wordmark">INSIDE<span>/</span>BOX</div><div class="submark">A stationary fractal observatory</div></div>
+    </div>
+    <div class="tools">
+      <label class="quality-label" title="Environment-map resolution. A higher setting takes longer to prepare; camera rotation stays inexpensive."><span>Detail</span><select id="quality" aria-label="Environment detail"><option value="256">256 · Economy</option><option value="512" selected>512 · Balanced</option><option value="1024">1024 · Fine</option></select></label>
+      <button id="fullscreen" class="tool fullscreen-tool" title="Toggle full screen (F)" aria-label="Toggle full screen"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor"><path d="M1 6V1h5M10 1h5v5M15 10v5h-5M6 15H1v-5"/></svg><span class="tool-label">Full screen</span></button>
+      <button id="help-open" class="tool" aria-label="Show controls and explanation" title="Help (?)">?</button>
+    </div>
+  </header>
+  <div class="readout" aria-live="polite" aria-atomic="true"><div class="status-line"><span class="dot"></span><span id="status">PREPARING ENVIRONMENT</span></div><div class="dim" id="render-info">FIXED ORIGIN / ROTATION ONLY</div><div id="progress-track" class="progress-track"><div id="progress-fill" class="progress-fill"></div></div></div>
+  <div class="crosshair" aria-hidden="true"></div>
+  <main class="bottom">
+    <div class="intro">
+      <div><div class="eyebrow" id="scene-label">01 / Mandelbox study</div><h1 class="scene-title" id="scene-title">Folded core</h1><p class="scene-desc" id="scene-desc">A warm, intricate world of box folds, spherical cuts and repeating impossible machinery.</p></div>
+      <div class="look-tip" id="look-tip">Click to capture · drag to look<small>One fixed point. Every direction.</small></div>
+    </div>
+    <nav class="preset-grid" aria-label="Interior variations">
+      <button class="preset" data-preset="0" aria-pressed="true" title="Folded core (1)"><span class="number">1</span><span class="preset-copy"><span class="preset-name">Folded core</span><span class="preset-note">Mandelbox · amber / bronze</span></span><svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width=".9" aria-hidden="true"><path d="M20 2 36 11v18l-16 9L4 29V11Z M4 11l16 9 16-9M20 20v18"/><path d="m20 9 10 6v10l-10 6-10-6V15Z M14 14l6 3 6-3M20 17v9"/></svg></button>
+      <button class="preset" data-preset="1" aria-pressed="false" title="Box cathedral (2)"><span class="number">2</span><span class="preset-copy"><span class="preset-name">Box cathedral</span><span class="preset-note">Recursive chambers · mineral / jade</span></span><svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width=".9" aria-hidden="true"><path d="M5 5h30v30H5ZM11 11h18v18H11ZM16 16h8v8h-8ZM5 5l11 11M35 5 24 16M35 35 24 24M5 35l11-11"/></svg></button>
+      <button class="preset" data-preset="2" aria-pressed="false" title="Nested lattice (3)"><span class="number">3</span><span class="preset-copy"><span class="preset-name">Nested lattice</span><span class="preset-note">Open frameworks · steel / ice</span></span><svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width=".9" aria-hidden="true"><path d="M20 2 36 11v18l-16 9L4 29V11ZM4 11l16 9 16-9M20 20v18M12 6.5l16 9v18M28 6.5l-16 9v18M4 20l16 9 16-9M12 24.5 28 15.5M12 15.5l16 9"/></svg></button>
+    </nav>
+    <footer class="footer"><div class="footer-controls"><span><span class="key">1–3</span>Variation</span><span><span class="key">SCROLL</span>Field of view</span><span><span class="key">R</span>Reset</span><span><span class="key">H</span>Hide UI</span><span><span class="key">ESC</span>Release mouse</span></div><span class="origin" id="origin">ORIGIN +0.08 −0.12 +0.05 · FOV 74°</span></footer>
+  </main>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<div class="help" id="help" role="dialog" aria-modal="true" aria-labelledby="help-title" hidden>
+  <section class="help-card"><div class="help-top"><h2 id="help-title">Stay still. Look around.</h2><button id="help-close" class="close-help" aria-label="Close help">×</button></div>
+    <dl><dt>Click / mouse</dt><dd>Capture the pointer and look freely.</dd><dt>Drag / touch</dt><dd>Look without pointer capture.</dd><dt>1 / 2 / 3</dt><dd>Switch between three interiors.</dd><dt>Scroll</dt><dd>Change field of view, not position.</dd><dt>Arrow keys</dt><dd>Look around using the keyboard.</dd><dt>R / H / F</dt><dd>Reset view / hide interface / full screen.</dd><dt>Q / Esc</dt><dd>Cycle detail / release the mouse.</dd></dl>
+    <p>The camera never travels. Each interior is rendered into six environment-map faces once, then reused for inexpensive perspective rotation. A brief preparation pass happens on first use or when detail changes. Afterward, the renderer sleeps until you interact.<br><br><strong>Folded core</strong> uses a finite Mandelbox estimator. The other two are deliberately simpler, cube-based interpretations. Nothing is downloaded from the network.</p>
+  </section>
+</div>
+<div class="error" id="error" role="alert" hidden><div class="error-content"><h1>The renderer could not start.</h1><p id="error-message"></p><pre id="error-detail" hidden></pre><button class="tool" onclick="location.reload()">Reload demo</button></div></div>
+<noscript><div class="no-js">This interactive demo needs JavaScript and WebGL. Open the HTML file in a browser with JavaScript enabled.</div></noscript>
+
+<script id="vertex-shader" type="x-shader/x-vertex">
+attribute vec2 aPosition;
+void main() { gl_Position=vec4(aPosition,0.0,1.0); }
+
+</script>
+
+<script id="bake-shader" type="x-shader/x-fragment">
+// INSIDE / BOX — procedural environment bake, GLSL ES 1.00.
+// The viewer's origin never moves. Bake six faces once, then use view.frag.
+// Presets 0/1 are inexpensive architectural approximations; preset 2 uses
+// a finite-iteration Mandelbox estimator with a small safety cavity.
+// Mandelbox definition: https://sites.google.com/site/mandelbox/what-is-a-mandelbox
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+uniform vec2 uResolution;
+uniform int uFace;
+uniform int uMode;
+
+const vec3 CAMERA = vec3(0.08, -0.12, 0.05);
+const float FAR = 44.0;
+
+float max3(vec3 v) { return max(v.x, max(v.y, v.z)); }
+float min3(vec3 v) { return min(v.x, min(v.y, v.z)); }
+float box(vec3 p, vec3 b) {
+    vec3 q = abs(p) - b;
+    return length(max(q, 0.0)) + min(max3(q), 0.0);
+}
+float crossSection(vec3 q) {
+    return min(max(q.x,q.y), min(max(q.y,q.z), max(q.z,q.x)));
+}
+
+// A periodic solid carved with square tunnels at four scales.
+// This is Menger-like geometry, not the exact Mandelbox set.
+vec2 cathedral(vec3 p) {
+    p /= 7.2;
+    float d = -100.0;
+    float scale = 1.0;
+    float detail = 0.0;
+    for (int i=0; i<4; ++i) {
+        vec3 a = mod(p*scale, 2.0)-1.0;
+        vec3 r = abs(1.0-3.0*abs(a));
+        float cut = (crossSection(r)-1.0)/(3.0*scale);
+        if (cut > d) { d=cut; detail=float(i); }
+        scale *= 3.0;
+    }
+    return vec2(d*7.2, detail);
+}
+
+// Union of three differently scaled, infinite cubic beam networks.
+vec2 lattice(vec3 p) {
+    float d=100.0;
+    float detail=0.0;
+    float period=9.6;
+    for (int i=0; i<3; ++i) {
+        // Grid lines fall on cell boundaries, leaving the origin clear.
+        vec3 a = abs(mod(p + period*0.5, period)-period*0.5);
+        vec3 edge = period*0.5-a;
+        float thickness = period*(i==0 ? 0.052 : 0.036);
+        float beam = crossSection(edge)-thickness;
+        if (beam < d) { d=beam; detail=float(i); }
+        period /= 2.4;
+    }
+    // Open an axis-aligned observation chamber. It is a design choice, not
+    // a collision system: the actual camera remains the constant above.
+    float chamber=-box(p,vec3(1.65));
+    if (chamber>d) { d=chamber; detail=3.0; }
+    return vec2(d,detail);
+}
+
+vec2 foldedCore(vec3 p) {
+    // Repeat a true, finite Mandelbox distance estimate to surround the view.
+    vec3 q=mod(p+vec3(0.0,0.0,3.525)+9.4,18.8)-9.4;
+    vec3 c=q/2.35;
+    vec3 z=c;
+    float derivative=1.0;
+    float orbit=10.0;
+    for (int i=0; i<9; ++i) {
+        z=clamp(z,-1.0,1.0)*2.0-z; // box fold
+        float r2=dot(z,z);
+        float k=clamp(1.0/max(r2,0.00001),1.0,4.0); // sphere fold
+        z*=k;
+        derivative*=k;
+        z=3.0*z+c;
+        derivative=3.0*derivative+1.0;
+        orbit=min(orbit,abs(length(z)-1.2));
+    }
+    float d=length(z)/abs(derivative)*2.35-0.0035;
+    // The fixed origin lies in a natural void; this small safety cavity avoids
+    // a near-plane collision if the estimator is adjusted later.
+    d=max(d,-box(p,vec3(0.42)));
+    return vec2(d,clamp(orbit*3.0,0.0,3.0));
+}
+
+vec2 map(vec3 p) {
+    if (uMode==0) return cathedral(p);
+    if (uMode==1) return lattice(p);
+    return foldedCore(p);
+}
+
+// OpenGL cube-map face convention; shared edges use identical world rays.
+vec3 cubeRay(vec2 uv) {
+    if (uFace==0) return normalize(vec3( 1.0,-uv.y,-uv.x));
+    if (uFace==1) return normalize(vec3(-1.0,-uv.y, uv.x));
+    if (uFace==2) return normalize(vec3( uv.x, 1.0, uv.y));
+    if (uFace==3) return normalize(vec3( uv.x,-1.0,-uv.y));
+    if (uFace==4) return normalize(vec3( uv.x,-uv.y, 1.0));
+    return normalize(vec3(-uv.x,-uv.y,-1.0));
+}
+
+vec3 normalAt(vec3 p,float eps) {
+    vec2 e=vec2(1.0,-1.0)*eps;
+    return normalize(e.xyy*map(p+e.xyy).x + e.yyx*map(p+e.yyx).x
+                   + e.yxy*map(p+e.yxy).x + e.xxx*map(p+e.xxx).x);
+}
+float occlusion(vec3 p,vec3 n) {
+    float a=0.0;
+    float weight=1.0;
+    for (int i=1;i<=3;++i) {
+        float h=0.10+float(i)*0.18;
+        a+=(h-map(p+n*h).x)*weight;
+        weight*=0.52;
+    }
+    return clamp(1.0-1.75*a,0.14,1.0);
+}
+
+void main() {
+    vec2 uv=gl_FragCoord.xy/uResolution*2.0-1.0;
+    vec3 rd=cubeRay(uv);
+    float travel=0.0;
+    float hit=0.0;
+    float epsilon=0.002;
+    vec2 sampleValue=vec2(1.0);
+    for (int i=0;i<112;++i) {
+        vec3 p=CAMERA+rd*travel;
+        sampleValue=map(p);
+        epsilon=max(0.0015,travel*0.00050);
+        if (sampleValue.x<epsilon) { hit=1.0; break; }
+        travel+=max(sampleValue.x*0.78,0.001);
+        if (travel>FAR) break;
+    }
+    vec3 fog;
+    vec3 base;
+    vec3 accent;
+    if (uMode==0) {
+        fog=vec3(0.008,0.023,0.027);
+        base=vec3(0.30,0.40,0.37);
+        accent=vec3(0.39,0.96,0.84);
+    } else if (uMode==1) {
+        fog=vec3(0.010,0.017,0.039);
+        base=vec3(0.26,0.34,0.49);
+        accent=vec3(0.43,0.64,1.0);
+    } else {
+        fog=vec3(0.032,0.018,0.010);
+        base=vec3(0.48,0.29,0.13);
+        accent=vec3(1.0,0.60,0.22);
+    }
+    vec3 color=fog;
+    if (hit>0.5) {
+        vec3 p=CAMERA+rd*travel;
+        vec3 n=normalAt(p,max(0.0012,epsilon*1.1));
+        float ao=occlusion(p,n);
+        float facing=max(dot(n,-rd),0.0);
+        float key=max(dot(n,normalize(vec3(-0.45,0.70,-0.55))),0.0);
+        float fill=max(dot(n,normalize(vec3(0.8,-0.2,0.4))),0.0);
+        float detail=sampleValue.y;
+        float tint=0.85+0.15*cos(detail*1.8);
+        vec3 albedo=base*tint;
+        albedo=mix(albedo,accent*0.58,clamp(detail*0.105,0.0,0.35));
+        color=albedo*(0.060+0.29*facing+0.60*key+0.10*fill)*ao;
+        // A fixed point light close to the observation chamber: no shadow ray.
+        vec3 lightDirection=normalize(vec3(0.5,1.8,-0.2)-p);
+        float point=max(dot(n,lightDirection),0.0)/(1.0+0.025*travel*travel);
+        color+=accent*point*0.30;
+        float fresnel=pow(1.0-facing,3.0);
+        color+=accent*fresnel*0.055*ao;
+        // Subtle repeated seams, evaluated only at the surface.
+        vec3 nearest=abs(fract(p*0.42+0.5)-0.5);
+        vec3 absN=abs(n);
+        float seam;
+        if (absN.x>absN.y && absN.x>absN.z) seam=min(nearest.y,nearest.z);
+        else if (absN.y>absN.z) seam=min(nearest.x,nearest.z);
+        else seam=min(nearest.x,nearest.y);
+        float ink=1.0-smoothstep(0.008,0.024,seam);
+        color*=1.0-ink*0.16;
+        // Local luminous inlays. No bloom / multipass postprocessing.
+        float band=1.0-smoothstep(0.016,0.033,abs(fract(p.y*0.23+0.11)-0.5));
+        color+=accent*band*0.14*ao;
+        float fogAmount=1.0-exp(-travel*(uMode==1 ? 0.046 : 0.043));
+        color=mix(color,fog,fogAmount);
+    }
+    // Tone map and encode once, during baking, not during mouse movement.
+    color=vec3(1.0)-exp(-color*1.45);
+    color=pow(max(color,0.0),vec3(1.0/2.2));
+    gl_FragColor=vec4(color,1.0);
+}
+
+</script>
+
+<script id="view-shader" type="x-shader/x-fragment">
+// INSIDE / BOX — interactive view, GLSL ES 1.00.
+// One cubemap texture lookup per pixel. The camera has rotation but no translation.
+precision mediump float;
+uniform vec2 uResolution;
+uniform mat3 uCameraRotation;
+uniform float uTanHalfFov;
+uniform samplerCube uEnvironment;
+void main() {
+    vec2 uv=(2.0*gl_FragCoord.xy-uResolution)/uResolution.y;
+    vec3 ray=normalize(uCameraRotation*vec3(uv*uTanHalfFov,-1.0));
+    vec3 color=textureCube(uEnvironment,ray).rgb;
+    vec2 screen=gl_FragCoord.xy/uResolution;
+    float vignette=screen.x*screen.y*(1.0-screen.x)*(1.0-screen.y);
+    color*=0.86+0.14*pow(16.0*vignette,0.24);
+    gl_FragColor=vec4(color,1.0);
+}
+
+</script>
+
+<script>
+/* INSIDE / BOX — zero dependencies, no network access.
+   A fixed viewpoint means a cached cubemap is geometrically correct for any
+   camera rotation. The expensive fractal shader runs only during preparation.
+   Normal interaction draws one fullscreen triangle, with one cubemap lookup
+   per fragment. There is no continuous animation loop while the view is idle. */
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const canvas = $('viewport');
+  const presets = [
+    {mode:2, name:'Folded core', label:'01 / Mandelbox study', accent:'#f5bb78',
+     desc:'A warm, intricate world of box folds, spherical cuts and repeating impossible machinery.'},
+    {mode:0, name:'Box cathedral', label:'02 / Recursive architecture', accent:'#a7e4cf',
+     desc:'Square tunnels open into square tunnels. A mineral-green cathedral with no outer wall.'},
+    {mode:1, name:'Nested lattice', label:'03 / Open cubic space', accent:'#a9c9ff',
+     desc:'Three scales of suspended cubic frameworks, receding into a quiet, blue distance.'}
+  ];
+  const DEFAULT = Object.freeze({yaw:0.48, pitch:-0.14, fov:74});
+  const PREVIEW_SIZE = 64;
+  const TILE = 128; // At most this much new expensive work is submitted per frame.
+  const MAX_SCREEN_PIXELS = 1600 * 900;
+  const qualities = [256, 512, 1024];
+  let gl, bakeProgram, viewProgram, bakeU, viewU, buffer, framebuffer;
+  let selected = 0, quality = 512;
+  let yaw = DEFAULT.yaw, pitch = DEFAULT.pitch, fov = DEFAULT.fov;
+  let cache = new Map(), displayedEntry = null;
+  let raf = 0, dirty = true, contextLost = false, stopped = false;
+  let drawCount = 0, bakeDraws = 0;
+  let drag = null, toastTimer = 0, pendingLock = false;
+  let previousFocus = null;
+  const rotation = new Float32Array(9);
+
+  function fail(message, detail = '') {
+    stopped = true;
+    cancelAnimationFrame(raf); raf = 0;
+    $('error-message').textContent = message;
+    $('error-detail').textContent = detail;
+    $('error-detail').hidden = !detail;
+    $('error').hidden = false;
+    $('loading').hidden = true;
+  }
+  function notify(message) {
+    $('toast').textContent = message;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { $('toast').textContent = ''; }, 3000);
+  }
+  function createProgram(vertex, fragment) {
+    const vs = gl.createShader(gl.VERTEX_SHADER);
+    const fs = gl.createShader(gl.FRAGMENT_SHADER);
+    const program = gl.createProgram();
+    if (!vs || !fs || !program) throw new Error('WebGL could not allocate a shader program.');
+    gl.shaderSource(vs, vertex); gl.compileShader(vs);
+    gl.shaderSource(fs, fragment); gl.compileShader(fs);
+    gl.attachShader(program, vs); gl.attachShader(program, fs);
+    gl.bindAttribLocation(program, 0, 'aPosition');
+    gl.linkProgram(program);
+    // Compile/link checks happen only at initialization, never during mouse-look.
+    const linked = gl.getProgramParameter(program, gl.LINK_STATUS);
+    const error = linked ? '' : [gl.getProgramInfoLog(program), gl.getShaderInfoLog(vs), gl.getShaderInfoLog(fs)].filter(Boolean).join('\n');
+    gl.deleteShader(vs); gl.deleteShader(fs);
+    if (!linked) { gl.deleteProgram(program); throw new Error(error || 'Shader linking failed.'); }
+    return program;
+  }
+  function uniforms(program, names) {
+    return Object.fromEntries(names.map(name => [name, gl.getUniformLocation(program, name)]));
+  }
+  function initializeGL() {
+    gl = canvas.getContext('webgl', {
+      alpha:false, antialias:false, depth:false, stencil:false,
+      preserveDrawingBuffer:false, powerPreference:'low-power'
+    });
+    if (!gl) throw new Error('WebGL is unavailable. Enable browser hardware acceleration, or try another browser.');
+    const precision = gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT);
+    if (!precision || precision.precision === 0) {
+      throw new Error('This GPU does not support the high-precision fragment arithmetic needed by the Mandelbox preset. Try another browser or device.');
+    }
+    const vertex = $('vertex-shader').textContent;
+    bakeProgram = createProgram(vertex, $('bake-shader').textContent);
+    viewProgram = createProgram(vertex, $('view-shader').textContent);
+    bakeU = uniforms(bakeProgram, ['uResolution','uFace','uMode']);
+    viewU = uniforms(viewProgram, ['uResolution','uCameraRotation','uTanHalfFov','uEnvironment']);
+    buffer = gl.createBuffer();
+    framebuffer = gl.createFramebuffer();
+    if (!buffer || !framebuffer) throw new Error('WebGL could not allocate render resources.');
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND); gl.disable(gl.CULL_FACE);
+    gl.disable(gl.DITHER);
+    gl.clearColor(0.035,0.048,0.055,1);
+    const maxSize = gl.getParameter(gl.MAX_CUBE_MAP_TEXTURE_SIZE);
+    for (const option of $('quality').options) option.disabled = Number(option.value) > maxSize;
+    if (quality > maxSize) quality = maxSize >= 256 ? 256 : 128;
+    $('quality').value = String(quality);
+  }
+  function makeCubemap(size) {
+    const texture = gl.createTexture();
+    if (!texture) throw new Error('WebGL could not allocate an environment map. Try Economy detail.');
+    gl.bindTexture(gl.TEXTURE_CUBE_MAP, texture);
+    for (let face=0; face<6; face++) {
+      gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_X + face, 0, gl.RGBA,
+                    size, size, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    }
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return texture;
+  }
+  function disposeEntry(entry) {
+    if (entry.preview) gl.deleteTexture(entry.preview);
+    if (entry.texture) gl.deleteTexture(entry.texture);
+  }
+  function getEntry() {
+    if (cache.has(selected)) return cache.get(selected);
+    const entry = {
+      preset:selected, size:quality, preview:makeCubemap(PREVIEW_SIZE),
+      texture:null, previewFaces:0, tilesDone:0, complete:false
+    };
+    cache.set(selected, entry);
+    return entry;
+  }
+  function checkTarget(texture, size) {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
+                            gl.TEXTURE_CUBE_MAP_POSITIVE_X, texture, 0);
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+      throw new Error(`Could not prepare a ${size}×${size} environment map. Try a lower detail setting.`);
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+  function bakeOneTile(entry) {
+    if (entry.complete) return;
+    const preview = entry.previewFaces < 6;
+    let size, face, x=0, y=0, tileSize;
+    if (preview) {
+      size = PREVIEW_SIZE; face = entry.previewFaces; tileSize = size;
+      if (face===0) checkTarget(entry.preview, size);
+    } else {
+      size = entry.size; tileSize = Math.min(TILE, size);
+      if (!entry.texture) {
+        entry.texture = makeCubemap(size);
+        checkTarget(entry.texture, size);
+      }
+      const columns = Math.ceil(size/tileSize);
+      const perFace = columns * columns;
+      face = Math.floor(entry.tilesDone/perFace);
+      const tile = entry.tilesDone % perFace;
+      x = (tile % columns)*tileSize;
+      y = Math.floor(tile/columns)*tileSize;
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
+                           gl.TEXTURE_CUBE_MAP_POSITIVE_X + face,
+                           preview ? entry.preview : entry.texture, 0);
+    gl.viewport(0,0,size,size);
+    gl.enable(gl.SCISSOR_TEST);
+    gl.scissor(x,y,Math.min(tileSize,size-x),Math.min(tileSize,size-y));
+    gl.useProgram(bakeProgram);
+    gl.uniform2f(bakeU.uResolution, size, size);
+    gl.uniform1i(bakeU.uFace, face);
+    gl.uniform1i(bakeU.uMode, presets[entry.preset].mode);
+    gl.drawArrays(gl.TRIANGLES,0,3);
+    bakeDraws++;
+    gl.disable(gl.SCISSOR_TEST);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+    if (preview) {
+      entry.previewFaces++;
+      if (entry.previewFaces===6) { displayedEntry=entry; dirty=true; }
+    } else {
+      entry.tilesDone++;
+      const total = 6 * Math.ceil(size/tileSize)**2;
+      if (entry.tilesDone===total) {
+        gl.bindTexture(gl.TEXTURE_CUBE_MAP,entry.texture);
+        gl.generateMipmap(gl.TEXTURE_CUBE_MAP);
+        gl.texParameteri(gl.TEXTURE_CUBE_MAP,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);
+        entry.complete=true;
+        gl.deleteTexture(entry.preview); entry.preview=null;
+        displayedEntry=entry; dirty=true;
+      }
+    }
+    updateStatus(entry);
+  }
+  function resizeCanvas() {
+    // High-DPI and 4K displays cannot silently multiply the pixel budget.
+    const width = Math.max(1,window.innerWidth);
+    const height = Math.max(1,window.innerHeight);
+    const scale = Math.min(window.devicePixelRatio || 1, 1.5,
+                           Math.sqrt(MAX_SCREEN_PIXELS/(width*height)));
+    const w=Math.max(1,Math.round(width*scale));
+    const h=Math.max(1,Math.round(height*scale));
+    if (canvas.width!==w || canvas.height!==h) {
+      canvas.width=w; canvas.height=h;
+    }
+    dirty=true;
+  }
+  function cameraMatrix() {
+    // Column-major R_y(-yaw) * R_x(pitch), looking along local -Z.
+    const cy=Math.cos(yaw), sy=Math.sin(yaw), cx=Math.cos(pitch), sx=Math.sin(pitch);
+    rotation.set([cy,0,sy, -sy*sx,cx,cy*sx, -sy*cx,-sx,cy*cx]);
+    return rotation;
+  }
+  function drawView() {
+    gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+    gl.viewport(0,0,canvas.width,canvas.height);
+    if (!displayedEntry) {
+      gl.clear(gl.COLOR_BUFFER_BIT);
+    } else {
+      gl.useProgram(viewProgram);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_CUBE_MAP, displayedEntry.complete ? displayedEntry.texture : displayedEntry.preview);
+      gl.uniform1i(viewU.uEnvironment,0);
+      gl.uniform2f(viewU.uResolution,canvas.width,canvas.height);
+      gl.uniformMatrix3fv(viewU.uCameraRotation,false,cameraMatrix());
+      gl.uniform1f(viewU.uTanHalfFov,Math.tan(fov*Math.PI/360));
+      gl.drawArrays(gl.TRIANGLES,0,3);
+      drawCount++;
+      $('loading').hidden=true;
+    }
+    $('origin').textContent=`ORIGIN +0.08 −0.12 +0.05 · FOV ${Math.round(fov)}°`;
+    dirty=false;
+  }
+  function updateStatus(entry) {
+    const track=$('progress-track');
+    const status=$('status');
+    if (entry.complete) {
+      status.textContent='CACHED VIEW / RENDER ON INPUT';
+      $('render-info').textContent=`6 × ${entry.size}² / ONE TEXTURE SAMPLE PER PIXEL`;
+      track.hidden=true;
+    } else {
+      const total=6*Math.ceil(entry.size/TILE)**2;
+      const progress=entry.previewFaces<6 ? entry.previewFaces/6*0.08 : 0.08+0.92*entry.tilesDone/total;
+      // Only announce milestones, not every tile, to avoid noisy screen readers.
+      const rounded=Math.floor(progress*10)*10;
+      const text=entry.previewFaces<6 ? 'PREPARING ENVIRONMENT' : `REFINING ENVIRONMENT / ${rounded}%`;
+      if (status.textContent!==text) status.textContent=text;
+      $('render-info').textContent='ONE-TIME PREPARATION / LOOK AROUND WHILE IT REFINES';
+      track.hidden=false;
+      $('progress-fill').style.width=`${progress*100}%`;
+    }
+  }
+  function tick() {
+    raf=0;
+    if (document.hidden || contextLost || stopped) return;
+    try {
+      const entry=getEntry();
+      if (!entry.complete) bakeOneTile(entry);
+      if (entry.previewFaces===6 && displayedEntry!==entry) { displayedEntry=entry; dirty=true; }
+      // Avoid redrawing the view during background refinement unless it changes.
+      if (dirty) drawView();
+      if (!entry.complete || dirty) wake();
+    } catch (error) { fail('The environment renderer encountered an error.', String(error.message || error)); }
+  }
+  function wake() {
+    if (!raf && !document.hidden && !contextLost && !stopped) raf=requestAnimationFrame(tick);
+  }
+  function setPreset(index) {
+    if (!Number.isInteger(index) || index<0 || index>=presets.length || stopped) return;
+    selected=index;
+    const preset=presets[index];
+    document.documentElement.style.setProperty('--accent',preset.accent);
+    $('scene-title').textContent=preset.name;
+    $('scene-label').textContent=preset.label;
+    $('scene-desc').textContent=preset.desc;
+    document.querySelectorAll('[data-preset]').forEach((button,i) => button.setAttribute('aria-pressed',String(i===index)));
+    if (cache.has(index)) {
+      const entry=cache.get(index);
+      if (entry.previewFaces===6) displayedEntry=entry;
+      updateStatus(entry);
+    } else {
+      $('status').textContent='PREPARING ENVIRONMENT';
+      $('progress-track').hidden=false; $('progress-fill').style.width='0%';
+    }
+    dirty=true; wake();
+  }
+  function setQuality(value) {
+    const option=Array.from($('quality').options).find(o => Number(o.value)===value && !o.disabled);
+    if (!option || value===quality) return;
+    quality=value; $('quality').value=String(value);
+    // Bound texture memory: at most three current-quality environments.
+    for (const entry of cache.values()) disposeEntry(entry);
+    cache.clear(); displayedEntry=null;
+    $('loading').hidden=false; $('loading').textContent='Preparing the new detail level…';
+    dirty=true; wake();
+  }
+  function rotate(dx,dy) {
+    if (!Number.isFinite(dx) || !Number.isFinite(dy)) return;
+    yaw=(yaw+dx*0.0026)%(2*Math.PI);
+    pitch=Math.max(-1.52,Math.min(1.52,pitch-dy*0.0026));
+    dirty=true; wake();
+  }
+  function reset() {
+    yaw=DEFAULT.yaw; pitch=DEFAULT.pitch; fov=DEFAULT.fov;
+    dirty=true; wake(); notify('View reset · camera position unchanged');
+  }
+  function updateLockUI() {
+    const locked=document.pointerLockElement===canvas;
+    document.body.classList.toggle('locked',locked);
+    $('look-tip').innerHTML=locked ? 'Mouse captured · Esc to release<small>One fixed point. Every direction.</small>' : 'Click to capture · drag to look<small>One fixed point. Every direction.</small>';
+    pendingLock=false;
+  }
+  async function capturePointer() {
+    if (pendingLock || document.pointerLockElement===canvas) return;
+    if (!canvas.requestPointerLock) { notify('Pointer capture is unavailable. Drag to look instead.'); return; }
+    pendingLock=true;
+    try { await canvas.requestPointerLock(); }
+    catch (_) { pendingLock=false; notify('Pointer capture was blocked. Drag to look instead.'); }
+  }
+  async function toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen();
+      else notify('Full screen is unavailable in this browser.');
+    } catch (_) { notify('Full screen was blocked by this browser.'); }
+  }
+  function showHelp(show) {
+    if (show) {
+      previousFocus=document.activeElement;
+      if (document.pointerLockElement) document.exitPointerLock();
+      document.body.classList.remove('hidden-ui');
+      $('help').hidden=false; $('help-close').focus();
+    } else {
+      $('help').hidden=true;
+      (previousFocus && previousFocus.isConnected ? previousFocus : canvas).focus({preventScroll:true});
+    }
+  }
+
+  // Input: ordinary drag is always supported; pointer lock is an optional upgrade.
+  canvas.addEventListener('pointerdown',event => {
+    if (event.button!==0 || document.pointerLockElement===canvas) return;
+    canvas.focus({preventScroll:true});
+    drag={id:event.pointerId,x:event.clientX,y:event.clientY,distance:0,type:event.pointerType};
+    canvas.setPointerCapture(event.pointerId); canvas.classList.add('dragging');
+  });
+  canvas.addEventListener('pointermove',event => {
+    if (!drag || event.pointerId!==drag.id || document.pointerLockElement===canvas) return;
+    const dx=event.clientX-drag.x, dy=event.clientY-drag.y;
+    drag.distance+=Math.abs(dx)+Math.abs(dy);
+    drag.x=event.clientX; drag.y=event.clientY;
+    rotate(dx,dy);
+  });
+  canvas.addEventListener('pointerup',event => {
+    if (!drag || event.pointerId!==drag.id) return;
+    const click=drag.distance<5 && drag.type==='mouse';
+    drag=null; canvas.classList.remove('dragging');
+    if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+    if (click) capturePointer();
+  });
+  function cancelDrag() { drag=null; canvas.classList.remove('dragging'); }
+  canvas.addEventListener('pointercancel',cancelDrag);
+  canvas.addEventListener('lostpointercapture',cancelDrag);
+  document.addEventListener('mousemove',event => {
+    if (document.pointerLockElement===canvas) rotate(event.movementX,event.movementY);
+  });
+  document.addEventListener('pointerlockchange',updateLockUI);
+  document.addEventListener('pointerlockerror',() => { pendingLock=false; notify('Pointer capture is unavailable here. Drag to look instead.'); });
+  window.addEventListener('blur',cancelDrag);
+  canvas.addEventListener('wheel',event => {
+    if (event.ctrlKey) return; // Do not override the browser's own zoom gesture.
+    event.preventDefault();
+    const delta=event.deltaY*(event.deltaMode===1 ? 16 : event.deltaMode===2 ? innerHeight : 1);
+    fov=Math.max(40,Math.min(100,fov+delta*0.035));
+    dirty=true; wake();
+  },{passive:false});
+  document.addEventListener('keydown',event => {
+    if (event.ctrlKey || event.altKey || event.metaKey) return;
+    const key=event.key.toLowerCase();
+    if (!$('help').hidden) {
+      if (key==='escape' || key==='?') { event.preventDefault(); showHelp(false); }
+      if (key==='tab') { event.preventDefault(); $('help-close').focus(); }
+      return;
+    }
+    if (event.target instanceof HTMLSelectElement || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+    if (['1','2','3'].includes(key)) { event.preventDefault(); setPreset(Number(key)-1); }
+    else if (key==='arrowleft') { event.preventDefault(); rotate(-18,0); }
+    else if (key==='arrowright') { event.preventDefault(); rotate(18,0); }
+    else if (key==='arrowup') { event.preventDefault(); rotate(0,-18); }
+    else if (key==='arrowdown') { event.preventDefault(); rotate(0,18); }
+    else if (!event.repeat && key==='r') reset();
+    else if (!event.repeat && key==='h') document.body.classList.toggle('hidden-ui');
+    else if (!event.repeat && key==='f') toggleFullscreen();
+    else if (!event.repeat && key==='q') {
+      const available=qualities.filter(q=>!Array.from($('quality').options).find(o=>Number(o.value)===q)?.disabled);
+      setQuality(available[(available.indexOf(quality)+1)%available.length]);
+    } else if (!event.repeat && key==='?') showHelp(true);
+  });
+  document.querySelectorAll('[data-preset]').forEach(button => button.addEventListener('click',() => {
+    setPreset(Number(button.dataset.preset)); canvas.focus({preventScroll:true});
+  }));
+  $('quality').addEventListener('change',event => { setQuality(Number(event.target.value)); canvas.focus({preventScroll:true}); });
+  $('fullscreen').addEventListener('click',toggleFullscreen);
+  $('help-open').addEventListener('click',() => showHelp(true));
+  $('help-close').addEventListener('click',() => showHelp(false));
+  $('help').addEventListener('click',event => { if (event.target===$('help')) showHelp(false); });
+  window.addEventListener('resize',() => { resizeCanvas(); wake(); });
+  document.addEventListener('visibilitychange',() => {
+    if (document.hidden) { cancelAnimationFrame(raf); raf=0; }
+    else { dirty=true; wake(); }
+  });
+  canvas.addEventListener('webglcontextlost',event => {
+    event.preventDefault(); contextLost=true; cancelAnimationFrame(raf); raf=0;
+    $('status').textContent='GRAPHICS CONTEXT PAUSED';
+    notify('Graphics context lost. Waiting for the browser to restore it.');
+  });
+  canvas.addEventListener('webglcontextrestored',() => {
+    contextLost=false; stopped=false; cache=new Map(); displayedEntry=null;
+    try { initializeGL(); resizeCanvas(); wake(); }
+    catch (error) { fail('Could not restore the graphics context.',String(error.message || error)); }
+  });
+
+  // Small, documented integration / inspection API. Presets here are 1-based.
+  window.insideBox=Object.freeze({
+    setPreset(number) { setPreset(number-1); },
+    reset,
+    getState() {
+      const entry=cache.get(selected);
+      return {
+        preset:selected+1, name:presets[selected].name, quality,
+        camera:{position:[0.08,-0.12,0.05],yaw,pitch,fov},
+        ready:!!entry?.complete, previewReady:entry?.previewFaces===6,
+        cachedPresets:Array.from(cache).filter(([,e])=>e.complete).map(([i])=>i+1),
+        viewDraws:drawCount, bakeDraws, frameScheduled:!!raf,
+        renderingResolution:[canvas.width,canvas.height]
+      };
+    }
+  });
+  try { initializeGL(); resizeCanvas(); setPreset(0); }
+  catch (error) { fail('This demo needs a working WebGL context. Try enabling hardware acceleration or opening the file in another browser.',String(error.message || error)); }
+})();
+
+</script>
+</body>
+</html>
