@@ -29,19 +29,19 @@ retains the previous published image until all six faces have retired. No
 partial map is sampled. The next world reuses this allocation; there is no
 27-world GPU cache and no CPU readback in the app's rendering path.
 
-Camera motion, field-of-view changes, and resizing only sample the retained
-map. They do not invalidate it. The view pass preserves the foreground camera lens, rotates its ray, chooses
-a cube face, applies the face-center/corner mask,
-and performs bilinear lookup, including the border texels. The background has
-a 60 Hz ceiling and submits only when its command changes. Once the camera's
-rotation follower settles, the background stops submitting work.
+Each world captures its entry camera orientation once. The background view
+is rendered and published once after baking, then UI4 retains that completed
+image. Walking, mouse look and frame time do not update the background command
+or enqueue any background GPU work. A world/mode change or resize/projection
+change requests a new image; resize/projection changes reuse the existing bake.
+The foreground camera continues to move independently.
 
-The follower uses normalized quaternions, shortest-arc rotation error and a
-damped angular velocity (10 rad/s natural frequency, damping ratio 0.74).
-It trails the foreground camera, overshoots slightly, and settles to the same
-orientation. Frame-time subdivision keeps it stable. Entering a world resets
-both camera and follower to the same +Y-up heading; the first mouse event
-uses that same yaw/pitch basis, avoiding the old +Z-to−Z half-turn.
+The view pass preserves the foreground lens at entry, rotates its ray by the
+captured orientation, chooses a cube face, masks its face centers/corners and
+performs bilinear lookup including border texels. The worker retains its
+existing command deduplication and scheduling, but the rotation follower is
+no longer used. This makes the low-work frozen state the normal steady state.
+The previous published image remains displayed while the next world bakes.
 
 ## Geometry and color provenance
 
@@ -205,3 +205,14 @@ pixel coverage ratio was 0.4996 (raster rounding); retained visible RGB pixels
 matched exactly in front/corner comparisons. All 24 new masks match the
 independent projection test. Source/package validation, dispatch/admission
 tests and Cubes `cargo check` pass. No rig deployment was performed.
+
+## Static background by default (2026-09-10)
+
+`Background::select_world` captures orientation; `Background::update` no longer
+accepts camera rotation or elapsed time. Consequently foreground motion cannot
+invalidate the retained background. There is no per-frame background sampling,
+upload or publication after it completes. UI4 display/composition and the
+worker's existing idle polling still occur; this does not mean all graphics
+work stops. World switching, masked alpha, full world opacity and foreground
+motion are retained. No shader or kernel change is needed for this behavior;
+rebuild Cubes (plus any still-pending shader/kernel changes from earlier work).

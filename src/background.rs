@@ -1,5 +1,5 @@
 //! Independent ShaderToy producer for the layered window's environment.
-use crate::environment::{Palette, RotationFollower};
+use crate::environment::Palette;
 use alloc::sync::Arc;
 use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use trueos::ui4_scene::{BackgroundLayer, Error, ShadertoyParamsV1};
@@ -22,7 +22,8 @@ pub struct Background {
     previous: [u32; COMMAND_WORDS],
     generation: u32,
     palette: Palette,
-    follower: RotationFollower,
+    // Capture the world-entry view once. Camera movement never resamples it.
+    rotation: [f32; 4],
 }
 
 impl Background {
@@ -79,7 +80,7 @@ impl Background {
                         }
                     }
                     // Program 16 owns one resident cubemap. Only a new generation
-                    // runs the expensive bake; orientation/extent only resample it.
+                    // runs the expensive bake; resizing only resamples its fixed view.
                     let params = ShadertoyParamsV1 {
                         shader_id: SHADER,
                         frame: command[1],
@@ -114,7 +115,7 @@ impl Background {
             previous: [u32::MAX; COMMAND_WORDS],
             generation: 0,
             palette: Palette::for_world("world_27_void").unwrap(),
-            follower: RotationFollower::new([0.0, 0.0, 0.0, 1.0]),
+            rotation: [0.0, 0.0, 0.0, 1.0],
         })
     }
 
@@ -122,15 +123,13 @@ impl Background {
     pub fn select_world(&mut self, name: &str, rotation: [f32; 4]) -> Result<(), Error> {
         self.palette = Palette::for_world(name).ok_or(Error::Invalid)?;
         self.generation = self.generation.wrapping_add(1).max(1);
-        self.follower = RotationFollower::new(rotation);
+        self.rotation = rotation;
         Ok(())
     }
 
     pub fn update(
         &mut self,
         enabled: bool,
-        rotation: [f32; 4],
-        delta_seconds: f32,
         tan_half_fov: f32,
         extent: (u32, u32),
     ) -> Result<(), Error> {
@@ -139,7 +138,7 @@ impl Background {
         }
         let mut command = [0; COMMAND_WORDS];
         if enabled {
-            let q = self.follower.advance(rotation, delta_seconds);
+            let q = self.rotation;
             command[..12].copy_from_slice(&[
                 1,
                 self.generation,
@@ -160,7 +159,8 @@ impl Background {
         command[13] = extent.1;
         if command != self.previous {
             // A single publisher and atomic fields give the worker one coherent
-            // latest command. No camera-update queue accumulates behind a bake.
+            // latest command. A completed still is reused without GPU work
+            // until world/mode, projection or extent changes.
             self.shared.sequence.fetch_add(1, Ordering::SeqCst);
             for (destination, value) in self.shared.command.iter().zip(command) {
                 destination.store(value, Ordering::SeqCst);

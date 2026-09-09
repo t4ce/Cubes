@@ -587,13 +587,7 @@ impl CubeScene {
             _ => libm::tanf(PUZZLE_YFOV * 0.5),
         };
         self.background
-            .update(
-                self.mode == SceneMode::World,
-                self.flycam.camera.rotation.0,
-                delta_seconds,
-                tan_half_fov,
-                (width, height),
-            )
+            .update(self.mode == SceneMode::World, tan_half_fov, (width, height))
             .map_err(|error| CubeError::Ui4("background-update", error))?;
         match self.frame.begin_gpu_frame() {
             Ok(()) => {}
