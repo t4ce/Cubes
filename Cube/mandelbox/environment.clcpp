@@ -1,0 +1,58 @@
+// App-owned resident environment view, using the reviewed three-buffer ABI.
+// Phase 0: retained slate. Phase 1: bake all six faces. Phase 2: sample only.
+inline float4 chroma_unpack(uint c) {
+    return convert_float4((uint4)(c & 255u, (c >> 8) & 255u, (c >> 16) & 255u, 255u)) / 255.0f;
+}
+
+inline float4 chroma_sample(__global const uint *source, float3 ray, uint4 controls) {
+    float3 a = fabs(ray);
+    uint face;
+    float2 uv;
+    if (a.x >= a.y && a.x >= a.z) {
+        face = ray.x >= 0.0f ? 0u : 1u;
+        uv = (float2)(ray.x >= 0.0f ? -ray.z : ray.z, -ray.y) / a.x;
+    } else if (a.y >= a.z) {
+        face = ray.y >= 0.0f ? 2u : 3u;
+        uv = (float2)(ray.x, ray.y >= 0.0f ? ray.z : -ray.z) / a.y;
+    } else {
+        face = ray.z >= 0.0f ? 4u : 5u;
+        uv = (float2)(ray.z >= 0.0f ? ray.x : -ray.x, -ray.y) / a.z;
+    }
+    uint stride = controls.y / 3u;
+    float2 base = convert_float2((uint2)(face % 3u, face / 3u) * stride);
+    // Border rays extend each face. Bilinear lookup can cross its geometric
+    // edge without bleeding into the unrelated neighboring atlas tile.
+    float2 p = base + (clamp(uv, -1.0f, 1.0f) * 0.5f + 0.5f) * (float)(stride - 2u) + 0.5f;
+    uint2 lo = convert_uint2(p), hi = lo + (uint2)(1u);
+    float2 w = p - convert_float2(lo);
+    uint pitch = controls.w / 4u;
+    float4 tl = chroma_unpack(source[(size_t)lo.y * pitch + lo.x]);
+    float4 tr = chroma_unpack(source[(size_t)lo.y * pitch + hi.x]);
+    float4 bl = chroma_unpack(source[(size_t)hi.y * pitch + lo.x]);
+    float4 br = chroma_unpack(source[(size_t)hi.y * pitch + hi.x]);
+    return mix(mix(tl, tr, w.x), mix(bl, br, w.x), w.y);
+}
+
+kernel TRUEOS_REQD_SUB_GROUP_SIZE_16 void shadertoy_mandelbox(
+    __global uint *output,
+    __global const ShaderToyUniforms *uniforms,
+    uint width,
+    uint height,
+    uint pitch_bytes,
+    __global const uint *source)
+{
+    uint x = get_global_id(0), y = get_global_id(1);
+    if (x >= width || y >= height) return;
+    float4 color = (float4)(28.0f/255.0f, 34.0f/255.0f, 46.0f/255.0f, 1.0f);
+    if (uniforms->render_control.x == 1u) {
+        mainImage(color, convert_float2((uint2)(x,y)) + 0.5f, uniforms);
+    } else if (uniforms->render_control.x == 2u) {
+        float2 uv = (float2)(2.0f*(float)x+1.0f-(float)width,
+                            (float)height-2.0f*(float)y-1.0f) / (float)height;
+        float3 ray = (float3)(uv * uniforms->timing.x, -1.0f);
+        float4 q = uniforms->mouse;
+        ray += 2.0f * cross(q.xyz, cross(q.xyz, ray) + q.w * ray);
+        color = chroma_sample(source, ray, uniforms->render_control);
+    }
+    output[(size_t)y * (pitch_bytes / 4u) + x] = st_pack_rgba8(color);
+}

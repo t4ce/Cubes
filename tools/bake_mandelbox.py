@@ -8,6 +8,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+from export_chroma import glsl_source, kernel_source
 
 APP = Path(__file__).resolve().parents[1]
 OS = APP.parent / 'TRUEOS'
@@ -22,12 +23,14 @@ def main():
     parser.add_argument('--check', action='store_true')
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix='cubes-mandelbox-') as directory:
-        generated = Path(directory)/'kernel.clcpp'
-        subprocess.run([sys.executable, str(OS/'tools/shadertoy-cpp-offline/export_kernel.py'), str(ASSETS/'input.glsl'), str(generated), '--kernel-name', NAME], check=True)
+        glsl = glsl_source()
+        generated = kernel_source(glsl).encode()
         if args.check:
-            assert generated.read_bytes() == (ASSETS/'kernel.clcpp').read_bytes(), 'stale generated C++'
+            assert glsl.encode() == (ASSETS/'input.glsl').read_bytes(), 'stale Chroma port'
+            assert generated == (ASSETS/'kernel.clcpp').read_bytes(), 'stale generated C++'
         else:
-            (ASSETS/'kernel.clcpp').write_bytes(generated.read_bytes())
+            (ASSETS/'input.glsl').write_text(glsl)
+            (ASSETS/'kernel.clcpp').write_bytes(generated)
             toolchain = OS/'bld/shadertoy-cpp-toolchain/root'
             subprocess.run([sys.executable, str(OS/'tools/intel-gpu-bakery/bake.py'), '--source', str(ASSETS/'kernel.clcpp'), '--artifact-name', NAME, '--profile', str(OS/'tools/intel-gpu-bakery/profiles/adls-4680-r0c-shadertoy.json'), '--variant', 'cpp-native', '--build-root', str(OS/'bld/cubes-mandelbox-bakery'), '--expect-kernel', NAME, '--rust-symbol', NAME+'=SHADERTOY_MANDELBOX_ADLS_CPP_ABI_CONTRACT', '--repro-check', '--clang', str(toolchain/'usr/lib/llvm-21/bin/clang'), '--llvm-spirv', str(toolchain/'usr/bin/llvm-spirv-21'), '--ocloc', str(toolchain/'usr/bin/ocloc-26.05.1')], check=True, cwd=OS)
             baked = OS/f'bld/cubes-mandelbox-bakery/adls/cpp-native/{NAME}/run-a'
