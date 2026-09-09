@@ -23,20 +23,34 @@ impl Palette {
     pub fn for_world(name: &str) -> Option<Self> {
         let name = name.strip_suffix(".cubes").unwrap_or(name);
         if name == "world_27_void" {
-            return Some(Self { colors: [VOID_COLOR; 3], count: 1, cathedral: false });
+            return Some(Self {
+                colors: [VOID_COLOR; 3],
+                count: 1,
+                cathedral: false,
+            });
         }
         let mut colors = [0; 3];
         let mut count = 0;
         for (theme, color) in THEMES {
             if name.split('_').any(|word| word == theme) {
-                if count == colors.len() { return None; }
+                if count == colors.len() {
+                    return None;
+                }
                 colors[count] = color;
                 count += 1;
             }
         }
-        if count == 0 { return None; }
-        for i in count..3 { colors[i] = colors[0]; }
-        Some(Self { colors, count: count as u32, cathedral: true })
+        if count == 0 {
+            return None;
+        }
+        for i in count..3 {
+            colors[i] = colors[0];
+        }
+        Some(Self {
+            colors,
+            count: count as u32,
+            cathedral: true,
+        })
     }
 }
 
@@ -47,21 +61,28 @@ pub struct RotationFollower {
 
 impl RotationFollower {
     pub fn new(rotation: [f32; 4]) -> Self {
-        Self { rotation: normalize(rotation), velocity: [0.0; 3] }
+        Self {
+            rotation: normalize(rotation),
+            velocity: [0.0; 3],
+        }
     }
 
     pub fn advance(&mut self, target: [f32; 4], seconds: f32) -> [f32; 4] {
         let mut target = normalize(target);
         // q and -q denote the same orientation. Always pursue the short arc,
         // including camera yaw crossing +/-pi, instead of rolling a full turn.
-        if dot(self.rotation, target) < 0.0 { target = target.map(|x| -x); }
+        if dot(self.rotation, target) < 0.0 {
+            target = target.map(|x| -x);
+        }
         let mut remaining = seconds.clamp(0.0, 0.1);
         while remaining > 0.0 {
             let dt = remaining.min(1.0 / 120.0);
             remaining -= dt;
             let q = self.rotation;
             let mut error = multiply(target, [-q[0], -q[1], -q[2], q[3]]);
-            if error[3] < 0.0 { error = error.map(|x| -x); }
+            if error[3] < 0.0 {
+                error = error.map(|x| -x);
+            }
             let length = libm::sqrtf(error[..3].iter().map(|x| x * x).sum());
             let angle = 2.0 * libm::atan2f(length, error[3].max(0.0));
             if angle < 0.0001 && self.velocity.iter().all(|x| x.abs() < 0.0004) {
@@ -78,8 +99,12 @@ impl RotationFollower {
             if speed > 1e-7 {
                 let half_angle = speed * dt * 0.5;
                 let scale = libm::sinf(half_angle) / speed;
-                let delta = [self.velocity[0] * scale, self.velocity[1] * scale,
-                    self.velocity[2] * scale, libm::cosf(half_angle)];
+                let delta = [
+                    self.velocity[0] * scale,
+                    self.velocity[1] * scale,
+                    self.velocity[2] * scale,
+                    libm::cosf(half_angle),
+                ];
                 self.rotation = normalize(multiply(delta, self.rotation));
             }
         }
@@ -93,15 +118,19 @@ fn dot(a: [f32; 4], b: [f32; 4]) -> f32 {
 
 fn normalize(q: [f32; 4]) -> [f32; 4] {
     let length = libm::sqrtf(dot(q, q));
-    if !length.is_finite() || length < 1e-7 { return [0.0, 0.0, 0.0, 1.0]; }
+    if !length.is_finite() || length < 1e-7 {
+        return [0.0, 0.0, 0.0, 1.0];
+    }
     q.map(|x| x / length)
 }
 
 fn multiply(a: [f32; 4], b: [f32; 4]) -> [f32; 4] {
-    [a[3]*b[0]+a[0]*b[3]+a[1]*b[2]-a[2]*b[1],
-     a[3]*b[1]-a[0]*b[2]+a[1]*b[3]+a[2]*b[0],
-     a[3]*b[2]+a[0]*b[1]-a[1]*b[0]+a[2]*b[3],
-     a[3]*b[3]-a[0]*b[0]-a[1]*b[1]-a[2]*b[2]]
+    [
+        a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1],
+        a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0],
+        a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3],
+        a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2],
+    ]
 }
 
 #[cfg(test)]
@@ -119,7 +148,7 @@ mod tests {
         let mut overshot = false;
         for _ in 0..180 {
             let q = follower.advance(target, 1.0 / 60.0);
-            assert!((dot(q,q)-1.0).abs() < 1e-5);
+            assert!((dot(q, q) - 1.0).abs() < 1e-5);
             overshot |= q[1] > target[1] + 0.0001;
         }
         assert!(overshot);
@@ -140,8 +169,12 @@ mod tests {
     fn time_subdivision_keeps_following_consistent() {
         let mut a = RotationFollower::new(yaw(0.0));
         let mut b = RotationFollower::new(yaw(0.0));
-        for _ in 0..30 { a.advance(yaw(0.9), 1.0/30.0); }
-        for _ in 0..120 { b.advance(yaw(0.9), 1.0/120.0); }
+        for _ in 0..30 {
+            a.advance(yaw(0.9), 1.0 / 30.0);
+        }
+        for _ in 0..120 {
+            b.advance(yaw(0.9), 1.0 / 120.0);
+        }
         assert!(dot(a.rotation, b.rotation) > 0.99999);
     }
 }

@@ -131,10 +131,17 @@ impl Background {
         if enabled {
             let q = self.follower.advance(rotation, delta_seconds);
             command[..12].copy_from_slice(&[
-                1, self.generation,
-                self.palette.colors[0], self.palette.colors[1], self.palette.colors[2],
-                self.palette.count, self.palette.cathedral as u32,
-                q[0].to_bits(), q[1].to_bits(), q[2].to_bits(), q[3].to_bits(),
+                1,
+                self.generation,
+                self.palette.colors[0],
+                self.palette.colors[1],
+                self.palette.colors[2],
+                self.palette.count,
+                self.palette.cathedral as u32,
+                q[0].to_bits(),
+                q[1].to_bits(),
+                q[2].to_bits(),
+                q[3].to_bits(),
                 tan_half_fov.to_bits(),
             ]);
         }
