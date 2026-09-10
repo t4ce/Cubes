@@ -10,6 +10,7 @@ mod environment;
 mod floor;
 mod grid;
 mod modes;
+mod marker_lod;
 mod network;
 mod orchard;
 #[path = "SubCubes.rs"]
@@ -121,6 +122,7 @@ struct CubeScene {
     active_world: Option<world_portals::World>,
     world_cube: world_cube::Companion,
     visibility_scratch: orchard::VisibilityScratch,
+    world_markers: marker_lod::Reducer,
     orchard_reveal: reveal::Reveal,
     placed_reveal: reveal::Reveal,
     asset_brush: asset_brush::Brush,
@@ -323,6 +325,7 @@ impl CubeScene {
             worlds,
             world_index: 0,
             visibility_scratch: orchard::VisibilityScratch::new(),
+            world_markers: marker_lod::Reducer::new(),
             orchard_reveal: reveal::Reveal::new(),
             placed_reveal: reveal::Reveal::new(),
             asset_brush: asset_brush::Brush::new(ASSET_GRID_ASSETS),
@@ -857,13 +860,28 @@ impl CubeScene {
             }
             _ => (&[][..], None),
         };
+        if self.mode == SceneMode::World {
+            self.world_markers.prepare(
+                &self.active_world.as_ref().unwrap().scene.cubes,
+                visible,
+                self.flycam.camera.position,
+                &camera.view,
+                camera.projection[5],
+                height,
+            );
+        }
         let scene_opaque_count = if matches!(
             self.mode,
             SceneMode::Orchard | SceneMode::World | SceneMode::MaterialShowcase
         ) {
             // The asset preview already keeps the retained group nonempty in
             // World mode. Do not add a black placeholder to an empty view.
-            visible.len().max(usize::from(preview_count == 0))
+            let count = if self.mode == SceneMode::World {
+                self.world_markers.cubes.len()
+            } else {
+                visible.len()
+            };
+            count.max(usize::from(preview_count == 0))
         } else {
             self.mode.seed_count()
         };
@@ -877,8 +895,10 @@ impl CubeScene {
             + ghost_count
             + if companion { 27 } else { 0 };
         let seed_count = opaque_count
-            + if self.mode == SceneMode::StaticCube || companion {
-                54
+            + if self.mode == SceneMode::StaticCube {
+                rubik::ALL_FACE_COUNT
+            } else if companion {
+                rubik::OUTER_FACE_COUNT
             } else if self.mode == SceneMode::InteractiveGrid {
                 1
             } else {
@@ -907,32 +927,8 @@ impl CubeScene {
                     }
                 }
                 SceneMode::World => {
-                    if let Some(&id) = visible.get(i) {
-                        let cube = self.active_world.as_ref().unwrap().scene.cubes[id];
-                        let depth = -(camera.view[2] * cube.center[0]
-                            + camera.view[6] * cube.center[1]
-                            + camera.view[10] * cube.center[2]
-                            + camera.view[14]);
-                        let scale = if asset_brush::detailed(
-                            i,
-                            cube,
-                            self.flycam.camera.position,
-                            camera.projection[5],
-                            height,
-                        ) {
-                            cube.scale
-                        } else {
-                            asset_brush::marker_scale(
-                                cube.scale,
-                                depth,
-                                camera.projection[5],
-                                height,
-                            )
-                        };
-                        (cube.center, scale)
-                    } else {
-                        (placeholder, 0.0001)
-                    }
+                    self.world_markers.cubes.get(i)
+                        .map_or((placeholder, 0.0001), |cube| (cube.center, cube.scale))
                 }
                 SceneMode::InteractiveGrid => {
                     let translation = grid::position(i);
@@ -1013,7 +1009,7 @@ impl CubeScene {
                 draw_group: 0,
                 flags: ((i as u32) << 16)
                     | if self.mode == SceneMode::StaticCube {
-                        rubik::PALETTE_FLAG | i as u32
+                        rubik::PALETTE_FLAG | rubik::ALL_FACES_FLAG | i as u32
                     } else if self.mode == SceneMode::InteractiveGrid {
                         rubik::ROOM_PALETTE_FLAG
                     } else if self.mode == SceneMode::Orchard {
@@ -1021,9 +1017,8 @@ impl CubeScene {
                             self.orchards[self.orchard_index].cubes[id].flags
                         })
                     } else if self.mode == SceneMode::World {
-                        visible.get(i).map_or(orchard::CUSTOM_RGB555, |&id| {
-                            self.active_world.as_ref().unwrap().scene.cubes[id].flags
-                        })
+                        self.world_markers.cubes.get(i)
+                            .map_or(orchard::CUSTOM_RGB555, |cube| cube.flags)
                     } else if self.mode == SceneMode::Sphere {
                         rubik::SPHERE_GRADIENT_FLAG
                     } else {
@@ -1147,33 +1142,30 @@ impl CubeScene {
             }
         }
         if self.mode == SceneMode::StaticCube || companion {
-            let mut faces = Vec::with_capacity(54);
+            let all_faces = self.mode == SceneMode::StaticCube;
+            let mut faces = Vec::with_capacity(seed_count - opaque_count);
             for id in 0..27 {
                 let seed = opaque_seeds[id];
                 let basis = [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]]
                     .map(|a| Quaternion(seed.rotation).rotate(a));
-                let cell = [id % 3, (id / 3) % 3, id / 9];
-                for axis in 0..3 {
-                    if cell[axis] != 1 {
-                        let sign = if cell[axis] == 2 { 1.0 } else { -1.0 };
-                        let face = (axis * 2 + usize::from(sign < 0.0)) as u32;
-                        let p: [f32; 3] = core::array::from_fn(|i| {
-                            opaque_seeds[id].translation[i] + basis[axis][i] * sign * seed.scale[0]
-                        });
-                        let depth = -(camera.view[2] * p[0]
-                            + camera.view[6] * p[1]
-                            + camera.view[10] * p[2]
-                            + camera.view[14]);
-                        faces.push((depth, id, face));
-                    }
+                for face in rubik::palette_faces(id, all_faces) {
+                    let axis = face / 2;
+                    let sign = if face % 2 == 0 { 1.0 } else { -1.0 };
+                    let p: [f32; 3] = core::array::from_fn(|i| {
+                        seed.translation[i] + basis[axis][i] * sign * seed.scale[0]
+                    });
+                    let depth = -(camera.view[2] * p[0]
+                        + camera.view[6] * p[1]
+                        + camera.view[10] * p[2]
+                        + camera.view[14]);
+                    faces.push((depth, id, face as u32));
                 }
             }
             faces.sort_by(|a, b| b.0.total_cmp(&a.0));
             for (slot, (_, id, face)) in faces.iter().enumerate() {
                 let mut seed = opaque_seeds[*id];
                 seed.draw_group = 1;
-                seed.flags =
-                    ((slot as u32) << 16) | rubik::PALETTE_FLAG | 512 | (*face << 10) | *id as u32;
+                seed.flags = ((slot as u32) << 16) | (seed.flags & 0xffff) | 512 | (*face << 10);
                 let row = opaque_count + slot;
                 encode_seed(seed, &mut seed_bytes[row * 64..(row + 1) * 64]);
             }
@@ -1357,6 +1349,12 @@ impl CubeScene {
             }),
         ) {
             logl::log(level::INFO, format_args!("Cubes: {report}"));
+            if self.mode == SceneMode::World {
+                logl::log(level::INFO, format_args!(
+                    "Cubes: marker-lod dots_before={} dots_after={} seeds_submitted={}",
+                    self.world_markers.dots_before, self.world_markers.dots_after, seed_count
+                ));
+            }
         }
         self.previous_view_projection = camera.view_projection;
         Ok(())
@@ -1479,6 +1477,7 @@ impl CubeScene {
             .extend_from_slice(&placed);
         stored.extend(placed);
         self.placed_reveal.append(stored.len());
+        self.world_markers.set_bounds(&self.active_world.as_ref().unwrap().scene.cubes);
         Ok(())
     }
 
@@ -1819,6 +1818,7 @@ impl CubeScene {
                 .scene
                 .cubes
                 .extend_from_slice(&self.asset_brush.worlds[self.world_index]);
+            self.world_markers.set_bounds(&self.active_world.as_ref().unwrap().scene.cubes);
             logl::log(
                 level::INFO,
                 format_args!(

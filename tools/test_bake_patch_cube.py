@@ -1,12 +1,13 @@
 """CPU/source-contract tests. These do not prove shader execution or rendering."""
 import hashlib
+import json
 from pathlib import Path
 import re
 import struct
 import tempfile
 import unittest
 
-from bake_patch_cube import ROOT, geometry, replace, write_sources
+from bake_patch_cube import ROOT, PALETTE, geometry, load_palette, replace, srgb_to_linear, write_sources
 
 
 class PatchCubeTests(unittest.TestCase):
@@ -85,9 +86,12 @@ class PatchCubeTests(unittest.TestCase):
             self.assertIn("uint wall = id / 100u", ds)
             self.assertEqual(ds.count("wall =="), 6)
             self.assertIn("float alpha = 1.0", ds)
-            self.assertIn("(flags & 24576u) == 24576u && id < 6u", ds)
-            self.assertEqual(ds.count("roughness="), 6)
-            self.assertEqual(ds.count("metallic="), 6)
+            self.assertIn("material = int(flags & 7u)", ds)
+            self.assertNotIn("&& id < 6u", ds)
+            self.assertIn("material = sticker", ds)
+            self.assertEqual(ds.count("paletteMaterial(uint(material),"), 1)
+            self.assertEqual(ds.count("allFaces || cell."), 6)
+            self.assertIn("bool allFaces = (flags & 128u) != 0u", ds)
             self.assertIn("layout(location=2) out vec4 surfaceView", ds)
             self.assertIn("camera.position_near.xyz - p.xyz", ds)
             self.assertIn("if (surfaceColor.a < 0.0)", ps)
@@ -98,7 +102,7 @@ class PatchCubeTests(unittest.TestCase):
             self.assertFalse(manifest["host_render_verified"])
             self.assertFalse(manifest["baremetal_verified"])
 
-    def test_exactly_54_square_stickers_excluding_bevels(self):
+    def test_all_162_square_faces_exclude_bevels(self):
         _, triangles = geometry(ROOT / "Cube/cube.glb")
         per_face = {}
         for triangle in triangles:
@@ -108,7 +112,58 @@ class PatchCubeTests(unittest.TestCase):
                 per_face[n] = per_face.get(n, 0) + 1
         self.assertEqual(len(per_face), 6)
         self.assertEqual(list(per_face.values()), [2] * 6)
-        self.assertEqual(sum(per_face.values()) * 9, 108) # 54 faces, two triangles each
+        self.assertEqual(sum(per_face.values()) * 27, 324) # 162 faces, two triangles each
+
+    def test_palette_export_values_reach_shader_and_reexports_change_it(self):
+        raw, materials = load_palette(PALETTE)
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            manifest = write_sources(ROOT / "Cube/cube.glb", out)
+            self.assertEqual(manifest["palette_sha256"], hashlib.sha256(raw).hexdigest())
+            original = (out / "cube.tese").read_text()
+            cases = re.findall(r"case (\d)u: baseColor=vec3\(([^)]+)\); roughness=([^;]+); metallic=([^;]+);", original)
+            self.assertEqual(len(cases), 6)
+            for (slot, color, roughness, metallic), material in zip(cases, materials):
+                self.assertEqual(materials[int(slot)], material)
+                for actual, axis in zip(map(float, color.split(",")), "rgb"):
+                    self.assertAlmostEqual(actual, srgb_to_linear(material["rgb"][axis]), places=8)
+                self.assertEqual(float(roughness), material["roughness"])
+                self.assertEqual(float(metallic), material["metallic"])
+            # Reordering JSON records cannot change face/material identities.
+            document = json.loads(raw)
+            document["materials"].reverse()
+            palette = out / "palette.json"
+            palette.write_text(json.dumps(document))
+            write_sources(ROOT / "Cube/cube.glb", out, palette)
+            self.assertEqual((out / "cube.tese").read_text(), original)
+            document["materials"][0]["roughness"] = 0.123
+            document["materials"][0]["metallic"] = 0.456
+            document["materials"][0]["rgb"]["r"] = 0.5
+            palette.write_text(json.dumps(document))
+            updated = write_sources(ROOT / "Cube/cube.glb", out, palette)
+            self.assertNotEqual(updated["palette_sha256"], manifest["palette_sha256"])
+            self.assertNotEqual((out / "cube.tese").read_text(), original)
+            self.assertIn("roughness=0.123; metallic=0.456;", (out / "cube.tese").read_text())
+            self.assertAlmostEqual(srgb_to_linear(0.5), 0.21404114, places=8)
+
+    def test_invalid_palette_fails_before_shader_generation(self):
+        raw = json.loads(PALETTE.read_bytes())
+        mutations = [
+            lambda d: d.update(colorSpace="linear"),
+            lambda d: d["materials"].pop(),
+            lambda d: d["materials"][0].update(id="orange"),
+            lambda d: d["materials"][0].update(roughness=float("nan")),
+            lambda d: d["materials"][0].update(metallic=1.1),
+            lambda d: d["materials"][0]["rgb"].update(r=-0.1),
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "bad.json"
+            for mutate in mutations:
+                document = json.loads(json.dumps(raw))
+                mutate(document)
+                path.write_text(json.dumps(document))
+                with self.assertRaises(ValueError):
+                    load_palette(path)
 
     def test_capture_template_drift_fails_closed(self):
         for text in ("missing", "twice twice"):

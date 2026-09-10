@@ -18,8 +18,8 @@ immediates. The 132-corner triangle mapping remains exact, while geometric
 position state is explicitly 24 points. Each patch writes three control
 points and unit tessellation factors. The triangle-domain DS interpolates the patch
 and uses the existing camera matrix at byte 128. DS supplies world-space surface
-data; PS keeps the baseline diffuse result for established modes and evaluates
-the Key-7 metallic/roughness response. This is baked reference geometry, not
+data; PS keeps the baseline diffuse result for neutral bevels and world/room colors,
+and evaluates the imported Key2/Key7 metallic/roughness response. This is baked reference geometry, not
 a general-purpose cube-generation or arbitrary-asset shader API.
 
 ## Checks and bake
@@ -32,7 +32,19 @@ python3 tools/test_patch_overlay.py
 python3 tools/bake_patch_cube.py --out target/patch-cube --source-only
 python3 tools/bake_patch_cube.py --out target/patch-cube
 python3 tools/export_patch_driver.py target/patch-cube ../TRUEOS/crates/trueos-shader/generated_patch_cube.rs
+python3 ../TRUEOS/tools/test_patch_cube_capacity.py
 ```
+
+`Cube/subcubes-materials.json` is the Key2/Key7 palette source. The bake reads its
+six RGB/roughness/metallic records, ordered by stable IDs red/orange/yellow/green/
+blue/violet. JSON array reordering does not change identities. Colors are sRGB;
+the shader shades in linear light and encodes to the retained UNORM target.
+Only the JSON is imported from the editor, not its camera or rendering controller.
+
+After re-exporting that file, run the bake and driver export commands above,
+then rebuild TRUEOS and Cubes. No hand editing of shader material constants is
+needed. Export and app builds reject a stale palette hash. This is a build-time
+import, not live palette reload; the compiled shader currently resides in TRUEOS.
 
 Native compilation requires the sibling TRUEOS repository's pinned
 `.codex_tmp/trueos-adj-instrumented-rpls` Mesa/glslang lane, including its
@@ -61,13 +73,12 @@ The retained ABI pairs `RETAINED_VERTEX_LAYOUT_CUBE_PATCH_SEED` with
 0xA780 and 0x4680, with no scratch, push-data or shader-data relocations.
 HS and DS are uploaded after the ordinary shader ranges, and their KSPs
 are relocated into the draw's instruction allocation. DS uses camera BTI1.
-Per-draw state slots are 32 KiB, including a descriptor page after aligned
-shader code; the former 20 KiB slots are too small for the canonical-position
-hull shader.
+Per-draw state slots are 36 KiB, including a descriptor page after aligned
+shader code; the imported sRGB material path exceeds the former 32 KiB slot.
 Captured URB partitions and triangle-domain TE state are programmed; ordinary
 draws explicitly disable HS/TE/DS and restore their ordinary URB allocation.
 
-Contract version 7 instances six 10×10 room walls, a rotating 3×3×3 puzzle, or
+The retained cube contract instances six 10×10 room walls, a rotating 3×3×3 puzzle, or
 a 1,024-seed sphere via V3's buffered transform seeds. VS reads
 camera/instances/compacted IDs at BTI1/2/3.
 Only translations, quaternion rotations, positive uniform scales and the
@@ -88,6 +99,14 @@ All 26 outer cubies are selectable, including the six face centers; the core is
 excluded. Picking intersects the reference bevel's 26 convex planes and retains
 the clicked local sticker face through subsequent layer turns.
 Routed N-Mouse primary presses select at most one piece.
+
+Shader contract 10 gives all 27 cubies all six local-direction palette faces:
++X red, -X orange, +Y yellow, -Y green, +Z blue, -Z violet. Inner square faces and
+the core use the same imported materials as outward faces, at alpha 0.35. The
+27 opaque bevel seeds are followed by 162 square-face seeds sorted back-to-front,
+with depth writes disabled for the transparent group. Bevels remain neutral and
+opaque. Picking and portal routing still use the original outward stickers.
+The world companion retains its 54 outer-face submissions with the new palette.
 
 A correct click eases the entire puzzle to the existing 2.2-unit spacing over
 one second. The camera first eases toward the selected piece's radial direction,
@@ -126,12 +145,10 @@ cursor movement expands the nearby seeds with a screen-space circle whose area
 is 10% of the current viewport. Another Key 1 press returns to the room;
 from other modes Key 1 enters the room. Key 3 is unassigned.
 
-Key 7 places six identical expanded cubes in one centered row. They retain the
-red, orange, white, yellow, green, and blue palette and share one texture-free
-GGX/Smith/Schlick pixel-shader path. Their data-only presets are matte paint,
-satin plastic, glossy plastic, rough metal, satin metal, and polished metal.
-The camera orbits as in Key 4; changing finish does not change geometry, draw
-count, texture sampling, shader executable, or material-specific passes.
+Key 7 places each imported material at all seven size tiers (42 initial cubes),
+using the shared texture-free GGX/Smith/Schlick path at alpha 1. Its material ID
+travels with each cube and mining fragment, independent of draw order and
+visibility compaction. See `MINING_DEMO.md` for the walk/fly camera and tools.
 
 Counts are logged once per second in four 250 ms samples; no HUD task or
 counter window is used. Modes 1–3 report expanded cubes and compact markers.

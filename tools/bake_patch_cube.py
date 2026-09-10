@@ -11,6 +11,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import math
 import os
 from pathlib import Path
 import struct
@@ -19,6 +20,47 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 TRUEOS = ROOT.parent / "TRUEOS"
+PALETTE = ROOT / "Cube/subcubes-materials.json"
+MATERIAL_IDS = ("red", "orange", "yellow", "green", "blue", "violet")
+
+
+def load_palette(path: Path):
+    raw = path.read_bytes()
+    document = json.loads(raw)
+    if (document.get("format"), document.get("version"), document.get("colorSpace")) != (
+        "subcubes-material-palette", 1, "sRGB"
+    ):
+        raise ValueError("expected subcubes-material-palette v1 in sRGB")
+    entries = document.get("materials", [])
+    if len(entries) != 6 or sorted(m.get("id", "") for m in entries) != sorted(MATERIAL_IDS):
+        raise ValueError("expected exactly red/orange/yellow/green/blue/violet materials")
+    materials = {m["id"]: m for m in entries}
+    ordered = [materials[id] for id in MATERIAL_IDS]
+    for m in ordered:
+        values = [m["rgb"][a] for a in "rgb"] + [m["roughness"], m["metallic"]]
+        if any(type(v) not in (int, float) or not math.isfinite(v) or not 0 <= v <= 1 for v in values):
+            raise ValueError(f"{m['id']}: RGB, roughness and metallic must be finite in [0,1]")
+    return raw, ordered
+
+
+def srgb_to_linear(value):
+    return value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4
+
+
+def palette_shader(materials):
+    cases = []
+    for i, m in enumerate(materials):
+        color = ",".join(format(srgb_to_linear(m["rgb"][a]), ".9f") for a in "rgb")
+        cases.append(f"case {i}u: baseColor=vec3({color}); roughness={float(m['roughness'])}; "
+                     f"metallic={float(m['metallic'])}; break;")
+    return '''// Imported sRGB palette is converted to linear light for shading.
+void paletteMaterial(uint material, out vec3 baseColor, out float roughness, out float metallic) {
+    baseColor=vec3(0.5); roughness=1.0; metallic=0.0;
+    switch (material) {
+''' + "\n".join(cases) + '''
+    }
+}
+'''
 
 
 def geometry(path: Path):
@@ -87,8 +129,9 @@ def geometry(path: Path):
     return raw, triangles
 
 
-def write_sources(source: Path, out: Path):
+def write_sources(source: Path, out: Path, palette: Path = PALETTE):
     raw, triangles = geometry(source)
+    palette_raw, materials = load_palette(palette)
     out.mkdir(parents=True, exist_ok=True)
     # uintBitsToFloat preserves every reference float bit, including signed
     # zero. Constants belong to shader code, never a runtime vertex mesh.
@@ -233,6 +276,7 @@ layout(std430, set=0, binding=0) readonly buffer Camera {
     vec4 position_near;
 } camera;
 layout(std430, set=0, binding=1) readonly buffer Instances { vec4 rows[]; } instances;
+''' + palette_shader(materials) + '''
 void main() {
     vec3 b = gl_TessCoord;
     vec4 p = b.x * gl_in[0].gl_Position
@@ -244,8 +288,8 @@ void main() {
     // The ordinary (Key-2) material stays fully opaque neutral mid-gray.
     vec3 baseColor = vec3(0.5);
     float alpha = 1.0;
-    // A negative roughness keeps every established Cubes mode on its exact
-    // diffuse shader. Key 7 alone opts into the shared material response.
+    // Neutral bevels and legacy world/room colors keep the diffuse shader.
+    // Key 2 square faces and Key 7 use the imported material response.
     float roughness = -1.0;
     float metallic = 0.0;
     bool hidden = false;
@@ -263,25 +307,21 @@ void main() {
         uint flags = floatBitsToUint(instances.rows[base+12u].z);
         uint cubie = flags & 31u;
         int sticker = -1;
+        int material = -1;
         mat4 model = mat4(instances.rows[base], instances.rows[base+1u],
                           instances.rows[base+2u], instances.rows[base+3u]);
-        // Key 3 colours both marker dots and expanded cubes by their position
+        // The Key 1 sphere colours marker dots and expanded cubes by position
         // on the containing sphere.
         if ((flags & 32768u) != 0u) {
             baseColor = vec3(flags & 31u, (flags >> 5u) & 31u, (flags >> 10u) & 31u) / 31.0;
         // Key 7 combines the otherwise-exclusive room and sphere flags. Each
         // cube uses one palette color and one data-only surface finish.
-        } else if ((flags & 24576u) == 24576u && id < 6u) {
-            if (id == 0u) { baseColor=vec3(1,0.025,0.015); roughness=0.80; metallic=0.0; }
-            if (id == 1u) { baseColor=vec3(1,0.28,0.015);  roughness=0.50; metallic=0.0; }
-            if (id == 2u) { baseColor=vec3(1,1,1);       roughness=0.20; metallic=0.0; }
-            if (id == 3u) { baseColor=vec3(1,0.85,0.015);roughness=0.65; metallic=1.0; }
-            if (id == 4u) { baseColor=vec3(0.02,0.8,0.08);roughness=0.35; metallic=1.0; }
-            if (id == 5u) { baseColor=vec3(0.02,0.08,1); roughness=0.18; metallic=1.0; }
+        } else if ((flags & 24576u) == 24576u) {
+            // Material identity survives visibility compaction and mining.
+            material = int(flags & 7u);
         } else if ((flags & 16384u) != 0u) {
             baseColor = 0.5 + 0.5 * normalize(model[3].xyz);
-        // Key 1 is six 10×10 room walls in the same palette order as the
-        // Rubik faces. Whole wall cubes remain opaque.
+        // Key 1 retains its legacy six-wall palette. Whole cubes remain opaque.
         } else if ((flags & 8192u) != 0u && id < 600u) {
             uint wall = id / 100u;
             if (wall == 0u) baseColor = vec3(1,0.025,0.015);
@@ -290,19 +330,22 @@ void main() {
             if (wall == 3u) baseColor = vec3(1,0.85,0.015);
             if (wall == 4u) baseColor = vec3(0.02,0.8,0.08);
             if (wall == 5u) baseColor = vec3(0.02,0.08,1);
-        // Identity stays attached to the original cubie, independent of its
-        // permuted position. Only its original outward square faces get stickers.
+        // Face colors follow local cube orientation through every turn.
+        // Key 2 colors all square faces; the world companion keeps outer stickers.
         } else if ((flags & 256u) != 0u && cubie < 27u) {
             // Only the six sticker faces are translucent; bevels and the
             // baseline cube material remain fully opaque.
             uvec3 cell = uvec3(cubie % 3u, (cubie / 3u) % 3u, cubie / 9u);
-            if (normal.x > 0.9999 && cell.x == 2u) { baseColor = vec3(1,0.025,0.015); sticker=0; }
-            if (normal.x < -0.9999 && cell.x == 0u) { baseColor = vec3(1,0.28,0.015); sticker=1; }
-            if (normal.y > 0.9999 && cell.y == 2u) { baseColor = vec3(1,1,1); sticker=2; }
-            if (normal.y < -0.9999 && cell.y == 0u) { baseColor = vec3(1,0.85,0.015); sticker=3; }
-            if (normal.z > 0.9999 && cell.z == 2u) { baseColor = vec3(0.02,0.8,0.08); sticker=4; }
-            if (normal.z < -0.9999 && cell.z == 0u) { baseColor = vec3(0.02,0.08,1); sticker=5; }
+            bool allFaces = (flags & 128u) != 0u;
+            if (normal.x > 0.9999 && (allFaces || cell.x == 2u)) sticker=0;
+            if (normal.x < -0.9999 && (allFaces || cell.x == 0u)) sticker=1;
+            if (normal.y > 0.9999 && (allFaces || cell.y == 2u)) sticker=2;
+            if (normal.y < -0.9999 && (allFaces || cell.y == 0u)) sticker=3;
+            if (normal.z > 0.9999 && (allFaces || cell.z == 2u)) sticker=4;
+            if (normal.z < -0.9999 && (allFaces || cell.z == 0u)) sticker=5;
+            material = sticker;
         }
+        if (material >= 0) paletteMaterial(uint(material), baseColor, roughness, metallic);
         bool transparentPass = (flags & 32768u) == 0u && (flags & 512u) != 0u;
         hidden = transparentPass ? (sticker < 0 || sticker != int((flags >> 10u) & 7u)) : sticker >= 0;
         if (sticker >= 0) alpha=0.35;
@@ -358,13 +401,18 @@ void main() {
                   / max(4.0*nDotV*nDotL, 0.0001);
     vec3 diffuse = (1.0-fresnel)*(1.0-metallic)*baseColor/3.14159265;
     vec3 ambient = baseColor*sky*(1.0-metallic) + f0*0.04;
-    color = vec4(ambient + (diffuse+specular)*nDotL*2.6, surfaceView.a);
+    vec3 linearColor = max(ambient + (diffuse+specular)*nDotL*2.6, vec3(0.0));
+    // Retained color targets are UNORM; encode the imported material path to sRGB.
+    vec3 srgb = mix(12.92*linearColor, 1.055*pow(linearColor,vec3(1.0/2.4))-0.055,
+                    greaterThan(linearColor,vec3(0.0031308)));
+    color = vec4(srgb, surfaceView.a);
 }
 ''')
     (out / "seed.f32le").write_bytes(struct.pack("<3f", 0, 0, 0))
     (out / "patches.u32le").write_bytes(bytes(len(triangles) * 4))
     manifest = {
         "source_sha256": hashlib.sha256(raw).hexdigest(),
+        "palette_sha256": hashlib.sha256(palette_raw).hexdigest(),
         "stored_seed_vertices": 1, "patches": len(triangles),
         "input_control_points": 1, "output_control_points": 3,
         "domain": "triangles", "tessellation_level": 1,
@@ -530,11 +578,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, default=ROOT / "Cube/cube.glb")
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--palette", type=Path, default=PALETTE)
     parser.add_argument("--source-only", action="store_true")
     parser.add_argument("--device-id", choices=["a780", "4680"], default="a780")
     args = parser.parse_args()
     out = args.out.resolve()
-    manifest = write_sources(args.source, out)
+    manifest = write_sources(args.source, out, args.palette)
     # Invalidate a previous success before attempting another compile.
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     if not args.source_only:

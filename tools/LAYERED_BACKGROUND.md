@@ -1,5 +1,13 @@
 # Resident Chroma background
 
+`src/background.rs::WORLD_MANDELBOX_ENABLED` defaults to `false`. Key5 then
+registers no Mandelbox shader and performs no geometry/cubemap bake or background
+projection. The worker hides the preceding image without beginning a GPU frame.
+Key2's independent Palette Grid still runs; other modes have no background layer
+content while this flag is off. The world geometry and hardware bottom color
+remain available. Set the constant to `true` and rebuild Cubes to restore the
+Mandelbox behavior described below.
+
 Cubes opens one UI4 layered window. Picasso renders the transparent foreground;
 a native worker owns the independently published background. Keys 1–4 retain a
 neutral slate shade. Key 5 uses a complete spherical environment, including the

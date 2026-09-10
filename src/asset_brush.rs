@@ -116,16 +116,15 @@ pub fn marker_scale(scale: f32, depth: f32, projection_y: f32, height: u32) -> f
         .clamp(0.0000001, 0.0009)
 }
 pub fn detailed(rank: usize, cube: Cube, eye: [f32; 3], projection_y: f32, height: u32) -> bool {
-    let distance = libm::sqrtf(
-        (0..3)
+    let distance_squared = (0..3)
             .map(|a| {
                 let d = cube.center[a] - eye[a];
                 d * d
             })
-            .sum::<f32>(),
-    )
-    .max(0.001);
-    rank < FULL_WORLD_SEEDS && cube.scale * height as f32 * projection_y.abs() / distance >= 2.
+            .sum::<f32>()
+    .max(0.000001);
+    let projected = cube.scale * height as f32 * projection_y.abs();
+    rank < FULL_WORLD_SEEDS && projected * projected >= 4. * distance_squared
 }
 
 #[cfg(test)]

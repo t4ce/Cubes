@@ -1,11 +1,20 @@
 //! Exact cubie identities and lattice orientations; animation never accumulates drift.
 pub const PALETTE_FLAG: u32 = 256;
+/// Key 2 gives every cubie all six translucent palette faces, including its core.
+pub const ALL_FACES_FLAG: u32 = 128;
+pub const ALL_FACE_COUNT: usize = 27 * 6;
+pub const OUTER_FACE_COUNT: usize = 54;
+/// Local face IDs retain the +X/-X/+Y/-Y/+Z/-Z palette order through turns.
+pub fn palette_faces(id: usize, all_faces: bool) -> impl Iterator<Item = usize> {
+    let cell = [id % 3, (id / 3) % 3, id / 9];
+    (0..6).filter(move |&face| all_faces || cell[face / 2] == if face % 2 == 0 { 2 } else { 0 })
+}
 /// Shade an entire key-1 room wall with its matching Rubik palette colour.
 pub const ROOM_PALETTE_FLAG: u32 = 1 << 13;
 /// Shade the Key-1 sphere seeds from their position rather than the base material.
 pub const SPHERE_GRADIENT_FLAG: u32 = 1 << 14;
 /// Key 7 combines the otherwise-exclusive room and sphere bits. Bits 0..2
-/// select one of six fixed metallic/roughness records in the cube shader.
+/// select one of six imported material records in the cube shader.
 pub const MATERIAL_SHOWCASE_FLAG: u32 = ROOM_PALETTE_FLAG | SPHERE_GRADIENT_FLAG;
 const TURN_MS: u64 = 1_000;
 pub const OPEN_MS: u64 = 1_000;
@@ -205,6 +214,30 @@ impl Puzzle {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn full_palette_includes_all_six_faces_on_every_cubie_and_core() {
+        let mut full = 0;
+        let mut outer = 0;
+        for id in 0..27 {
+            let faces: alloc::vec::Vec<_> = palette_faces(id, true).collect();
+            assert_eq!(faces, [0, 1, 2, 3, 4, 5]);
+            full += faces.len();
+            outer += palette_faces(id, false).count();
+        }
+        assert_eq!(full, ALL_FACE_COUNT);
+        assert_eq!(outer, OUTER_FACE_COUNT);
+        assert_eq!(palette_faces(13, false).count(), 0);
+        // Distinct cubie/face/material flags survive the transparent draw slot.
+        for id in 0..27 {
+            for face in palette_faces(id, true) {
+                let flags = (161 << 16) | PALETTE_FLAG | ALL_FACES_FLAG | 512
+                    | ((face as u32) << 10) | id as u32;
+                assert_eq!(flags & 31, id as u32);
+                assert_eq!((flags >> 10) & 7, face as u32);
+                assert_ne!(flags & ALL_FACES_FLAG, 0);
+            }
+        }
+    }
     #[test]
     fn four_turns_restore_every_identity_and_orientation() {
         for axis in 0..3 {

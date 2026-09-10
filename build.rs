@@ -89,13 +89,19 @@ fn main() {
     let digest = format!("{:x}", Sha256::digest(&source));
     assert_eq!(
         exported::CONTRACT_VERSION,
-        9,
+        10,
         "rebake the material-finish cube shader contract"
     );
     assert_eq!(
         digest,
         exported::SOURCE_SHA256,
         "cube reference differs from baked HS/DS; rebake and export before building"
+    );
+    let palette = fs::read("Cube/subcubes-materials.json").expect("read material palette export");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&palette)),
+        exported::PALETTE_SHA256,
+        "material palette differs from baked HS/DS; run tools/bake_patch_cube.py and tools/export_patch_driver.py"
     );
     // The sidecar validates the exported source, not the currently booted
     // kernel. Driver integration still requires rebuilding/booting TRUEOS.

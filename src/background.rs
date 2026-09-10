@@ -4,6 +4,10 @@ use alloc::sync::Arc;
 use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use trueos::ui4_scene::{BackgroundLayer, Error, ShadertoyParamsV1};
 
+/// Enable Key5's Mandelbox geometry, resident cubemap bake and view projection.
+/// Disabled builds never register or submit that shader; Key2 stays independent.
+pub const WORLD_MANDELBOX_ENABLED: bool = false;
+
 const SHADER: u32 = 16;
 const PACKAGE: &[u8] = include_bytes!("../Cube/mandelbox/mandelbox.stpkg");
 const PALETTE_PACKAGE: &[u8] = include_bytes!("../Cube/palette_grid/palette_grid.stpkg");
@@ -37,8 +41,10 @@ pub struct Background {
 
 impl Background {
     pub fn start(mut layer: BackgroundLayer) -> Result<Self, Error> {
-        layer.set_opacity(128)?;
-        layer.register_shadertoy(SHADER, PACKAGE)?;
+        layer.set_opacity(0)?;
+        if WORLD_MANDELBOX_ENABLED {
+            layer.register_shadertoy(SHADER, PACKAGE)?;
+        }
         layer.register_shadertoy(4, PALETTE_PACKAGE)?;
         let shared = Arc::new(Shared {
             sequence: AtomicU32::new(0),
@@ -53,6 +59,7 @@ impl Background {
         drop(
             trueos::worker::spawn(move || {
                 let mut completed = u32::MAX;
+                let mut opacity = 0;
                 while !worker.stop.load(Ordering::Acquire)
                     && !trueos::worker::cancellation_requested()
                 {
@@ -65,6 +72,21 @@ impl Background {
                         worker.command[i].load(Ordering::SeqCst)
                     });
                     if worker.sequence.load(Ordering::SeqCst) != sequence {
+                        continue;
+                    }
+                    let hidden = !WORLD_MANDELBOX_ENABLED && command[0] == 0;
+                    let next_opacity = if hidden { 0 } else { 128 };
+                    if next_opacity != opacity {
+                        if let Err(error) = layer.set_opacity(next_opacity) {
+                            failed(&worker, error);
+                            break;
+                        }
+                        opacity = next_opacity;
+                    }
+                    // Hide any previous Key2 image, with no GPU frame, cubemap
+                    // allocation, geometry bake or background projection.
+                    if hidden {
+                        completed = sequence;
                         continue;
                     }
                     match layer.begin_gpu_frame() {
@@ -125,6 +147,9 @@ impl Background {
 
     /// Every Key 5 selection requests a fresh bake, including revisiting a world.
     pub fn select_world(&mut self, name: &str, rotation: [f32; 4]) -> Result<(), Error> {
+        if !WORLD_MANDELBOX_ENABLED {
+            return Ok(());
+        }
         self.palette = Palette::for_world(name).ok_or(Error::Invalid)?;
         self.generation = self.generation.wrapping_add(1).max(1);
         self.follower = RotationFollower::new(rotation);
@@ -143,7 +168,7 @@ impl Background {
             return Err(Error::Ui4);
         }
         let mut command = [0; COMMAND_WORDS];
-        if mode == Mode::World {
+        if mode == Mode::World && WORLD_MANDELBOX_ENABLED {
             let q = self.follower.advance(rotation, delta_seconds);
             command[..12].copy_from_slice(&[
                 1,
@@ -167,7 +192,8 @@ impl Background {
             command[1] = (self.palette_time * 60.) as u32;
             command[2] = (self.palette_time as f32).to_bits();
         }
-        // Other modes retain the neutral shade; their cameras cause no work.
+        // With Mandelbox disabled, non-Key2 modes hide the background layer.
+        // Otherwise they retain its neutral shade; cameras cause no work.
         command[12] = extent.0;
         command[13] = extent.1;
         if command != self.previous {

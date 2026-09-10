@@ -34,6 +34,11 @@ All multi-byte values are little-endian.
 
 Each palette entry is `RGBA8`.
 
+The current Cubes runtime accepts only alpha `255` in both v1 and v2
+(`cubes-opaque-only` otherwise). The byte exists in the format, but translucent
+world assets are not supported by the current loader/submission path. Key2's
+translucent faces use a separate app-controlled pass, not `.cubes` alpha.
+
 ### Cube record — 8 bytes
 
 | Offset | Type | Meaning |
