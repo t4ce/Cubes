@@ -457,7 +457,7 @@ impl CubeScene {
                             right: ((held(0x07) || held(0x4f)) as i32
                                 - (held(0x04) || held(0x50)) as i32)
                                 as f32,
-                            vertical: -(held(0xe0) as i32) as f32,
+                            roll: (held(0x14) as i32 - held(0x08) as i32) as f32,
                             boost: held(0xe1) || held(0xe5),
                             fast_walk: held(0xe1) || held(0xe5),
                             space: held(0x2c),

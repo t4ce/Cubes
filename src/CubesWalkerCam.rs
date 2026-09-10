@@ -294,7 +294,7 @@ struct ElevationStep {
 pub struct Input {
     pub forward: f32,
     pub right: f32,
-    pub vertical: f32,
+    pub roll: f32,
     pub boost: bool,
     pub fast_walk: bool,
     pub space: bool,
@@ -332,6 +332,7 @@ pub struct CubesWalkerCam {
     up: V,
     forward: V,
     pitch: f32,
+    roll: f32,
     view: Q,
     position: V,
     rotation: Q,
@@ -454,6 +455,7 @@ impl CubesWalkerCam {
             up: UP,
             forward: FORWARD,
             pitch: 0.,
+            roll: 0.,
             view: Q::IDENTITY,
             position: target,
             rotation: Q::IDENTITY,
@@ -510,6 +512,7 @@ impl CubesWalkerCam {
         self.pitch = pitch;
     }
     fn reset_view(&mut self) {
+        self.roll = 0.;
         self.view = look(
             add(
                 mul(self.forward, libm::cosf(self.pitch)),
@@ -595,11 +598,8 @@ impl CubesWalkerCam {
             self.advance_space_flight(dt);
         } else if self.fly {
             let movement = add(
-                add(
-                    mul(self.view.rotate(FORWARD), input.forward),
-                    mul(self.view.rotate([1., 0., 0.]), input.right),
-                ),
-                mul(self.up, input.vertical),
+                mul(self.view.rotate(FORWARD), input.forward),
+                mul(self.view.rotate([1., 0., 0.]), input.right),
             );
             if dot(movement, movement) > 0. {
                 let direction = norm(movement);
@@ -646,7 +646,18 @@ impl CubesWalkerCam {
         if self.solid.has(self.position) {
             self.position = target;
         }
-        self.rotation = slerp(self.rotation, self.view, ease);
+        // Roll only the view: surface contact and walking direction stay stable.
+        if self.fly {
+            self.roll = (self.roll + input.roll * core::f32::consts::FRAC_PI_2 * dt)
+                % core::f32::consts::TAU;
+        } else {
+            let limit = core::f32::consts::FRAC_PI_2 * 0.15;
+            let target = input.roll.clamp(-1., 1.) * limit;
+            self.roll += (target - self.roll) * (1. - libm::expf(-24. * dt));
+            self.roll = self.roll.clamp(-limit, limit);
+        }
+        let rolled_view = (self.view * Q::from_axis_angle([0., 0., 1.], self.roll)).normalized();
+        self.rotation = slerp(self.rotation, rolled_view, ease);
     }
     /// Only outside edges launch: ordinary steps and inside corners keep walking.
     fn begin_push_off(&mut self, fast_walk: bool) -> bool {
@@ -1213,6 +1224,80 @@ mod tests {
             );
             assert!(c.push_off.is_none());
             assert!(c.approach.is_some() || !c.fly);
+        }
+    }
+    #[test]
+    fn view_roll_is_reversible_and_does_not_change_contact_or_heading() {
+        let mut c = fixture(&[[0, 0, 0, 4]], [1.5, 4. + SKIN, 1.5], [1., 0., 0.]);
+        c.fly = true;
+        let foot = c.foot;
+        let heading = c.view.rotate(FORWARD);
+        for _ in 0..20 {
+            c.update(
+                Input {
+                    roll: 1.,
+                    ..Input::default()
+                },
+                0.025,
+            );
+        }
+        close(c.foot, foot);
+        close(c.up, UP);
+        close(c.rotation.rotate(FORWARD), heading);
+        assert!(dot(c.rotation.rotate(UP), UP) < 0.9);
+        assert!((c.roll - core::f32::consts::FRAC_PI_4).abs() < 1e-5);
+        for _ in 0..20 {
+            c.update(
+                Input {
+                    roll: -1.,
+                    ..Input::default()
+                },
+                0.025,
+            );
+        }
+        assert!(c.roll.abs() < 1e-5);
+        c.update(
+            Input {
+                align: true,
+                ..Input::default()
+            },
+            0.025,
+        );
+        assert_eq!(c.roll, 0.);
+    }
+    #[test]
+    fn walking_lean_is_bounded_returns_quickly_and_does_not_steer() {
+        for sign in [-1., 1.] {
+            let mut c = fixture(&[[0, 0, 0, 16]], [4., 16. + SKIN, 4.], [1., 0., 0.]);
+            let mut baseline = fixture(&[[0, 0, 0, 16]], [4., 16. + SKIN, 4.], [1., 0., 0.]);
+            let limit = core::f32::consts::FRAC_PI_2 * 0.15;
+            for _ in 0..20 {
+                c.update(
+                    Input {
+                        roll: sign,
+                        forward: 1.,
+                        ..Input::default()
+                    },
+                    0.025,
+                );
+                baseline.update(
+                    Input {
+                        forward: 1.,
+                        ..Input::default()
+                    },
+                    0.025,
+                );
+                assert!(c.roll.abs() <= limit);
+                close(c.foot, baseline.foot);
+                close(c.forward, baseline.forward);
+                close(c.up, baseline.up);
+            }
+            assert!((c.roll - sign * limit).abs() < 1e-4);
+            for _ in 0..12 {
+                c.update(Input::default(), 0.025);
+            }
+            assert!(c.roll.abs() < 0.001);
+            assert!(dot(c.rotation.rotate(UP), UP) > 0.9999);
         }
     }
     #[test]

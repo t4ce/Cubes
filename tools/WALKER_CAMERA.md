@@ -18,7 +18,10 @@ use west/bottom/top. This mapping survives puzzle rotations. Space flies toward 
 - In drift, press Space to approach the aimed cube at 48 voxels/s and attach.
   There is no range limit or cooldown; another press can retarget even during
   push-off. Holding Space through launch does not immediately trigger a return.
-- F no longer toggles walking/drift. Left Ctrl still descends in drift; Q has no camera binding.
+- Q/E while walking: visual lean up to ±13.5° (15% of a quarter-turn), returning
+  quickly on release without affecting movement. In flight: roll at 90°/s.
+  Home resets roll.
+- F and Ctrl have no camera binding.
 - Aim at a cube in drift: its white wireframe marks the Space destination.
 - Home: align the view to the current surface. R retains the world-cube control.
 
