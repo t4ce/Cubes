@@ -422,8 +422,11 @@ impl CubeScene {
             if event.dx != 0 || event.dy != 0 {
                 self.last_camera_activity_millis = elapsed_millis;
             }
-            if self.mode == SceneMode::Orchard && event.wheel != 0 {
-                self.carousel.wheel(-(event.wheel as i32));
+            if self.mode == SceneMode::Orchard {
+                if event.wheel != 0 {
+                    self.carousel.wheel(-(event.wheel as i32));
+                }
+                self.carousel.orbit.look(event.dx as f32, event.dy as f32);
             }
             if self.mode == SceneMode::World && self.portal_trip.is_none() {
                 if event.wheel != 0 {
@@ -625,7 +628,7 @@ impl CubeScene {
                 radius * libm::cosf(pitch) * libm::cosf(yaw),
             ];
             self.flycam.camera.position = if self.flight.is_none()
-                && matches!(self.mode, SceneMode::StaticCube | SceneMode::Orchard)
+                && self.mode == SceneMode::StaticCube
             {
                 radial
             } else {
@@ -641,7 +644,7 @@ impl CubeScene {
             ) {
                 self.look_target = radial.map(|v| -v);
             }
-            if !matches!(self.mode, SceneMode::World | SceneMode::MaterialShowcase)
+            if !matches!(self.mode, SceneMode::World | SceneMode::MaterialShowcase | SceneMode::Orchard)
                 && self.flight.is_none()
             {
                 self.flycam.camera.rotation =
@@ -750,13 +753,12 @@ impl CubeScene {
             self.window_opacity = opacity;
         }
         if self.mode == SceneMode::Orchard {
-            // Keep five full slots framed at every viewport aspect ratio.
-            let aspect=width.max(1) as f32/height.max(1) as f32;
-            let distance=(12.4/(aspect*libm::tanf(PUZZLE_YFOV*0.5))).max(4.0)+2.0;
+            let position = self.carousel.orbit.position(width, height, PUZZLE_YFOV);
+            let distance = libm::sqrtf(position.iter().map(|x| x * x).sum());
             if let Projection::Perspective {ref mut zfar, ..}=self.flycam.camera.projection {
                 *zfar=Some((distance+16.0).max(100.0));
             }
-            self.flycam.camera.position=[0.,0.,-distance];
+            self.flycam.camera.position = position;
             self.flycam.camera.rotation=look_at_camera_rotation(self.flycam.camera.position,[0.;3],[0.,-1.,0.]);
         }
         let camera = self
@@ -791,6 +793,7 @@ impl CubeScene {
             .map_err(|code| CubeError::Vgpu("surface-acquire", code))?;
         let puzzle_spacing = self.puzzle_spacing(elapsed_millis);
         if self.mode == SceneMode::Orchard {
+            self.carousel.view_forward = self.flycam.camera.rotation.rotate([0., 0., -1.]);
             self.carousel.prepare(elapsed_millis).map_err(|_| CubeError::Contract)?;
         }
         let companion = self.world_cube.visible(self.mode == SceneMode::World);
@@ -1380,6 +1383,15 @@ impl CubeScene {
         let network_held = state
             .as_ref()
             .is_some_and(|keyboard| keyboard.is_down(0x25));
+        let navigation = state.as_ref().map_or(0, |keyboard| {
+            (keyboard.is_down(0x04) as u8)
+                | ((keyboard.is_down(0x07) as u8) << 1)
+                | ((keyboard.is_down(0x1a) as u8) << 2)
+                | ((keyboard.is_down(0x16) as u8) << 3)
+        });
+        let (asset_step, group_step) = self.carousel.key_input(
+            navigation, self.mode == SceneMode::Orchard,
+        );
         self.network.key(
             network_held,
             self.flycam.camera.position,
@@ -1405,6 +1417,16 @@ impl CubeScene {
                 self.puzzle.cancel_travel(self.previous_elapsed_millis);
             }
             self.select_mode(selection, None)?;
+        } else if self.mode == SceneMode::Orchard {
+            if group_step != 0 {
+                let page = self.carousel.adjacent_group(group_step);
+                self.select_mode(modes::Selection {
+                    mode: SceneMode::Orchard, page: Some(page),
+                }, None)?;
+            }
+            if asset_step != 0 {
+                self.carousel.wheel(asset_step);
+            }
         }
         self.world_cube.key(
             r_held,
@@ -1671,11 +1693,14 @@ impl CubeScene {
         if self.mode == SceneMode::MaterialShowcase && mode != SceneMode::MaterialShowcase {
             self.walker_camera = None;
         }
+        if mode == SceneMode::Orchard && self.mode != mode {
+            self.carousel.orbit = carousel::Orbit::default();
+        }
         self.mode = mode;
         self.frame
             .set_center_snapped_mouse(matches!(
                 mode,
-                SceneMode::World | SceneMode::MaterialShowcase
+                SceneMode::World | SceneMode::MaterialShowcase | SceneMode::Orchard
             ))
             .map_err(|error| CubeError::Ui4("center-snapped-mouse", error))?;
         if mode == SceneMode::StaticCube {
@@ -1722,7 +1747,7 @@ impl CubeScene {
         if mode == SceneMode::Orchard {
             self.orbit=[core::f32::consts::PI,0.,12.];
             self.look_target=[0.;3];
-            logl::log(level::INFO,format_args!("Cubes: Key4 carousel group={} assets={} selected={} five slots alpha=.25/.5/1/.5/.25 wheel=slide",
+            logl::log(level::INFO,format_args!("Cubes: Key4 carousel group={} assets={} selected={} five slots alpha=.25/.5/1/.5/.25 wheel/AD=slide W/S=next/previous-group mouse=orbit",
                 self.carousel.name(),self.carousel.group_len(),self.carousel.asset_name()));
         } else if mode == SceneMode::World {
             self.flycam = FlyCam::new(default_camera(), 3.0);
@@ -1826,7 +1851,7 @@ impl CubeScene {
                         "2 compact-puzzle click=face/edge/corner turns=3x1s camera=WASD-orbit idle=3s-auto-orbit",
                     SceneMode::Sphere =>
                         "1 sphere=1024 camera=center WASD=look cursor-expand=10%-area Key1=interactive-grid",
-                    SceneMode::Orchard => "4 asset-carousel wheel=slide/loop Key4=next-generator-group five-assets alpha=.25/.5/1/.5/.25",
+                    SceneMode::Orchard => "4 asset-carousel wheel/AD=slide/loop W/S=next/previous-group mouse=orbit Key4=next-generator-group five-assets alpha=.25/.5/1/.5/.25",
                     SceneMode::World =>
                         "5 lvl27-world first-person mouse-look WASD=surface-walk Shift=walk/flight-boost Space=edge-push/approach Home=align Key5=next-world R=display-cube",
                     SceneMode::MaterialShowcase =>

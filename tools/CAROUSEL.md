@@ -1,10 +1,13 @@
 # Key4 asset carousel
 
 Key5 remains the world view. Key4 selects the next generator group; the wheel
-slides through that group's circular list. Five asset instances are kept live:
+slides through that group's circular list. A/D step backward/forward through assets;
+W/S step to the next/previous group, wrapping once per press. Five asset instances are kept live:
 centre opacity 1, immediate neighbours .5, outer neighbours .25. Short groups
-repeat assets to fill all five slots. The fixed camera reserves room for the
-incoming slot during a 333 ms slide and adapts to viewport aspect ratio.
+repeat assets to fill all five slots. Mouse movement orbits the centred selection
+with pitch limited to avoid the poles. The camera radius is two-thirds of the
+previous distance and adapts to viewport aspect ratio; the closer view can crop
+the outer slots. Group changes preserve the orbit. Slides take 333 ms.
 
 `Cube/asset-groups.json` contains only labels and asset filenames. Regenerate it
 from the HTML optgroups with `node tools/export_asset_groups.cjs`, or check it
@@ -27,7 +30,8 @@ Its size and position stay fixed. The four retained assets
 slide smoothly to their next positions; the outgoing edge instance is recycled
 as the incoming one. Wheel input during a slide is queued (up to 32 steps).
 
-All carousel cubes use the existing back-to-front group-1 alpha pass. The opaque
+All carousel cubes use the existing back-to-front group-1 alpha pass, sorted
+against the current orbit view direction. The opaque
 group contains a clipped anchor required by the retained API. RGB555 colours from
 all `.cubes` palettes are baked into a relocation-free lookup and validated by
 `build.rs`; re-exporting new colours requires rebaking/exporting the cube shader.

@@ -12,6 +12,33 @@ pub const DISPLAY_SIDE: f32 = 2.4;
 // RGB palette index (9 bits), translucency marker, opacity class, showcase class.
 // Uses the existing sorted group-1 contract, without changing renderer/server APIs.
 pub const FLAGS: u32 = 24576 | 512;
+pub struct Orbit {
+    yaw: f32,
+    pitch: f32,
+}
+impl Default for Orbit {
+    fn default() -> Self {
+        Self {
+            yaw: core::f32::consts::PI,
+            pitch: 0.,
+        }
+    }
+}
+impl Orbit {
+    pub fn look(&mut self, dx: f32, dy: f32) {
+        self.yaw = (self.yaw + dx * 0.003) % core::f32::consts::TAU;
+        self.pitch = (self.pitch - dy * 0.003).clamp(-1.35, 1.35);
+    }
+    pub fn position(&self, width: u32, height: u32, yfov: f32) -> [f32; 3] {
+        let aspect = width.max(1) as f32 / height.max(1) as f32;
+        let radius = ((12.4 / (aspect * libm::tanf(yfov * 0.5))).max(4.) + 2.) * (2. / 3.);
+        [
+            radius * libm::cosf(self.pitch) * libm::sinf(self.yaw),
+            radius * libm::sinf(self.pitch),
+            radius * libm::cosf(self.pitch) * libm::cosf(self.yaw),
+        ]
+    }
+}
 #[derive(Clone, Copy)]
 struct Slot {
     asset: usize,
@@ -33,6 +60,9 @@ pub struct Carousel {
     stride: usize,
     slide_start: Option<u64>,
     pending: i32,
+    held_keys: u8,
+    pub orbit: Orbit,
+    pub view_forward: [f32; 3],
     frame: Vec<Cube>,
     pub drawn: Vec<DrawCube>,
 }
@@ -56,6 +86,9 @@ impl Carousel {
             stride,
             slide_start: None,
             pending: 0,
+            held_keys: 0,
+            orbit: Orbit::default(),
+            view_forward: [0., 0., 1.],
             frame: frame_cubes(),
             drawn: Vec::new(),
         }
@@ -94,6 +127,22 @@ impl Carousel {
     }
     pub fn wheel(&mut self, step: i32) {
         self.pending = (self.pending + step.signum()).clamp(-32, 32);
+    }
+    // A/D/W/S bits, tracked outside Key4 too so held movement keys don't
+    // unexpectedly select an asset when entering the carousel.
+    pub fn key_input(&mut self, held: u8, active: bool) -> (i32, i32) {
+        let pressed = held & !self.held_keys;
+        self.held_keys = held;
+        if !active {
+            return (0, 0);
+        }
+        (
+            ((pressed & 2 != 0) as i32 - (pressed & 1 != 0) as i32),
+            ((pressed & 4 != 0) as i32 - (pressed & 8 != 0) as i32),
+        )
+    }
+    pub fn adjacent_group(&self, direction: i32) -> usize {
+        (self.group as i32 + direction).rem_euclid(self.groups.len() as i32) as usize
     }
     fn step(&mut self, direction: i32, now: u64) -> Result<(), &'static str> {
         self.selected =
@@ -183,9 +232,14 @@ impl Carousel {
         if self.drawn.len() + 1 > 8192 {
             return Err("carousel-seed-budget");
         }
-        // Fixed camera looks down +Z. Blend every cube back-to-front, including frame.
+        // Orbit changes depth order across slots as well as within each asset.
+        let depth = |cube: &DrawCube| {
+            (0..3)
+                .map(|a| cube.cube.center[a] * self.view_forward[a])
+                .sum::<f32>()
+        };
         self.drawn
-            .sort_unstable_by(|a, b| b.cube.center[2].total_cmp(&a.cube.center[2]));
+            .sort_unstable_by(|a, b| depth(b).total_cmp(&depth(a)));
         Ok(())
     }
 }
@@ -260,6 +314,64 @@ fn frame_cubes() -> Vec<Cube> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn navigation_steps_once_per_press_only_in_carousel_and_wraps_groups() {
+        let mut c = Carousel::new(crate::ASSETS, crate::GROUPS);
+        c.select_group(0).unwrap();
+        for (key, expected) in [(1, (-1, 0)), (2, (1, 0)), (4, (0, 1)), (8, (0, -1))] {
+            assert_eq!(c.key_input(key, false), (0, 0));
+            assert_eq!(c.key_input(key, true), (0, 0));
+            c.key_input(0, true);
+            assert_eq!(c.key_input(key, true), expected);
+            assert_eq!(c.key_input(key, true), (0, 0));
+            c.key_input(0, true);
+        }
+        assert_eq!(c.key_input(15, true), (0, 0));
+        assert_eq!(c.adjacent_group(-1), crate::GROUPS.len() - 1);
+        c.select_group(crate::GROUPS.len() - 1).unwrap();
+        assert_eq!(c.adjacent_group(1), 0);
+    }
+    #[test]
+    fn mouse_orbit_keeps_closer_radius_and_survives_group_changes() {
+        let mut c = Carousel::new(crate::ASSETS, crate::GROUPS);
+        let fov = core::f32::consts::FRAC_PI_3;
+        for (width, height) in [(784, 441), (441, 784), (2000, 400)] {
+            let old = (12.4 / (width as f32 / height as f32 * libm::tanf(fov / 2.))).max(4.) + 2.;
+            let radius = |p: [f32; 3]| libm::sqrtf(p.iter().map(|x| x * x).sum());
+            assert!((radius(c.orbit.position(width, height, fov)) - old * 2. / 3.).abs() < 1e-5);
+            c.orbit.look(200., 150.);
+            assert!((radius(c.orbit.position(width, height, fov)) - old * 2. / 3.).abs() < 1e-5);
+        }
+        let before = c.orbit.position(784, 441, fov);
+        c.select_group(1).unwrap();
+        assert_eq!(before, c.orbit.position(784, 441, fov));
+        c.orbit.look(1e6, 1e6);
+        assert_eq!(c.orbit.pitch, -1.35);
+        assert!(
+            c.orbit
+                .position(784, 441, fov)
+                .iter()
+                .all(|v| v.is_finite())
+        );
+    }
+    #[test]
+    fn transparent_cubes_sort_by_orbit_view_including_frame() {
+        let mut c = Carousel::new(crate::ASSETS, crate::GROUPS);
+        c.select_group(0).unwrap();
+        for now in (0..4000).step_by(16) {
+            c.prepare(now).unwrap();
+        }
+        for forward in [[1., 0., 0.], [0., 0., -1.], [0.6, 0.3, 0.7]] {
+            c.view_forward = forward;
+            c.prepare(4000).unwrap();
+            let depth = |d: &DrawCube| (0..3).map(|a| d.cube.center[a] * forward[a]).sum::<f32>();
+            assert!(
+                c.drawn
+                    .windows(2)
+                    .all(|pair| depth(&pair[0]) >= depth(&pair[1]))
+            );
+        }
+    }
     #[test]
     fn five_slots_wrap_every_exported_group_in_both_directions() {
         let mut c = Carousel::new(crate::ASSETS, crate::GROUPS);

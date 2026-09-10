@@ -11,6 +11,9 @@ extern crate self as libm;
 pub fn sqrtf(x:f32)->f32{x.sqrt()}
 pub fn floorf(x:f32)->f32{x.floor()}
 pub fn roundf(x:f32)->f32{x.round()}
+pub fn sinf(x:f32)->f32{x.sin()}
+pub fn cosf(x:f32)->f32{x.cos()}
+pub fn tanf(x:f32)->f32{x.tan()}
 '''
 for name,file in [('orchard','orchard'),('subcubes','SubCubes'),('cube_format','cube_format'),('reveal','reveal'),('carousel','carousel')]:
  source+=f'#[path="{ROOT}/src/{file}.rs"] mod {name};\n'
