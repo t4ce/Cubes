@@ -25,7 +25,7 @@ It uses the same 27 cubies and 54 sticker seeds as Key 2, with the same current
 permutation. It starts compact, opens for one second, and closes for one second
 on a 7.5-second cycle (5.5 seconds compact). It creates no turns or input target;
 first-person mouse look continues normally. Its 81 seeds are reserved from the
-existing 2048-seed budget. It is camera-relative geometry in the foreground
+existing 8192-seed budget. It is camera-relative geometry in the foreground
 scene, sharing that scene's depth test and lighting.
 
 A Key-2 action already underway continues when switching modes, allowing its

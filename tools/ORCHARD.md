@@ -4,7 +4,7 @@ Put `.cubes` files in `Cube/` and rebuild Cubes. The build discovers the 49
 showcase files in `Cube/Assets` in filename order; runtime decodes the grid
 page on first Key-4 entry and caches it. Key 4 shows every showcase asset
 once in a centered 7×7 2-D grid. The authored grid contains 12,760 cubes;
-per-frame visibility is limited to the renderer's 2,048-seed capacity while
+per-frame visibility is limited to the renderer's 8,192-seed capacity while
 all authored instances remain available to culling and reveal.
 The legacy orchard and pine pair path remains available in the asset module;
 their authored scales/colors, base alignment, and one-world-unit gap are unchanged.
@@ -25,10 +25,10 @@ CPU visibility uses the same rotated positions. Keys 1–4 retain their original
 coordinate conventions. World pages load only on selection and are cached for revisits. Worlds use
 immediate visibility admission, independent of Key 4's timed reveal. The demo
 camera is saved on entry and restored before switching back to Keys 1–4.
-World assets may contain up to 4,096 authored cubes, but the retained renderer
-caps each world frame at 2,048 seeds. Each frame uses the existing conservative
+World assets may contain up to 16,384 packed records, but the retained renderer
+caps each world frame at 8,192 seeds. Each frame uses the existing conservative
 frustum/occlusion pass, orders survivors nearest-first, and admits only the
-first 2,048 before the existing VS/HS/TE/DS path. Key 5 starts above the
+first 8,192 before the existing VS/HS/TE/DS path. Key 5 starts above the
 center of the world plane. Mouse movement controls yaw/pitch; WASD walks on
 the XZ grid plane, independent of view pitch. Moving the camera changes that
 camera-relative selection; no CPU mesh expansion, extra renderer submission,

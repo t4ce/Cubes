@@ -6,7 +6,7 @@ use alloc::vec::Vec;
 pub const PLACEMENT_SCALE: f32 = 1.0;
 pub const PREVIEW_SEEDS: usize = 384;
 pub const GHOST_SEEDS: usize = 768;
-pub const FULL_WORLD_SEEDS: usize = 768;
+pub const FULL_WORLD_SEEDS: usize = 3840;
 pub const MAX_PLACED_CUBES: usize = 16_384;
 
 pub struct Brush {

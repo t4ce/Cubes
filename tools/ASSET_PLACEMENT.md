@@ -21,9 +21,9 @@ Placed cubes use Key4's reveal controller: 120 ms initial wait, at most 1,600
 starts per second and 96 per frame. Adding another asset preserves existing
 reveal state. Each world stores at most 16,384 added cubes.
 
-The 2,048-seed frame limit includes both previews. The asset inset uses at most
+The 8,192-seed frame limit includes both previews. The asset inset uses at most
 384 evenly sampled cubes for larger assets. The placement ghost reserves up to
-768 evenly sampled marker seeds within that same total budget. Up to 768 nearest eligible world
+768 evenly sampled marker seeds within that same total budget. Up to 3,840 nearest eligible world
 cubes use full geometry; smaller-than-two-pixel and excess cubes use the existing
 flat-marker shader path. Marker widths follow projected cube size, clamped to
 1–9 pixels. Further seeds beyond the total frame budget are culled. Markers do
