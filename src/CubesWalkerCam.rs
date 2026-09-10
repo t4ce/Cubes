@@ -617,10 +617,87 @@ impl CubesWalkerCam {
             self.drift_half_extent * 4.,
         )
     }
-    pub fn snap_outline(&self) -> Option<SnapOutline> {
-        if !self.fly {
-            return None;
+    pub fn placement_target(&self) -> Option<(V, V)> {
+        let hit = self.snap_target()?;
+        let inside = sub(hit.point, mul(hit.normal, EPS));
+        let c = self
+            .cubes
+            .iter()
+            .find(|c| (0..3).all(|a| inside[a] >= c.lo[a] && inside[a] < c.lo[a] + c.size))?;
+        let center = add(c.lo, [c.size * 0.5; 3]);
+        Some((
+            mul(add(center, mul(hit.normal, c.size * 0.5)), self.unit),
+            hit.normal,
+        ))
+    }
+    /// Add collision on the same ideal grid as authored cubes, ignoring visual gaps.
+    pub fn add_placed(&mut self, pieces: &[(V, f32)]) -> bool {
+        let bounds: Vec<_> = pieces
+            .iter()
+            .map(|&(center, scale)| {
+                let size = libm::roundf(scale * 2. / self.unit).max(1.);
+                let lo = sub(mul(center, 1. / self.unit), [size * 0.5; 3]).map(libm::roundf);
+                CubeBounds {
+                    lo,
+                    size,
+                    gap: (size - scale * 2. / self.unit).max(0.),
+                }
+            })
+            .collect();
+        let h = self.drift_half_extent as i32;
+        for c in &bounds {
+            // Keep every portal's connector and arrival area usable on revisits.
+            if self.portals.iter().flatten().any(|p| {
+                (0..3).all(|a| c.lo[a] < p.front[a] + 3. && c.lo[a] + c.size > p.front[a] - 3.)
+            }) {
+                return false;
+            }
+            if (0..3).any(|a| c.lo[a] < -h as f32 || c.lo[a] + c.size > h as f32) {
+                return false;
+            }
+            if (0..3).all(|a| {
+                self.position[a] >= c.lo[a] - 0.12 && self.position[a] <= c.lo[a] + c.size + 0.12
+            }) {
+                return false;
+            }
+            for x in 0..c.size as i32 {
+                for y in 0..c.size as i32 {
+                    for z in 0..c.size as i32 {
+                        if self.solid.has(add(c.lo, [x as f32, y as f32, z as f32])) {
+                            return false;
+                        }
+                    }
+                }
+            }
         }
+        // Reserve the world flight envelope once when editing first needs it.
+        if self.solid.lo != [-h; 3] || self.solid.dims != [(h * 2) as usize; 3] {
+            self.solid = Solid::new([-h; 3], [h; 3]);
+            for c in &self.cubes {
+                for x in 0..c.size as i32 {
+                    for y in 0..c.size as i32 {
+                        for z in 0..c.size as i32 {
+                            self.solid
+                                .insert(cell(add(c.lo, [x as f32, y as f32, z as f32])));
+                        }
+                    }
+                }
+            }
+        }
+        for c in &bounds {
+            for x in 0..c.size as i32 {
+                for y in 0..c.size as i32 {
+                    for z in 0..c.size as i32 {
+                        self.solid
+                            .insert(cell(add(c.lo, [x as f32, y as f32, z as f32])));
+                    }
+                }
+            }
+        }
+        self.cubes.extend(bounds);
+        true
+    }
+    pub fn snap_outline(&self) -> Option<SnapOutline> {
         let hit = self.snap_target()?;
         let inside = sub(hit.point, mul(hit.normal, EPS));
         let cube = self
@@ -1390,6 +1467,16 @@ mod tests {
                 );
             }
         }
+    }
+    #[test]
+    fn placed_cubes_join_collision_and_cannot_overlap_existing_solids() {
+        let mut c = fixture(&[[0, 0, 0, 4]], [1.5, 4. + SKIN, 1.5], [1., 0., 0.]);
+        let placed = [(mul([4.5, 0.5, 0.5], c.unit), c.unit * 0.495)];
+        assert!(c.add_placed(&placed));
+        assert!(c.solid.has([4.5, 0.5, 0.5]));
+        assert!(!c.add_placed(&placed));
+        let hit = c.solid.ray([6., 0.5, 0.5], [-1., 0., 0.], 10.).unwrap();
+        close(hit.point, [5., 0.5, 0.5]);
     }
     #[test]
     fn flight_mouse_axes_follow_roll_at_every_bank_angle() {

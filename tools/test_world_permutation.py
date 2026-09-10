@@ -13,14 +13,46 @@ pub fn sinf(x:f32)->f32 {x.sin()}
 pub fn cosf(x:f32)->f32 {x.cos()}
 pub fn atan2f(y:f32,x:f32)->f32 {y.atan2(x)}
 pub fn floorf(x:f32)->f32 {x.floor()}
+pub fn roundf(x:f32)->f32 {x.round()}
 '''
-for module in ('rubik', 'grid', 'picking', 'orchard', 'environment', 'world_topology', 'world_portals', 'world_cube', 'transition'):
+for module in ('rubik', 'grid', 'picking', 'orchard', 'environment', 'world_topology', 'world_portals', 'world_cube', 'transition', 'asset_brush'):
     source += f'#[path="{APP}/src/{module}.rs"] mod {module};\n'
 source += 'const ASSETS: &[(&str, &[u8])] = &[\n'
 for path in sorted((APP/'Cube/lvl27').glob('*.cubes')):
     source += f'("{path.name}",include_bytes!("{path}")),\n'
 source += '];\n'
+source += 'const BRUSH_ASSETS: &[(&str, &[u8])] = &[\n'
+for path in sorted((APP/'Cube/Assets').glob('*.cubes')):
+    source += f'("{path.name}",include_bytes!("{path}")),\n'
+source += '];\n'
 source += r'''
+#[test]
+fn all_catalog_assets_fit_preview_and_place_on_grid() {
+    let mut brush=asset_brush::Brush::new(BRUSH_ASSETS);
+    for (index, &(name,bytes)) in BRUSH_ASSETS.iter().enumerate() {
+        brush.catalog.load(index).unwrap();
+        let asset=&brush.catalog[index];
+        let preview=world_cube::Placement::asset(784,441,0.41421356,asset.radius);
+        for c in &asset.cubes {
+            let (p,s)=preview.asset_pose(c.center,c.scale);
+            assert!(p[0] < 0. && p[1] > 0. && p[2] < -0.1, "{}",name);
+            assert!(s>0.);
+        }
+        for axis in 0..3 { for sign in [-1.,1.] {
+            let mut n=[0.;3];n[axis]=sign;
+            let pieces=asset_brush::place(bytes,[0.;3],n);
+            assert_eq!(pieces.len(),asset.cubes.len());
+            for c in pieces {
+                let half=roundf(c.scale*10.)*0.1;
+                assert!(c.center[axis]*sign-half > -0.0001);
+                for a in 0..3 {
+                    let lo=(c.center[a]-half)*5.;
+                    assert!((lo-roundf(lo)).abs()<0.001);
+                }
+            }
+        } }
+    }
+}
 #[test]
 fn entry_uses_current_permutation_and_real_authored_floors_never_change() {
     let mut puzzle = rubik::Puzzle::new(0);

@@ -60,6 +60,27 @@ impl Placement {
                 + (grid::CUBE_GRID_SPACING - grid::CUBE_COMPACT_SPACING) * expansion,
         }
     }
+    pub fn asset(width: u32, height: u32, tan_half_fov: f32, radius: f32) -> Self {
+        let h = height.max(1) as f32;
+        let w = width.max(1) as f32;
+        let edge = (w.min(h) * 0.28).min(160.);
+        let pad = 14.;
+        let half = edge / h * tan_half_fov;
+        let x = -(w - 2. * pad - edge) / h * tan_half_fov;
+        let y = (h - 2. * pad - edge) / h * tan_half_fov;
+        Self {
+            center: [x, y, -1.],
+            factor: half / (radius.max(0.01) * (1. + half + x.abs().max(y.abs()))),
+            spacing: 1.,
+        }
+    }
+    pub fn asset_pose(&self, center: [f32; 3], scale: f32) -> ([f32; 3], f32) {
+        let p = orient(center);
+        (
+            core::array::from_fn(|a| self.center[a] + p[a] * self.factor),
+            scale * self.factor,
+        )
+    }
     pub fn pose(&self, cell: [f32; 3], basis: [[f32; 3]; 3]) -> ([f32; 3], [[f32; 3]; 3], f32) {
         let p = orient(cell);
         (
@@ -69,7 +90,7 @@ impl Placement {
         )
     }
 }
-fn orient([x, y, z]: [f32; 3]) -> [f32; 3] {
+pub fn orient([x, y, z]: [f32; 3]) -> [f32; 3] {
     // Fixed isometric presentation, with the Key-2 -Y-up convention retained.
     let (y, z) = (-0.921061 * y + 0.389418 * z, -0.389418 * y - 0.921061 * z);
     [0.825336 * x + 0.564642 * z, y, -0.564642 * x + 0.825336 * z]

@@ -30,7 +30,9 @@ The trigger tests a crossing of the opening, not contact with its decorative rin
   Flight mouse-look and A/D strafing follow the rolled screen axes, with unrestricted local turns.
   Home resets roll.
 - F and Ctrl have no camera binding.
-- Aim at a cube in drift: its white wireframe marks the Space destination.
+- Aim at a cube: its white wireframe marks the placement target; in drift it
+  also marks the Space destination. Wheel selects a top-left asset; left-click
+  places it on the aimed face. See `ASSET_PLACEMENT.md`.
 - Home: align the view to the current surface. R retains the world-cube control.
 
 The HTML Explore camera settings are retained, with faster movement: 45-degree FOV, 0.003 rad/pixel look,

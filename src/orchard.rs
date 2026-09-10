@@ -656,7 +656,19 @@ pub fn visible_when_limited<'a>(
     eye: [f32; 3],
     matrix: &[f32; 16],
     max_visible: usize,
+    admit: impl FnMut(usize) -> bool,
+) -> (&'a [usize], VisibilityStats) {
+    visible_with_lod(scratch, asset, eye, matrix, max_visible, admit, |_, _| true)
+}
+
+pub fn visible_with_lod<'a>(
+    scratch: &'a mut VisibilityScratch,
+    asset: &Asset,
+    eye: [f32; 3],
+    matrix: &[f32; 16],
+    max_visible: usize,
     mut admit: impl FnMut(usize) -> bool,
+    mut occludes: impl FnMut(usize, usize) -> bool,
 ) -> (&'a [usize], VisibilityStats) {
     scratch.depth.fill(f32::INFINITY);
     scratch.projected.clear();
@@ -698,7 +710,7 @@ pub fn visible_when_limited<'a>(
             stats.pending += 1;
             continue;
         }
-        if candidate.projection.is_some() {
+        if candidate.projection.is_some() && occludes(candidate.id, scratch.visible.len()) {
             let cube = asset.cubes[candidate.id];
             let inner = Cube {
                 scale: cube.scale * INNER_SCALE,
@@ -1266,6 +1278,31 @@ mod tests {
             collectively_removed > 0,
             "collective culling must improve real assets"
         );
+    }
+    #[test]
+    fn marker_lod_does_not_occlude_with_the_full_cube_footprint() {
+        let asset = scene(alloc::vec![cube([0., 0., 4.], 1.), cube([0., 0., 8.], 0.3)]);
+        let mut scratch = VisibilityScratch::new();
+        let (ids, _) = visible_with_lod(
+            &mut scratch,
+            &asset,
+            [0.; 3],
+            &PERSPECTIVE,
+            2,
+            |_| true,
+            |_, _| false,
+        );
+        assert_eq!(ids, &[0, 1]);
+        let (ids, _) = visible_with_lod(
+            &mut scratch,
+            &asset,
+            [0.; 3],
+            &PERSPECTIVE,
+            1,
+            |_| true,
+            |_, _| false,
+        );
+        assert_eq!(ids, &[0]);
     }
     #[test]
     fn pending_cubes_cannot_occlude_already_admitted_cubes() {

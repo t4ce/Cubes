@@ -48,6 +48,11 @@ impl Reveal {
         self.credit = 0;
     }
 
+    /// Adding placed cubes preserves the reveal state of existing instances.
+    pub fn append(&mut self, source: usize) {
+        self.seeds.resize(source, Seed::default());
+    }
+
     pub fn begin_frame(&mut self, now: u64, source: usize) {
         if self.seeds.len() != source {
             self.reset();
@@ -173,6 +178,15 @@ mod tests {
         assert_eq!(frame(&mut reveal, 300, 3, &[1, 2]), [1, 2]);
     }
 
+    #[test]
+    fn appending_placement_does_not_restart_existing_reveal() {
+        let mut reveal = Reveal::new();
+        frame(&mut reveal, 0, 1, &[0]);
+        assert_eq!(frame(&mut reveal, 120, 1, &[0]), [0]);
+        reveal.append(2);
+        assert_eq!(frame(&mut reveal, 140, 2, &[0, 1]), [0]);
+        assert_eq!(frame(&mut reveal, 260, 2, &[0, 1]), [0, 1]);
+    }
     #[test]
     fn page_reset_clears_equal_size_assets_and_empty_scenes() {
         let mut reveal = Reveal::new();

@@ -46,6 +46,7 @@ pub fn cosf(x:f32)->f32 {x.cos()}
 pub fn acosf(x:f32)->f32 {x.acos()}
 pub fn expf(x:f32)->f32 {x.exp()}
 pub fn floorf(x:f32)->f32 {x.floor()}
+pub fn roundf(x:f32)->f32 {x.round()}
 pub fn ceilf(x:f32)->f32 {x.ceil()}
 '''
 source += f'#[path="{APP.parent}/TRUEOS-Picasso/src/cam.rs"] pub mod cam;\n'
