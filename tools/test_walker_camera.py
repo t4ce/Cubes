@@ -2,6 +2,7 @@
 """Exercise the production walker against the HTML reference and all world pages."""
 from pathlib import Path
 import json
+import argparse
 import subprocess
 import tempfile
 
@@ -30,7 +31,10 @@ for(const distance of [.2,.5,.6,-.3,.8,.4,.9,1.2,2.1,3.2,.6,-.4]){
 console.log(JSON.stringify(rows));`;
 eval(math+'\n'+ray+'\n'+controller+'\n'+fixtures);
 '''
-rows = json.loads(subprocess.check_output(['node', '-e', reference_js, str(APP/'Cube/WorldShowcase.html')], text=True))
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--reference', type=Path, default=APP/'Cube/WorldShowcase.html')
+args = parser.parse_args()
+rows = json.loads(subprocess.check_output(['node', '-e', reference_js, str(args.reference)], text=True))
 source = '''#![allow(dead_code)]
 extern crate alloc;
 extern crate self as libm;

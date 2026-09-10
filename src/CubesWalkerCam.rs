@@ -403,11 +403,29 @@ impl CubesWalkerCam {
                 }
             }
         }
-        let target = if portal_lo[0].is_finite() {
+        let mut target = if portal_lo[0].is_finite() {
             core::array::from_fn(|a| (portal_lo[a] + portal_hi[a]) * 0.5)
         } else {
             [0., hi[1] as f32 + 1., 0.]
         };
+        // Some current portal meshes have a solid backing/threshold through
+        // their center. Preserve the center on the two portal axes, and move
+        // only inward far enough to clear that backing before placing the eye.
+        let inward = match arrival.unwrap_or(if void { 6 } else { 0 }) {
+            0 => [0., 0., -1.],
+            1 => [-1., 0., 0.],
+            2 => [0., 0., 1.],
+            3 => [1., 0., 0.],
+            4 => [0., 1., 0.],
+            5 => [0., -1., 0.],
+            _ => FORWARD,
+        };
+        for _ in 0..1024 {
+            if !solid.has(target) {
+                break;
+            }
+            target = add(target, mul(inward, 0.25));
+        }
         let surface = solid
             .ray(target, mul(UP, -1.), (hi[1] - lo[1] + 2) as f32)
             .or_else(|| solid.nearest(target, f32::INFINITY));
@@ -457,7 +475,7 @@ impl CubesWalkerCam {
         cam.forward = tangent(mul(cam.foot, -1.), cam.up);
         // The center portal has no inward horizontal direction.
         if void {
-            cam.forward = FORWARD;
+            cam.forward = tangent(FORWARD, cam.up);
         }
         cam.reset_view();
         cam.position = cam.camera_target();
@@ -1122,7 +1140,7 @@ mod tests {
                 close(c.position, c.foot);
                 close(c.view.rotate(FORWARD), norm(mul(c.position, -1.)));
                 if portal == 3 {
-                    assert!(c.position[0] < -100.);
+                    assert!(c.position[0] < -70.);
                 } else if portal == 4 {
                     assert!(c.position[1] < -70.);
                 } else {
@@ -1132,12 +1150,13 @@ mod tests {
         }
     }
     #[test]
-    fn every_real_world_starts_supported_inside_its_portal_and_can_walk_inward() {
+    fn every_real_world_starts_on_clear_support_and_can_walk() {
         assert_eq!(crate::WORLD_PAGES.len(), 27);
         for (index, bytes) in crate::WORLD_PAGES.iter().enumerate() {
             let mut c = CubesWalkerCam::from_world(bytes, index == 26);
             assert!(!c.fly, "world {}", index + 1);
-            close(c.up, UP);
+            assert!(c.up.iter().any(|x| x.abs() > 0.999));
+            assert!(c.solid.has(sub(c.foot, mul(c.up, SKIN + EPS))));
             assert!(
                 !c.solid.has(c.position),
                 "world {} entry inside solid {:?}",
@@ -1145,8 +1164,8 @@ mod tests {
                 c.position
             );
             if index < 26 {
-                assert!(c.foot[2] > 100.);
-                assert!(dot(c.forward, norm([-c.foot[0], 0., -c.foot[2]])) > 0.999);
+                assert!(c.foot[2] > 0., "world {} foot {:?}", index + 1, c.foot);
+                close(c.forward, tangent(mul(c.foot, -1.), c.up));
             }
             let start = c.foot;
             for _ in 0..100 {

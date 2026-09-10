@@ -1152,7 +1152,9 @@ impl CubeScene {
         self.last_camera_activity_millis = self.previous_elapsed_millis;
         self.finished_at = None;
         self.flight = None;
-        self.selected_entry = None;
+        if self.puzzle.selected().is_none() {
+            self.selected_entry = None;
+        }
         self.arrival_fade = None;
         if mode == SceneMode::StaticCube {
             let p = camera_entry::puzzle_position(self.flycam.camera.position);
