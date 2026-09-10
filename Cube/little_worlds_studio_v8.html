@@ -247,7 +247,7 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
   <div class="generation-note"><strong>One frame. Equal colour.</strong><br>Solid, halves, or thirds. Rainbow for Void. A clear 2 × 2 centre.</div>
   <div class="field-head"><label for="portalStyle">Circle structure</label><span style="font:8px var(--mono)">LIVE</span></div>
   <select id="portalStyle"><option value="halo">Halo · full circular band</option><option value="terraced">Terraced · stepped rim</option><option value="twin">Twin ring · bridged circles</option></select>
-  <div class="field"><div class="field-head"><label for="portalOpening">Clear opening</label><output id="portalOpeningValue">4.8 blocks</output></div><input id="portalOpening" type="range" min="4.8" max="7.2" step="0.4" value="4.8"></div>
+  <div class="field"><div class="field-head"><label for="portalOpening">Clear opening</label><output id="portalOpeningValue">4.8 blocks</output></div><input id="portalOpening" type="range" min="4.8" max="8.0" step="0.4" value="8.0"></div>
   <div class="field"><div class="field-head"><label for="portalDepth">Frame depth</label><output id="portalDepthValue">3 layers</output></div><input id="portalDepth" type="range" min="2" max="5" step="1" value="3"></div>
   <div class="portal-colour-actions"><button id="portalRotation" type="button" title="Rotate the equal colour sections by 30 degrees">Rotate colours · 0°</button><label class="checks" title="Disable portal lighting to inspect the exact palette colours"><input id="portalFlatColours" type="checkbox"><span>Flat colours</span></label></div>
   <div id="portalDesignNote" class="field-note">Live changes keep terrain and routes fixed.</div>
@@ -571,14 +571,25 @@ if(voidPureReturnCount!==6) throw new Error(`Expected 6 Void→pure portals, got
  * 0.4-block frame cubes surround a reserved, centered 2 × 2 terrain-block run.
  * Design settings affect only frame meshes; the maximum keep-out envelope and
  * path sockets are fixed, so live experiments do not rebuild the terrain. */
-const PORTAL_UNIT=.4,PORTAL_INSET=1.5,PORTAL_MAX_RADIUS=6.4,PORTAL_MAX_DEPTH=1.4,PORTAL_RUN=12;
+const PORTAL_UNIT=.4,PORTAL_INSET=.6,PORTAL_MAX_RADIUS=6.8,PORTAL_MAX_DEPTH=1.4,PORTAL_RUN=12;
 const PORTAL_STYLES=Object.freeze(['halo','terraced','twin']);
-const DEFAULT_PORTALS=Object.freeze({style:'halo',opening:4.8,depth:3,rotation:0,flatColours:false});
+const DEFAULT_PORTALS=Object.freeze({style:'twin',opening:8.0,depth:3,rotation:0,flatColours:false});
 const RAINBOW=Object.freeze(['#EF6969','#EDA34C','#E4CE64','#70B97C','#64BDD8','#7985D8','#BD7BD4']);
 const portalShapeCache=new Map();
 function portalSettings(d){return d.portals||DEFAULT_PORTALS;}
+function portalStyleForEdge(edge){
+ if(edge?.action==='leave')return 'terraced';
+ const target=edge?.targetWorldId?WORLDS[edge.targetWorldId-1]:null;
+ return target?.kind==='single'?'terraced':'twin';
+}
+function defaultPortalStyles(world){
+ return Object.fromEntries([...ALL_FACES,...(world.centerPortal?['center']:[])].map(face=>{
+  const edge=face==='center'?world.centerPortal:world.faces[face];
+  return [face,portalStyleForEdge(edge)];
+ }));
+}
 function validatePortalSettings(p){
- if(!p||!PORTAL_STYLES.includes(p.style)||!Number.isFinite(p.opening)||p.opening<4.8-1e-6||p.opening>7.2+1e-6||Math.abs(p.opening/.4-Math.round(p.opening/.4))>1e-6||!Number.isInteger(p.depth)||p.depth<2||p.depth>5||!Number.isInteger(p.rotation)||p.rotation<0||p.rotation>=360||p.rotation%30!==0||typeof p.flatColours!=='boolean')throw new Error('Invalid portal design. Use a listed circle style, 4.8–7.2 opening, 2–5 layers and 30° colour steps.');
+ if(!p||!PORTAL_STYLES.includes(p.style)||!Number.isFinite(p.opening)||p.opening<4.8-1e-6||p.opening>8.0+1e-6||Math.abs(p.opening/.4-Math.round(p.opening/.4))>1e-6||!Number.isInteger(p.depth)||p.depth<2||p.depth>5||!Number.isInteger(p.rotation)||p.rotation<0||p.rotation>=360||p.rotation%30!==0||typeof p.flatColours!=='boolean')throw new Error('Invalid portal design. Use a listed circle style, 4.8–8.0 opening, 2–5 layers and 30° colour steps.');
  return {style:p.style,opening:Math.round(p.opening*10)/10,depth:p.depth,rotation:p.rotation,flatColours:p.flatColours};
 }
 function portalFrameCells(settings=DEFAULT_PORTALS){
@@ -631,9 +642,10 @@ function orientHalf(h,q){
  return new V3(Math.abs(a.x)+Math.abs(b.x)+Math.abs(c.x),Math.abs(a.y)+Math.abs(b.y)+Math.abs(c.y),Math.abs(a.z)+Math.abs(b.z)+Math.abs(c.z));
 }
 function portalInfo(world,d){
- const h=halfOf(d),infos=[],settings=portalSettings(d),shape=portalFrameCells(settings);
+ const h=halfOf(d),infos=[];
  for(const face of [...ALL_FACES,...(world.centerPortal?['center']:[])]){
   const edge=face==='center'?world.centerPortal:world.faces[face],normal=FACE_NORMAL[face];
+  const settings={...portalSettings(d),style:d.portalStyles?.[face]||portalStyleForEdge(edge)},shape=portalFrameCells(settings);
   const pos=face==='center'?new V3():normal.clone().multiplyScalar(-(h-PORTAL_INSET));
   const q=new Q4().setFromUnitVectors(new V3(0,0,1),normal);
   const half=orientHalf(new V3(PORTAL_MAX_RADIUS,PORTAL_MAX_RADIUS,PORTAL_MAX_DEPTH),q),renderHalf=orientHalf(shape.half,q);
@@ -643,7 +655,7 @@ function portalInfo(world,d){
   else if(normal[axis]<0){runLo[axis]=h-PORTAL_RUN;runHi[axis]=h;}
   else{runLo[axis]=-h;runHi[axis]=-h+PORTAL_RUN;}
   const mouth=new V3();mouth[axis]=face==='center'?PORTAL_RUN:normal[axis]<0?h-PORTAL_RUN:-h+PORTAL_RUN-1;
-  infos.push({face,edge,pos,normal,q,axis,transverse,circle:true,half,renderHalf,localHalf:shape.half,shape,mix:portalMixIds(edge),runLo,runHi,mouth});
+  infos.push({face,edge,pos,normal,q,axis,transverse,circle:true,half,renderHalf,localHalf:shape.half,shape,settings,mix:portalMixIds(edge),runLo,runHi,mouth});
  }
  return infos;
 }
@@ -669,7 +681,7 @@ const FACE_NORMAL={north:new V3(0,0,1),south:new V3(0,0,-1),east:new V3(-1,0,0),
 const PALETTES={1:'#93c8d1',2:'#938791',3:'#8b85b1',4:'#e6d797',5:'#93b995',6:'#d89c92',S:'#bba0cd'};
 function themeFor(id){return id==='S'?SPECIAL_THEME:id==='L'?LEAVE_PORTAL:themeById.get(id);}
 function portalMixIds(edge){return edge.action==='leave'?['L']:WORLDS[edge.targetWorldId-1].themes;}
-function makeData(world){return {id:world.id,spanChunks:DEFAULT_SPAN,portals:{...DEFAULT_PORTALS},generated:false,modules:[],config:{seed:'little-'+String(world.id).padStart(2,'0'),count:10,growthEnabled:true,cubeTheme:world.themes[0],bend:45,height:55,loops:20,autoPaths:true}};}
+function makeData(world){return {id:world.id,spanChunks:DEFAULT_SPAN,portals:{...DEFAULT_PORTALS},portalStyles:defaultPortalStyles(world),generated:false,modules:[],config:{seed:'little-'+String(world.id).padStart(2,'0'),count:10,growthEnabled:true,cubeTheme:world.themes[0],bend:45,height:55,loops:20,autoPaths:true}};}
 let levelData=WORLDS.map(makeData);
 const histories=WORLDS.map(()=>({undo:[],redo:[]}));
 const cellKey=c=>c.join(',');
@@ -992,7 +1004,12 @@ function validateProject(json){
   if(!permitted.includes(raw.spanChunks))throw new Error(native?'Every world must be 4 × 4 × 4 chunks.':'Unsupported legacy world layout.');
   if(!Array.isArray(raw.modules)||raw.modules.length>MAX_MODULES)throw new Error('Invalid object list (maximum 128 per level).');
   const world=WORLDS[raw.id-1],out=makeData(world),c=raw.config;
-  if(json.version===6)out.portals=validatePortalSettings(raw.portals);
+  if(json.version===6){
+   out.portals=validatePortalSettings(raw.portals);
+   const styles=raw.portalStyles&&typeof raw.portalStyles==='object'?raw.portalStyles:{};
+   const defaults=defaultPortalStyles(world);
+   out.portalStyles=Object.fromEntries(Object.keys(defaults).map(face=>[face,PORTAL_STYLES.includes(styles[face])?styles[face]:defaults[face]]));
+  }
   if(!c||typeof c.seed!=='string'||c.seed.length>96||typeof c.autoPaths!=='boolean')throw new Error('Invalid generation settings.');
   for(const [k,lo,hi] of [['count',0,16],['bend',0,100],['height',0,100],['loops',0,100]])
    if(!Number.isFinite(c[k])||c[k]<lo||c[k]>hi||(k==='count'&&!Number.isInteger(c[k])))throw new Error('Invalid '+k+' value.');
@@ -1065,14 +1082,14 @@ function updatePortalLabels(){for(const {el,portal:o} of portalElements){const u
  * portals. Nothing is spawned into the model by the inspection controls. */
 let portalFace='east',portalFocus=null,showPortalRun=false,portalGesture=null,portalSummaries=[],portalRenderBuilds=0;
 function renderPortals(){
- currentPortals=portalInfo(world(),data());const ports=[],settings=portalSettings(data());portalSummaries=[];portalRenderBuilds++;
+ currentPortals=portalInfo(world(),data());const ports=[];portalSummaries=[];portalRenderBuilds++;
  for(const o of currentPortals){
-  const painted=balancedPortalCells(o.shape,o.mix,settings.rotation),colours=painted.palette.map(p=>hexRGB(p.hex));
+  const painted=balancedPortalCells(o.shape,o.mix,o.settings.rotation),colours=painted.palette.map(p=>hexRGB(p.hex));
   // Leave keeps its neutral, softly lifted original base colour. Ordinary
   // theme cubes use exactly their palette colour, with no patchy white accents.
   if(o.edge.action==='leave')colours[0]=mixRGB(colours[0],[.97,.98,.95],.08);
-  for(const c of painted.cells){const p=new V3(c.u,c.v,c.z).applyQuaternion(o.q).add(o.pos);instance(ports,p,PORTAL_UNIT-.011,colours[c.colour],o.q,settings.flatColours?-1:.04);}
-  portalSummaries.push({face:o.face,target:o.edge.targetWorldId,action:o.edge.action,style:settings.style,cubes:painted.cells.length,dimensions:o.shape.half.toArray().map(x=>Math.round(x*20)/10),palette:painted.palette,counts:painted.counts,center:o.pos.toArray(),mouth:o.mouth.toArray()});
+  for(const c of painted.cells){const p=new V3(c.u,c.v,c.z).applyQuaternion(o.q).add(o.pos);instance(ports,p,PORTAL_UNIT-.011,colours[c.colour],o.q,o.settings.flatColours?-1:.04);}
+  portalSummaries.push({face:o.face,target:o.edge.targetWorldId,action:o.edge.action,style:o.settings.style,cubes:painted.cells.length,dimensions:o.shape.half.toArray().map(x=>Math.round(x*20)/10),palette:painted.palette,counts:painted.counts,center:o.pos.toArray(),mouth:o.mouth.toArray()});
  }
  renderEngine.setBatch('portals',ports);fillPortalLabels();updatePortalPreview();
 }
@@ -1089,8 +1106,9 @@ function updatePortalPreview(){
  renderEngine.setBatch('portalDemo',blocks,.19);renderEngine.setLines('portalDemoGrid',lines);
 }
 function updatePortalUI(){
- const s=portalSettings(data()),summary=portalSummaries.find(p=>p.face===portalFace)||portalSummaries[0];
+ const base=portalSettings(data()),summary=portalSummaries.find(p=>p.face===portalFace)||portalSummaries[0];
  if(!summary)return;
+ const s={...base,style:summary.style};
  $('portalStyle').value=s.style;$('portalOpening').value=s.opening;$('portalDepth').value=s.depth;
  $('portalOpeningValue').textContent=s.opening.toFixed(1)+' blocks';$('portalDepthValue').textContent=s.depth+' layers';
  $('portalFlatColours').checked=s.flatColours;$('portalRunPreview').checked=showPortalRun;
@@ -1140,11 +1158,12 @@ function updatePortalSetting(key,value,{snapshotBefore=true}={}){
  try{validatePortalSettings(next);}catch(err){toast(err.message,true);updatePortalUI();return false;}
  if(portalSettings(data())[key]===value)return true;
  if(snapshotBefore)snapshot(selectedWorldId);data().portals=validatePortalSettings(next);
+ if(key==='style')data().portalStyles=Object.fromEntries(Object.keys(defaultPortalStyles(world())).map(face=>[face,value]));
  renderPortals();updateUI();return true;
 }
 function resetPortalSettings(){
  if(JSON.stringify(portalSettings(data()))===JSON.stringify(DEFAULT_PORTALS))return;
- snapshot(selectedWorldId);data().portals={...DEFAULT_PORTALS};renderPortals();updateUI();
+ snapshot(selectedWorldId);data().portals={...DEFAULT_PORTALS};data().portalStyles=defaultPortalStyles(world());renderPortals();updateUI();
 }
 function attachPortalControls(){
  $('portalStyle').onchange=e=>updatePortalSetting('style',e.target.value);
