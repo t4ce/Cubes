@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="An offline, build-only generator for 27 cubic worlds. Fixed 4×4×4 chunks, balanced circle portals, and a live portal design lab.">
-<title>Little Worlds — Platform Anchors v9</title>
+<title>Little Worlds — Enlarged c4 World v16</title>
 <style>:root{--paper:#fafaf5;--canvas:#eef0e7;--ink:#293b33;--muted:#7e877f;--line:#e0e5da;--green:#426b50;--soft:#e8efe3;--purple:#77698a;--red:#bd695e;--mono:ui-monospace,SFMono-Regular,Consolas,monospace}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden}
@@ -223,12 +223,22 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
 .portal-stats{font:9px/1.6 var(--mono);color:#617759;margin-top:8px}
 .portal-focus-note{font-size:9px;line-height:1.5;color:var(--muted);margin-top:7px}
 
+.sidebar-tabs{display:flex;gap:5px;padding:10px 12px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--paper);z-index:5}
+.sidebar-tabs button{flex:1;padding:8px 10px;font-size:10px;background:#f4f7ef}
+.sidebar-tabs button.active{background:#e6eee0;border-color:#cbd9c1;color:#3b653e;font-weight:650}
+.tab-pane[hidden]{display:none!important}
+.portal-preset-note{font-size:9px;line-height:1.55;color:var(--muted);margin-top:7px}
+
+.tier-legend{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin:10px 0 8px;font:10px var(--mono)}
+.tier-legend span{display:flex;align-items:center;gap:4px;padding:4px 2px;white-space:nowrap}.tier-legend i{width:6px;height:6px;border-radius:2px}.tier-legend b{font-weight:500;color:var(--muted)}
+.tower-controls{display:flex;gap:6px;margin-top:8px}.tower-controls select{width:100%;min-width:0;border:1px solid var(--line);border-radius:6px;background:white;padding:7px 5px;font-size:10px}.tower-controls button{font-size:10px;padding:7px 9px;white-space:nowrap}
+.tower-label{position:absolute;pointer-events:none;padding:3px 7px;border:1px solid #dbe3d5;border-left:3px solid;background:#fafcf4e8;border-radius:4px;font:10px var(--mono);white-space:nowrap;transform:translateY(-50%);z-index:3;color:#435145}
 </style>
 </head>
 <body>
 <div id="app">
 <header id="bar">
- <div class="brand"><div class="brand-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#58744f" stroke-width="1.25"><path d="M12 2.5 21 7.8v8.4L12 21.5 3 16.2V7.8zM3 7.8l9 5.1 9-5.1M12 12.9v8.6M7.5 5.2l9 5.1v8.5M16.5 5.2l-9 5.1v8.5"/></svg></div><div><div class="brand-title">little worlds</div><div class="brand-sub">generation &amp; build studio</div></div></div>
+ <div class="brand"><div class="brand-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#58744f" stroke-width="1.25"><path d="M12 2.5 21 7.8v8.4L12 21.5 3 16.2V7.8zM3 7.8l9 5.1 9-5.1M12 12.9v8.6M7.5 5.2l9 5.1v8.5M16.5 5.2l-9 5.1v8.5"/></svg></div><div><div class="brand-title">little worlds</div><div class="brand-sub">generation &amp; portal studio</div></div></div>
  <div class="studio-tag"><span aria-hidden="true">◇</span> Build studio</div>
  <div class="header-actions"><span class="offline">LOCAL SESSION</span><button id="importButton" class="file-button" title="Import a saved project"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" style="margin-right:5px"><path d="M8 2v8m-3-3 3 3 3-3M2 11v3h12v-3"/></svg><span class="button-text">Import</span></button><button id="exportButton" class="file-button" title="Export all 27 worlds to JSON"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" style="margin-right:5px"><path d="M8 11V2M5 5l3-3 3 3M2 11v3h12v-3"/></svg><span class="button-text">Export</span></button><button id="helpButton" class="help-button" aria-label="Controls and help">?</button></div>
 </header>
@@ -240,45 +250,56 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
   <div id="themeChips" class="theme-chips"></div>
   <details class="atlas-toggle"><summary>Open the 27-world atlas</summary><div id="atlas" class="atlas"></div><div class="small" style="margin-top:8px;font-size:9px">6 singles · 12 duals · 8 triples · 1 void<br>Level addresses are separate from chunk coordinates.</div></details>
   <div class="fixed-layout" aria-label="Fixed world layout: 4 by 4 by 4 chunks"><strong>4 × 4 × 4</strong><span>FIXED WORLD SIZE</span></div>
-  <div id="dimensionNote" class="dimension-note">256³ blocks · 64 chunks · outer portals only</div>
+  <div id="dimensionNote" class="dimension-note">2,048³ c1 units · 64 chunks · outer portals only</div>
+   <div id="cubeTierNote" class="generation-note" style="margin-top:10px;margin-bottom:0"><strong>Cube tiers</strong><br>c1 1 · c2 2 · r1 3 · c3 4 · r2 6 · c4 8 · r3 12<br><span style="font:9px var(--mono)">WORLD FIT · c4 256³ = 16,777,216 · r3 170³ = 4,913,000 (+8 c1 / axis)</span></div>
  </section>
+ <nav class="sidebar-tabs" aria-label="Editor tabs"><button id="worldTabButton" class="active" type="button" aria-controls="worldTabPane" aria-selected="true">World</button><button id="portalTabButton" type="button" aria-controls="portalTabPane" aria-selected="false">Portals</button></nav>
+ <div id="portalTabPane" class="tab-pane" hidden>
  <section id="portalLab" class="panel portal-lab">
-  <div class="eyebrow"><span>01 &nbsp; Circle studies</span><span class="num">PORTAL LAB</span></div>
-  <div class="generation-note"><strong>One frame. Equal colour.</strong><br>Solid, halves, or thirds. Rainbow for Void. A clear 2 × 2 centre.</div>
-  <div class="field-head"><label for="portalStyle">Circle structure</label><span style="font:8px var(--mono)">LIVE</span></div>
-  <select id="portalStyle"><option value="halo">Halo · full circular band</option><option value="terraced">Terraced · stepped rim</option><option value="twin">Twin ring · bridged circles</option></select>
-  <div class="field"><div class="field-head"><label for="portalOpening">Clear opening</label><output id="portalOpeningValue">8.0 blocks</output></div><input id="portalOpening" type="range" min="4.8" max="8.0" step="0.4" value="8.0"></div>
+  <div class="eyebrow"><span>Portal designs</span><span class="num">8 PRESETS</span></div>
+  <div class="generation-note"><strong>Eight reusable portal presets.</strong><br>Six base themes + Special + Leave. World generation keeps these designs and only refreshes their instances.</div>
+  <div class="field-head"><label for="portalPreset">Portal preset</label><span style="font:8px var(--mono)">GLOBAL</span></div>
+  <select id="portalPreset" aria-label="Portal preset"></select>
+  <div id="portalPresetNote" class="portal-preset-note">Configure one of the eight portal types. Every matching portal uses this design.</div>
+  <div class="field-head" style="margin-top:13px"><label for="portalStyle">Circle structure</label><span style="font:8px var(--mono)">LIVE</span></div>
+  <select id="portalStyle"><option value="terraced">Terraced · stepped rim</option><option value="twin">Twin ring · bridged circles</option><option value="tri">Tri ring · three bridged circles</option></select>
+  <div class="field"><div class="field-head"><label for="portalOpening">Clear opening</label><output id="portalOpeningValue">40 c1</output></div><input id="portalOpening" type="range" min="24" max="40" step="2" value="40"></div>
   <div class="field"><div class="field-head"><label for="portalDepth">Frame depth</label><output id="portalDepthValue">3 layers</output></div><input id="portalDepth" type="range" min="2" max="5" step="1" value="3"></div>
   <div class="portal-colour-actions"><button id="portalRotation" type="button" title="Rotate the equal colour sections by 30 degrees">Rotate colours · 0°</button><label class="checks" title="Disable portal lighting to inspect the exact palette colours"><input id="portalFlatColours" type="checkbox"><span>Flat colours</span></label></div>
-  <div id="portalDesignNote" class="field-note">Live changes keep terrain and routes fixed.</div>
+  <div id="portalDesignNote" class="field-note">Live changes update every matching portal without rebuilding terrain or routes.</div>
   <div class="portal-inspector">
-   <div class="field-head"><label for="portalFace">Inspect a portal</label><span style="font:8px var(--mono)">BUILD CAMERA</span></div>
+   <div class="field-head"><label for="portalFace">Preview in current world</label><span style="font:8px var(--mono)">BUILD CAMERA</span></div>
    <select id="portalFace" aria-label="Portal to inspect"></select>
-   <div class="portal-view-buttons"><button id="portalFront" type="button">Front</button><button id="portalAngle" type="button">Angle</button><button id="portalWorld" type="button">World</button></div>
+   <div class="portal-view-buttons"><button id="portalBack" type="button">Back</button><button id="portalAngle" type="button">Angle</button></div>
    <div id="portalFocusNote" class="portal-focus-note">Inspect an actual portal to compare frames up close.</div>
-   <label class="checks"><input id="portalRunPreview" type="checkbox"><span>Show 2 × 2 passage guide</span></label>
-   <div class="field-note">A 1³-block line, straight through the centre. The guide is display-only; generated worlds have real connections.</div>
+   <label class="checks"><input id="portalRunPreview" type="checkbox"><span>Show c4 passage guide</span><span>OFF BY DEFAULT</span></label>
+   <div class="field-note">A display-only c4 route bridge through the portal centre. Generated worlds carry the same large-cube route all the way to the outermost boundary slice.</div>
    <div id="portalBalance" class="portal-balance" aria-label="Portal colour proportions"></div>
    <div id="portalBalanceNote" class="field-note"></div>
    <div id="portalCounts" class="portal-stats"></div>
-   <button id="portalReset" class="text-button" type="button">Reset this world’s frames</button>
+   <button id="portalReset" class="text-button" type="button">Reset this portal preset</button>
   </div>
  </section>
+ </div>
+ <div id="worldTabPane" class="tab-pane">
  <section class="panel">
-  <div class="eyebrow"><span>02 &nbsp; Shape the void</span><span class="num">GENERATION</span></div>
-  <div class="generation-note"><strong>Platforms, ribbons &amp; little edges.</strong><br>One seeded system. The largest three rolls become double-width landmarks.</div>
+  <div class="eyebrow"><span>01 &nbsp; Shape the void</span><span class="num">GENERATION</span></div>
+  <div class="generation-note"><strong>Terraces, c4 paths &amp; cube tiers.</strong><br>One seeded system. The largest three rolls become double-width landmarks.</div>
   <div class="platform-rolls" aria-label="Automatic per-platform rolls">
    <div class="eyebrow"><span>Per-platform rolls</span><span>SEEDED</span></div>
-   <div class="field-head"><span>Platform size</span><strong>16–21 / 44–48</strong></div><div id="platformSizeNote" class="field-note">Roll 22 / 23 / 24 → 44 / 46 / 48 blocks</div>
-   <div class="roll-growth"><div class="field-head"><span>Small-cube growth</span><strong>250–500%</strong></div><div id="growthNote" class="field-note">Individual growth rolls · connected ½³ shelves</div></div>
+   <div class="field-head"><span>Platform size</span><strong>16–21 / 44–48 c4</strong></div><div id="platformSizeNote" class="field-note">Roll 22 / 23 / 24 → 44 / 46 / 48 c4</div>
+   <div class="roll-growth"><div class="field-head"><span>Small-cube growth</span><strong>250–500%</strong></div><div id="growthNote" class="field-note">Individual growth rolls · connected c3 shelves</div></div>
+   <div class="field-note" style="margin-top:9px"><strong style="color:var(--ink)">Seven-cube size tower</strong><br>Bottom → top: r3 · c4 · r2 · c3 · r1 · c2 · c1<br>One of each, 36 c1 tall. No nested 2×2×2 piles.</div>
+  <label class="checks"><input id="showTierTowers" type="checkbox" checked><span>Show cube-tier towers</span><span>DEMO</span></label>
+  <div class="tower-controls"><select id="towerSelect" aria-label="Platform tower to inspect"></select><button id="inspectTower" type="button" disabled>Inspect tower</button></div>
   </div>
-  <label class="checks"><input id="growthEnabled" type="checkbox" checked><span>Small-cube growth enabled</span><span>LIVE</span></label>
+  <label class="checks"><input id="growthEnabled" type="checkbox"><span>Small-cube growth enabled</span><span>OFF BY DEFAULT</span></label>
   <div class="field"><div class="field-head"><label for="countInput">Platform target</label><output id="countValue">10</output></div><input id="countInput" type="range" min="0" max="16" step="1" value="10"></div>
   <div class="field"><div class="field-head"><label for="seedInput">Seed</label><span style="font-size:8px;color:#9aa38f">REPEATABLE BY WORLD</span></div><div class="seed-row"><input id="seedInput" type="text" maxlength="96" value="little-01" spellcheck="false" autocomplete="off"><button id="shuffleSeed" title="New seed and generate" aria-label="New seed and generate">⚄</button></div></div>
   <label class="checks"><input id="autoPaths" type="checkbox" checked><span>Automatic paths</span><span>LIVE</span></label>
   <details class="advanced"><summary>Shape &amp; route variation</summary>
    <div class="field"><div class="field-head"><label for="heightInput">Vertical spread</label><output id="heightValue">55%</output></div><input id="heightInput" type="range" min="0" max="100" value="55"></div>
-   <div class="field"><div class="field-head"><label for="bendInput">Path meander</label><output id="bendValue">45%</output></div><input id="bendInput" type="range" min="0" max="100" value="45"></div>
+   <div class="field"><div class="field-head"><label for="bendInput">Turn variation</label><output id="bendValue">45%</output></div><input id="bendInput" type="range" min="0" max="100" value="45"></div>
    <div class="field"><div class="field-head"><label for="loopsInput">Extra loops</label><output id="loopsValue">20%</output></div><input id="loopsInput" type="range" min="0" max="100" value="20"></div>
   </details>
   <div class="generate-row"><button id="generateButton" class="primary">✧ &nbsp; Generate world</button><button id="rebuildButton" title="Rebuild terrain, paths, and growth" aria-label="Rebuild terrain, paths, and growth">⟳</button></div>
@@ -286,23 +307,24 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
   <div class="small" style="font-size:9px;margin-top:4px">One cube owns a platform, its growth, and one local path. Removing it removes all three; the main network stays fixed.</div>
  </section>
  <section class="panel">
-  <div class="eyebrow"><span>03 &nbsp; Place &amp; refine</span><span class="num">1³ CONTROL CUBE</span></div>
+  <div class="eyebrow"><span>02 &nbsp; Place &amp; refine</span><span class="num">c1 CONTROL CUBE</span></div>
   <div class="tool-row" aria-label="Cube editing tool"><button data-tool="select" class="active">↖ Select</button><button data-tool="place">＋ Place</button><button data-tool="remove">− Remove</button></div>
   <div class="field"><div class="field-head"><span id="cubeColourLabel">Cube colour</span><span style="font:8px var(--mono);color:#8d9785">WORLD PALETTE</span></div><div id="cubeColours" class="cube-colours" role="radiogroup" aria-labelledby="cubeColourLabel"></div><div id="cubeColourNote" class="field-note"></div></div>
   <label class="checks surface-snap"><input id="surfaceSnap" type="checkbox" checked><span>Attach to pointed face</span></label>
-  <div class="slice-row"><select id="sliceAxis" aria-label="Placement plane"><option value="y">Y</option><option value="z">Z</option><option value="x">X</option></select><input id="sliceInput" aria-label="Placement slice" type="range" min="0" max="255" step="1" value="127"><output id="sliceValue">−0.5</output></div>
-  <div class="slice-note">Plant a 1³ cube at the platform’s top centre. The outline previews its footprint. Turn off face attachment to plant in empty space.<br>Delete the cube to remove its platform, growth, and path.</div>
+  <div class="slice-row"><select id="sliceAxis" aria-label="Placement plane"><option value="y">Y</option><option value="z">Z</option><option value="x">X</option></select><input id="sliceInput" aria-label="Placement slice" type="range" min="0" max="255" step="1" value="127"><output id="sliceValue">−4</output></div>
+  <div class="slice-note">Plant on the c4 grid; a c1 control sits at the platform’s top centre. The outline previews its footprint. Turn off face attachment to plant in empty space.<br>Delete the cube to remove its platform, growth, and path.</div>
   <div class="budget-head"><span>Platform soft budget</span><strong id="budgetCount">0 / 16</strong></div>
   <div id="budgetBar" class="budget-bar"></div><div id="budgetWarning" class="budget-warning" hidden>Over the soft budget. Placement is still allowed.</div>
   <div class="history"><button id="undoButton" disabled title="Undo (Ctrl / Cmd Z)">↶ Undo</button><button id="redoButton" disabled title="Redo (Ctrl / Cmd Shift Z)">↷ Redo</button><button id="deleteButton" disabled title="Remove this cube, its platform, growth, and path">Delete platform</button></div>
  </section>
- <div class="sidebar-foot">Nothing is generated on opening.<br>Edits stay in this tab. Export your project to keep them.<br><span style="opacity:.7">4³ chunks · 1³ control cube · ½³ growth block</span></div>
+ </div>
+ <div class="sidebar-foot">Nothing is generated on opening.<br>Edits stay in this tab. Export your project to keep them.<br><span style="opacity:.7">4³ chunks · c1/c2/r1/c3/r2/c4/r3 tiers · c4 paths · c2 portals</span></div>
 </aside>
 <main id="view" class="view">
  <canvas id="canvas" tabindex="0" aria-label="3D cube world. Use the controls panel to generate and edit. Drag to orbit; scroll to zoom."></canvas>
  <div class="view-top"><div id="sceneKicker" class="scene-kicker">WORLD 01 / SINGLE THEME</div><h1 id="sceneTitle">Room to make a world.</h1><p id="sceneSubtitle">An empty volume. Six possible directions.</p></div>
- <div class="view-meta"><label class="guides-toggle"><input id="guidesInput" type="checkbox" checked>bounds</label><span id="sizeChip" class="meta-chip">256 × 256 × 256</span><span id="stateChip" class="meta-chip">EMPTY</span></div>
- <div id="portalLabels"></div>
+ <div class="view-meta"><label class="guides-toggle"><input id="guidesInput" type="checkbox" checked>bounds</label><span id="sizeChip" class="meta-chip">2048 × 2048 × 2048</span><span id="stateChip" class="meta-chip">EMPTY</span></div>
+ <div id="portalLabels"></div><div id="towerLabels" aria-hidden="true"></div>
  <div id="emptyCard" class="empty-card"><h2>An empty world, on purpose.</h2><p>No ground. No filler. Just a little space to make something.</p><button id="startGenerate" class="primary">Make a first pass</button><span class="tiny">OR PLANT A PLATFORM</span></div>
  <div class="view-actions"><button id="frameButton" title="Frame the whole world (Home)" aria-label="Frame whole world"><svg viewBox="0 0 20 20"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4M6 6l8 8M14 6l-8 8"/></svg></button><button id="topButton" title="Top view" aria-label="Top view"><svg viewBox="0 0 20 20"><path d="m3 7 7-4 7 4-7 4zM3 7v7l7 4 7-4V7M10 11v7"/></svg></button></div>
  <div class="view-bottom"><div class="left"><div id="voxelStats">0 SURFACE VOXELS · 6 PORTALS</div><div id="selectionStatus">ORIGIN [0, 0, 0]</div></div><div class="right" id="sessionNote">a small place, in three dimensions</div></div>
@@ -316,18 +338,19 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
  <div class="eyebrow">FIELD NOTES / GENERATION &amp; BUILD</div><h2 id="helpTitle">Make a little world.<br>Give it room to grow.</h2>
  <div class="help-grid">
   <strong>Build camera</strong><span>Drag to orbit. Scroll to zoom. Right-drag to pan. Home frames the world. Alt-drag also orbits while placing or removing.</span>
-  <strong>World layout</strong><span>Every level is 4 × 4 × 4 chunks: 64 chunks, each 64³ blocks, making a fixed 256³ world. There is no layout selector. The atlas still contains 27 levels.</span>
-  <strong>Place / remove</strong><span>Place a single 1³ control cube: one platform grows directly underneath it, with the cube centered on top. Its footprint and half-block growth are owned by that cube. Delete the cube to remove the entire owned platform and its local branch. Existing generated terrain and other platforms are preserved. Choose a palette colour before placing; in Select, swatches recolour the cube, its platform, growth, and branch. Keys 1 / 2 / 3 choose Select / Place / Remove.</span>
-  <strong>Platform size</strong><span>Keep the original 16–24 seeded roll: 16–21 stay unchanged; 22 becomes 44, 23 becomes 46, and 24 becomes 48 blocks across. Only the footprint doubles; the four-layer platform thickness stays unchanged. No size slider. Manual platforms pin their size, growth, and detail seed on placement, so generating or shuffling the main world keeps them stable. An even-sized owned platform uses a half-block finishing rim so its 1³ control cube is exactly centered.</span>
-  <strong>Small-cube growth</strong><span>Each platform independently rolls 250–500% of the original full-strength growth pass. The seeded roll forms connected half-block shelves and stepped skirts. No growth slider. The checkbox disables growth without losing the individual rolls.</span>
+  <strong>World layout</strong><span>Each world remains 4 × 4 × 4 chunks. Each chunk is 64 × 64 × 64 c4 cells, or 512³ c1 units. The full world is now 2048³ c1 units: eight times the previous side length. Cube tier sizes themselves are unchanged.</span>
+  <strong>Place / remove</strong><span>Place a c1 control cube at the center of a new platform. Placement addresses snap to the c4 terrain grid; the control is centered on the actual footprint. Its platform, growth, and local branch belong to it. With tower demos visible, click the tower to select or remove the same owner. Keys 1 / 2 / 3 choose Select / Place / Remove. Deleting an owner does not remove other platforms or the main network.</span>
+  <strong>Platform size</strong><span>Platforms and paths both use c4 cubes (8 c1 per side) on the same lattice. The seeded 16–24 roll stays the same: 16–21 remain unchanged; 22 / 23 / 24 become 44 / 46 / 48 c4 across. The four platform layers are each c4 thick. Generated and manual platforms use the same full-cube terracing, with no small finishing rim. Placed platforms keep their pinned rolls when the world regenerates.</span>
+  <strong>Cube-size towers</strong><span>Seven cubes, one per tier: bottom to top r3 (12), c4 (8), r2 (6), c3 (4), r1 (3), c2 (2), c1 (1). Each tower is 36 c1 tall and centered on its platform. Inspect tower zooms in and labels each cube. These display-only rulers do not affect routes, collision, or budgets; toggle them off to reveal manual control cubes.</span>
+  <strong>Small-cube growth</strong><span>Optional growth is off by default. Each platform retains its independent 250–500% roll. When enabled, it adds connected c3 (4 c1) shelves, exactly half the side length of the c4 terrain cubes. No extra cube tiers are introduced.</span>
   <strong>Local branches</strong><span>With automatic paths on, each owned platform gets one link to existing generated terrain. In a blank world, the first cube grows an isolated platform; later platforms connect to earlier ones. With automatic paths off, the platforms remain and only the paths are hidden. Removing an empty-world anchor repairs only dependent links. World 27 offers all six colours plus Void.</span>
   <strong>Undo / redo</strong><span>Ctrl or Cmd + Z / Shift + Z. History is independent for every world. Ctrl or Cmd + Y also redoes.</span>
-  <strong>Portal lab</strong><span>Halo, Terraced, and Twin ring are live frame designs. Adjust opening and depth; rotate the colour seams. The portal’s destination determines one solid colour, equal halves, or equal thirds. Void-bound portals have seven rainbow bands; Leave stays neutral. Whole-cube rounding differs by at most one cube. Flat colours disables portal lighting for a palette check.</span>
-  <strong>Portal inspection</strong><span>Choose a face, then Front or Angle to inspect that actual portal using the build camera. World or Home frames the whole scene. The optional 2 × 2 guide contains display-only 1³ blocks and does not add terrain or count toward the budget.</span>
-  <strong>Portal paths</strong><span>With generated platforms and Automatic paths enabled, straight 2 × 2 block connections run through each portal centre. The main ribbons stay three wide and two thick. A fixed maximum frame envelope keeps all design settings collision-free without rebuilding terrain. Face portals stay inside the boundary; Void also keeps its centered Leave portal. Destination labels select a world for editing, not gameplay.</span>
-  <strong>Save / import</strong><span>Export saves all 27 levels as an authoring JSON project. Older projects expand to 4³, keeping authored world-space positions. Their old size and growth sliders are replaced with individual rolls. Portal circles and centered sockets replace the old frames, so generated paths can change. Pre-v9 control cubes gain owned platforms, and their local paths move down to meet the platform tops. New v9 recipes retain their owned-platform rolls. The 22–24 generated rolls double to 44–48, so derived terrain changes. An authored object inside a new portal clearance or outside the world is rejected rather than silently moved or deleted. No player or game-camera settings are exported.</span>
+  <strong>Portal lab</strong><span>The Portals tab owns eight reusable presets: Sky, Underground, black-hole, white-hole, Island, City, Special, and Leave. Portal structure defaults by destination: pure-theme and Leave portals use Terraced, two-theme portals use Twin ring, and three-theme plus Special/Void portals use Tri ring. Any preset can override that structure; opening, depth, rotation, and flat-colour settings remain reusable.</span>
+  <strong>Portal inspection</strong><span>Choose a face, then Back or Angle to inspect that actual portal using the build camera. Back looks through the frame from its reverse side. The World tab or Home frames the whole scene. The optional passage guide previews the same route through the portal without adding terrain or counting toward the budget.</span>
+  <strong>Portal paths</strong><span>Every path uses a 2 × 2 cross-section of c4 cubes, including manual connections and portal bridges. Filled 2 × 2 × 2 elbow joints prevent missing corner cells. Platform connections meet the top two platform layers. Rendering, surface picking, and collision use the same full-c4 geometry. Portal frames stay c2, and their boundary-facing layer and bridge reach the outer world boundary.</span>
+  <strong>Save / import</strong><span>Exports store all 27 world recipes, eight portal presets, corrected cube tiers, the 512-c1 chunk size, c4 placement-grid addresses, and c1-world-space branch centerlines. Earlier projects are migrated by enlarging their world-space layout eightfold; v15 c2 portal designs are preserved without a second size increase. The old r3 (6) and r4 (12) labels become r2 (6) and r3 (12). Safe placed-platform recipes are kept; invalid local links are rebuilt. Imports are fully validated before the live project changes.</span>
  </div>
- <button id="closeHelp" class="primary">Back to making</button><p class="dialog-footer">All 27 worlds start completely empty. Generation is explicit. Control cubes and their owned platforms survive regeneration. Remove a control cube to remove its platform, growth, and branch; the generated main network is separate. 16 is a soft budget, not a hard cap. JSON includes generation recipes, per-world portal designs, cube colours, pinned owned-platform rolls, and saved local branch centerlines—not a game-specific loader.</p>
+ <button id="closeHelp" class="primary">Back to making</button><p class="dialog-footer">All 27 worlds start completely empty. Generation is explicit. Control cubes and their owned platforms survive regeneration. Remove a control cube to remove its platform, growth, and branch; the generated main network is separate. 16 is a soft budget, not a hard cap. JSON includes generation recipes, eight reusable portal presets, cube colours, pinned owned-platform rolls, and saved local branch centerlines—not a game-specific loader.</p>
 </section></div>
 <input id="importInput" type="file" accept=".json,application/json" hidden>
 <script>
@@ -369,7 +392,7 @@ class Q4 {
 }
 function lookQuaternion(forward,up){const r=forward.clone().cross(up).normalize(),u=r.clone().cross(forward).normalize();return new Q4().setFromBasis(r,u,forward.clone().multiplyScalar(-1));}
 function matrixMultiply(a,b){const out=new Float32Array(16);for(let c=0;c<4;c++)for(let r=0;r<4;r++)out[c*4+r]=a[r]*b[c*4]+a[4+r]*b[c*4+1]+a[8+r]*b[c*4+2]+a[12+r]*b[c*4+3];return out;}
-function cameraMatrix(cam,aspect){const f=new V3(0,0,-1).applyQuaternion(cam.q),r=new V3(1,0,0).applyQuaternion(cam.q),u=new V3(0,1,0).applyQuaternion(cam.q),p=cam.pos;const v=new Float32Array([r.x,u.x,-f.x,0,r.y,u.y,-f.y,0,r.z,u.z,-f.z,0,-r.dot(p),-u.dot(p),f.dot(p),1]);const t=1/Math.tan(cam.fov/2),n=.04,far=Math.max(1200,cam.pos.length()+512);const pr=new Float32Array([t/aspect,0,0,0,0,t,0,0,0,0,-(far+n)/(far-n),-1,0,0,-2*far*n/(far-n),0]);return matrixMultiply(pr,v);}
+function cameraMatrix(cam,aspect){const f=new V3(0,0,-1).applyQuaternion(cam.q),r=new V3(1,0,0).applyQuaternion(cam.q),u=new V3(0,1,0).applyQuaternion(cam.q),p=cam.pos;const v=new Float32Array([r.x,u.x,-f.x,0,r.y,u.y,-f.y,0,r.z,u.z,-f.z,0,-r.dot(p),-u.dot(p),f.dot(p),1]);const t=1/Math.tan(cam.fov/2),n=cam.near||.04,far=Math.max(WORLD_C1_SIZE*4,cam.pos.length()+WORLD_C1_SIZE*2);const pr=new Float32Array([t/aspect,0,0,0,0,t,0,0,0,0,-(far+n)/(far-n),-1,0,0,-2*far*n/(far-n),0]);return matrixMultiply(pr,v);}
 function hexRGB(hex){const n=parseInt(hex.replace('#',''),16);return [(n>>16&255)/255,(n>>8&255)/255,(n&255)/255];}
 function mixRGB(a,b,t){return a.map((x,i)=>x+(b[i]-x)*t);}
 function hashSeed(s){let h=2166136261;for(const c of String(s))h=Math.imul(h^c.charCodeAt(0),16777619);return h>>>0;}
@@ -397,9 +420,10 @@ class CubeRenderer {
  resize(){const dpr=Math.min(window.devicePixelRatio||1,1.75),w=Math.max(1,Math.round(this.canvas.clientWidth*dpr)),h=Math.max(1,Math.round(this.canvas.clientHeight*dpr));if(w!==this.canvas.width||h!==this.canvas.height){this.canvas.width=w;this.canvas.height=h;}this.gl.viewport(0,0,w,h);}
  render(cam,span,showGuides){const g=this.gl;this.resize();g.clear(g.COLOR_BUFFER_BIT|g.DEPTH_BUFFER_BIT);const vp=cameraMatrix(cam,this.canvas.width/this.canvas.height);g.useProgram(this.program);g.uniformMatrix4fv(this.uniforms.vp,false,vp);g.uniform3fv(this.uniforms.eye,cam.pos.toArray());g.uniform1f(this.uniforms.fog,span*2.8);g.enable(g.DEPTH_TEST);g.depthMask(true);g.disable(g.BLEND);for(const b of this.batches.values()){if(!b.count)continue;if(b.opacity<1){g.enable(g.BLEND);g.blendFunc(g.SRC_ALPHA,g.ONE_MINUS_SRC_ALPHA);g.depthMask(false);}else{g.disable(g.BLEND);g.depthMask(true);}g.uniform1f(this.uniforms.opacity,b.opacity);g.bindVertexArray(b.vao);g.drawElementsInstanced(g.TRIANGLES,this.indexCount,g.UNSIGNED_SHORT,0,b.count);}g.depthMask(false);g.enable(g.BLEND);g.blendFunc(g.SRC_ALPHA,g.ONE_MINUS_SRC_ALPHA);g.useProgram(this.lineProgram);g.uniformMatrix4fv(this.lineVP,false,vp);for(const [name,b] of this.lines){if(!b.count||(!showGuides&&(name==='boundary'||name==='chunks')))continue;b.overlay?g.disable(g.DEPTH_TEST):g.enable(g.DEPTH_TEST);g.bindVertexArray(b.vao);g.drawArrays(g.LINES,0,b.count);}g.bindVertexArray(null);g.depthMask(true);}
 }
+function cubeRenderSize(size){return Math.max(.001,size-.014);}
 function instance(out,pos,scale,color,q=new Q4(),emission=0){out.push(...pos.toArray(),...(typeof scale==='number'?[scale,scale,scale]:scale),...color,...q.toArray(),emission);}
 function line(out,a,b,color=[.45,.5,.44],alpha=.4){out.push(...a.toArray(),...color,alpha,...b.toArray(),...color,alpha);}
-function wireCube(out,center,size,color,alpha=1,dashed=false){const h=size/2;for(let ax=0;ax<3;ax++)for(const b of [-1,1])for(const c of [-1,1]){const axes=[0,1,2].filter(i=>i!==ax),a=[0,0,0],z=[0,0,0];a[ax]=-h;z[ax]=h;a[axes[0]]=z[axes[0]]=b*h;a[axes[1]]=z[axes[1]]=c*h;const v=V3.from(a).add(center),w=V3.from(z).add(center);if(dashed){const steps=Math.ceil(size/2);for(let k=0;k<steps;k++)line(out,v.clone().lerp(w,k/steps),v.clone().lerp(w,Math.min(1,(k+.55)/steps)),color,alpha);}else line(out,v,w,color,alpha);}}
+function wireCube(out,center,size,color,alpha=1,dashed=false){const h=size/2;for(let ax=0;ax<3;ax++)for(const b of [-1,1])for(const c of [-1,1]){const axes=[0,1,2].filter(i=>i!==ax),a=[0,0,0],z=[0,0,0];a[ax]=-h;z[ax]=h;a[axes[0]]=z[axes[0]]=b*h;a[axes[1]]=z[axes[1]]=c*h;const v=V3.from(a).add(center),w=V3.from(z).add(center);if(dashed){const steps=Math.ceil(size/(2*SLOT));for(let k=0;k<steps;k++)line(out,v.clone().lerp(w,k/steps),v.clone().lerp(w,Math.min(1,(k+.55)/steps)),color,alpha);}else line(out,v,w,color,alpha);}}
 function rayAABB(origin,dir,lo,hi,maxDistance=Infinity){let t0=-Infinity,t1=Infinity,normal=new V3();for(const a of ['x','y','z']){if(Math.abs(dir[a])<1e-9){if(origin[a]<lo[a]||origin[a]>hi[a])return null;continue;}let tNear=(lo[a]-origin[a])/dir[a],tFar=(hi[a]-origin[a])/dir[a],sign=-1;if(tNear>tFar){[tNear,tFar]=[tFar,tNear];sign=1;}if(tNear>t0){t0=tNear;normal.set(0,0,0);normal[a]=sign;}t1=Math.min(t1,tFar);if(t0>t1)return null;}if(t1<0||t0>maxDistance)return null;const distance=Math.max(0,t0);return {distance,point:origin.clone().addScaledVector(dir,distance),normal};}
 
 /* Low-power / restricted-browser fallback. The voxel model, picking, and
@@ -566,56 +590,74 @@ if(voidPureReturnCount!==6) throw new Error(`Expected 6 Void→pure portals, got
 
 // Portal frame generation is in portals.js; legacy standing/oval frames removed.
 
-/* Portal generation v8. A dedicated, deterministic frame pass: no terrain
+/* Portal generation v16. Eight reusable portal presets + boundary-flush frames: no terrain
  * territory sampling, noise, accent whitening, or old standing/oval meshes.
- * 0.4-block frame cubes surround a reserved, centered 2 × 2 terrain-block run.
+ * c2 frame cubes surround a reserved, centered c4 route passage.
  * Design settings affect only frame meshes; the maximum keep-out envelope and
  * path sockets are fixed, so live experiments do not rebuild the terrain. */
-const PORTAL_UNIT=.4,PORTAL_INSET=.6,PORTAL_MAX_RADIUS=6.8,PORTAL_MAX_DEPTH=1.4,PORTAL_RUN=12;
-const PORTAL_STYLES=Object.freeze(['halo','terraced','twin']);
-const DEFAULT_PORTALS=Object.freeze({style:'twin',opening:8.0,depth:3,rotation:0,flatColours:false});
+const CUBE_TIERS=Object.freeze({c1:1,c2:2,r1:3,c3:4,r2:6,c4:8,r3:12});
+const CUBE_TIER_ORDER=Object.freeze(['r3','c4','r2','c3','r1','c2','c1']);
+const PORTAL_LEGACY_UNIT=.4,PORTAL_UNIT=CUBE_TIERS.c2,PORTAL_SCALE=PORTAL_UNIT/PORTAL_LEGACY_UNIT;
+const PATH_CUBE_SIZE=CUBE_TIERS.c4,PORTAL_MAX_RADIUS=6.8*PORTAL_SCALE,PORTAL_MAX_DEPTH=1.4*PORTAL_SCALE,PORTAL_RUN=PATH_CUBE_SIZE*4;
+const PORTAL_STYLES=Object.freeze(['terraced','twin','tri']);
+const DEFAULT_PORTALS=Object.freeze({style:'twin',opening:40,depth:3,rotation:0,flatColours:false});
+const PORTAL_PRESET_KEYS=Object.freeze(['1','2','3','4','5','6','S','L']);
 const RAINBOW=Object.freeze(['#EF6969','#EDA34C','#E4CE64','#70B97C','#64BDD8','#7985D8','#BD7BD4']);
 const portalShapeCache=new Map();
-function portalSettings(d){return d.portals||DEFAULT_PORTALS;}
-function portalStyleForEdge(world,edge){
- if(edge?.action==='leave')return 'terraced';
- // Exactly Void's six pure-colour return portals are Terraced. All other
- // world-to-world portals are Twin Rings.
- const target=edge?.targetWorldId?WORLDS[edge.targetWorldId-1]:null;
- return world?.kind==='special'&&target?.kind==='single'?'terraced':'twin';
+function defaultPortalPreset(key){return {styleOverride:null,opening:40,depth:3,rotation:0,flatColours:false};}
+function makePortalPresets(){return Object.fromEntries(PORTAL_PRESET_KEYS.map(key=>[key,defaultPortalPreset(key)]));}
+let portalPresets=makePortalPresets();
+function portalPresetKey(edge){return String(edge?.portalTheme??'L');}
+function portalDefaultStyleForEdge(edge){
+ if(!edge||edge.action==='leave')return 'terraced';
+ const target=edge.targetWorldId?WORLDS[edge.targetWorldId-1]:null;
+ if(edge.portalTheme==='S'||target?.kind==='special')return 'tri';
+ const themes=target?.themes?.length||1;
+ return themes>=3?'tri':themes===2?'twin':'terraced';
 }
-function defaultPortalStyles(world){
- return Object.fromEntries([...ALL_FACES,...(world.centerPortal?['center']:[])].map(face=>{
-  const edge=face==='center'?world.centerPortal:world.faces[face];
-  return [face,portalStyleForEdge(world,edge)];
- }));
+function portalDefaultStyleForPresetKey(key){return key==='S'?'tri':key==='L'?'terraced':'terraced';}
+function portalSettingsForEdge(edge){const preset=portalPresets[portalPresetKey(edge)]||defaultPortalPreset(portalPresetKey(edge));return {style:preset.styleOverride||portalDefaultStyleForEdge(edge),opening:preset.opening,depth:preset.depth,rotation:preset.rotation,flatColours:preset.flatColours};}
+function portalPresetLabel(key){return key==='S'?'Special · Void':key==='L'?'Leave':themeFor(Number(key))?.name||key;}
+function portalStyleForEdge(world,edge){return portalSettingsForEdge(edge).style;}
+function defaultPortalStyles(world){return Object.fromEntries([...ALL_FACES,...(world.centerPortal?['center']:[])].map(face=>{const edge=face==='center'?world.centerPortal:world.faces[face];return [face,portalDefaultStyleForEdge(edge)];}));}
+function validatePortalSettings(p,{legacyScale=false}={}){
+ const style=p?.style==='halo'?'twin':p?.style;
+ const opening=Number(p?.opening)*(legacyScale?PORTAL_SCALE:1);
+ if(!p||!PORTAL_STYLES.includes(style)||!Number.isFinite(opening)||opening<24-1e-6||opening>40+1e-6||Math.abs(opening/2-Math.round(opening/2))>1e-6||!Number.isInteger(p.depth)||p.depth<2||p.depth>5||!Number.isInteger(p.rotation)||p.rotation<0||p.rotation>=360||p.rotation%30!==0||typeof p.flatColours!=='boolean')throw new Error('Invalid portal design. Use Terraced, Twin ring, or Tri ring, a 24–40 c1 opening, 2–5 c2 layers and 30° colour steps.');
+ return {style,opening:Math.round(opening),depth:p.depth,rotation:p.rotation,flatColours:p.flatColours};
 }
-function validatePortalSettings(p){
- if(!p||!PORTAL_STYLES.includes(p.style)||!Number.isFinite(p.opening)||p.opening<4.8-1e-6||p.opening>8.0+1e-6||Math.abs(p.opening/.4-Math.round(p.opening/.4))>1e-6||!Number.isInteger(p.depth)||p.depth<2||p.depth>5||!Number.isInteger(p.rotation)||p.rotation<0||p.rotation>=360||p.rotation%30!==0||typeof p.flatColours!=='boolean')throw new Error('Invalid portal design. Use a listed circle style, 4.8–8.0 opening, 2–5 layers and 30° colour steps.');
- return {style:p.style,opening:Math.round(p.opening*10)/10,depth:p.depth,rotation:p.rotation,flatColours:p.flatColours};
+function validatePortalPreset(p,{legacy=false}={}){
+ if(!p||typeof p!=='object')throw new Error('Invalid portal preset.');
+ const base=validatePortalSettings({style:(p.styleOverride??p.style??'twin'),opening:p.opening,depth:p.depth,rotation:p.rotation,flatColours:p.flatColours},{legacyScale:legacy});
+ let styleOverride=p.styleOverride??(legacy?p.style:null);if(styleOverride==='halo')styleOverride='twin';
+ if(styleOverride!=null&&!PORTAL_STYLES.includes(styleOverride))throw new Error('Invalid portal preset style override.');
+ return {styleOverride:styleOverride??null,opening:base.opening,depth:base.depth,rotation:base.rotation,flatColours:base.flatColours};
 }
+function validatePortalPresets(p,options){if(!p||typeof p!=='object')throw new Error('Missing portal presets.');return Object.fromEntries(PORTAL_PRESET_KEYS.map(key=>{if(!(key in p))throw new Error('Missing portal preset '+key+'.');return [key,validatePortalPreset(p[key],options)];}));}
 function portalFrameCells(settings=DEFAULT_PORTALS){
  const key=[settings.style,settings.opening,settings.depth].join('|');
  if(portalShapeCache.has(key))return portalShapeCache.get(key);
- const s=PORTAL_UNIT,ri=settings.opening/2,ro=ri+1.8,outer=settings.style==='twin'?ro+.8:ro,n=Math.ceil(outer/s)+1,cells=[];
+ const s=PORTAL_UNIT,k=PORTAL_SCALE,ri=settings.opening/2,ro=ri+1.8*k,outer=(settings.style==='twin'||settings.style==='tri')?ro+.8*k:ro,n=Math.ceil(outer/s)+1,cells=[];
  for(let x=-n;x<n;x++)for(let y=-n;y<n;y++){
   const u=(x+.5)*s,v=(y+.5)*s,r=Math.hypot(u,v),near=Math.hypot(Math.max(0,Math.abs(u)-s/2),Math.max(0,Math.abs(v)-s/2));
   if(near<ri-1e-6||r>outer+1e-6)continue;
-  const spoke=Math.min(Math.abs(u),Math.abs(v),Math.abs(u-v)/Math.SQRT2,Math.abs(u+v)/Math.SQRT2)<.42;
+  const bridgeDistance=Math.min(Math.abs(u),Math.abs(v),Math.abs(u-v)/Math.SQRT2,Math.abs(u+v)/Math.SQRT2),spoke=bridgeDistance<.42*k,triSpoke=bridgeDistance<.18*k;
   for(let layer=0;layer<settings.depth;layer++){
    const edge=layer===0||layer===settings.depth-1;
-   // Twin rim: two genuinely separate concentric bands, joined by eight
-   // small radial bridges. Terraced: recessed ends, a broad middle belt.
+   // Twin: two concentric bands. Tri: three concentric bands. Both use
+   // narrow radial bridges so every ring stays structurally connected.
+   // Terraced keeps recessed end layers around a broad middle belt.
    let include=true;
-   if(settings.style==='terraced'&&edge)include=near>=ri+.35&&r<=ro-.35;
-   if(settings.style==='twin')include=r<=ri+.95||r>=ro+.10||spoke;
+   if(settings.style==='terraced'&&edge)include=near>=ri+.35*k&&r<=ro-.35*k;
+   if(settings.style==='twin')include=r<=ri+.95*k||r>=ro+.10*k||spoke;
+   if(settings.style==='tri'){const radial=r-ri;include=radial<=.55*k||(radial>=1.05*k&&radial<=1.60*k)||radial>=2.10*k||triSpoke;}
    if(!include)continue;
    cells.push({x,y,layer,u,v,z:(layer-(settings.depth-1)/2)*s});
   }
   // A two-layer terraced frame needs its structural central belt as well.
   if(settings.style==='terraced'&&settings.depth===2&&r<=ro&&near>=ri){
    // Keep a complete silhouette: outer steps face backward, inner steps forward.
-   if(!(near>=ri+.35&&r<=ro-.35))cells.push({x,y,layer:r<(ri+ro)/2?0:1,u,v,z:r<(ri+ro)/2?-.2:.2});
+   if(!(near>=ri+.35*k&&r<=ro-.35*k))cells.push({x,y,layer:r<(ri+ro)/2?0:1,u,v,z:(r<(ri+ro)/2?-.2:.2)*k});
   }
  }
  let halfX=0,halfY=0,halfZ=0;
@@ -647,17 +689,20 @@ function portalInfo(world,d){
  const h=halfOf(d),infos=[];
  for(const face of [...ALL_FACES,...(world.centerPortal?['center']:[])]){
   const edge=face==='center'?world.centerPortal:world.faces[face],normal=FACE_NORMAL[face];
-  const settings={...portalSettings(d),style:d.portalStyles?.[face]||portalStyleForEdge(world,edge)},shape=portalFrameCells(settings);
-  const pos=face==='center'?new V3():normal.clone().multiplyScalar(-(h-PORTAL_INSET));
+  const settings={...portalSettingsForEdge(edge)},shape=portalFrameCells(settings);
   const q=new Q4().setFromUnitVectors(new V3(0,0,1),normal);
+  // Keep the outermost frame layer exactly flush with the world boundary,
+  // regardless of whether the frame is 2, 3, 4, or 5 layers deep.
+  const pos=face==='center'?new V3():normal.clone().multiplyScalar(-h+shape.half.z);
+  const keepoutPos=face==='center'?new V3():normal.clone().multiplyScalar(-h+PORTAL_MAX_DEPTH);
   const half=orientHalf(new V3(PORTAL_MAX_RADIUS,PORTAL_MAX_RADIUS,PORTAL_MAX_DEPTH),q),renderHalf=orientHalf(shape.half,q);
   const axis=['x','y','z'].find(a=>Math.abs(normal[a])>.5),transverse=['x','y','z'].filter(a=>a!==axis);
-  const runLo=new V3(-1,-1,-1),runHi=new V3(1,1,1);
-  if(face==='center'){runLo[axis]=-3;runHi[axis]=PORTAL_RUN+1;}
+  const runLo=new V3(-PATH_CUBE_SIZE,-PATH_CUBE_SIZE,-PATH_CUBE_SIZE),runHi=new V3(PATH_CUBE_SIZE,PATH_CUBE_SIZE,PATH_CUBE_SIZE);
+  if(face==='center'){runLo[axis]=-PATH_CUBE_SIZE;runHi[axis]=PORTAL_RUN+PATH_CUBE_SIZE;}
   else if(normal[axis]<0){runLo[axis]=h-PORTAL_RUN;runHi[axis]=h;}
   else{runLo[axis]=-h;runHi[axis]=-h+PORTAL_RUN;}
-  const mouth=new V3();mouth[axis]=face==='center'?PORTAL_RUN:normal[axis]<0?h-PORTAL_RUN:-h+PORTAL_RUN-1;
-  infos.push({face,edge,pos,normal,q,axis,transverse,circle:true,half,renderHalf,localHalf:shape.half,shape,settings,mix:portalMixIds(edge),runLo,runHi,mouth});
+  const mouth=new V3();mouth[axis]=face==='center'?PORTAL_RUN:normal[axis]<0?h-PORTAL_RUN:-h+PORTAL_RUN;
+  infos.push({face,edge,pos,keepoutPos,normal,q,axis,transverse,circle:true,half,renderHalf,localHalf:shape.half,shape,settings,mix:portalMixIds(edge),runLo,runHi,mouth});
  }
  return infos;
 }
@@ -665,17 +710,25 @@ function portalPassageContains(o,lo,hi){
  return ['x','y','z'].every(a=>lo[a]>=o.runLo[a]-1e-6&&hi[a]<=o.runHi[a]+1e-6);
 }
 function portalFrameBlocked(o,lo,hi,padding=0,allowPassage=false){
- return overlapsBox(lo,hi,o.pos,o.half,padding)&&!(allowPassage&&portalPassageContains(o,lo,hi));
+ return overlapsBox(lo,hi,o.keepoutPos||o.pos,o.half,padding)&&!(allowPassage&&portalPassageContains(o,lo,hi));
 }
 function portalRunVoxels(o,put){
- for(let x=o.runLo.x;x<o.runHi.x;x++)for(let y=o.runLo.y;y<o.runHi.y;y++)for(let z=o.runLo.z;z<o.runHi.z;z++)put(x,y,z,'portalPath','portal:'+o.face,0);
+ const u=PATH_CUBE_SIZE;
+ for(let x=o.runLo.x;x<o.runHi.x;x+=u)for(let y=o.runLo.y;y<o.runHi.y;y+=u)for(let z=o.runLo.z;z<o.runHi.z;z+=u)put(x,y,z,'portalPath','portal:'+o.face,0);
 }
 
-/* Sparse world model, v9. One authoring cell is one 1³ terrain block.
- * Generated platforms are seeds, not editable 8³ containers. The second pass
- * adds connected 0.5³ growth; editor picking uses that exact half-block grid.
+/* Sparse c4 world model, v16. Positions and dimensions are in c1 units.
+ * An authoring address is one c4 cell. Platforms and paths share that lattice.
+ * Optional growth uses c3 cubes. Exact picking uses sparse c4-sized buckets.
  * Fresh levels contain no generated terrain, cubes, growth, or paths. */
-const CHUNK=64,SLOT=1,DETAIL_UNIT=.5,SOFT_CAP=16,MAX_MODULES=128;
+// A chunk is still 64 terrain cubes across; a terrain cube is now c4 (8 c1).
+// Expand distances, not the tier definitions. No dense 2048³ voxel array is built.
+const SLOT=CUBE_TIERS.c4,CHUNK_CELLS=64,CHUNK=CHUNK_CELLS*SLOT;
+const DETAIL_UNIT=CUBE_TIERS.c3,CONTROL_UNIT=CUBE_TIERS.c1,SOFT_CAP=16,MAX_MODULES=128;
+// Seven named sizes were specified for the new clean hierarchy. The platform
+// demo renders exactly those seven (largest first); no unnamed eighth tier is invented.
+const ASSET_CUBE_TIERS=Object.freeze(CUBE_TIER_ORDER.map(name=>({name,size:CUBE_TIERS[name]})));
+const WORLD_C1_SIZE=4*CHUNK;
 const PLATFORM_MIN=16,PLATFORM_MAX=24,PLATFORM_BOOST_MIN=22,PLATFORM_SIZE_MAX=48,GROWTH_MIN=250,GROWTH_MAX=500;
 const buildStats={baseBuilds:0,platformBuilds:0,branchBuilds:0,compositions:0};
 const DEFAULT_SPAN=4,WORLD_LAYOUTS=Object.freeze([4]);
@@ -689,16 +742,16 @@ function voidTerrainColour(p){
  return RAINBOW[hashSeed(cell.join(','))%RAINBOW.length];
 }
 function portalMixIds(edge){return edge.action==='leave'?['L']:WORLDS[edge.targetWorldId-1].themes;}
-function makeData(world){return {id:world.id,spanChunks:DEFAULT_SPAN,portals:{...DEFAULT_PORTALS},portalStyles:defaultPortalStyles(world),generated:false,modules:[],config:{seed:'little-'+String(world.id).padStart(2,'0'),count:6,growthEnabled:true,cubeTheme:world.themes[0],bend:45,height:55,loops:20,autoPaths:true}};}
+function makeData(world){return {id:world.id,spanChunks:DEFAULT_SPAN,portals:{...DEFAULT_PORTALS},portalStyles:defaultPortalStyles(world),generated:false,modules:[],config:{seed:'little-'+String(world.id).padStart(2,'0'),count:6,growthEnabled:false,cubeTheme:world.themes[0],bend:45,height:55,loops:20,autoPaths:true}};}
 let levelData=WORLDS.map(makeData);
 const histories=WORLDS.map(()=>({undo:[],redo:[]}));
 const cellKey=c=>c.join(',');
 const voxelKey=(x,y,z)=>`${x},${y},${z}`;
 function halfOf(d){return d.spanChunks*CHUNK/2;}
-function cellOrigin(d,c){const h=halfOf(d);return new V3(...c.map(x=>x-h));}
-function cellCenter(d,c){return cellOrigin(d,c).add(new V3(.5,.5,.5));}
-function pointCell(d,p){const h=halfOf(d);return p.toArray().map(x=>Math.floor(x+h));}
-function validCell(d,c){return Array.isArray(c)&&c.length===3&&c.every(x=>Number.isInteger(x)&&x>=0&&x<d.spanChunks*CHUNK);}
+function cellOrigin(d,c){const h=halfOf(d);return new V3(...c.map(x=>x*SLOT-h));}
+function cellCenter(d,c){return cellOrigin(d,c).add(new V3(SLOT/2,SLOT/2,SLOT/2));}
+function pointCell(d,p){const h=halfOf(d);return p.toArray().map(x=>Math.floor((x+h)/SLOT));}
+function validCell(d,c){return Array.isArray(c)&&c.length===3&&c.every(x=>Number.isInteger(x)&&x>=0&&x<d.spanChunks*CHUNK_CELLS);}
 function snapGrid(value,step=1){return Math.floor(value/step)*step;}
 function overlapsBox(lo,hi,p,half,padding=0){return ['x','y','z'].every(a=>hi[a]>p[a]-half[a]-padding&&lo[a]<p[a]+half[a]+padding);}
 /* Independent, seeded rolls per platform, not global size/growth targets.
@@ -707,12 +760,12 @@ function overlapsBox(lo,hi,p,half,padding=0){return ['x','y','z'].every(a=>hi[a]
  * preserves gentle variation, and rounding stays inside the closed ranges. */
 function softRandom(key){const r=rng(key);return (r()+r()+r())/3;}
 function platformProfile(d,m){
- const key=d.config.seed+'|platform-roll-v7|'+d.id+'|'+m.variant+'|'+cellOrigin(d,m.cell).toArray().join(',');
+ const key=d.config.seed+'|platform-roll-v7|'+d.id+'|'+m.variant+'|'+cellOrigin(d,m.cell).toArray().map(v=>v/SLOT).join(',');
  // Preserve the original seeded roll. Only its final footprint is promoted.
  const rollSize=m.kind==='manual'&&m.platform?m.platform.rollSize:PLATFORM_MIN+Math.round(softRandom(key+'|size')*(PLATFORM_MAX-PLATFORM_MIN));
  const growthPercent=m.kind==='manual'&&m.platform?m.platform.growthPercent:GROWTH_MIN+Math.round(softRandom(key+'|growth')*(GROWTH_MAX-GROWTH_MIN));
  const boosted=rollSize>=PLATFORM_BOOST_MIN,size=boosted?rollSize*2:rollSize;
- return {rollSize,size,boosted,growthPercent,growth:d.config.growthEnabled===false?0:growthPercent/100};
+ return {rollSize,size,worldSize:size*SLOT,cubeTier:'c4',boosted,growthPercent,growth:d.config.growthEnabled===false?0:growthPercent/100};
 }
 function pinManualPlatform(d,m){
  const p=platformProfile(d,m);m.platform={rollSize:p.rollSize,growthPercent:p.growthPercent,seed:d.config.seed};return m;
@@ -720,31 +773,38 @@ function pinManualPlatform(d,m){
 function makeManualModule(d,cell,theme=d.config.cubeTheme){
  return pinManualPlatform(d,{cell:cell.slice(),kind:'manual',theme,branch:null,variant:hashSeed(d.config.seed+'|manual|'+cellKey(cell))%1000000});
 }
-function manualSupportPoint(d,m){const p=cellOrigin(d,m.cell);return [p.x,p.y-1,p.z];}
+function manualSupportPoint(d,m){const p=cellOrigin(d,m.cell);return [p.x,p.y-SLOT,p.z];}
 function platformBounds(d,m,platformSize=null){
- const p=cellOrigin(d,m.cell),size=platformSize??platformProfile(d,m).size,depth=4;
- // An owned platform is exactly centered under its 1³ control cube. Its even
- // footprints finish on half-grid rims, rather than shifting the control cube.
- const left=m.kind==='manual'?.5-size/2:-Math.floor(size/2);
- return {lo:p.clone().add(new V3(left,-depth,left)),hi:p.clone().add(new V3(left+size,0,left+size))};
+ const p=cellOrigin(d,m.cell),count=platformSize??platformProfile(d,m).size;
+ const left=-Math.floor(count/2)*SLOT,size=count*SLOT;
+ return {lo:p.clone().add(new V3(left,-4*SLOT,left)),hi:p.clone().add(new V3(left+size,0,left+size))};
 }
+function platformCenter(d,m){const b=platformBounds(d,m);return new V3((b.lo.x+b.hi.x)/2,b.hi.y,(b.lo.z+b.hi.z)/2);}
+function platformAssetBounds(d,m){
+ const p=platformCenter(d,m),r=CUBE_TIERS.r3/2,height=Object.values(CUBE_TIERS).reduce((a,b)=>a+b,0);
+ return {lo:p.clone().add(new V3(-r,0,-r)),hi:p.clone().add(new V3(r,height,r))};
+}
+function assetSocketBlocked(sockets,p){
+ const u=PATH_CUBE_SIZE;
+ return sockets.some(b=>['x','y','z'].every((a,i)=>p[i]+u>b.lo[a]+1e-7&&p[i]-u<b.hi[a]-1e-7));
+}
+function controlOrigin(d,m){const p=platformCenter(d,m);return p.add(new V3(-CONTROL_UNIT/2,0,-CONTROL_UNIT/2));}
 function cubeThemes(world){return world.kind==='special'?[1,2,3,4,5,6,'S']:world.themes.slice();}
 function validCubeTheme(world,id){return cubeThemes(world).includes(id);}
 function cubeTheme(world,d,m){return validCubeTheme(world,m?.theme)?m.theme:validCubeTheme(world,d.config.cubeTheme)?d.config.cubeTheme:world.themes[0];}
 function moduleBounds(d,m,platformSize=null){
- const p=cellOrigin(d,m.cell);
- if(m.kind==='manual')return {lo:p,hi:p.clone().add(new V3(1,1,1))};
+ if(m.kind==='manual'){const lo=controlOrigin(d,m);return {lo,hi:lo.clone().add(new V3(CONTROL_UNIT,CONTROL_UNIT,CONTROL_UNIT))};}
  return platformBounds(d,m,platformSize);
 }
 function reservedCell(world,d,c,kind='manual'){
  const box=moduleBounds(d,{cell:c,kind});
- return portalInfo(world,d).some(o=>overlapsBox(box.lo,box.hi,o.pos,o.half,.35));
+ return portalInfo(world,d).some(o=>overlapsBox(box.lo,box.hi,(o.keepoutPos||o.pos),o.half,.35));
 }
 function moduleFits(world,d,m,platformSize=null){
  if(!validCell(d,m.cell))return false;
  const b=platformBounds(d,m,platformSize),h=halfOf(d);
- if(m.kind==='manual')b.hi.y+=1;
- return ['x','y','z'].every(a=>b.lo[a]>=-h&&b.hi[a]<=h)&&!portalInfo(world,d).some(o=>overlapsBox(b.lo,b.hi,o.pos,o.half,.35));
+ if(m.kind==='manual')b.hi.y+=CONTROL_UNIT;
+ return ['x','y','z'].every(a=>b.lo[a]>=-h&&b.hi[a]<=h)&&!portalInfo(world,d).some(o=>overlapsBox(b.lo,b.hi,(o.keepoutPos||o.pos),o.half,.35));
 }
 function snapshot(id){const h=histories[id-1];h.undo.push(JSON.stringify(levelData[id-1]));if(h.undo.length>50)h.undo.shift();h.redo=[];}
 function changeHistory(id,redo=false){const h=histories[id-1],a=redo?h.redo:h.undo,b=redo?h.undo:h.redo;if(!a.length)return false;b.push(JSON.stringify(levelData[id-1]));levelData[id-1]=JSON.parse(a.pop());return true;}
@@ -752,7 +812,7 @@ function generatePlatforms(world,d){
  const rand=rng(d.config.seed+'|'+world.id+'|platforms'),h=halfOf(d);
  const manual=d.modules.filter(m=>m.kind==='manual');d.modules=manual.slice();
  const want=Math.max(0,Math.min(SOFT_CAP,Math.round(d.config.count))-manual.length);
- const radius=Math.max(2,h-PLATFORM_SIZE_MAX*.75-5),spread=Math.max(0,h-8)*d.config.height/100;
+ const radius=Math.max(2*SLOT,h-PLATFORM_SIZE_MAX*SLOT*.75-5*SLOT),spread=Math.max(0,h-8*SLOT)*d.config.height/100;
  const phase=rand()*Math.PI*2;
  // Best-candidate placement gives one coherent, seeded family: spacious
  // platforms in a meandering vertical arrangement, not four lookalike presets.
@@ -768,7 +828,7 @@ function generatePlatforms(world,d){
    const bounds=platformBounds(d,m,PLATFORM_SIZE_MAX);let separation=Infinity,blocked=false;
    for(const other of d.modules){
     const b=platformBounds(d,other,other.kind==='manual'?null:PLATFORM_SIZE_MAX);
-    if(['x','y','z'].every(ax=>bounds.hi[ax]+1>b.lo[ax]&&bounds.lo[ax]-1<b.hi[ax])){blocked=true;break;}
+    if(['x','y','z'].every(ax=>bounds.hi[ax]+SLOT>b.lo[ax]&&bounds.lo[ax]-SLOT<b.hi[ax])){blocked=true;break;}
     const q=cellOrigin(d,other.cell),delta=p.clone().sub(q);delta.y*=1.2;
     separation=Math.min(separation,delta.length());
    }
@@ -780,73 +840,128 @@ function generatePlatforms(world,d){
  }
  d.generated=d.modules.length>0;return d;
 }
-function themeIndexAt(world,p,seed=0){if(world.themes.length===1)return 0;const phase=(seed%317)*.031;const x=p.x+.22*p.y+Math.sin(p.z*.12+phase)*3.8,z=p.z+.15*p.y;if(world.themes.length===2)return x+z*.18<0?0:1;let a=Math.atan2(z,x)+Math.PI+phase;a=(a%(Math.PI*2)+Math.PI*2)%(Math.PI*2);return Math.min(2,Math.floor(a/(Math.PI*2/3)));}
+function themeIndexAt(world,p,seed=0){p=p.clone().multiplyScalar(1/SLOT);if(world.themes.length===1)return 0;const phase=(seed%317)*.031;const x=p.x+.22*p.y+Math.sin(p.z*.12+phase)*3.8,z=p.z+.15*p.y;if(world.themes.length===2)return x+z*.18<0?0:1;let a=Math.atan2(z,x)+Math.PI+phase;a=(a%(Math.PI*2)+Math.PI*2)%(Math.PI*2);return Math.min(2,Math.floor(a/(Math.PI*2/3)));}
 function moduleVoxels(world,d,m,put){
- const p=cellOrigin(d,m.cell),owner=(m.kind==='manual'?'cube:':'platform:')+cellKey(m.cell),variant=m.variant||0;
- if(m.kind==='manual'){put(p.x,p.y,p.z,'manual',owner,variant);return;}
- const size=platformProfile(d,m).size,depth=Math.max(2,Math.min(4,Math.floor(size/3)));
- for(let layer=0;layer<depth;layer++){
-  const width=Math.max(1,size-layer*2),lo=-Math.floor(width/2),hi=lo+width,cut=Math.floor(width*.18);
+ const p=cellOrigin(d,m.cell),owner=(m.kind==='manual'?'cube-platform:':'platform:')+cellKey(m.cell),variant=m.variant||0;
+ const size=platformProfile(d,m).size;
+ // Identical c4 terracing for generated and owned platforms. No small-cube rim.
+ for(let layer=0;layer<4;layer++){
+  const width=size-layer*2,lo=-Math.floor(width/2),hi=lo+width,cut=Math.floor(width*.18);
   for(let x=lo;x<hi;x++)for(let z=lo;z<hi;z++){
-   const corner=Math.min(x-lo,hi-1-x)+Math.min(z-lo,hi-1-z);
-   if(corner<cut)continue;
-   put(p.x+x,p.y-1-layer,p.z+z,'platform',owner,variant);
+   if(Math.min(x-lo,hi-1-x)+Math.min(z-lo,hi-1-z)<cut)continue;
+   put(p.x+x*SLOT,p.y-(1+layer)*SLOT,p.z+z*SLOT,'platform',owner,variant);
   }
  }
 }
 function routeNodes(world,d){
  // Only generated anchors participate in the global graph. Manual cubes get
  // one independently owned local branch; they never reshuffle these edges.
- const nodes=d.modules.filter(m=>m.kind==='generated').map(m=>({p:cellOrigin(d,m.cell).add(new V3(0,-1.5,0)),kind:'platform',key:cellKey(m.cell)}));
+ const nodes=d.modules.filter(m=>m.kind==='generated').map(m=>({p:cellOrigin(d,m.cell).add(new V3(0,-SLOT,0)),kind:'platform',key:cellKey(m.cell)}));
  if(!nodes.length)return nodes;
  for(const o of portalInfo(world,d))nodes.push({p:o.mouth.clone(),kind:'portal',key:o.face,normal:o.normal});
  return nodes;
 }
 function connectGraph(nodes,d){if(nodes.length<2)return [];const seen=new Set([0]),edges=[],used=new Set();while(seen.size<nodes.length){let best=null;for(const i of seen)for(let j=0;j<nodes.length;j++)if(!seen.has(j)){const a=nodes[i].p,b=nodes[j].p,dist=a.distanceTo(b)+Math.abs(a.y-b.y)*.15;if(!best||dist<best.dist)best={i,j,dist};}if(!best)break;seen.add(best.j);edges.push([best.i,best.j]);used.add([best.i,best.j].sort((a,b)=>a-b).join('-'));}const extra=[];for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){if(nodes[i].kind==='portal'||nodes[j].kind==='portal'||used.has(`${i}-${j}`))continue;extra.push({i,j,dist:nodes[i].p.distanceTo(nodes[j].p)});}extra.sort((a,b)=>a.dist-b.dist);const n=Math.min(extra.length,Math.round(nodes.filter(n=>n.kind==='platform').length*d.config.loops/100*.7));for(let i=0;i<n;i++)edges.push([extra[i].i,extra[i].j]);return edges;}
-function bezier(a,b,c,d,t){const s=1-t;return a.clone().multiplyScalar(s*s*s).addScaledVector(b,3*s*s*t).addScaledVector(c,3*s*t*t).addScaledVector(d,t*t*t);}
-function routeVoxels(world,d,a,b,edgeIndex,put,ends={}){const rand=rng(d.config.seed+'|'+world.id+'|route|'+edgeIndex),delta=b.clone().sub(a),length=delta.length(),h=halfOf(d),dir=delta.clone().normalize();let side=dir.clone().cross(new V3(0,1,0));if(side.length()<.1)side=dir.clone().cross(new V3(1,0,0));side.normalize();const bend=d.config.bend/100*Math.min(length*.38,h*.40)*(rand()<.5?-1:1);const vertical=(rand()-.5)*d.config.height/100*Math.min(length*.3,h*.35);const c=a.clone().addScaledVector(delta,.33).addScaledVector(side,bend).add(new V3(0,vertical,0));const e=a.clone().addScaledVector(delta,.67).addScaledVector(side,bend).add(new V3(0,vertical,0));if(ends.a)c.copy(a).addScaledVector(ends.a,Math.min(24,length*.33));if(ends.b)e.copy(b).addScaledVector(ends.b,Math.min(24,length*.33));const steps=Math.max(4,Math.ceil((length+Math.abs(bend)*2)/.45));let prev=null;function stamp(q){for(let dx=-1;dx<=1;dx++)for(let dy=0;dy<=1;dy++)for(let dz=-1;dz<=1;dz++)put(q[0]+dx,q[1]+dy,q[2]+dz,'path',null,edgeIndex);}
- for(let i=0;i<=steps;i++){let p=bezier(a,c,e,b,i/steps);for(const ax of ['x','y','z'])p[ax]=clamp(p[ax],-h+2,h-3);if(world.kind==='special'&&p.length()<11){if(p.length()<.01)p.set(0,-1,0);p.normalize().multiplyScalar(11);}const q=p.toArray().map(Math.floor);if(prev){const at=prev.slice();let guard=0;while(at.some((x,k)=>x!==q[k])&&guard++<500){let axis=0;for(let k=1;k<3;k++)if(Math.abs(q[k]-at[k])>Math.abs(q[axis]-at[axis]))axis=k;at[axis]+=Math.sign(q[axis]-at[axis]);stamp(at);}}else stamp(q);prev=q;}}
+function splitIntegerDistance(distance,parts){if(parts<=0)return [];const base=Math.floor(distance/parts),extra=distance%parts;return Array.from({length:parts},(_,i)=>base+(i<extra?1:0)).filter(Boolean);}
+function orthogonalCenterlineRaw(start,end,key,span,variation=45){
+ const s=start.slice(),e=end.slice(),delta=e.map((v,i)=>v-s[i]),abs=delta.map(Math.abs),active=[0,1,2].filter(i=>abs[i]>0);if(!active.length)return [s];
+ const euclid=Math.hypot(...delta),ratio=clamp(euclid/(Math.sqrt(3)*span),0,1);
+ // Full-world diagonals approach 16 long sections; shorter links scale down.
+ let target=clamp(Math.round(3+13*ratio*(.72+.28*variation/100)),active.length,16);
+ target=Math.min(target,abs.reduce((a,b)=>a+b,0));
+ const partCounts=[0,0,0];for(const ax of active)partCounts[ax]=1;
+ for(let n=active.length;n<target;n++){let best=active[0];for(const ax of active)if(abs[ax]/(partCounts[ax]+1)>abs[best]/(partCounts[best]+1))best=ax;partCounts[best]++;}
+ const queues=partCounts.map((parts,ax)=>splitIntegerDistance(abs[ax],parts).map(size=>({ax,size,sign:Math.sign(delta[ax])})));
+ const rand=rng(key+'|orthogonal-v12'),path=[s.slice()];let cur=s.slice(),lastAxis=-1,remaining=target;
+ while(remaining-->0){let options=active.filter(ax=>queues[ax].length&&ax!==lastAxis);if(!options.length)options=active.filter(ax=>queues[ax].length);
+  options.sort((a,b)=>queues[b].reduce((n,c)=>n+c.size,0)-queues[a].reduce((n,c)=>n+c.size,0));
+  const pick=options[Math.min(options.length-1,Math.floor(rand()*Math.min(2,options.length)))],chunk=queues[pick].shift();
+  for(let i=0;i<chunk.size;i++){cur=cur.slice();cur[pick]+=chunk.sign;path.push(cur);}lastAxis=pick;
+ }
+ return path;
+}
+function stampPath2x2(points,emit){
+ // Both path construction and collision use exactly these full c4 cells.
+ // Unioning adjacent segment profiles plus a solid 2³ joint closes every elbow.
+ const axisOf=(a,b)=>[0,1,2].find(k=>a[k]!==b[k]),u=PATH_CUBE_SIZE;
+ for(let i=0;i<points.length-1;i++){
+  const a=points[i],b=points[i+1],axis=axisOf(a,b);if(axis==null)continue;
+  if(a.some((v,k)=>k!==axis&&v!==b[k]))throw new Error('Route contains a non-orthogonal segment.');
+  const trans=[0,1,2].filter(k=>k!==axis);
+  for(let along=Math.min(a[axis],b[axis]);along<=Math.max(a[axis],b[axis]);along+=u){
+   for(const du of [-u,0])for(const dv of [-u,0]){const c=a.slice();c[axis]=along;c[trans[0]]+=du;c[trans[1]]+=dv;emit(c,axis);}
+  }
+ }
+ for(let i=1;i<points.length-1;i++){
+  const prev=axisOf(points[i-1],points[i]),next=axisOf(points[i],points[i+1]);
+  if(prev==null||next==null||prev===next)continue;
+  for(const x of [-u,0])for(const y of [-u,0])for(const z of [-u,0])emit([points[i][0]+x,points[i][1]+y,points[i][2]+z],'joint');
+ }
+}
+function routeCellBlocked(portals,d,p,allowPassage=true){
+ const h=halfOf(d),u=PATH_CUBE_SIZE;
+ if(p.some(x=>x<-h||x+u>h))return true;
+ const lo=V3.from(p),hi=lo.clone().add(new V3(u,u,u));
+ return portals.some(o=>portalFrameBlocked(o,lo,hi,.15,allowPassage));
+}
+function routeJointBlocked(portals,d,p,allowPassage=true){
+ const u=PATH_CUBE_SIZE;
+ for(const x of [-u,0])for(const y of [-u,0])for(const z of [-u,0])if(routeCellBlocked(portals,d,[p[0]+x,p[1]+y,p[2]+z],allowPassage))return true;
+ return false;
+}
+function routeVoxels(world,d,a,b,edgeIndex,put,ends={}){
+ const u=PATH_CUBE_SIZE,portals=portalInfo(world,d),sockets=d.modules.map(m=>platformAssetBounds(d,m));
+ const key=d.config.seed+'|'+world.id+'|route|'+edgeIndex;
+ const start=a.toArray().map(v=>Math.round(v/u)*u),end=b.toArray().map(v=>Math.round(v/u)*u);
+ const portalLead=Math.max(4,Math.min(14,Math.round(a.distanceTo(b)/u*.07)))*u;
+ const approach=(p,other,normal)=>{
+  if(normal)return {normal,length:portalLead};
+  const m=d.modules.find(m=>cellKey(manualSupportPoint(d,m))===cellKey(p));if(!m)return null;
+  const ax=Math.abs(other[0]-p[0])>=Math.abs(other[2]-p[2])?0:2;
+  const n=new V3();n[['x','y','z'][ax]]=Math.sign(other[ax]-p[ax])||1;
+  return {normal:n,length:(Math.ceil(platformProfile(d,m).size/2)+2)*u};
+ };
+ const leadA=approach(start,end,ends.a),leadB=approach(end,start,ends.b);
+ const points=[start.slice()];let innerStart=start.slice(),innerEnd=end.slice();
+ if(leadA){const ax=['x','y','z'].findIndex(k=>Math.abs(leadA.normal[k])>.5),sign=Math.sign(leadA.normal[['x','y','z'][ax]]);for(let v=0;v<leadA.length;v+=u){innerStart=innerStart.slice();innerStart[ax]+=sign*u;points.push(innerStart.slice());}}
+ if(leadB){const ax=['x','y','z'].findIndex(k=>Math.abs(leadB.normal[k])>.5);innerEnd[ax]+=Math.sign(leadB.normal[['x','y','z'][ax]])*leadB.length;}
+ const blocked=p=>routeJointBlocked(portals,d,p)||assetSocketBlocked(sockets,p);
+ const middle=localCenterline(world,d,innerStart,innerEnd,blocked,key);
+ if(!middle)throw new Error('No safe c4 route found for connection '+(edgeIndex+1)+'.');
+ for(let i=1;i<middle.length;i++)points.push(middle[i]);
+ if(leadB){let cur=innerEnd.slice();while(cur.some((v,i)=>v!==end[i])){const ax=cur.findIndex((v,i)=>v!==end[i]);cur=cur.slice();cur[ax]+=Math.sign(end[ax]-cur[ax])*u;points.push(cur);}}
+ stampPath2x2(points,cell=>put(...cell,'path',null,edgeIndex));return points;
+}
 /* Derived half-block expansions. Every accepted cell must share a face with
  * existing terrain: incomplete outlines are intentional, floating crumbs are not. */
 function expansionVoxels(world,d,primary,{profiles:customProfiles=null,initialDetails=null}={}){
- const details=new Map(initialDetails||[]),s=DETAIL_UNIT,h=halfOf(d),portals=portalInfo(world,d);
+ const details=new Map(initialDetails||[]),s=DETAIL_UNIT,u=SLOT,h=halfOf(d),portals=portalInfo(world,d);
  if(d.config.growthEnabled===false)return details;
  const profiles=customProfiles||new Map(d.modules.filter(m=>m.kind==='generated').map(m=>['platform:'+cellKey(m.cell),platformProfile(d,m)]));
  const directions=[[1,0],[-1,0],[0,1],[0,-1]];
- const occupied=(x,y,z)=>primary.has(voxelKey(Math.floor(x),Math.floor(y),Math.floor(z)))||details.has(voxelKey(x,y,z));
+ const occupied=(x,y,z)=>primary.has(voxelKey(snapGrid(x,u),snapGrid(y,u),snapGrid(z,u)))||details.has(voxelKey(x,y,z));
  function add(x,y,z,parent){
-  if(x< -h||y< -h||z< -h||x+s>h||y+s>h||z+s>h)return false;
+  if(x<-h||y<-h||z<-h||x+s>h||y+s>h||z+s>h)return false;
   if(occupied(x,y,z))return true;
   const lo=new V3(x,y,z),hi=lo.clone().add(new V3(s,s,s));
-  if(portals.some(o=>overlapsBox(lo,hi,o.pos,o.half,.35)))return false;
+  if(portals.some(o=>overlapsBox(lo,hi,o.keepoutPos||o.pos,o.half,.35)))return false;
   if(![[s,0,0],[-s,0,0],[0,s,0],[0,-s,0],[0,0,s],[0,0,-s]].some(a=>occupied(x+a[0],y+a[1],z+a[2])))return false;
   details.set(voxelKey(x,y,z),{x,y,z,size:s,kind:'expansion',owner:parent.owner,variant:parent.variant});return true;
  }
  for(const v of primary.values()){
-  if(v.kind!=='platform'||primary.has(voxelKey(v.x,v.y+1,v.z)))continue;
+  if(v.kind!=='platform'||primary.has(voxelKey(v.x,v.y+u,v.z)))continue;
   const amount=profiles.get(v.owner)?.growth||0;
-  // Separate side streams make each platform's rolled fringe repeatable.
-  // Editing a manual cube never changes these generated shelves.
   for(let side=0;side<directions.length;side++){
-   const [nx,nz]=directions[side];if(primary.has(voxelKey(v.x+nx,v.y,v.z+nz)))continue;
-   const rand=rng(d.config.seed+'|growth6|'+v.x+','+v.y+','+v.z+'|'+v.variant+'|'+side);
-   const chance=rand(),reach=rand(),lanePick=rand(),lower=rand();
-   // 100% is the old full-strength pass. Above that, deepen and fill shelves,
-   // rather than merely saturating a probability at one.
-   if(chance>Math.min(.98,amount*.72))continue;
-   const depth=Math.min(18,1+Math.floor(reach*(1+amount*2)));
-   const lanes=lanePick<.72?[0,.5]:[lanePick<.86?0:.5];
+   const [nx,nz]=directions[side];if(primary.has(voxelKey(v.x+nx*u,v.y,v.z+nz*u)))continue;
+   const rand=rng(d.config.seed+'|growth6|'+v.x/u+','+v.y/u+','+v.z/u+'|'+v.variant+'|'+side);
+   const chance=rand(),reach=rand(),lanePick=rand(),lower=rand();if(chance>Math.min(.98,amount*.72))continue;
+   const depth=Math.min(18,1+Math.floor(reach*(1+amount*2))),lanes=lanePick<.72?[0,s]:[lanePick<.86?0:s];
    for(const lane of lanes){
-    const x=v.x+(nx>0?1:nx<0?-.5:lane),z=v.z+(nz>0?1:nz<0?-.5:lane);
+    const x=v.x+(nx>0?u:nx<0?-s:lane),z=v.z+(nz>0?u:nz<0?-s:lane);
     for(let k=0;k<depth;k++){
-     const gx=x+nx*k*s,gz=z+nz*k*s;
-     if(!add(gx,v.y,gz,v))break;
+     const gx=x+nx*k*s,gz=z+nz*k*s;if(!add(gx,v.y,gz,v))break;
      if(k===0&&lower<.45)add(gx,v.y-s,gz,v);
-     // Larger per-platform rolls form stepped skirts, still half-size blocks.
-     if(amount>1&&k<Math.floor((amount-1)*(.5+lower))){
-      add(gx,v.y-s,gz,v);
-      if(amount>3&&k<Math.floor((amount-3)*lower))add(gx,v.y-1,gz,v);
-     }
+     if(amount>1&&k<Math.floor((amount-1)*(.5+lower))){add(gx,v.y-s,gz,v);if(amount>3&&k<Math.floor((amount-3)*lower))add(gx,v.y-u,gz,v);}
     }
    }
   }
@@ -855,128 +970,98 @@ function expansionVoxels(world,d,primary,{profiles:customProfiles=null,initialDe
 }
 function baseSignature(world,d){
  const c=d.config;
- return JSON.stringify(['boosted-platforms-v9',world.id,d.spanChunks,c.seed,c.growthEnabled!==false,c.bend,c.height,c.loops,c.autoPaths,
+ return JSON.stringify(['cube-tier-paths-v16',world.id,d.spanChunks,c.seed,c.growthEnabled!==false,c.bend,c.height,c.loops,c.autoPaths,
   d.modules.filter(m=>m.kind==='generated').map(m=>[m.cell,m.variant])]);
 }
 function buildBaseGeometry(world,d){
  buildStats.baseBuilds++;
- const primary=new Map(),h=halfOf(d),portals=portalInfo(world,d);
+ const primary=new Map(),portals=portalInfo(world,d),u=SLOT;
  function put(x,y,z,kind,owner,variant){
-  if(x< -h||x>=h||y< -h||y>=h||z< -h||z>=h)return;
-  const key=voxelKey(x,y,z);if(primary.has(key))return;
-  if(portals.some(o=>portalFrameBlocked(o,new V3(x,y,z),new V3(x+1,y+1,z+1),.15,kind==='path'||kind==='portalPath')))return;
-  primary.set(key,{x,y,z,size:1,kind,owner,variant});
+  const key=voxelKey(x,y,z);if(primary.has(key)||routeCellBlocked(portals,d,[x,y,z],kind==='path'||kind==='portalPath'))return;
+  primary.set(key,{x,y,z,size:u,kind,owner,variant});
  }
  for(const m of d.modules.filter(m=>m.kind==='generated'))moduleVoxels(world,d,m,put);
- let nodes=[],edges=[];
- if(d.config.autoPaths){nodes=routeNodes(world,d);edges=connectGraph(nodes,d);edges.forEach(([a,b],i)=>routeVoxels(world,d,nodes[a].p,nodes[b].p,i,put,{a:nodes[a].normal,b:nodes[b].normal}));if(nodes.length)for(const o of portals)portalRunVoxels(o,put);}
+ let nodes=[],edges=[],routePaths=[];
+ if(d.config.autoPaths){nodes=routeNodes(world,d);edges=connectGraph(nodes,d);edges.forEach(([a,b],i)=>routePaths.push(routeVoxels(world,d,nodes[a].p,nodes[b].p,i,put,{a:nodes[a].normal,b:nodes[b].normal})));if(nodes.length)for(const o of portals)portalRunVoxels(o,put);}
  const details=expansionVoxels(world,d,primary),detailUnits=new Set();
- for(const v of details.values())detailUnits.add(voxelKey(Math.floor(v.x),Math.floor(v.y),Math.floor(v.z)));
- return {signature:baseSignature(world,d),primary,details,detailUnits,nodes,edges};
+ for(const v of details.values())detailUnits.add(voxelKey(snapGrid(v.x,u),snapGrid(v.y,u),snapGrid(v.z,u)));
+ return {signature:baseSignature(world,d),primary,details,detailUnits,nodes,edges,routePaths};
 }
 /* Every manual control cube owns a separately cached platform recipe.
  * Primary cells, the half-grid finishing rim, and growth remain in this layer;
  * removal never edits the generated base or any other platform's contribution. */
 function buildOwnedPlatform(world,d,m,reuse=null){
  const profile=platformProfile(d,m),seed=m.platform?.seed??d.config.seed;
- const signature=JSON.stringify([world.id,d.spanChunks,m.cell,m.variant,profile.size,profile.growth,seed]);
- if(reuse?.signature===signature)return reuse;
- buildStats.platformBuilds++;
- const primary=new Map(),rim=new Map(),owner='cube-platform:'+cellKey(m.cell),p=cellOrigin(d,m.cell),cx=p.x+.5,cz=p.z+.5;
- for(let layer=0;layer<4;layer++){
-  const width=profile.size-layer*2,cut=Math.floor(width*.18),xmin=cx-width/2,xmax=cx+width/2,zmin=cz-width/2,zmax=cz+width/2,y=p.y-layer-1;
-  const inside=(x,z,half)=>Math.abs(x-cx)+Math.abs(z-cz)<=width-cut-2*half+1e-8;
-  for(let x=Math.ceil(xmin);x<Math.floor(xmax);x++)for(let z=Math.ceil(zmin);z<Math.floor(zmax);z++){
-   if(!inside(x+.5,z+.5,.5))continue;
-   primary.set(voxelKey(x,y,z),{x,y,z,size:1,kind:'platform',owner,variant:m.variant});
-  }
-  // Even widths cannot be centered on a 1³ cube with a whole-block-only rim.
-  // Half blocks finish those edges and the chamfers, preserving the exact
-  // rolled width while the control cube stays on the center of the top face.
-  for(let x=xmin;x<xmax;x+=.5)for(let z=zmin;z<zmax;z+=.5){
-   if(primary.has(voxelKey(Math.floor(x),y,Math.floor(z)))||!inside(x+.25,z+.25,.25))continue;
-   for(const yy of [y,y+.5])rim.set(voxelKey(x,yy,z),{x,y:yy,z,size:.5,kind:'platformRim',owner,variant:m.variant});
-  }
- }
+ const signature=JSON.stringify(['c4-owned-v16',world.id,d.spanChunks,m.cell,m.variant,profile.size,profile.growth,seed]);
+ if(reuse?.signature===signature)return reuse;buildStats.platformBuilds++;
+ const primary=new Map(),owner='cube-platform:'+cellKey(m.cell);
+ moduleVoxels(world,d,m,(x,y,z,kind,owner,variant)=>primary.set(voxelKey(x,y,z),{x,y,z,size:SLOT,kind,owner,variant}));
  const local={...d,modules:[m],config:{...d.config,seed}},profiles=new Map([[owner,profile]]);
- const details=expansionVoxels(world,local,primary,{profiles,initialDetails:rim});
- return {signature,primary,details,profile};
+ const details=expansionVoxels(world,local,primary,{profiles});return {signature,primary,details,profile};
 }
 const SIX=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
 const manhattan=(a,b)=>Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])+Math.abs(a[2]-b[2]);
 function pointInside(d,p){const h=halfOf(d);return p.every(x=>Number.isInteger(x)&&x>=-h&&x<h);}
-function portalBlocked(world,d,p,padding=.35){
- const lo=V3.from(p);return portalInfo(world,d).some(o=>overlapsBox(lo,lo.clone().add(new V3(1,1,1)),o.pos,o.half,padding));
-}
-/* Deterministic single-branch pathfinder. The common case is a softly curved
- * digital line. A* is used only to detour around portal clearance / half-cubes;
- * generated terrain is support, never destructively excavated. */
+function portalBlocked(world,d,p,padding=.35){return routeJointBlocked(portalInfo(world,d),d,p,false);}
+/* Deterministic single-branch pathfinder. The normal case is a sparse
+ * orthogonal line: long straight runs joined only by 90-degree turns. A* is
+ * used only for real obstructions; generated terrain is never excavated. */
 function localCenterline(world,d,start,end,blocked,key){
  if(manhattan(start,end)===0)return [start.slice()];
- const a=V3.from(start),b=V3.from(end),delta=b.clone().sub(a),length=delta.length();
- let side=delta.clone().cross(new V3(0,1,0));if(side.length()<.1)side=delta.clone().cross(new V3(1,0,0));side.normalize();
- const r=rng(key),bend=(r()-.5)*Math.min(8,length*.12)*d.config.bend/100;
- const c=a.clone().addScaledVector(delta,1/3).addScaledVector(side,bend),e=a.clone().addScaledVector(delta,2/3).addScaledVector(side,bend);
- const path=[start.slice()],steps=Math.max(1,Math.ceil(length*3));
- for(let i=1;i<=steps;i++){
-  const q=bezier(a,c,e,b,i/steps).toArray().map(Math.round),at=path[path.length-1].slice();
-  while(manhattan(at,q)){
-   let ax=0;for(let k=1;k<3;k++)if(Math.abs(q[k]-at[k])>Math.abs(q[ax]-at[ax]))ax=k;
-   at[ax]+=Math.sign(q[ax]-at[ax]);path.push(at.slice());
-  }
+ const u=PATH_CUBE_SIZE,sg=start.map(v=>Math.round(v/u)),eg=end.map(v=>Math.round(v/u));
+ const real=p=>p.map(v=>v*u),isBlocked=p=>blocked(real(p));
+ // Search on the original 256-cell lattice, not the 2048-c1-unit lattice.
+ // Several seeded long-run candidates avoid unnecessarily busy A* routes.
+ for(let attempt=0;attempt<5;attempt++){
+  const raw=orthogonalCenterlineRaw(sg,eg,key+(attempt?'|retry'+attempt:''),halfOf(d)*2/u,d.config.bend);
+  if(raw.every(p=>!isBlocked(p)))return raw.map(real);
  }
- if(path.every(p=>!blocked(p))&&new Set(path.map(cellKey)).size===path.length)return path;
- // Weighted, deterministic A*: only used for obstructions; bounded work.
  const heap=[],scores=new Map(),parents=new Map(),positions=new Map(),closed=new Set();let order=0;
  function push(n){heap.push(n);let i=heap.length-1;while(i){const p=(i-1)>>1;if(heap[p].f<n.f||(heap[p].f===n.f&&heap[p].order<n.order))break;heap[i]=heap[p];i=p;}heap[i]=n;}
  function pop(){const n=heap[0],last=heap.pop();if(heap.length){let i=0;while(i*2+1<heap.length){let j=i*2+1;if(j+1<heap.length&&(heap[j+1].f<heap[j].f||(heap[j+1].f===heap[j].f&&heap[j+1].order<heap[j].order)))j++;if(last.f<heap[j].f||(last.f===heap[j].f&&last.order<heap[j].order))break;heap[i]=heap[j];i=j;}heap[i]=last;}return n;}
- const sk=cellKey(start),ek=cellKey(end);scores.set(sk,0);positions.set(sk,start);push({p:start,key:sk,g:0,f:manhattan(start,end),order:order++});
+ const sk=cellKey(sg),ek=cellKey(eg);scores.set(sk,0);positions.set(sk,sg);push({p:sg,key:sk,g:0,f:manhattan(sg,eg),order:order++});
  while(heap.length&&closed.size<60000){
-  const cur=pop();if(closed.has(cur.key))continue;if(cur.key===ek){const out=[];let k=ek;while(k){out.push(positions.get(k));k=parents.get(k);}return out.reverse();}
+  const cur=pop();if(closed.has(cur.key))continue;if(cur.key===ek){const out=[];let k=ek;while(k){out.push(real(positions.get(k)));k=parents.get(k);}return out.reverse();}
   closed.add(cur.key);
-  const dirs=SIX.slice().sort((u,v)=>manhattan(cur.p.map((x,k)=>x+u[k]),end)-manhattan(cur.p.map((x,k)=>x+v[k]),end));
-  for(const dir of dirs){const p=cur.p.map((x,k)=>x+dir[k]),key=cellKey(p),g=cur.g+1;if(closed.has(key)||blocked(p)||g>=(scores.get(key)??Infinity))continue;
-   scores.set(key,g);parents.set(key,cur.key);positions.set(key,p);push({p,key,g,f:g+manhattan(p,end)*1.06,order:order++});}
+  const dirs=SIX.slice().sort((a,b)=>manhattan(cur.p.map((x,k)=>x+a[k]),eg)-manhattan(cur.p.map((x,k)=>x+b[k]),eg));
+  for(const dir of dirs){const p=cur.p.map((x,k)=>x+dir[k]),key=cellKey(p),g=cur.g+1;if(closed.has(key)||isBlocked(p)||g>=(scores.get(key)??Infinity))continue;scores.set(key,g);parents.set(key,cur.key);positions.set(key,p);push({p,key,g,f:g+manhattan(p,eg)*1.06,order:order++});}
  }
  return null;
 }
 function makeManualBranch(world,d,base,m,earlier){
  buildStats.branchBuilds++;
- const end=manualSupportPoint(d,m),ek=cellKey(end),h=halfOf(d),portals=portalInfo(world,d);
- const manuals=new Set(d.modules.filter(x=>x.kind==='manual').map(x=>cellOrigin(d,x.cell).toArray().join(',')));
+ const end=manualSupportPoint(d,m),ek=cellKey(end),portals=portalInfo(world,d),u=SLOT;
+ const controls=d.modules.filter(x=>x.kind==='manual').map(x=>moduleBounds(d,x)),sockets=d.modules.map(x=>platformAssetBounds(d,x));
  let anchor=null,best=Infinity;
  if(base.primary.size){
+  // Attach to a top-surface cell, not the nearest underside/sidewall cell.
+  // The route's upper layer is then exactly the platform's upper layer.
   for(const v of base.primary.values()){
-   const p=[v.x,v.y,v.z],dist=(p[0]-end[0])**2+(p[1]-end[1])**2+(p[2]-end[2])**2;
-   if(dist<best&&!manuals.has(cellKey(p))){const lo=V3.from(p);if(portals.some(o=>overlapsBox(lo,lo.clone().add(new V3(1,1,1)),o.pos,o.half,.35)))continue;best=dist;anchor={kind:'terrain',point:p};}
+   if(base.primary.has(voxelKey(v.x,v.y+u,v.z)))continue;
+   const p=[v.x,v.y,v.z],dist=V3.from(p).distanceTo(V3.from(end));
+   if(dist<best&&!routeJointBlocked(portals,d,p,false)){best=dist;anchor={kind:'terrain',point:p};}
   }
- }else{
-  // In an empty world the first owned platform is a root, with no hidden
-  // portal network. Later platforms connect to earlier ones without cycles.
-  for(const other of earlier){const p=manualSupportPoint(d,other),dist=V3.from(p).distanceTo(V3.from(end));if(dist<best){best=dist;anchor={kind:'cube',point:p};}}
- }
+ }else for(const other of earlier){const p=manualSupportPoint(d,other),dist=V3.from(p).distanceTo(V3.from(end));if(dist<best){best=dist;anchor={kind:'cube',point:p};}}
  if(!anchor)return null;
- const sk=cellKey(anchor.point);
- const blocked=p=>{
-  if(p.some(x=>x< -h||x>=h))return true;
-  const k=cellKey(p);if(k===ek||k===sk)return false;
-  if(base.detailUnits.has(k)&&!base.primary.has(k))return true;
-  if(manuals.has(k))return true;
-  const lo=V3.from(p);return portals.some(o=>overlapsBox(lo,lo.clone().add(new V3(1,1,1)),o.pos,o.half,.35));
+ const sk=cellKey(anchor.point),blocked=p=>{
+  if(routeJointBlocked(portals,d,p,false)||assetSocketBlocked(sockets,p))return true;
+  if(cellKey(p)===ek||cellKey(p)===sk)return false;
+  for(const x of [-u,0])for(const y of [-u,0])for(const z of [-u,0]){
+   const q=[p[0]+x,p[1]+y,p[2]+z],k=cellKey(q);
+   if(base.detailUnits.has(k)&&!base.primary.has(k))return true;
+   const lo=V3.from(q),hi=lo.clone().add(new V3(u,u,u));
+   if(controls.some(b=>['x','y','z'].every(a=>hi[a]>b.lo[a]&&lo[a]<b.hi[a])))return true;
+  }
+  return false;
  };
  const points=localCenterline(world,d,anchor.point,end,blocked,d.config.seed+'|branch|'+m.variant+'|'+ek);
  return points?{anchor,points}:null;
 }
 function branchStillValid(world,d,base,m,earlier){
- const b=m.branch;if(!b||!b.points?.length)return !base.primary.size&&!earlier.length; 
- const end=manualSupportPoint(d,m);
- if(cellKey(b.points[b.points.length-1])!==cellKey(end)||!b.points.every(p=>pointInside(d,p)))return false;
- const portals=portalInfo(world,d);
- for(const p of b.points){
-  const k=cellKey(p),lo=V3.from(p);
-  if(k!==cellKey(end)&&base.detailUnits.has(k)&&!base.primary.has(k))return false;
-  if(portals.some(o=>overlapsBox(lo,lo.clone().add(new V3(1,1,1)),o.pos,o.half,.35)))return false;
- }
+ const b=m.branch;if(!b||!b.points?.length)return !base.primary.size&&!earlier.length;
+ const end=manualSupportPoint(d,m),portals=portalInfo(world,d),sockets=d.modules.map(x=>platformAssetBounds(d,x));
+ if(cellKey(b.points[b.points.length-1])!==cellKey(end)||!b.points.every(p=>pointInside(d,p)&&p.every(v=>v%SLOT===0)))return false;
+ for(const p of b.points){const k=cellKey(p);if(k!==cellKey(end)&&base.detailUnits.has(k)&&!base.primary.has(k))return false;if(routeJointBlocked(portals,d,p,false)||assetSocketBlocked(sockets,p))return false;}
  if(b.anchor.kind==='terrain')return base.primary.has(cellKey(b.anchor.point));
  return !base.primary.size&&earlier.some(o=>cellKey(manualSupportPoint(d,o))===cellKey(b.anchor.point));
 }
@@ -993,46 +1078,47 @@ function syncManualBranches(world,d,base){
 }
 function branchVoxels(world,d,m,put){
  const path=m.branch?.points;if(!path||path.length<2)return;
- // The main ribbon keeps its 3-wide / 2-thick profile. The local link meets
- // the platform top below the control cube, not the top of the control cube.
- for(let i=0;i<path.length-1;i++){
-  const q=path[i],edge=Math.min(i,path.length-1-i),wide=edge>=4,deep=edge>=3;
-  for(let dx=wide?-1:0;dx<=(wide?1:0);dx++)for(let dz=wide?-1:0;dz<=(wide?1:0);dz++)for(let dy=deep?-1:0;dy<=0;dy++)put(q[0]+dx,q[1]+dy,q[2]+dz,m);
- }
+ // Manual branches use the exact same 2 × 2 cross-section as generated routes
+ // and portal bridges, including right through their platform connection.
+ stampPath2x2(path,(cell)=>put(cell[0],cell[1],cell[2],m));
 }
 function buildGeometry(world,d,{reuseBase=null,reuseOwned=null,syncBranches=false}={}){
  const base=reuseBase?.signature===baseSignature(world,d)?reuseBase:buildBaseGeometry(world,d);
- if(syncBranches)syncManualBranches(world,d,base);
- buildStats.compositions++;
- const primary=new Map(base.primary),details=new Map(base.details),branchMaps=new Map(),ownedPlatforms=new Map(),h=halfOf(d),portals=portalInfo(world,d);
- const manuals=d.modules.filter(m=>m.kind==='manual'),controlKeys=new Set(manuals.map(m=>cellKey(cellOrigin(d,m.cell).toArray())));
- // A union of independent contributions: older terrain wins at shared cells.
- // Taking away one owner exposes the surviving source, never excavates it.
+ if(syncBranches)syncManualBranches(world,d,base);buildStats.compositions++;
+ const primary=new Map(base.primary),details=new Map(base.details),branchMaps=new Map(),ownedPlatforms=new Map(),portals=portalInfo(world,d),u=SLOT;
+ const manuals=d.modules.filter(m=>m.kind==='manual');
  for(const m of manuals){
   const key=cellKey(m.cell),owned=buildOwnedPlatform(world,d,m,reuseOwned?.get(key)),theme=cubeTheme(world,d,m);ownedPlatforms.set(key,owned);
-  for(const [k,v] of owned.primary)if(!primary.has(k)&&!controlKeys.has(k))primary.set(k,{...v,theme});
-  for(const [k,v] of owned.details)if(!details.has(k)&&!controlKeys.has(voxelKey(Math.floor(v.x),Math.floor(v.y),Math.floor(v.z))))details.set(k,{...v,theme});
+  for(const [k,v] of owned.primary)if(!primary.has(k))primary.set(k,{...v,theme});
+  for(const [k,v] of owned.details)if(!details.has(k))details.set(k,{...v,theme});
  }
- if(d.config.autoPaths)for(const m of manuals){
+ for(const m of manuals){
+  if(!d.config.autoPaths)break;
   const cells=new Map(),owner='branch:'+cellKey(m.cell);branchMaps.set(owner,cells);
   branchVoxels(world,d,m,(x,y,z)=>{
-   if(x< -h||x>=h||y< -h||y>=h||z< -h||z>=h)return;
-   const key=voxelKey(x,y,z);if(base.primary.has(key)||base.detailUnits.has(key)||controlKeys.has(key))return;
-   const lo=new V3(x,y,z);if(portals.some(o=>overlapsBox(lo,lo.clone().add(new V3(1,1,1)),o.pos,o.half,.35)))return;
-   const v={x,y,z,size:1,kind:'branch',owner,variant:m.variant,theme:cubeTheme(world,d,m)};
+   const key=voxelKey(x,y,z);if(base.primary.has(key)||base.detailUnits.has(key)||routeCellBlocked(portals,d,[x,y,z],false))return;
+   const v={x,y,z,size:u,kind:'branch',owner,variant:m.variant,theme:cubeTheme(world,d,m)};
    cells.set(key,v);if(!primary.has(key))primary.set(key,v);
   });
  }
- for(const m of manuals){
-  const p=cellOrigin(d,m.cell);
-  primary.set(voxelKey(p.x,p.y,p.z),{x:p.x,y:p.y,z:p.z,size:1,kind:'manual',owner:'cube:'+cellKey(m.cell),variant:m.variant,theme:cubeTheme(world,d,m)});
+ for(const [k,v] of details)if(primary.has(voxelKey(snapGrid(v.x,u),snapGrid(v.y,u),snapGrid(v.z,u))))details.delete(k);
+ // Keep the c1 authoring control separate from c4 terrain. It remains pickable
+ // even when the display-only size tower visually covers its center position.
+ const controls=manuals.map(m=>{const p=controlOrigin(d,m);return {x:p.x,y:p.y,z:p.z,size:CONTROL_UNIT,kind:'manual',owner:'cube:'+cellKey(m.cell),variant:m.variant,theme:cubeTheme(world,d,m)};});
+ const blocks=[...primary.values(),...details.values(),...controls],voxels=new Map();voxels.step=u;voxels.buckets=true;
+ for(const b of blocks){
+  for(let x=snapGrid(b.x,u);x<b.x+b.size-1e-7;x+=u)for(let y=snapGrid(b.y,u);y<b.y+b.size-1e-7;y+=u)for(let z=snapGrid(b.z,u);z<b.z+b.size-1e-7;z+=u){
+   const k=voxelKey(x,y,z);if(!voxels.has(k))voxels.set(k,[]);voxels.get(k).push(b);
+  }
  }
- for(const [k,v] of details)if(primary.has(voxelKey(Math.floor(v.x),Math.floor(v.y),Math.floor(v.z))))details.delete(k);
- const blocks=[...primary.values(),...details.values()],voxels=new Map(),step=details.size?DETAIL_UNIT:1;voxels.step=step;
- for(const b of blocks)for(let x=b.x;x<b.x+b.size;x+=step)for(let y=b.y;y<b.y+b.size;y+=step)for(let z=b.z;z<b.z+b.size;z+=step)
-  voxels.set(voxelKey(x,y,z),{x,y,z,kind:b.kind,owner:b.owner,variant:b.variant,theme:b.theme});
- return {base,ownedPlatforms,voxels,blocks,primary,details,nodes:base.nodes,edges:base.edges,branchMaps,
-  localLinks:manuals.filter(m=>m.branch&&d.config.autoPaths).length};
+ return {base,ownedPlatforms,voxels,blocks,primary,details,nodes:base.nodes,edges:base.edges,routePaths:base.routePaths||[],branchMaps,localLinks:manuals.filter(m=>m.branch&&d.config.autoPaths).length};
+}
+function geometryOverlapsBox(geometry,lo,hi){
+ const map=geometry.voxels,u=map.step||SLOT,seen=new Set();
+ for(let x=snapGrid(lo.x,u);x<hi.x-1e-7;x+=u)for(let y=snapGrid(lo.y,u);y<hi.y-1e-7;y+=u)for(let z=snapGrid(lo.z,u);z<hi.z-1e-7;z+=u){
+  for(const b of map.get(voxelKey(x,y,z))||[]){if(seen.has(b))continue;seen.add(b);if(['x','y','z'].every(a=>hi[a]>b[a]+1e-7&&lo[a]<b[a]+b.size-1e-7))return true;}
+ }
+ return false;
 }
 /* Grid DDA for the ideal union; bevel gaps are decorative, half-block growth is
  * not. A test/host map with no step property continues to mean a unit grid. */
@@ -1041,7 +1127,13 @@ function gridRay(voxels,origin,direction,maxDistance=10){
  const step=ds.map(x=>Math.sign(x)*s),delta=ds.map(x=>x===0?Infinity:Math.abs(s/x)),next=ds.map((x,i)=>x===0?Infinity:((x>0?p[i]+s:p[i])-os[i])/x);
  let distance=0,normal=dir.clone().multiplyScalar(-1);
  for(let i=0;i<8192&&distance<=maxDistance;i++){
-  const v=voxels.get(voxelKey(...p));if(v)return {distance,normal,point:origin.clone().addScaledVector(dir,distance),voxel:v};
+  const v=voxels.get(voxelKey(...p));
+  if(v){
+   if(!voxels.buckets)return {distance,normal,point:origin.clone().addScaledVector(dir,distance),voxel:v};
+   let best=null;const exit=Math.min(...next,maxDistance)+1e-7;
+   for(const block of v){const lo=new V3(block.x,block.y,block.z),hi=lo.clone().add(new V3(block.size,block.size,block.size)),hit=rayAABB(origin,dir,lo,hi,maxDistance);if(hit&&hit.distance>=distance-1e-7&&hit.distance<=exit&&(!best||hit.distance<best.distance))best={...hit,voxel:block};}
+   if(best)return best;
+  }
   let ax=0;if(next[1]<next[ax])ax=1;if(next[2]<next[ax])ax=2;if(!Number.isFinite(next[ax]))break;
   distance=next[ax];next[ax]+=delta[ax];p[ax]+=step[ax];normal=new V3();normal[['x','y','z'][ax]]=-Math.sign(step[ax]);
  }
@@ -1049,82 +1141,61 @@ function gridRay(voxels,origin,direction,maxDistance=10){
 }
 
 function validateProject(json){
- if(!json||json.format!=='little-worlds'||![1,2,3,4,5,6,7].includes(json.version)||!Array.isArray(json.levels)||json.levels.length!==27)
-  throw new Error('Expected a Little Worlds project with 27 levels (format version 1–7).');
- if(json.version===7&&json.platformGenerator!=='owned-platforms-v9')throw new Error('Unsupported platform generator.');
- const legacy=json.version===1,hasBranches=json.version>=4,native=json.version>=5,ids=new Set();let totalPoints=0;
- if(json.version>=6&&(json.portalFrameUnit!==PORTAL_UNIT||json.portalGenerator!=='balanced-rings-v8'))throw new Error('Unsupported portal generator or frame unit.');
- if(json.version>=3){
-  for(const [key,value] of [['chunkSize',CHUNK],['platformCellSize',SLOT],['detailCellSize',DETAIL_UNIT]])
-   if(json[key]!==value)throw new Error('Unsupported '+key+' in this project.');
+ if(!json||json.format!=='little-worlds'||!Number.isInteger(json.version)||json.version<1||json.version>11||!Array.isArray(json.levels)||json.levels.length!==27)
+  throw new Error('Expected a Little Worlds project with 27 levels (format version 1–11).');
+ const modern=json.version>=11,legacy=json.version===1,hasBranches=json.version>=4,native=json.version>=5,ids=new Set();let totalPoints=0;
+ if(json.version>=7&&json.platformGenerator!==(modern?'c4-platforms-v16':'owned-platforms-v9'))throw new Error('Unsupported platform generator.');
+ if(json.version>=6){const unit=json.version>=10?PORTAL_UNIT:PORTAL_LEGACY_UNIT,generator=json.version>=10?'balanced-rings-v10':json.version>=9?'balanced-rings-v9':'balanced-rings-v8';if(json.portalFrameUnit!==unit||json.portalGenerator!==generator)throw new Error('Unsupported portal generator or frame unit.');}
+ if(json.version>=10){
+  const expected=modern?CUBE_TIERS:{c1:1,c2:2,r1:3,c3:4,r3:6,c4:8,r4:12};
+  if(!json.cubeTiers||Object.keys(json.cubeTiers).length!==7||Object.entries(expected).some(([k,v])=>json.cubeTiers[k]!==v)||json.pathCubeTier!=='c4'||json.portalCubeTier!=='c2')throw new Error('Unsupported cube-tier system.');
  }
+ if(modern&&(json.platformCubeTier!=='c4'||json.worldGenerator!=='c4-world-v16'))throw new Error('Unsupported world scale.');
+ if(json.version>=3)for(const [key,value] of [['chunkSize',modern?CHUNK:64],['platformCellSize',modern?SLOT:1],['detailCellSize',modern?DETAIL_UNIT:.5]])if(json[key]!==value)throw new Error('Unsupported '+key+' in this project.');
  const result=json.levels.map(raw=>{
   if(!raw||!Number.isInteger(raw.id)||raw.id<1||raw.id>27||ids.has(raw.id))throw new Error('Invalid or duplicate world ID.');ids.add(raw.id);
-  const permitted=native?WORLD_LAYOUTS:json.version>=3?[3,4]:[1,3];
-  if(!permitted.includes(raw.spanChunks))throw new Error(native?'Every world must be 4 × 4 × 4 chunks.':'Unsupported legacy world layout.');
+  const permitted=native?WORLD_LAYOUTS:json.version>=3?[3,4]:[1,3];if(!permitted.includes(raw.spanChunks))throw new Error('Unsupported world layout.');
   if(!Array.isArray(raw.modules)||raw.modules.length>MAX_MODULES)throw new Error('Invalid object list (maximum 128 per level).');
   const world=WORLDS[raw.id-1],out=makeData(world),c=raw.config;
-  if(json.version>=6){
-   out.portals=validatePortalSettings(raw.portals);
-   const faces=[...ALL_FACES,...(world.centerPortal?['center']:[])],styles=raw.portalStyles||defaultPortalStyles(world);
-   if(!styles||typeof styles!=='object'||faces.some(face=>!PORTAL_STYLES.includes(styles[face])))throw new Error('Invalid portal frame styles.');
-   out.portalStyles=Object.fromEntries(faces.map(face=>[face,styles[face]]));
-  }
   if(!c||typeof c.seed!=='string'||c.seed.length>96||typeof c.autoPaths!=='boolean')throw new Error('Invalid generation settings.');
-  for(const [k,lo,hi] of [['count',0,16],['bend',0,100],['height',0,100],['loops',0,100]])
-   if(!Number.isFinite(c[k])||c[k]<lo||c[k]>hi||(k==='count'&&!Number.isInteger(c[k])))throw new Error('Invalid '+k+' value.');
-  if(native&&('platformSize' in c||'expansion' in c))throw new Error('This format uses per-platform rolls, not legacy size or growth sliders.');
-  // Validate older settings in their original ranges, then retire them.
+  for(const [k,lo,hi] of [['count',0,16],['bend',0,100],['height',0,100],['loops',0,100]])if(!Number.isFinite(c[k])||c[k]<lo||c[k]>hi||(k==='count'&&!Number.isInteger(c[k])))throw new Error('Invalid '+k+' value.');
+  if(native&&('platformSize' in c||'expansion' in c))throw new Error('This format uses per-platform rolls, not legacy sliders.');
   const oldSize=legacy?8:c.platformSize,oldGrowth=legacy?55:c.expansion;
-  if(!native){
-   if(!Number.isInteger(oldSize)||oldSize<(hasBranches?8:3)||oldSize>(hasBranches?24:14))throw new Error('Invalid legacy platformSize value.');
-   if(!Number.isFinite(oldGrowth)||oldGrowth<(hasBranches?100:0)||oldGrowth>(hasBranches?500:100))throw new Error('Invalid legacy expansion value.');
-  }
+  if(!native){if(!Number.isInteger(oldSize)||oldSize<(hasBranches?8:3)||oldSize>(hasBranches?24:14))throw new Error('Invalid legacy platform size.');if(!Number.isFinite(oldGrowth)||oldGrowth<(hasBranches?100:0)||oldGrowth>(hasBranches?500:100))throw new Error('Invalid legacy growth.');}
   if(hasBranches&&(typeof c.growthEnabled!=='boolean'||!validCubeTheme(world,c.cubeTheme)))throw new Error('Invalid growth toggle or cube palette.');
-  out.config={seed:c.seed,count:c.count,growthEnabled:hasBranches?c.growthEnabled:oldGrowth>0,
-   cubeTheme:hasBranches?c.cubeTheme:world.themes[0],bend:c.bend,height:c.height,loops:c.loops,autoPaths:c.autoPaths};
-  const source={...out,spanChunks:raw.spanChunks},offset=halfOf(out)-halfOf(source),seen=new Set(),earlier=[];
+  out.config={seed:c.seed,count:c.count,growthEnabled:hasBranches?c.growthEnabled:oldGrowth>0,cubeTheme:hasBranches?c.cubeTheme:world.themes[0],bend:c.bend,height:c.height,loops:c.loops,autoPaths:c.autoPaths};
+  const sourceCells=raw.spanChunks*CHUNK_CELLS,sourceHalf=raw.spanChunks*(modern?CHUNK:64)/2;
+  const offset=(DEFAULT_SPAN*CHUNK_CELLS-sourceCells)/2,coordinateScale=modern?1:SLOT;
+  const seen=new Set(),earlier=[];
+  const sourcePoint=p=>Array.isArray(p)&&p.length===3&&p.every(v=>Number.isInteger(v)&&v>=-sourceHalf&&v<sourceHalf);
   out.modules=raw.modules.map(m=>{
    if(!m||!Array.isArray(m.cell)||m.cell.length!==3||!m.cell.every(Number.isInteger)||!['manual','generated'].includes(m.kind)||!Number.isInteger(m.variant)||m.variant<0||m.variant>1e9)throw new Error('Invalid cube metadata.');
-   if(legacy&&!m.cell.every(x=>x>=0&&x<source.spanChunks*8))throw new Error('Invalid legacy platform cell.');
+   if(legacy&&!m.cell.every(x=>x>=0&&x<raw.spanChunks*8))throw new Error('Invalid legacy platform cell.');
    const original=legacy?m.cell.map((x,axis)=>x*8+4+(m.kind==='manual'&&axis===1?-1:0)):m.cell.slice();
-   if(!validCell(source,original))throw new Error('A cube is outside its original grid.');
+   if(!original.every(x=>x>=0&&x<sourceCells))throw new Error('A cube is outside its original grid.');
    const cell=original.map(x=>x+offset),obj={cell,kind:m.kind,variant:m.variant},key=m.kind+'|'+cellKey(cell);
    if(!validCell(out,cell)||seen.has(key))throw new Error('A cube is outside the grid or duplicated.');
-   
    if(m.kind==='manual'){
-    if(json.version===7){
-     const p=m.platform;
-     if(!p||!Number.isInteger(p.rollSize)||p.rollSize<16||p.rollSize>24||!Number.isInteger(p.growthPercent)||p.growthPercent<250||p.growthPercent>500||typeof p.seed!=='string'||p.seed.length>96)throw new Error('Invalid owned-platform recipe.');
-     obj.platform={rollSize:p.rollSize,growthPercent:p.growthPercent,seed:p.seed};
-    }else pinManualPlatform(out,obj);
-    if(reservedCell(world,source,original)||reservedCell(world,out,cell))throw new Error('A cube blocks a portal.');
-    if(hasBranches&&!validCubeTheme(world,m.theme))throw new Error('A placed cube uses a colour outside this world’s palette.');
-    obj.theme=hasBranches?m.theme:world.themes[themeIndexAt(world,cellOrigin(out,cell),hashSeed(c.seed))];
-    obj.branch=null;
+    if(json.version>=7){const p=m.platform;if(!p||!Number.isInteger(p.rollSize)||p.rollSize<16||p.rollSize>24||!Number.isInteger(p.growthPercent)||p.growthPercent<250||p.growthPercent>500||typeof p.seed!=='string'||p.seed.length>96)throw new Error('Invalid owned-platform recipe.');obj.platform={rollSize:p.rollSize,growthPercent:p.growthPercent,seed:p.seed};}else pinManualPlatform(out,obj);
+    if(hasBranches&&!validCubeTheme(world,m.theme))throw new Error('A placed cube uses a colour outside the world palette.');
+    obj.theme=hasBranches?m.theme:world.themes[themeIndexAt(world,cellOrigin(out,cell),hashSeed(c.seed))];obj.branch=null;
     if(hasBranches&&m.branch!=null){
      const b=m.branch,points=b.points,anchor=b.anchor;
-     if(!anchor||!['terrain','cube'].includes(anchor.kind)||!Array.isArray(anchor.point)||anchor.point.length!==3||!pointInside(out,anchor.point)||!Array.isArray(points)||points.length<1||points.length>4096)throw new Error('Invalid local branch.');
+     if(!anchor||!['terrain','cube'].includes(anchor.kind)||!sourcePoint(anchor.point)||!Array.isArray(points)||points.length<1||points.length>4096)throw new Error('Invalid local branch.');
      if((totalPoints+=points.length)>500000)throw new Error('Project contains too many branch points.');
-     const unique=new Set();let blockedByNewFrame=false;
-     for(let i=0;i<points.length;i++){
-      const p=points[i];if(!Array.isArray(p)||p.length!==3||!pointInside(source,p)||!pointInside(out,p)||(json.version>=6&&portalBlocked(world,out,p))||unique.has(cellKey(p))||(i&&manhattan(p,points[i-1])!==1))throw new Error('Invalid, disconnected, or blocked branch path.');unique.add(cellKey(p));if(portalBlocked(world,out,p))blockedByNewFrame=true;
-     }
-     if(cellKey(points[0])!==cellKey(anchor.point)||cellKey(points[points.length-1])!==cellKey(json.version===7?manualSupportPoint(out,obj):cellOrigin(out,cell).toArray()))throw new Error('Branch endpoint does not match its cube.');
+     const unique=new Set(),sourceStep=modern?SLOT:1;
+     for(let i=0;i<points.length;i++){const p=points[i];if(!sourcePoint(p)||(modern&&p.some(v=>v%SLOT!==0))||unique.has(cellKey(p))||(i&&manhattan(p,points[i-1])!==sourceStep))throw new Error('Invalid or disconnected branch path.');unique.add(cellKey(p));}
+     const oldEnd=original.map(v=>(v-sourceCells/2)*(modern?SLOT:1));if(json.version>=7)oldEnd[1]-=sourceStep;
+     if(cellKey(points[0])!==cellKey(anchor.point)||cellKey(points[points.length-1])!==cellKey(oldEnd))throw new Error('Branch endpoint does not match its control cube.');
      if(anchor.kind==='cube'&&!earlier.some(p=>cellKey(p)===cellKey(anchor.point)))throw new Error('A branch references a missing or later cube.');
-     obj.branch=blockedByNewFrame||json.version<7?null:{anchor:{kind:anchor.kind,point:anchor.point.slice()},points:points.map(p=>p.slice())};
+     if(json.version>=7){const scaled=points.map(p=>p.map(v=>v*coordinateScale));if(scaled.every(p=>pointInside(out,p)&&!portalBlocked(world,out,p)))obj.branch={anchor:{kind:anchor.kind,point:anchor.point.map(v=>v*coordinateScale)},points:scaled};else if(modern)throw new Error('A saved branch blocks portal clearance.');}
     }
-    earlier.push(json.version===7?manualSupportPoint(out,obj):cellOrigin(out,cell).toArray());
+    const oldEnd=original.map(v=>(v-sourceCells/2)*(modern?SLOT:1));if(json.version>=7)oldEnd[1]-=modern?SLOT:1;earlier.push(oldEnd);
    }
-   if(!moduleFits(world,out,obj))throw new Error('World '+out.id+': a platform footprint or control cube extends outside the world or blocks portal clearance. Move its anchor inward in the older editor before importing.');
+   if(!moduleFits(world,out,obj))throw new Error('World '+out.id+': a platform extends outside the enlarged world or blocks portal clearance.');
    seen.add(key);return obj;
   });
-  for(const m of out.modules.filter(m=>m.kind==='manual')){
-   const cube=moduleBounds(out,m);
-   for(const other of out.modules){if(other===m)continue;const body=platformBounds(out,other);
-    if(['x','y','z'].every(ax=>body.hi[ax]>cube.lo[ax]&&body.lo[ax]<cube.hi[ax]))throw new Error('World '+out.id+': a new platform footprint would cover another control cube. Move it in the older editor before importing.');
-   }
-  }
+  for(const m of out.modules.filter(m=>m.kind==='manual')){const cube=moduleBounds(out,m);for(const other of out.modules){if(other===m)continue;const b=platformBounds(out,other);if(['x','y','z'].every(a=>b.hi[a]>cube.lo[a]&&b.lo[a]<cube.hi[a]))throw new Error('World '+out.id+': a platform would cover another control cube.');}}
   out.generated=out.modules.length>0;return out;
  });
  return result.sort((a,b)=>a.id-b.id);
@@ -1134,7 +1205,7 @@ function validateProject(json){
    on boot. Export and import are explicit, so every fresh opening is empty. */
 const $=id=>document.getElementById(id);
 const canvas=$('canvas');
-let renderEngine,selectedWorldId=1,tool='select',sliceAxis='y',sliceIndex=DEFAULT_SPAN*CHUNK/2-1,selectedCell=null,hoverCell=null,hoverValid=false;
+let renderEngine,selectedWorldId=1,tool='select',sliceAxis='y',sliceIndex=DEFAULT_SPAN*CHUNK_CELLS/2-1,selectedCell=null,hoverCell=null,hoverValid=false;
 let currentGeometry={voxels:new Map(),nodes:[],edges:[]},currentPortals=[],portalElements=[],showGuides=true;
 const camera={pos:new V3(85,62,90),q:new Q4(),fov:45*Math.PI/180};
 const orbit={target:new V3(),yaw:.76,pitch:.48,radius:142};
@@ -1144,15 +1215,15 @@ const data=()=>levelData[selectedWorldId-1];
 const world=()=>WORLDS[selectedWorldId-1];
 const pad=n=>String(n).padStart(2,'0');
 function toast(message,error=false){const e=$('toast');e.textContent=message;e.classList.toggle('error',error);e.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>e.classList.remove('show'),4200);}
-function setOrbitCamera(){const c=Math.cos(orbit.pitch);camera.pos.copy(orbit.target).add(new V3(Math.sin(orbit.yaw)*c,Math.sin(orbit.pitch),Math.cos(orbit.yaw)*c).multiplyScalar(orbit.radius));camera.q.copy(lookQuaternion(orbit.target.clone().sub(camera.pos).normalize(),new V3(0,1,0)));}
-function frameWorld(){portalFocus=null;updateViewHeading();if(portalSummaries.length)updatePortalUI();if($('portalFocusNote'))$('portalFocusNote').textContent='Inspect an actual portal to compare frames up close.';if($('emptyCard'))$('emptyCard').hidden=data().modules.length>0||tool==='place';orbit.target.set(0,0,0);orbit.yaw=.76;orbit.pitch=.48;orbit.radius=halfOf(data())*4.65;setOrbitCamera();}
+function setOrbitCamera(){camera.near=clamp(orbit.radius*.002,.04,16);const c=Math.cos(orbit.pitch);camera.pos.copy(orbit.target).add(new V3(Math.sin(orbit.yaw)*c,Math.sin(orbit.pitch),Math.cos(orbit.yaw)*c).multiplyScalar(orbit.radius));camera.q.copy(lookQuaternion(orbit.target.clone().sub(camera.pos).normalize(),new V3(0,1,0)));}
+function frameWorld(){towerFocus=null;updateTowerLabels();portalFocus=null;updateViewHeading();if(portalSummaries.length)updatePortalUI();if($('portalFocusNote'))$('portalFocusNote').textContent='Inspect an actual portal to compare frames up close.';if($('emptyCard'))$('emptyCard').hidden=data().modules.length>0||tool==='place';orbit.target.set(0,0,0);orbit.yaw=.76;orbit.pitch=.48;orbit.radius=halfOf(data())*4.65;setOrbitCamera();}
 function screenRay(event){const r=canvas.getBoundingClientRect(),x=(event.clientX-r.left)/r.width*2-1,y=1-(event.clientY-r.top)/r.height*2,t=Math.tan(camera.fov/2);const dir=new V3(x*t*r.width/r.height,y*t,-1).normalize().applyQuaternion(camera.q);return {origin:camera.pos.clone(),dir};}
 function project(p){const d=p.clone().sub(camera.pos),inv=camera.q.clone();inv.x*=-1;inv.y*=-1;inv.z*=-1;d.applyQuaternion(inv);if(d.z>=-.1)return null;const t=Math.tan(camera.fov/2),w=canvas.clientWidth,h=canvas.clientHeight;return {x:w/2+(d.x/-d.z)/t*h/2,y:h/2-(d.y/-d.z)/t*h/2,depth:-d.z};}
 function fillPortalLabels(){const parent=$('portalLabels');parent.replaceChildren();portalElements=[];for(const o of currentPortals){const b=document.createElement('button');b.className='portal-label';const target=o.edge.action==='leave'?'LEAVE':pad(o.edge.targetWorldId);const name=o.edge.action==='leave'?'Leave destination supplied by the game':`World ${pad(o.edge.targetWorldId)} · ${WORLDS[o.edge.targetWorldId-1].themes.map(id=>themeFor(id).name).join(' + ')}`;b.title=`${o.face} portal → ${name}`;b.setAttribute('aria-label',b.title);const strong=document.createElement('strong');strong.textContent=o.face==='center'?'C':o.face[0].toUpperCase();b.append(strong);for(const colour of portalPalette(o.mix)){const i=document.createElement('i');i.style.background=colour.hex;b.append(i);}const label=document.createElement('span');label.className='target';label.textContent='→ '+target;b.append(label);b.addEventListener('click',()=>activatePortal(o));parent.append(b);portalElements.push({el:b,portal:o});}}
 function updatePortalLabels(){for(const {el,portal:o} of portalElements){const up=new V3(0,1,0).applyQuaternion(o.q);const point=o.pos.clone().addScaledVector(up,o.localHalf.y+1.15),p=project(point);if(!p||p.x<-50||p.x>canvas.clientWidth+50||p.y<0||p.y>canvas.clientHeight){el.style.display='none';continue;}el.style.display='';el.style.left=p.x+'px';el.style.top=p.y+'px';}}
 /* Portal lab — the same orbit camera, focused on one of the real world
  * portals. Nothing is spawned into the model by the inspection controls. */
-let portalFace='east',portalFocus=null,showPortalRun=false,portalGesture=null,portalSummaries=[],portalRenderBuilds=0;
+let portalFace='east',portalPresetKeySelected='1',portalFocus=null,showPortalRun=false,portalSummaries=[],portalRenderBuilds=0;
 function renderPortals(){
  currentPortals=portalInfo(world(),data());const ports=[];portalSummaries=[];portalRenderBuilds++;
  for(const o of currentPortals){
@@ -1160,51 +1231,68 @@ function renderPortals(){
   // Leave keeps its neutral, softly lifted original base colour. Ordinary
   // theme cubes use exactly their palette colour, with no patchy white accents.
   if(o.edge.action==='leave')colours[0]=mixRGB(colours[0],[.97,.98,.95],.08);
-  for(const c of painted.cells){const p=new V3(c.u,c.v,c.z).applyQuaternion(o.q).add(o.pos);instance(ports,p,PORTAL_UNIT-.011,colours[c.colour],o.q,o.settings.flatColours?-1:.04);}
-  portalSummaries.push({face:o.face,target:o.edge.targetWorldId,action:o.edge.action,style:o.settings.style,cubes:painted.cells.length,dimensions:o.shape.half.toArray().map(x=>Math.round(x*20)/10),palette:painted.palette,counts:painted.counts,center:o.pos.toArray(),mouth:o.mouth.toArray()});
+  for(const c of painted.cells){const p=new V3(c.u,c.v,c.z).applyQuaternion(o.q).add(o.pos);instance(ports,p,cubeRenderSize(PORTAL_UNIT),colours[c.colour],o.q,o.settings.flatColours?-1:.04);}
+  portalSummaries.push({face:o.face,edge:{portalTheme:o.edge.portalTheme,targetWorldId:o.edge.targetWorldId,action:o.edge.action},target:o.edge.targetWorldId,action:o.edge.action,style:o.settings.style,cubes:painted.cells.length,dimensions:o.shape.half.toArray().map(x=>Math.round(x*20)/10),palette:painted.palette,counts:painted.counts,center:o.pos.toArray(),mouth:o.mouth.toArray()});
  }
  renderEngine.setBatch('portals',ports);fillPortalLabels();updatePortalPreview();
 }
 function updatePortalPreview(){
  if(!renderEngine)return;const blocks=[],lines=[],o=currentPortals.find(o=>o.face===portalFace);
- if(showPortalRun&&o){
-  const colour=[.60,.72,.56];
-  portalRunVoxels(o,(x,y,z)=>{
-   const p=new V3(x+.5,y+.5,z+.5);
-   if(!currentGeometry.primary?.has(voxelKey(x,y,z)))instance(blocks,p,.984,colour);
-   wireCube(lines,p,1,colour,.48);
-  });
+ if(showPortalRun&&o&&o.face!=='center'){
+  const colour=[.60,.72,.56],u=PATH_CUBE_SIZE,h=halfOf(data()),axis=['x','y','z'].indexOf(o.axis),trans=[0,1,2].filter(i=>i!==axis),lo=o.runLo[o.axis],hi=o.runHi[o.axis];
+  for(let along=lo;along<hi;along+=u)for(const du of [-u,0])for(const dv of [-u,0]){
+   const origin=[0,0,0];origin[axis]=along;origin[trans[0]]=du;origin[trans[1]]=dv;
+   if(origin.some(v=>v<-h||v+u>h))continue;
+   const p=new V3(origin[0]+u/2,origin[1]+u/2,origin[2]+u/2);instance(blocks,p,cubeRenderSize(u),colour);wireCube(lines,p,u,colour,.48);
+  }
  }
  renderEngine.setBatch('portalDemo',blocks,.19);renderEngine.setLines('portalDemoGrid',lines);
 }
+
 function updatePortalUI(){
- const base=portalSettings(data()),summary=portalSummaries.find(p=>p.face===portalFace)||portalSummaries[0];
- if(!summary)return;
- const s={...base,style:summary.style};
- $('portalStyle').value=s.style;$('portalOpening').value=s.opening;$('portalDepth').value=s.depth;
- $('portalOpeningValue').textContent=s.opening.toFixed(1)+' blocks';$('portalDepthValue').textContent=s.depth+' layers';
- $('portalFlatColours').checked=s.flatColours;$('portalRunPreview').checked=showPortalRun;
- $('portalRotation').textContent='Rotate colours · '+s.rotation+'°';
- const select=$('portalFace'),signature=currentPortals.map(o=>o.face+'|'+o.edge.targetWorldId).join(',');
- if(select.dataset.signature!==signature){
-  select.replaceChildren();select.dataset.signature=signature;
-  for(const o of currentPortals){const option=document.createElement('option');option.value=o.face;option.textContent=o.face[0].toUpperCase()+o.face.slice(1)+' → '+(o.edge.action==='leave'?'Leave':'World '+pad(o.edge.targetWorldId));select.append(option);}
- }
- portalFace=summary.face;select.value=portalFace;
- const names={halo:'Halo',terraced:'Terraced rim',twin:'Twin ring'};
- $('portalCounts').textContent=summary.cubes.toLocaleString()+' cubes · '+summary.dimensions.join(' × ')+' blocks';
- $('portalDesignNote').textContent=names[s.style]+' · this portal uses the world’s requested frame rule. Live changes keep terrain and routes fixed.';
+ const key=portalPresetKeySelected,preset=portalPresets[key]||defaultPortalPreset(key),matched=currentPortals.find(o=>portalPresetKey(o.edge)===key),effectiveStyle=preset.styleOverride||(matched?portalDefaultStyleForEdge(matched.edge):portalDefaultStyleForPresetKey(key));
+ $('portalPreset').value=key;$('portalStyle').value=effectiveStyle;$('portalOpening').value=preset.opening;$('portalDepth').value=preset.depth;
+ $('portalOpeningValue').textContent=preset.opening.toFixed(0)+' c1';$('portalDepthValue').textContent=preset.depth+' c2 layers';
+ $('portalFlatColours').checked=preset.flatColours;$('portalRunPreview').checked=showPortalRun;$('portalRotation').textContent='Rotate colours · '+preset.rotation+'°';
+ $('portalPresetNote').textContent=portalPresetLabel(key)+' preset · reused by every matching portal in all 27 worlds.';
+ const select=$('portalFace'),signature=currentPortals.map(o=>o.face+'|'+o.edge.targetWorldId+'|'+portalPresetKey(o.edge)).join(',');
+ if(select.dataset.signature!==signature){select.replaceChildren();select.dataset.signature=signature;for(const o of currentPortals){const option=document.createElement('option');option.value=o.face;option.textContent=o.face[0].toUpperCase()+o.face.slice(1)+' → '+(o.edge.action==='leave'?'Leave':'World '+pad(o.edge.targetWorldId))+' · '+portalPresetLabel(portalPresetKey(o.edge));select.append(option);}}
+ if(!currentPortals.some(o=>o.face===portalFace))portalFace=currentPortals[0]?.face||'east';select.value=portalFace;
+ const summary=portalSummaries.find(p=>p.face===portalFace)||portalSummaries[0];if(!summary)return;
+ const names={terraced:'Terraced rim',twin:'Twin ring',tri:'Tri ring'};$('portalCounts').textContent=summary.cubes.toLocaleString()+' c2 cubes · '+summary.dimensions.join(' × ')+' c1';
+ $('portalDesignNote').textContent=names[effectiveStyle]+' · '+(preset.styleOverride?'preset override':'automatic type default')+' · outermost frame layer stays flush to the world boundary. Live changes keep terrain and routes fixed.';
  const bar=$('portalBalance');bar.replaceChildren();bar.setAttribute('aria-label',summary.palette.map((p,i)=>p.name+': '+summary.counts[i]+' cubes').join('; '));
  summary.palette.forEach((p,i)=>{const part=document.createElement('span');part.style.flex=summary.counts[i];part.style.background=p.hex;part.title=p.name+': '+summary.counts[i]+' cubes ('+(100*summary.counts[i]/summary.cubes).toFixed(2)+'%)';bar.append(part);});
- const ratio=summary.palette.length===1?'One solid colour':summary.palette.length===2?'½ + ½':summary.palette.length===3?'⅓ + ⅓ + ⅓':'Seven balanced rainbow bands';
- $('portalBalanceNote').textContent=ratio+' · '+summary.counts.join(' / ')+' cubes';
- $('portalFocusNote').textContent=portalFocus?'Inspecting '+portalFace+' · same build camera · Home returns to the world.':'Inspect an actual portal to compare frames up close.';
- for(const [id,active] of [['portalFront',!!portalFocus&&portalFocus.front],['portalAngle',!!portalFocus&&!portalFocus.front],['portalWorld',!portalFocus]]){$(id).classList.toggle('active',active);$(id).setAttribute('aria-pressed',String(active));}
- $('portalReset').disabled=JSON.stringify(s)===JSON.stringify(DEFAULT_PORTALS);
+ const ratio=summary.palette.length===1?'One solid colour':summary.palette.length===2?'½ + ½':summary.palette.length===3?'⅓ + ⅓ + ⅓':'Seven balanced rainbow bands';$('portalBalanceNote').textContent=ratio+' · '+summary.counts.join(' / ')+' cubes';
+ $('portalFocusNote').textContent=portalFocus?'Inspecting '+portalFace+(portalFocus.back?' from the back':' at an angle')+' · World tab or Home returns to the world.':'Choose a current-world portal for a close preview.';
+ for(const [id,active] of [['portalBack',!!portalFocus&&portalFocus.back],['portalAngle',!!portalFocus&&!portalFocus.back]]){$(id).classList.toggle('active',active);$(id).setAttribute('aria-pressed',String(active));}
+ $('portalReset').disabled=JSON.stringify(preset)===JSON.stringify(defaultPortalPreset(key));
 }
+function updatePortalSetting(key,value){
+ if(!['style','opening','depth','rotation','flatColours'].includes(key))return false;const presetKey=portalPresetKeySelected,current=portalPresets[presetKey]||defaultPortalPreset(presetKey);
+ if(key==='style'){if(!PORTAL_STYLES.includes(value))return false;if(current.styleOverride===value)return true;portalPresets[presetKey]={...current,styleOverride:value};}
+ else{if(current[key]===value)return true;try{portalPresets[presetKey]=validatePortalPreset({...current,[key]:value});}catch(err){toast(err.message,true);updatePortalUI();return false;}}
+ renderPortals();updateUI();return true;
+}
+function resetPortalSettings(){const key=portalPresetKeySelected;if(JSON.stringify(portalPresets[key])===JSON.stringify(defaultPortalPreset(key)))return;portalPresets[key]=defaultPortalPreset(key);renderPortals();updateUI();}
+function attachPortalControls(){
+ $('portalPreset').onchange=e=>{portalPresetKeySelected=e.target.value;const match=currentPortals.find(o=>portalPresetKey(o.edge)===portalPresetKeySelected);if(match){portalFace=match.face;updatePortalPreview();if(portalFocus)focusPortal(portalFace,portalFocus.back);}updatePortalUI();};
+ $('portalStyle').onchange=e=>updatePortalSetting('style',e.target.value);
+ for(const [id,key] of [['portalOpening','opening'],['portalDepth','depth']]){$(id).addEventListener('input',e=>updatePortalSetting(key,Number(e.target.value)));}
+ $('portalRotation').onclick=()=>updatePortalSetting('rotation',((portalPresets[portalPresetKeySelected]||defaultPortalPreset(portalPresetKeySelected)).rotation+30)%360);
+ $('portalFlatColours').onchange=e=>updatePortalSetting('flatColours',e.target.checked);
+ $('portalRunPreview').onchange=e=>{showPortalRun=e.target.checked;updatePortalPreview();};
+ $('portalFace').onchange=e=>{portalFace=e.target.value;const o=currentPortals.find(o=>o.face===portalFace);if(o)portalPresetKeySelected=portalPresetKey(o.edge);updatePortalPreview();if(portalFocus)focusPortal(portalFace,portalFocus.back);else updatePortalUI();};
+ $('portalBack').onclick=()=>focusPortal(portalFace,true);$('portalAngle').onclick=()=>focusPortal(portalFace,false);$('portalReset').onclick=resetPortalSettings;
+}
+
 function updateViewHeading(){
  const w=world(),d=data(),count=d.modules.length;
- if(portalFocus){
+ if(towerFocus&&showTierTowers&&assetTowerSummaries.some(t=>t.key===towerFocus)){
+  $('sceneKicker').textContent='WORLD '+pad(w.id)+' / SEVEN CUBE TIERS';
+  $('sceneTitle').textContent='One cube of each size.';
+  $('sceneSubtitle').textContent='Bottom → top: r3 · c4 · r2 · c3 · r1 · c2 · c1. World tab or Home returns.';
+ }else if(portalFocus){
   const o=currentPortals.find(o=>o.face===portalFocus.face);if(!o)return;
   $('sceneKicker').textContent='WORLD '+pad(w.id)+' / '+o.face.toUpperCase()+' PORTAL';
   $('sceneTitle').textContent='A circle, in equal parts.';
@@ -1212,51 +1300,72 @@ function updateViewHeading(){
  }else{
   $('sceneKicker').textContent='WORLD '+pad(w.id)+' / '+(w.kind==='special'?'SPECIAL WORLD':w.kind.toUpperCase()+' THEME');
   $('sceneTitle').textContent=count?'A small world, taking shape.':'Room to make a world.';
-  $('sceneSubtitle').textContent=count?currentGeometry.edges.length+' main links + '+currentGeometry.localLinks+' local branches · '+d.modules.filter(m=>m.kind==='manual').length+' control cubes · '+w.themes.map(id=>themeFor(id).name).join(' + '):w.kind==='special'?'An empty void. Six returns. A centered leave portal.':'An empty volume. Six possible directions.';
+  $('sceneSubtitle').textContent=count?currentGeometry.edges.length+' main links + '+currentGeometry.localLinks+' local branches · '+d.modules.filter(m=>m.kind==='generated').length+' tier towers · '+d.modules.filter(m=>m.kind==='manual').length+' control cubes · '+w.themes.map(id=>themeFor(id).name).join(' + '):w.kind==='special'?'An empty void. Six returns. A centered leave portal.':'An empty volume. Six possible directions.';
  }
 }
-function focusPortal(face=portalFace,front=false){
+function focusPortal(face=portalFace,back=false){
  const o=currentPortals.find(o=>o.face===face);if(!o)return false;
- portalFace=face;portalFocus={face,front};
+ towerFocus=null;updateTowerLabels();portalFace=face;portalFocus={face,back};
  const up=new V3(0,1,0).applyQuaternion(o.q),right=new V3(1,0,0).applyQuaternion(o.q);
- const view=o.normal.clone().addScaledVector(right,front?0:.55).addScaledVector(up,front?.012:.30).normalize();
+ // Back is the exact reverse-side inspection requested for portal authoring.
+ // Angle remains an oblique view from the original/front side.
+ const view=(back?o.normal.clone().multiplyScalar(-1):o.normal.clone().addScaledVector(right,.55).addScaledVector(up,.30)).normalize();
  orbit.target.copy(o.pos);orbit.yaw=Math.atan2(view.x,view.z);orbit.pitch=Math.asin(clamp(view.y,-1,1));
  orbit.radius=Math.max(o.localHalf.x,o.localHalf.y)*4.8;setOrbitCamera();
  $('emptyCard').hidden=true;updatePortalUI();updateViewHeading();return true;
 }
-function updatePortalSetting(key,value,{snapshotBefore=true}={}){
- if(!['style','opening','depth','rotation','flatColours'].includes(key))return false;
- const next={...portalSettings(data()),[key]:value};
- try{validatePortalSettings(next);}catch(err){toast(err.message,true);updatePortalUI();return false;}
- if(portalSettings(data())[key]===value)return true;
- if(snapshotBefore)snapshot(selectedWorldId);data().portals=validatePortalSettings(next);
- if(key==='style')data().portalStyles=Object.fromEntries(currentPortals.map(o=>[o.face,value]));
- renderPortals();updateUI();return true;
-}
-function resetPortalSettings(){
- if(JSON.stringify(portalSettings(data()))===JSON.stringify(DEFAULT_PORTALS)&&JSON.stringify(data().portalStyles)===JSON.stringify(defaultPortalStyles(world())))return;
- snapshot(selectedWorldId);data().portals={...DEFAULT_PORTALS};data().portalStyles=defaultPortalStyles(world());renderPortals();updateUI();
-}
-function attachPortalControls(){
- $('portalStyle').onchange=e=>updatePortalSetting('style',e.target.value);
- for(const [id,key] of [['portalOpening','opening'],['portalDepth','depth']]){
-  const el=$(id);
-  const input=()=>{
-   const value=Number(el.value);if(portalSettings(data())[key]===value)return;
-   if(!portalGesture||portalGesture.key!==key||portalGesture.world!==selectedWorldId){snapshot(selectedWorldId);portalGesture={key,world:selectedWorldId};}
-   updatePortalSetting(key,value,{snapshotBefore:false});
-  };
-  el.addEventListener('input',input);
-  el.addEventListener('change',()=>{input();portalGesture=null;});
-  el.addEventListener('blur',()=>portalGesture=null);
-  el.addEventListener('pointercancel',()=>portalGesture=null);
+
+
+// Seven physical cubes, exactly once each. This is a visual ruler, not terrain.
+const TIER_COLOURS=Object.freeze({r3:'#747eaa',c4:'#5095a6',r2:'#77a487',c3:'#b6b96d',r1:'#d7b86d',c2:'#d49d83',c1:'#c39dad'});
+let showTierTowers=true,assetTowerSummaries=[],towerFocus=null;
+function updateTowerLabels(){
+ const parent=$('towerLabels');if(!parent)return;
+ const tower=showTierTowers&&towerFocus?assetTowerSummaries.find(t=>t.key===towerFocus):null;
+ if(!tower){parent.replaceChildren();return;}
+ if(parent.dataset.key!==tower.key||parent.children.length!==7){
+  parent.replaceChildren();parent.dataset.key=tower.key;
+  for(const tier of tower.tiers){const el=document.createElement('div');el.className='tower-label';el.textContent=tier.name+' · '+tier.size+' c1';el.style.borderLeftColor=TIER_COLOURS[tier.name];parent.append(el);}
  }
- $('portalRotation').onclick=()=>updatePortalSetting('rotation',(portalSettings(data()).rotation+30)%360);
- $('portalFlatColours').onchange=e=>updatePortalSetting('flatColours',e.target.checked);
- $('portalRunPreview').onchange=e=>{showPortalRun=e.target.checked;updatePortalPreview();};
- $('portalFace').onchange=e=>{portalFace=e.target.value;updatePortalPreview();if(portalFocus)focusPortal(portalFace,portalFocus.front);else updatePortalUI();};
- $('portalFront').onclick=()=>focusPortal(portalFace,true);$('portalAngle').onclick=()=>focusPortal(portalFace,false);
- $('portalWorld').onclick=frameWorld;$('portalReset').onclick=resetPortalSettings;
+ tower.tiers.forEach((tier,i)=>{const p=project(V3.from(tier.center).add(new V3(tier.size*.6,0,0))),el=parent.children[i];el.hidden=!p||p.x<0||p.x>canvas.clientWidth||p.y<0||p.y>canvas.clientHeight;if(p){el.style.left=p.x+10+'px';el.style.top=p.y+'px';}});
+}
+function focusTierTower(key=$('towerSelect')?.value){
+ const tower=assetTowerSummaries.find(t=>t.key===key)||assetTowerSummaries[0];if(!tower)return false;
+ towerFocus=tower.key;portalFocus=null;showTierTowers=true;$('showTierTowers').checked=true;
+ renderAssetScaleTowers(world(),data(),hashSeed(data().config.seed));
+ orbit.target.copy(V3.from(tower.base).add(new V3(0,tower.height/2,0)));orbit.yaw=.76;orbit.pitch=.16;orbit.radius=105;setOrbitCamera();
+ $('emptyCard').hidden=true;updateTowerUI();updateViewHeading();updateTowerLabels();return true;
+}
+function updateTowerUI(){
+ const select=$('towerSelect');if(!select)return;
+ const old=towerFocus||select.value;select.replaceChildren();
+ for(const [i,t] of assetTowerSummaries.entries()){const o=document.createElement('option');o.value=t.key;o.textContent='Platform '+(i+1)+' · '+(t.kind==='manual'?'placed':'generated');select.append(o);}
+ if(assetTowerSummaries.some(t=>t.key===old))select.value=old;
+ $('inspectTower').disabled=!assetTowerSummaries.length;select.disabled=!assetTowerSummaries.length;
+ $('showTierTowers').checked=showTierTowers;
+}
+
+function renderAssetScaleTowers(world,d,seed){
+ const out=[];assetTowerSummaries=[];
+ for(const m of d.modules){
+  const p=platformCenter(d,m),id=cubeTheme(world,d,m),base=hexRGB(PALETTES[id]||themeFor(id).color);
+  let y=p.y;const tiers=[];
+  for(let i=0;i<ASSET_CUBE_TIERS.length;i++){
+   const tier=ASSET_CUBE_TIERS[i],center=new V3(p.x,y+tier.size/2,p.z),col=hexRGB(TIER_COLOURS[tier.name]);
+   instance(out,center,cubeRenderSize(tier.size),col);tiers.push({name:tier.name,size:tier.size,bottom:y,top:y+tier.size,center:center.toArray()});y+=tier.size;
+  }
+  assetTowerSummaries.push({key:cellKey(m.cell),kind:m.kind,base:p.toArray(),height:y-p.y,tiers});
+ }
+ if(towerFocus&&!assetTowerSummaries.some(t=>t.key===towerFocus))towerFocus=null;
+ renderEngine.setBatch('assetScaleDemo',showTierTowers?out:[]);updateTowerLabels();return showTierTowers?assetTowerSummaries.length:0;
+}
+
+
+function renderTierPaths(world,d,seed){
+ // Paths are no longer a visual enlargement of hidden c1 collision voxels.
+ // updateScene renders the same c4 cells that the model and picking use.
+ renderEngine.setBatch('tierPaths',[]);
+ return [...currentGeometry.primary.values()].filter(v=>['path','portalPath','branch'].includes(v.kind)).length;
 }
 
 function updateScene(){
@@ -1264,23 +1373,24 @@ function updateScene(){
  currentGeometry=buildGeometry(w,d,{reuseBase:currentGeometry.base,reuseOwned:currentGeometry.ownedPlatforms,syncBranches:true});currentPortals=portalInfo(w,d);
  const terrain=[];let surfaceCount=0;
  for(const v of currentGeometry.blocks){
-  // Full blocks retain their size on the half-block picking grid. Cull
-  // enclosed base cubes, but keep small exposed growth as distinct instances.
-  if(v.size===1&&[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]].every(a=>currentGeometry.primary.has(voxelKey(v.x+a[0],v.y+a[1],v.z+a[2]))))continue;
-  const p=new V3(v.x+v.size*.5,v.y+v.size*.5,v.z+v.size*.5),id=v.theme??w.themes[themeIndexAt(w,p,seed)],base=hexRGB(w.kind==='special'&&v.kind!=='manual'?voidTerrainColour(p):v.kind==='manual'?themeFor(id).color:PALETTES[id]);
-  const noise=(hashSeed(voxelKey(v.x,v.y,v.z))%100)/100;
-  const tint=v.kind==='expansion'?.22:(v.kind==='path'||v.kind==='portalPath'||v.kind==='branch')?.12:v.kind==='manual'?.07:.04;
-  const col=mixRGB(base,[.97,.975,.94],tint+noise*.035);
-  instance(terrain,p,v.size-.014,col);surfaceCount++;
+  if(v.kind==='manual'&&showTierTowers)continue;
+  if(v.size===SLOT&&SIX.every(a=>currentGeometry.primary.get(voxelKey(v.x+a[0]*SLOT,v.y+a[1]*SLOT,v.z+a[2]*SLOT))?.size===SLOT))continue;
+  const p=new V3(v.x+v.size*.5,v.y+v.size*.5,v.z+v.size*.5),id=v.theme??w.themes[themeIndexAt(w,p,seed)];
+  const base=hexRGB(w.kind==='special'&&v.kind!=='manual'?voidTerrainColour(p):v.kind==='manual'?themeFor(id).color:PALETTES[id]);
+  const noise=(hashSeed(voxelKey(v.x/SLOT,v.y/SLOT,v.z/SLOT))%100)/100;
+  const tint=v.kind==='expansion'?.22:['path','portalPath','branch'].includes(v.kind)?.12:v.kind==='manual'?.07:.04;
+  instance(terrain,p,cubeRenderSize(v.size),mixRGB(base,[.97,.975,.94],tint+noise*.035));surfaceCount++;
  }
  renderEngine.setBatch('terrain',terrain);
- renderPortals();renderEngine.setBatch('ghost',[],.085);updateGuides();updateSelectionGraphics();updateUI();$('voxelStats').textContent=`${surfaceCount.toLocaleString()} VISIBLE BLOCKS · ${currentGeometry.details.size} HALF-BLOCKS · ${currentPortals.length} PORTALS`;
+ const pathCubeCount=renderTierPaths(w,d,seed),assetTowerCount=renderAssetScaleTowers(w,d,seed);
+ renderPortals();renderEngine.setBatch('ghost',[],.085);updateGuides();updateSelectionGraphics();updateUI();
+ $('voxelStats').textContent=`${surfaceCount.toLocaleString()} VISIBLE CUBES · ${pathCubeCount.toLocaleString()} c4 PATH CUBES · ${currentGeometry.details.size} c3 GROWTH · ${assetTowerCount} TIER TOWERS`;
 }
 function updateGuides(){
  const d=data(),h=halfOf(d),bounds=[],chunks=[],slice=[],axes=['x','y','z'];
  wireCube(bounds,new V3(),h*2,[.49,.57,.44],.42,true);
  for(const axis of axes){const a=new V3(),b=new V3();a[axis]=-1.2;b[axis]=1.2;line(bounds,a,b,[.52,.61,.46],.5);}
- // Draw each lattice edge once. Fixed 4³ centers: -96, -32, 32, 96.
+ // Draw each lattice edge once. Fixed 4³ chunk centers: -768, -256, 256, 768 c1 units.
  for(const axis of axes){
   const [u,v]=axes.filter(a=>a!==axis);
   for(let i=0;i<=d.spanChunks;i++)for(let j=0;j<=d.spanChunks;j++){
@@ -1292,7 +1402,7 @@ function updateGuides(){
  }
  if(tool==='place'){
   const [u,v]=axes.filter(a=>a!==sliceAxis),pos=-h+(sliceIndex+.5)*SLOT;
-  for(let i=0;i<=d.spanChunks*CHUNK;i++)for(const [a,b] of [[u,v],[v,u]]){
+  for(let i=0;i<=d.spanChunks*CHUNK_CELLS;i++)for(const [a,b] of [[u,v],[v,u]]){
    const p=new V3(),q=new V3();p[sliceAxis]=q[sliceAxis]=pos;
    p[a]=q[a]=-h+i*SLOT;p[b]=-h;q[b]=h;
    line(slice,p,q,[.38,.57,.39],i%8===0?.21:.065);
@@ -1309,25 +1419,24 @@ function platformFootprintWire(out,d,m,color,alpha){
 function updateSelectionGraphics(){
  const lines=[],ghost=[],d=data();
  const selected=selectedCell?d.modules.find(m=>m.kind==='manual'&&cellKey(m.cell)===cellKey(selectedCell)):null;
- if(selected){wireCube(lines,cellCenter(d,selectedCell),SLOT,[.31,.45,.35],.95);platformFootprintWire(lines,d,selected,[.31,.45,.35],.34);}else selectedCell=null;
+ const marker=(m,color)=>{const p=platformCenter(d,m),size=showTierTowers?CUBE_TIERS.r3:CONTROL_UNIT;wireCube(lines,p.clone().add(new V3(0,size/2,0)),size,color,.95);platformFootprintWire(lines,d,m,color,.34);};
+ if(selected)marker(selected,[.31,.45,.35]);else selectedCell=null;
  let preview=null;
  if(hoverCell){
   const color=tool==='remove'||!hoverValid?[.75,.39,.32]:hexRGB(themeFor(d.config.cubeTheme).color);
-  wireCube(lines,cellCenter(d,hoverCell),SLOT+.03,color,.9);
   preview=tool==='place'?makeManualModule(d,hoverCell):d.modules.find(m=>m.kind==='manual'&&cellKey(m.cell)===cellKey(hoverCell));
-  if(preview)platformFootprintWire(lines,d,preview,color,.5);
-  if(tool==='place'&&hoverValid)instance(ghost,cellCenter(d,hoverCell),SLOT,color);
+  if(preview){marker(preview,color);if(tool==='place'&&hoverValid){const p=platformCenter(d,preview);instance(ghost,p.add(new V3(0,CONTROL_UNIT/2,0)),CONTROL_UNIT,color);}}
  }
  renderEngine.setLines('selection',lines,true);renderEngine.setBatch('ghost',ghost,.065);
  const c=hoverCell||selectedCell,m=preview||selected;
- $('selectionStatus').textContent=c?`${hoverCell&&tool==='place'?'PLANT':'CONTROL'} [${c.join(', ')}] · 1³ CUBE${m?' · '+platformProfile(d,m).size+'-BLOCK PLATFORM':''}`:'ORIGIN [0, 0, 0]';
+ $('selectionStatus').textContent=c?`${hoverCell&&tool==='place'?'PLANT':'CONTROL'} [${c.join(', ')}] c4 GRID · c1 CONTROL${m?' · '+platformProfile(d,m).size+'-c4 PLATFORM':''}`:'ORIGIN [0, 0, 0] · COORDINATES IN c1';
  $('deleteButton').disabled=!selectedCell;updateCubePalette();
 }
-function updateUI(){const w=world(),d=data(),names=w.themes.map(id=>themeFor(id).name),count=d.modules.length;$('worldSelect').value=w.id;$('worldAddress').textContent=`${pad(w.id)} / 27 · [${w.iterator.join(',')}]`;$('themeChips').replaceChildren();for(const id of w.themes){const chip=document.createElement('span');chip.className='theme-chip';const dot=document.createElement('i');dot.className='swatch';dot.style.background=themeFor(id).color;chip.append(dot,document.createTextNode(themeFor(id).name));$('themeChips').append(chip);}for(const b of document.querySelectorAll('[data-world]')){b.classList.toggle('active',+b.dataset.world===w.id);b.classList.toggle('filled',levelData[+b.dataset.world-1].modules.length>0);}for(const b of document.querySelectorAll('[data-tool]')){b.classList.toggle('active',b.dataset.tool===tool);b.setAttribute('aria-pressed',b.dataset.tool===tool);}for(const key of ['count','height','bend','loops']){$(key+'Input').value=d.config[key];$(key+'Value').textContent=d.config[key]+settingSuffix(key);}$('seedInput').value=d.config.seed;$('autoPaths').checked=d.config.autoPaths;$('growthEnabled').checked=d.config.growthEnabled!==false;const span=d.spanChunks*CHUNK;$('dimensionNote').textContent=`${span}³ blocks · ${d.spanChunks**3} chunks · outer portals only`;$('sizeChip').textContent=`${span} × ${span} × ${span}`;$('stateChip').textContent=count?`${count} PLATFORMS · ${d.modules.filter(m=>m.kind==='manual').length} CONTROL CUBES`:'EMPTY';$('sceneKicker').textContent=`WORLD ${pad(w.id)} / ${w.kind==='special'?'SPECIAL WORLD':w.kind.toUpperCase()+' THEME'}`;$('sceneTitle').textContent=count?'A small world, taking shape.':'Room to make a world.';$('sceneSubtitle').textContent=count?`${currentGeometry.edges.length} main links + ${currentGeometry.localLinks} local branches · ${d.modules.filter(m=>m.kind==='manual').length} control cubes · ${names.join(' + ')}`:w.kind==='special'?'An empty void. Six returns. A centered leave portal.':'An empty volume. Six possible directions.';$('emptyCard').hidden=count>0||tool==='place'||!!portalFocus;$('budgetCount').textContent=`${count} / ${SOFT_CAP}`;$('budgetCount').classList.toggle('over-budget',count>SOFT_CAP);$('budgetWarning').hidden=count<=SOFT_CAP;$('budgetBar').classList.toggle('over',count>SOFT_CAP);[...$('budgetBar').children].forEach((el,i)=>el.classList.toggle('on',i<count));const h=histories[w.id-1];$('undoButton').disabled=!h.undo.length;$('redoButton').disabled=!h.redo.length;$('deleteButton').disabled=!selectedCell;$('sliceInput').max=d.spanChunks*CHUNK-1;sliceIndex=clamp(sliceIndex,0,d.spanChunks*CHUNK-1);$('sliceInput').value=sliceIndex;$('sliceAxis').value=sliceAxis;const sv=-halfOf(d)+(sliceIndex+.5)*SLOT;$('sliceValue').textContent=(sv<0?'−':'+')+Math.abs(sv);updateGenerationNotes();updateCubePalette();updatePortalUI();updateViewHeading();updateHint();}
+function updateUI(){const w=world(),d=data(),names=w.themes.map(id=>themeFor(id).name),count=d.modules.length;$('worldSelect').value=w.id;$('worldAddress').textContent=`${pad(w.id)} / 27 · [${w.iterator.join(',')}]`;$('themeChips').replaceChildren();for(const id of w.themes){const chip=document.createElement('span');chip.className='theme-chip';const dot=document.createElement('i');dot.className='swatch';dot.style.background=themeFor(id).color;chip.append(dot,document.createTextNode(themeFor(id).name));$('themeChips').append(chip);}for(const b of document.querySelectorAll('[data-world]')){b.classList.toggle('active',+b.dataset.world===w.id);b.classList.toggle('filled',levelData[+b.dataset.world-1].modules.length>0);}for(const b of document.querySelectorAll('[data-tool]')){b.classList.toggle('active',b.dataset.tool===tool);b.setAttribute('aria-pressed',b.dataset.tool===tool);}for(const key of ['count','height','bend','loops']){$(key+'Input').value=d.config[key];$(key+'Value').textContent=d.config[key]+settingSuffix(key);}$('seedInput').value=d.config.seed;$('autoPaths').checked=d.config.autoPaths;$('growthEnabled').checked=d.config.growthEnabled!==false;const span=d.spanChunks*CHUNK;$('dimensionNote').textContent=`${span}³ c1 units · ${d.spanChunks**3} chunks · outer portals only`;const c4n=Math.floor(span/CUBE_TIERS.c4),r3n=Math.floor(span/CUBE_TIERS.r3);$('cubeTierNote').innerHTML=`<strong>Seven cube tiers · side lengths in c1</strong><div class="tier-legend">${[...CUBE_TIER_ORDER].reverse().map(name=>`<span><i style="background:${TIER_COLOURS[name]}"></i>${name} <b>${CUBE_TIERS[name]}</b></span>`).join('')}</div><div class="field-note">Platforms + paths: c4 (8). Portal frame cubes: c2 (2).<br>1 chunk = ${CHUNK} c1 = ${CHUNK_CELLS} c4 per axis.<br>WORLD FIT · c4 ${c4n}³ = ${(c4n**3).toLocaleString()}<br>r3 ${r3n}³ = ${(r3n**3).toLocaleString()} · ${span%CUBE_TIERS.r3} c1 left per axis</div>`;$('sizeChip').textContent=`${span} × ${span} × ${span}`;$('stateChip').textContent=count?`${count} PLATFORMS · ${d.modules.filter(m=>m.kind==='manual').length} CONTROL CUBES`:'EMPTY';$('sceneKicker').textContent=`WORLD ${pad(w.id)} / ${w.kind==='special'?'SPECIAL WORLD':w.kind.toUpperCase()+' THEME'}`;$('sceneTitle').textContent=count?'A small world, taking shape.':'Room to make a world.';$('sceneSubtitle').textContent=count?`${currentGeometry.edges.length} main links + ${currentGeometry.localLinks} local branches · ${d.modules.filter(m=>m.kind==='manual').length} control cubes · ${names.join(' + ')}`:w.kind==='special'?'An empty void. Six returns. A centered leave portal.':'An empty volume. Six possible directions.';$('emptyCard').hidden=count>0||tool==='place'||!!portalFocus||!!towerFocus;$('budgetCount').textContent=`${count} / ${SOFT_CAP}`;$('budgetCount').classList.toggle('over-budget',count>SOFT_CAP);$('budgetWarning').hidden=count<=SOFT_CAP;$('budgetBar').classList.toggle('over',count>SOFT_CAP);[...$('budgetBar').children].forEach((el,i)=>el.classList.toggle('on',i<count));const h=histories[w.id-1];$('undoButton').disabled=!h.undo.length;$('redoButton').disabled=!h.redo.length;$('deleteButton').disabled=!selectedCell;$('sliceInput').max=d.spanChunks*CHUNK_CELLS-1;sliceIndex=clamp(sliceIndex,0,d.spanChunks*CHUNK_CELLS-1);$('sliceInput').value=sliceIndex;$('sliceAxis').value=sliceAxis;const sv=-halfOf(d)+(sliceIndex+.5)*SLOT;$('sliceValue').textContent=(sv<0?'−':'+')+Math.abs(sv);updateGenerationNotes();updateTowerUI();updateCubePalette();updatePortalUI();updateViewHeading();updateHint();}
 function updateGenerationNotes(){
  const profiles=data().modules.map(m=>platformProfile(data(),m));
- $('platformSizeNote').textContent=profiles.length?`This world: ${Math.min(...profiles.map(p=>p.size))}–${Math.max(...profiles.map(p=>p.size))} blocks across · ${profiles.filter(p=>p.boosted).length} doubled`:'Rolls 16–21 stay small · 22 / 23 / 24 → 44 / 46 / 48';
- $('growthNote').textContent=data().config.growthEnabled===false?'Growth is off; each platform keeps its roll.':profiles.length?`This world: ${Math.min(...profiles.map(p=>p.growthPercent))}–${Math.max(...profiles.map(p=>p.growthPercent))}% · connected ½³ shelves`:'Individual growth rolls · connected ½³ shelves';
+ $('platformSizeNote').textContent=profiles.length?`This world: ${Math.min(...profiles.map(p=>p.size))}–${Math.max(...profiles.map(p=>p.size))} c4 across (${Math.min(...profiles.map(p=>p.worldSize))}–${Math.max(...profiles.map(p=>p.worldSize))} c1) · ${profiles.filter(p=>p.boosted).length} doubled`:'16–21 c4 across · rolls 22 / 23 / 24 → 44 / 46 / 48 c4';
+ $('growthNote').textContent=data().config.growthEnabled===false?'Growth is off; each platform keeps its roll.':profiles.length?`This world: ${Math.min(...profiles.map(p=>p.growthPercent))}–${Math.max(...profiles.map(p=>p.growthPercent))}% · connected c3 shelves`:'Individual growth rolls · connected c3 shelves';
 }
 function updateCubePalette(){
  const group=$('cubeColours');if(!group)return;
@@ -1358,8 +1467,8 @@ function updateHint(){
 
 function selectWorld(id){
  id=Number(id);if(!Number.isInteger(id)||id<1||id>27)return false;
- portalGesture=null;selectedWorldId=id;selectedCell=null;hoverCell=null;pointer=null;
- sliceIndex=data().spanChunks*CHUNK/2-1;updateScene();frameWorld();return true;
+ selectedWorldId=id;selectedCell=null;hoverCell=null;pointer=null;
+ sliceIndex=data().spanChunks*CHUNK_CELLS/2-1;updateScene();frameWorld();return true;
 }
 
 function setTool(next){if(!['select','place','remove'].includes(next))return;tool=next;hoverCell=null;updateGuides();updateSelectionGraphics();updateUI();if(next==='place')toast('Place one 1³ control cube: a platform grows beneath it, with one local path. Delete the cube to remove both.');}
@@ -1367,8 +1476,9 @@ function pickModule(ray){
  let best=null;
  for(const m of data().modules){
   if(m.kind!=='manual')continue;
-  const {lo,hi}=moduleBounds(data(),m),hit=rayAABB(ray.origin,ray.dir,lo,hi);
-  if(hit&&(!best||hit.distance<best.distance))best={...hit,module:m};
+  const {lo,hi}=moduleBounds(data(),m),hits=[rayAABB(ray.origin,ray.dir,lo,hi)];
+  if(showTierTowers){const tower=assetTowerSummaries.find(t=>t.key===cellKey(m.cell));for(const t of tower?.tiers||[]){const p=V3.from(t.center),r=new V3(t.size/2,t.size/2,t.size/2);hits.push(rayAABB(ray.origin,ray.dir,p.clone().sub(r),p.clone().add(r)));}}
+  for(const hit of hits)if(hit&&(!best||hit.distance<best.distance))best={...hit,module:m};
  }
  if(best){const occluder=gridRay(currentGeometry.voxels,ray.origin,ray.dir,best.distance+.01);if(occluder&&occluder.distance<best.distance-.02&&occluder.voxel.owner!=='cube:'+cellKey(best.module.cell))return null;}
  return best;
@@ -1387,18 +1497,18 @@ function placementCell(ray){
  cell[['x','y','z'].indexOf(axis)]=sliceIndex;return validCell(data(),cell)?cell:null;
 }
 function placementProblem(cell){
- const d=data();if(!validCell(d,cell))return 'Choose a block inside the world boundary.';
+ const d=data();if(!validCell(d,cell))return 'Choose a c4-grid position inside the world boundary.';
  if(d.modules.length>=MAX_MODULES)return 'Safety limit: 128 authored objects per level.';
  const probe=makeManualModule(d,cell);
- if(!moduleFits(world(),d,probe))return 'This '+platformProfile(d,probe).size+'-block platform needs more room inside the boundary and away from portals.';
+ if(!moduleFits(world(),d,probe))return 'This '+platformProfile(d,probe).size+'-c4 platform needs more room inside the boundary and away from portals.';
  const footprint=platformBounds(d,probe);
  for(const other of d.modules.filter(m=>m.kind==='manual')){
+  if(cellKey(other.cell)===cellKey(cell))return 'That platform already has a control cube.';
   const b=moduleBounds(d,other);
   if(['x','y','z'].every(ax=>footprint.hi[ax]>b.lo[ax]&&footprint.lo[ax]<b.hi[ax]))return 'That platform would cover another control cube. Choose a different height or position.';
  }
- const p=cellOrigin(d,cell),s=currentGeometry.voxels.step||1;
- for(let x=p.x;x<p.x+1;x+=s)for(let y=p.y;y<p.y+1;y+=s)for(let z=p.z;z<p.z+1;z+=s)
-  if(currentGeometry.voxels.has(voxelKey(x,y,z)))return 'That block overlaps existing terrain or smaller growth.';
+ const socket=platformAssetBounds(d,probe);if(geometryOverlapsBox(currentGeometry,socket.lo,socket.hi))return 'That platform center needs a clear space for its seven-cube tower. Try a different position or height.';
+ const {lo,hi}=moduleBounds(d,probe);if(geometryOverlapsBox(currentGeometry,lo,hi))return 'That control cube overlaps existing terrain or growth.';
  return null;
 }
 
@@ -1432,10 +1542,10 @@ function removeModule(cell,{quiet=false}={}){
  selectedCell=null;hoverCell=null;updateScene();if(!quiet)toast('Removed the control cube, its platform, growth, and local path. Other terrain stays.');return true;
 }
 
-function generateCurrent(){snapshot(selectedWorldId);generatePlatforms(world(),data());selectedCell=null;hoverCell=null;updateScene();toast(`${data().modules.filter(m=>m.kind==='generated').length} platforms + ${currentGeometry.details.size} small growth blocks. Hand-placed cubes kept.`);}
+function generateCurrent(){snapshot(selectedWorldId);generatePlatforms(world(),data());selectedCell=null;hoverCell=null;updateScene();toast(`${data().modules.filter(m=>m.kind==='generated').length} platforms · ${currentGeometry.details.size} small growth blocks · portal presets refreshed unchanged.`);}
 function clearWorld(){if(!data().modules.length)return;snapshot(selectedWorldId);data().modules=[];data().generated=false;selectedCell=null;hoverCell=null;updateScene();toast('Empty again. The boundary guides and portals are all that remain.');}
 function applyHistory(redo=false){
- portalGesture=null;
+ 
  if(!changeHistory(selectedWorldId,redo))return false;
  selectedCell=null;hoverCell=null;updateScene();return true;
 }
@@ -1458,27 +1568,25 @@ function updateSetting(key,value,{snapshotBefore=true}={}){
 
 
 function exportProject(){
- return {format:'little-worlds',version:7,platformGenerator:'owned-platforms-v9',portalGenerator:'balanced-rings-v8',portalFrameUnit:PORTAL_UNIT,chunkSize:CHUNK,platformCellSize:SLOT,detailCellSize:DETAIL_UNIT,softCap:SOFT_CAP,levels:JSON.parse(JSON.stringify(levelData))};
+ return {format:'little-worlds',version:11,worldGenerator:'c4-world-v16',platformGenerator:'c4-platforms-v16',portalGenerator:'balanced-rings-v10',portalFrameUnit:PORTAL_UNIT,cubeTiers:{...CUBE_TIERS},pathCubeTier:'c4',platformCubeTier:'c4',portalCubeTier:'c2',portalPresets:JSON.parse(JSON.stringify(portalPresets)),chunkSize:CHUNK,platformCellSize:SLOT,detailCellSize:DETAIL_UNIT,softCap:SOFT_CAP,levels:JSON.parse(JSON.stringify(levelData)).map(({portals,portalStyles,...level})=>level)};
 }
 function downloadProject(){
  const blob=new Blob([JSON.stringify(exportProject(),null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
- a.href=url;a.download='little-worlds-project-v9.json';document.body.append(a);a.click();a.remove();
+ a.href=url;a.download='little-worlds-project-v16.json';document.body.append(a);a.click();a.remove();
  setTimeout(()=>URL.revokeObjectURL(url),1500);toast('Exported all 27 levels. Import the JSON to restore this authoring project.');
 }
 function importProject(json){
- // Complete validation and legacy branch repair before touching live data.
- const result=validateProject(json),expanded=json.levels.filter(d=>d.spanChunks!==DEFAULT_SPAN).length;
- // New fixed ranges / outer portals can invalidate older attachment points.
- // Keep safe saved branches, repair only invalid ones against the new base.
- if(json.version<7)for(const w of WORLDS){const d=result[w.id-1];if(d.config.autoPaths&&d.modules.some(m=>m.kind==='manual'))syncManualBranches(w,d,buildBaseGeometry(w,d));}
+ if(!json||!Array.isArray(json.levels))throw new Error('Expected a Little Worlds project.');
+ const nextPortalPresets=json.version>=10?validatePortalPresets(json.portalPresets):json.version>=8?validatePortalPresets(json.portalPresets,{legacy:true}):makePortalPresets();
+ if(json.version>=6&&json.version<8){const filled=new Set();for(const raw of json.levels){const w=WORLDS[raw?.id-1];if(!w)throw new Error('Invalid world ID.');const styles=raw.portalStyles||defaultPortalStyles(w);for(const face of [...ALL_FACES,...(w.centerPortal?['center']:[])]){const edge=face==='center'?w.centerPortal:w.faces[face],key=portalPresetKey(edge);if(filled.has(key))continue;const base=validatePortalSettings(raw.portals,{legacyScale:true}),style=styles[face]==='halo'?'twin':styles[face]||base.style;nextPortalPresets[key]=validatePortalPreset({styleOverride:style,opening:base.opening,depth:base.depth,rotation:base.rotation,flatColours:base.flatColours});filled.add(key);}}}
+ const result=validateProject(json),oldPresets=portalPresets;
+ // Repair detached branches in all worlds before committing anything. Restore
+ // the current preset set even if a malformed/obstructed project is rejected.
+ try{portalPresets=nextPortalPresets;for(const w of WORLDS){const d=result[w.id-1];if(d.config.autoPaths&&d.modules.some(m=>m.kind==='manual'))syncManualBranches(w,d,buildBaseGeometry(w,d));}}finally{portalPresets=oldPresets;}
  for(const w of WORLDS)snapshot(w.id);
- levelData=result;selectedCell=null;hoverCell=null;pointer=null;
- sliceIndex=DEFAULT_SPAN*CHUNK/2-1;updateScene();frameWorld();
- let note=expanded?` ${expanded} older worlds expanded to 4 × 4 × 4; authored positions kept.`:'';
- if(json.version<7)note+=' Rolls 22–24 now double to 44–48. Each control cube now owns a platform; local paths reconnect below it.';
- if(json.version<6)note+=' Portals use new circles and centered 2×2 connections; main routes may change.';
- if(json.version===1)note+=' Older hand-placed containers are now individual cubes.';
- toast('Imported all 27 worlds.'+note);return true;
+ portalPresets=nextPortalPresets;levelData=result;selectedCell=null;hoverCell=null;pointer=null;towerFocus=null;
+ sliceIndex=DEFAULT_SPAN*CHUNK_CELLS/2-1;updateScene();frameWorld();
+ toast(json.version<11?'Imported: world layouts enlarged 8×, c4 platforms and paths, seven corrected tier names. Portal presets kept.':'Imported all 27 enlarged worlds and the eight portal presets.');return true;
 }
 function activatePortal(o){
  if(o.edge.action==='leave'){
@@ -1489,6 +1597,12 @@ function activatePortal(o){
 }
 
 function buildUI(){
+$('inspectTower').onclick=()=>focusTierTower();
+$('towerSelect').onchange=()=>{if(towerFocus)focusTierTower();};
+$('showTierTowers').onchange=e=>{showTierTowers=e.target.checked;if(!showTierTowers)towerFocus=null;updateScene();};
+for(const key of PORTAL_PRESET_KEYS){const option=document.createElement('option');option.value=key;option.textContent=portalPresetLabel(key);$('portalPreset').append(option);}
+function setSidebarTab(tab){const portals=tab==='portals';$('portalTabPane').hidden=!portals;$('worldTabPane').hidden=portals;$('portalTabButton').classList.toggle('active',portals);$('worldTabButton').classList.toggle('active',!portals);$('portalTabButton').setAttribute('aria-selected',String(portals));$('worldTabButton').setAttribute('aria-selected',String(!portals));}
+$('worldTabButton').onclick=()=>{setSidebarTab('world');frameWorld();};$('portalTabButton').onclick=()=>setSidebarTab('portals');
 attachPortalControls();
 for(const w of WORLDS){const option=document.createElement('option');option.value=w.id;option.textContent=`${pad(w.id)}  ${w.themes.map(id=>themeFor(id).name).join(' + ')}`;$('worldSelect').append(option);}for(let z=0;z<3;z++){const layer=document.createElement('div');layer.className='atlas-layer';const label=document.createElement('small');label.textContent='z = '+z;layer.append(label);for(let i=0;i<9;i++){const w=WORLDS[z*9+i],b=document.createElement('button');b.className='world-dot';b.dataset.world=w.id;b.textContent=pad(w.id);b.title=`World ${pad(w.id)} · ${w.themes.map(id=>themeFor(id).name).join(' + ')} · [${w.iterator}]`;b.setAttribute('aria-label',b.title);const colors=w.themes.map(id=>PALETTES[id]);b.style.background=colors.length===1?colors[0]+'48':`linear-gradient(130deg,${colors.map((c,i)=>`${c}66 ${i*100/colors.length}% ${(i+1)*100/colors.length}%`).join(',')})`;b.addEventListener('click',()=>selectWorld(w.id));layer.append(b);}$('atlas').append(layer);}for(let i=0;i<16;i++)$('budgetBar').append(document.createElement('i'));
  $('worldSelect').addEventListener('change',e=>selectWorld(e.target.value));$('prevWorld').onclick=()=>selectWorld((selectedWorldId+25)%27+1);$('nextWorld').onclick=()=>selectWorld(selectedWorldId%27+1);document.querySelectorAll('[data-tool]').forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.tool)));
@@ -1506,7 +1620,7 @@ for(const w of WORLDS){const option=document.createElement('option');option.valu
  };
  $('surfaceSnap').onchange=e=>{snapSurface=e.target.checked;hoverCell=null;updateSelectionGraphics();};
  $('seedInput').addEventListener('change',e=>updateSetting('seed',e.target.value||'little'));$('autoPaths').addEventListener('change',e=>updateSetting('autoPaths',e.target.checked));$('shuffleSeed').onclick=()=>{snapshot(selectedWorldId);data().config.seed='little-'+Math.floor(Math.random()*1e7).toString(36);generatePlatforms(world(),data());selectedCell=null;hoverCell=null;updateScene();toast('A new variation. Your control cubes were kept.');};$('generateButton').onclick=generateCurrent;$('startGenerate').onclick=generateCurrent;$('rebuildButton').onclick=()=>{updateScene();toast(data().modules.length?'Terrain refreshed. Cube-owned branches and existing main routes kept.':'Start with platforms or one cube. The first control cube grows a platform; a second can connect to it.');};$('generateAllButton').onclick=()=>{for(const w of WORLDS){snapshot(w.id);const d=levelData[w.id-1];generatePlatforms(w,d);if(w.id!==selectedWorldId&&d.modules.some(m=>m.kind==='manual')&&d.config.autoPaths)syncManualBranches(w,d,buildBaseGeometry(w,d));}selectedCell=null;hoverCell=null;updateScene();toast('All 27 levels generated independently. Hand-placed cubes were preserved.');};$('clearButton').onclick=clearWorld;
- $('sliceAxis').onchange=e=>{sliceAxis=e.target.value;hoverCell=null;updateGuides();updateSelectionGraphics();updateUI();};$('sliceInput').oninput=e=>{sliceIndex=Number(e.target.value);hoverCell=null;updateGuides();updateSelectionGraphics();updateUI();};$('undoButton').onclick=()=>applyHistory();$('redoButton').onclick=()=>applyHistory(true);$('deleteButton').onclick=()=>removeModule(selectedCell);$('guidesInput').onchange=e=>showGuides=e.target.checked;$('frameButton').onclick=frameWorld;$('topButton').onclick=()=>{portalFocus=null;orbit.pitch=Math.PI/2-.001;orbit.target.set(0,0,0);orbit.radius=halfOf(data())*3.3;setOrbitCamera();updateUI();};
+ $('sliceAxis').onchange=e=>{sliceAxis=e.target.value;hoverCell=null;updateGuides();updateSelectionGraphics();updateUI();};$('sliceInput').oninput=e=>{sliceIndex=Number(e.target.value);hoverCell=null;updateGuides();updateSelectionGraphics();updateUI();};$('undoButton').onclick=()=>applyHistory();$('redoButton').onclick=()=>applyHistory(true);$('deleteButton').onclick=()=>removeModule(selectedCell);$('guidesInput').onchange=e=>showGuides=e.target.checked;$('frameButton').onclick=frameWorld;$('topButton').onclick=()=>{towerFocus=null;updateTowerLabels();portalFocus=null;orbit.pitch=Math.PI/2-.001;orbit.target.set(0,0,0);orbit.radius=halfOf(data())*3.3;setOrbitCamera();updateUI();};
  $('exportButton').onclick=downloadProject;$('importButton').onclick=()=>$('importInput').click();$('importInput').onchange=async e=>{const file=e.target.files?.[0];if(!file)return;try{if(file.size>32*1024*1024)throw new Error('Project is too large (32 MB maximum).');importProject(JSON.parse(await file.text()));}catch(err){toast('Import rejected: '+err.message,true);}e.target.value='';};$('helpButton').onclick=()=>{pointer=null;paused=true;$('helpOverlay').hidden=false;$('closeHelp').focus();};$('closeHelp').onclick=()=>{paused=false;$('helpOverlay').hidden=true;canvas.focus();};
 }
 
@@ -1550,7 +1664,7 @@ function attachInput(){
  canvas.addEventListener('wheel',e=>{
   e.preventDefault();if(paused)return;
   if(e.shiftKey&&tool==='place'){
-   sliceIndex=clamp(sliceIndex+Math.sign(e.deltaY),0,data().spanChunks*CHUNK-1);
+   sliceIndex=clamp(sliceIndex+Math.sign(e.deltaY),0,data().spanChunks*CHUNK_CELLS-1);
    updateGuides();updateUI();updateHover(e);
   }else{orbit.radius=clamp(orbit.radius*Math.exp(e.deltaY*.001),6,halfOf(data())*10);setOrbitCamera();if(lastPointer)updateHover(lastPointer);}
  },{passive:false});
@@ -1566,24 +1680,24 @@ function attachInput(){
  });
  window.addEventListener('blur',()=>pointer=null);
  document.addEventListener('visibilitychange',()=>pointer=null);
- window.addEventListener('beforeunload',e=>{if(levelData.some(d=>d.modules.length||JSON.stringify(portalSettings(d))!==JSON.stringify(DEFAULT_PORTALS))){e.preventDefault();e.returnValue='';}});
+ window.addEventListener('beforeunload',e=>{if(levelData.some(d=>d.modules.length)||JSON.stringify(portalPresets)!==JSON.stringify(makePortalPresets())){e.preventDefault();e.returnValue='';}});
 }
 function animate(){
  requestAnimationFrame(animate);if(!renderEngine)return;
- renderEngine.render(camera,halfOf(data())*2,showGuides);updatePortalLabels();
+ renderEngine.render(camera,halfOf(data())*2,showGuides);updatePortalLabels();updateTowerLabels();
 }
 /* Authoring diagnostics and explicit editor actions. No game controller state
  * or first-person camera data is stored in the studio or project export. */
 window.LITTLE_WORLDS={
  getState:()=>({selectedWorldId,mode:'build',tool,level:JSON.parse(JSON.stringify(data())),allEmpty:levelData.every(d=>d.modules.length===0),renderer:renderEngine?.kind,
-  ownedPlatformCount:currentGeometry.ownedPlatforms?.size||0,portalCount:currentPortals.length,portalDesign:{...portalSettings(data())},portalSummaries:JSON.parse(JSON.stringify(portalSummaries)),portalRenderBuilds,portalPreview:showPortalRun,portalFocus,voxels:currentGeometry.voxels.size,blocks:currentGeometry.blocks?.length||0,
-  expansionBlocks:[...(currentGeometry.details?.values()||[])].filter(v=>v.kind==='expansion').length,finishingBlocks:[...(currentGeometry.details?.values()||[])].filter(v=>v.kind==='platformRim').length,localLinks:currentGeometry.localLinks||0,buildStats:{...buildStats},cubeThemes:cubeThemes(world()),platformProfiles:data().modules.map(m=>({cell:m.cell,kind:m.kind,...platformProfile(data(),m)})),pickingStep:currentGeometry.voxels.step||1,
-  layouts:WORLD_LAYOUTS.slice(),defaultLayout:DEFAULT_SPAN,chunkCount:data().spanChunks**3,
+  ownedPlatformCount:currentGeometry.ownedPlatforms?.size||0,portalCount:currentPortals.length,portalDesign:{...portalPresets[portalPresetKeySelected]},portalPresetKey:portalPresetKeySelected,portalPresets:JSON.parse(JSON.stringify(portalPresets)),portalSummaries:JSON.parse(JSON.stringify(portalSummaries)),portalRenderBuilds,portalPreview:showPortalRun,portalFocus,voxels:currentGeometry.voxels.size,blocks:currentGeometry.blocks?.length||0,
+  expansionBlocks:[...(currentGeometry.details?.values()||[])].filter(v=>v.kind==='expansion').length,finishingBlocks:[...(currentGeometry.details?.values()||[])].filter(v=>v.kind==='platformRim').length,localLinks:currentGeometry.localLinks||0,buildStats:{...buildStats},cubeThemes:cubeThemes(world()),platformProfiles:data().modules.map(m=>({cell:m.cell,kind:m.kind,...platformProfile(data(),m)})),pickingStep:currentGeometry.voxels.step||1,assetCubeTiers:ASSET_CUBE_TIERS.map(t=>({...t})),cubeTiers:{...CUBE_TIERS},pathCubeTier:'c4',portalCubeTier:'c2',worldTierCapacity:{c4PerAxis:Math.floor(data().spanChunks*CHUNK/CUBE_TIERS.c4),c4Total:Math.floor(data().spanChunks*CHUNK/CUBE_TIERS.c4)**3,r3PerAxis:Math.floor(data().spanChunks*CHUNK/CUBE_TIERS.r3),r3Total:Math.floor(data().spanChunks*CHUNK/CUBE_TIERS.r3)**3,r3Remainder:(data().spanChunks*CHUNK)%CUBE_TIERS.r3},assetScaleTowerCount:showTierTowers?assetTowerSummaries.length:0,assetTowerSummaries:JSON.parse(JSON.stringify(assetTowerSummaries)),showTierTowers,towerFocus,
+  layouts:WORLD_LAYOUTS.slice(),defaultLayout:DEFAULT_SPAN,chunkCount:data().spanChunks**3,chunkSizeC1:CHUNK,worldSizeC1:halfOf(data())*2,platformCubeTier:'c4',platformCubeSize:SLOT,worldScale:8,
   camera:{pos:camera.pos.toArray(),quaternion:camera.q.toArray()}}),
  exportProject,importProject,selectWorld,generate:generateCurrent,clear:clearWorld,place:placeModule,remove:removeModule,
- setTool,updateSetting,setCubeTheme,updatePortalSetting,focusPortal,frameWorld,resetPortalSettings,undo:()=>applyHistory(),redo:()=>applyHistory(true),
+ setTool,updateSetting,setCubeTheme,updatePortalSetting,focusPortal,focusTierTower,frameWorld,resetPortalSettings,undo:()=>applyHistory(),redo:()=>applyHistory(true),
  buildGeometry:(id)=>buildGeometry(WORLDS[id-1],levelData[id-1],{reuseBase:id===selectedWorldId?currentGeometry.base:null,reuseOwned:id===selectedWorldId?currentGeometry.ownedPlatforms:null}),portalInfo:(id)=>portalInfo(WORLDS[id-1],levelData[id-1]),
- project:(a)=>project(V3.from(a)),testMath:{V3,Q4,rayAABB,gridRay},
+ project:(a)=>project(V3.from(a)),testMath:{V3,Q4,rayAABB,gridRay,stampPath2x2,platformBounds,platformCenter,routeJointBlocked,platformAssetBounds},
  placementPreview:(x,y)=>{const cell=placementCell(screenRay({clientX:x,clientY:y}));return {cell,valid:!!cell&&!placementProblem(cell)};},
  get geometry(){return currentGeometry;},get roster(){return WORLDS;}
 };
