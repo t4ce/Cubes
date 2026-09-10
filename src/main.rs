@@ -687,7 +687,11 @@ impl CubeScene {
         };
         self.background
             .update(
-                self.mode == SceneMode::World,
+                match self.mode {
+                    SceneMode::World => background::Mode::World,
+                    SceneMode::StaticCube => background::Mode::Cube,
+                    _ => background::Mode::Neutral,
+                },
                 self.flycam.camera.rotation.0,
                 delta_seconds,
                 tan_half_fov,
