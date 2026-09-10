@@ -13,13 +13,14 @@ use west/bottom/top. This mapping survives puzzle rotations. Space flies toward 
 
 - Mouse: look; WASD or arrows: walk; either Shift: twice normal walking speed.
 - Flight speed is twice the original; Shift retains the 2.8× flight boost.
-- Space held at an outside edge, or pressed during its turn: push off six voxels
+- Space held at an outside edge, or pressed during its turn: push off 18 voxels
   at twice current walking speed while turning the view back toward the edge.
 - In drift, press Space to approach the aimed cube at 48 voxels/s and attach.
   There is no range limit or cooldown; another press can retarget even during
   push-off. Holding Space through launch does not immediately trigger a return.
 - Q/E while walking: visual lean up to ±13.5° (15% of a quarter-turn), returning
   quickly on release without affecting movement. In flight: roll at 90°/s.
+  Flight mouse-look follows the rolled screen axes, with unrestricted local turns.
   Home resets roll.
 - F and Ctrl have no camera binding.
 - Aim at a cube in drift: its white wireframe marks the Space destination.

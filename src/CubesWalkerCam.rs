@@ -503,6 +503,19 @@ impl CubesWalkerCam {
         if !dx.is_finite() || !dy.is_finite() {
             return;
         }
+        if self.fly {
+            // Mouse axes follow the banked view, rather than the old surface up.
+            let bank = Q::from_axis_angle([0., 0., 1.], self.roll);
+            let screen = (self.view * bank).normalized();
+            let yaw = Q::from_axis_angle(screen.rotate(UP), -dx * 0.003);
+            let right = (yaw * screen).rotate([1., 0., 0.]);
+            let pitch = Q::from_axis_angle(right, -dy * 0.003);
+            self.view = (pitch * yaw * self.view).normalized();
+            self.up = self.view.rotate(UP);
+            self.forward = self.view.rotate(FORWARD);
+            self.pitch = 0.;
+            return;
+        }
         let yaw = Q::from_axis_angle(self.up, -dx * 0.003);
         self.forward = norm(yaw.rotate(self.forward));
         self.view = (yaw * self.view).normalized();
@@ -667,7 +680,7 @@ impl CubesWalkerCam {
         self.push_off = Some(PushOff {
             direction: norm(add(t.from, t.to)),
             look_at: sub(t.edge, mul(add(t.from, t.to), 0.1)),
-            remaining: 6.,
+            remaining: 18.,
             speed: 2. * 2.9 * if fast_walk { 10. } else { 5. },
         });
         self.turn = None;
@@ -1151,7 +1164,7 @@ mod tests {
             0.02,
         );
         assert!(!c.fly); // Space on a flat surface does not detach.
-        for _ in 0..30 {
+        for _ in 0..60 {
             c.update(
                 Input {
                     space: true,
@@ -1301,6 +1314,30 @@ mod tests {
         }
     }
     #[test]
+    fn flight_mouse_axes_follow_roll_at_every_bank_angle() {
+        for bank in [0., 0.4, -0.8, core::f32::consts::FRAC_PI_2, 3.] {
+            for (dx, dy) in [(10., 0.), (0., 10.)] {
+                let mut c = fixture(&[[0, 0, 0, 4]], [1.5, 4. + SKIN, 1.5], [1., 0., 0.]);
+                c.fly = true;
+                c.roll = bank;
+                let screen = c.view * Q::from_axis_angle([0., 0., 1.], bank);
+                let right = screen.rotate([1., 0., 0.]);
+                let up = screen.rotate(UP);
+                let before = screen.rotate(FORWARD);
+                c.look(dx, dy);
+                let after = c.view.rotate(FORWARD);
+                let change = sub(after, before);
+                if dx != 0. {
+                    assert!(dot(change, right) > 0.029);
+                    assert!(dot(change, up).abs() < 1e-5);
+                } else {
+                    assert!(dot(change, up) < -0.029);
+                    assert!(dot(change, right).abs() < 1e-5);
+                }
+            }
+        }
+    }
+    #[test]
     fn drift_stops_at_solids_and_look_cannot_flip_pitch() {
         let mut c = fixture(&[[0, 0, 0, 4]], [1.5, 4. + SKIN, 1.5], [1., 0., 0.]);
         c.fly = true;
@@ -1320,6 +1357,7 @@ mod tests {
             assert!(!c.solid.has(c.foot));
         }
         assert!(c.foot[1] >= 4.1);
+        c.fly = false;
         c.look(0., -100000.);
         assert_eq!(c.pitch, 1.42);
     }
