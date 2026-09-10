@@ -120,6 +120,7 @@ struct CubeScene {
     finished_at: Option<u64>,
     flight: Option<transition::Flight>,
     selected_entry: Option<(usize, usize)>,
+    selected_face_axis: Option<usize>,
     arrival_fade: Option<u64>,
     window_opacity: u8,
     number_keys: ModeKeys,
@@ -322,6 +323,7 @@ impl CubeScene {
             finished_at: None,
             flight: None,
             selected_entry: None,
+            selected_face_axis: None,
             arrival_fade: None,
             window_opacity: 255,
             number_keys: ModeKeys::default(),
@@ -409,6 +411,7 @@ impl CubeScene {
                 ) && self.puzzle.select(hit.cubie, elapsed_millis)
                 {
                     self.selected_entry = world_topology::entry(hit.cubie, hit.face_axis);
+                    self.selected_face_axis = Some(hit.face_axis);
                     logl::log(
                         level::INFO,
                         format_args!(
@@ -542,21 +545,29 @@ impl CubeScene {
                 if elapsed_millis.saturating_sub(finished) >= transition::WAIT_MS
                     && self.flight.is_none()
                 {
-                    let (cell, _) = self.puzzle.pose(self.puzzle.selected().unwrap(), 0.0, 1.0);
-                    let end = cell.map(|x| x * grid::CUBE_GRID_SPACING);
+                    let id = self.puzzle.selected().unwrap();
+                    let (cell, basis) = self.puzzle.pose(id, 0.0, 1.0);
+                    let axis = self.selected_face_axis.ok_or(CubeError::Contract)?;
+                    let local = [
+                        (id % 3) as f32 - 1.,
+                        ((id / 3) % 3) as f32 - 1.,
+                        (id / 9) as f32 - 1.,
+                    ];
+                    let normal = basis[axis].map(|v| v * local[axis]);
+                    let center = cell.map(|x| x * grid::CUBE_GRID_SPACING);
                     let start = self.flycam.camera.position;
-                    let right = [-libm::cosf(yaw), 0.0, libm::sinf(yaw)];
                     self.demo_camera = Some(self.flycam);
                     self.flight = Some(transition::Flight {
                         rotation: self.flycam.camera.rotation.0,
                         up,
                         started: elapsed_millis,
-                        points: [
+                        points: transition::face_approach(
                             start,
-                            core::array::from_fn(|i| start[i] + right[i] * 1.5 + up[i] * 0.5),
-                            core::array::from_fn(|i| end[i] + cell[i] * 0.6),
-                            end,
-                        ],
+                            center,
+                            normal,
+                            up,
+                            grid::CUBE_GRID_SCALE,
+                        ),
                     });
                 }
                 if let Some(flight) = &self.flight {
@@ -1154,6 +1165,7 @@ impl CubeScene {
         self.flight = None;
         if self.puzzle.selected().is_none() {
             self.selected_entry = None;
+            self.selected_face_axis = None;
         }
         self.arrival_fade = None;
         if mode == SceneMode::StaticCube {

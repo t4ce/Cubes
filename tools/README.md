@@ -83,22 +83,30 @@ coplanar face overlap without scaling or expanding the cubies.
 After three seconds without routed mouse movement or a held WASD key, its camera
 slowly orbits the unselected compact puzzle; either input stops the orbit and
 restarts that idle timer.
-Only the 20 corner/edge cubies are selectable, not the core or six face centers.
-Picking intersects the reference bevel's 26 convex planes and checks the nearest
-piece before excluding centers, so a rejected center does not click through.
+All 26 outer cubies are selectable, including the six face centers; the core is
+excluded. Picking intersects the reference bevel's 26 convex planes and retains
+the clicked local sticker face through subsequent layer turns.
 Routed N-Mouse primary presses select at most one piece.
 
 A correct click eases the entire puzzle to the existing 2.2-unit spacing over
-one second. The camera first eases toward the selected piece's radial edge/corner
-direction, then tracks it through exactly three consecutive 1-second layer turns.
-Every roll chooses a layer containing that piece and a different axis from the
-previous turn, so there is no immediate inverse or idle cadence. It stops after
-three turns. WASD orbits a fixed-radius sphere while looking at the puzzle when
-unlocked; mouse-look and Q/E are disabled in Key 2. The camera target eases back
-to the puzzle center on completion. Pressing Key 2 again resets the selection
-phase. Both orbital angles wrap without clamps, with a pole-safe rotating up vector.
-After the third turn, one second of free orbit precedes a 2.5-second eased
-cubic-Bezier flight into the selected cubie's center. Arrival switches to Key 1.
+one second. The camera first eases toward the selected piece's radial direction,
+then tracks it through exactly three consecutive 1-second layer turns. Edge and
+corner turns change axes to avoid immediate inverses; face centers use their
+single available axis with a consistent turn direction. WASD orbits a fixed-radius
+sphere when unlocked; mouse-look and Q/E are disabled in Key 2. Pressing Key 2
+again resets the selection phase. Both orbital angles wrap without clamps, with
+a pole-safe rotating up vector.
+
+After the third turn, a 3.5-second eased cubic-Bezier flight curves toward the
+clicked sticker face in its final orientation. The final approach is perpendicular
+to that face and ends at its center. Its initial view is preserved and blends into the flight heading over
+450 ms. The window fades out over the last 700 ms, switches directly to the
+matching Key5 world, and fades in over 900 ms. This is a fade-through, not a
+simultaneous two-scene crossfade. Arrival uses the clicked sticker's equivalent
+Leave portal, faces the world center, and starts in free drift. Solid portal
+backing is cleared by moving inward from its center. The core/Void has no Key2
+entry. On-device journey feel remains to be verified.
+
 Key 1 places 100 seeds on each of six walls at ±6 units, with a 75° vertical
 field of view (Key 2 remains 60°). This makes the surrounding room cubes read
 farther away and smaller. Whole expanded cubes

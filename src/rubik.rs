@@ -112,7 +112,7 @@ impl Puzzle {
                 .find(|&&a| cell[a] != 0 && self.previous_axis != Some(a))
                 .or_else(|| axes.iter().find(|&&a| cell[a] != 0))
                 .unwrap();
-            self.previous_axis = Some(axis); // changing axes rules out an immediate inverse
+            self.previous_axis = Some(axis); // centers keep direction; other pieces change axes
             self.turn = Some(Turn {
                 axis,
                 layer: cell[axis],

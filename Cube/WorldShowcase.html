@@ -682,6 +682,10 @@ const DEFAULT_SPAN=4,WORLD_LAYOUTS=Object.freeze([4]);
 const FACE_NORMAL={north:new V3(0,0,1),south:new V3(0,0,-1),east:new V3(-1,0,0),west:new V3(1,0,0),top:new V3(0,-1,0),bottom:new V3(0,1,0),center:new V3(0,0,1)};
 const PALETTES={1:'#93c8d1',2:'#938791',3:'#8b85b1',4:'#e6d797',5:'#93b995',6:'#d89c92',S:'#bba0cd'};
 function themeFor(id){return id==='S'?SPECIAL_THEME:id==='L'?LEAVE_PORTAL:themeById.get(id);}
+function voidTerrainColour(p){
+ const angle=(Math.atan2(p.z+.15*p.y,p.x+.22*p.y)+Math.PI)%(Math.PI*2);
+ return RAINBOW[Math.min(6,Math.floor(angle/(Math.PI*2/7)))];
+}
 function portalMixIds(edge){return edge.action==='leave'?['L']:WORLDS[edge.targetWorldId-1].themes;}
 function makeData(world){return {id:world.id,spanChunks:DEFAULT_SPAN,portals:{...DEFAULT_PORTALS},portalStyles:defaultPortalStyles(world),generated:false,modules:[],config:{seed:'little-'+String(world.id).padStart(2,'0'),count:6,growthEnabled:true,cubeTheme:world.themes[0],bend:45,height:55,loops:20,autoPaths:true}};}
 let levelData=WORLDS.map(makeData);
@@ -1261,7 +1265,7 @@ function updateScene(){
   // Full blocks retain their size on the half-block picking grid. Cull
   // enclosed base cubes, but keep small exposed growth as distinct instances.
   if(v.size===1&&[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]].every(a=>currentGeometry.primary.has(voxelKey(v.x+a[0],v.y+a[1],v.z+a[2]))))continue;
-  const p=new V3(v.x+v.size*.5,v.y+v.size*.5,v.z+v.size*.5),id=v.theme??w.themes[themeIndexAt(w,p,seed)],base=hexRGB(v.kind==='manual'?themeFor(id).color:PALETTES[id]);
+  const p=new V3(v.x+v.size*.5,v.y+v.size*.5,v.z+v.size*.5),id=v.theme??w.themes[themeIndexAt(w,p,seed)],base=hexRGB(w.kind==='special'&&v.kind!=='manual'?voidTerrainColour(p):v.kind==='manual'?themeFor(id).color:PALETTES[id]);
   const noise=(hashSeed(voxelKey(v.x,v.y,v.z))%100)/100;
   const tint=v.kind==='expansion'?.22:(v.kind==='path'||v.kind==='portalPath'||v.kind==='branch')?.12:v.kind==='manual'?.07:.04;
   const col=mixRGB(base,[.97,.975,.94],tint+noise*.035);

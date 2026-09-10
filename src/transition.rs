@@ -8,6 +8,24 @@ pub struct Flight {
     pub up: [f32; 3],
     pub points: [[f32; 3]; 4],
 }
+/// Bend toward the clicked face, with a final tangent perpendicular to its center.
+/// The normal is the clicked local sticker normal after the puzzle's final turn.
+pub fn face_approach(
+    start: [f32; 3],
+    center: [f32; 3],
+    normal: [f32; 3],
+    up: [f32; 3],
+    half_size: f32,
+) -> [[f32; 3]; 4] {
+    let end = core::array::from_fn(|i| center[i] + normal[i] * half_size);
+    let approach: [f32; 3] = core::array::from_fn(|i| end[i] + normal[i] * 2.2);
+    [
+        start,
+        core::array::from_fn(|i| start[i] * 0.65 + approach[i] * 0.35 + up[i] * 0.7),
+        approach,
+        end,
+    ]
+}
 pub const FADE_MS: u64 = 700;
 pub const REVEAL_MS: u64 = 900;
 fn smooth(t: f32) -> f32 {
@@ -45,6 +63,23 @@ impl Flight {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn face_path_finishes_at_face_center_along_inward_normal() {
+        for axis in 0..3 {
+            for sign in [-1., 1.] {
+                let mut normal = [0.; 3];
+                normal[axis] = sign;
+                let center = [2.2, -2.2, 0.];
+                let start = [0., 0., -7.5];
+                let points = face_approach(start, center, normal, [0., 1., 0.], 0.55);
+                assert_eq!(points[0], start);
+                for i in 0..3 {
+                    assert!((points[3][i] - center[i] - normal[i] * 0.55).abs() < 1e-6);
+                    assert!((points[3][i] - points[2][i] + normal[i] * 2.2).abs() < 1e-6);
+                }
+            }
+        }
+    }
     #[test]
     fn flight_is_bounded_and_reaches_selected_center() {
         let f = Flight {

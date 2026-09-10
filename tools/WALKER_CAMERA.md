@@ -5,6 +5,13 @@ Use **5 or F5** to enter/cycle worlds. Each page starts inside its north standin
 portal, facing the world center. Void starts in its center portal, facing -Z.
 World cycling has no source/arrival portal, so entry uses this deterministic rule.
 
+Key2 click journeys instead arrive at the selected world's equivalent Leave
+portal, centered laterally and looking toward the world origin in free drift.
+If terrain backs the opening, arrival moves inward until clear. Local sticker
+axes are ranked X/Y/Z: pure worlds use top; duo worlds use bottom/top; trio worlds
+use west/bottom/top. This mapping survives puzzle rotations. F grips a nearby
+surface when ready to walk.
+
 - Mouse: look; WASD or arrows: walk; either Ctrl (Strg): twice normal walking speed.
 - Flight speed is twice the original; Shift retains the 2.8× flight boost.
 - F: toggle surface grip/free drift (once per press).
@@ -35,6 +42,8 @@ black aimed cube from silently snapping to a different, nearby cube.
 ## Validation
 
 Run `python3 tools/test_walker_camera.py` and `cargo check` from Cubes.
+If the showcase HTML is being redesigned independently, pass `--reference PATH`
+to use the original camera reference instead of the current document.
 The host tests execute the HTML's actual edge controller to produce comparison
 traces, then check the Rust implementation, seam support, steps, inner corners,
 reverse/perch, assistance, drift collision, F/outline agreement, and all 27
