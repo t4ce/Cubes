@@ -6,7 +6,7 @@ use crate::{
 };
 use alloc::vec::Vec;
 pub const SLIDE_MS: u64 = 333;
-pub const FRAME_SHRINK_MS: u64 = 166;
+pub const FRAME_CYCLE_MS: u64 = 4000;
 pub const PITCH: f32 = 3.6;
 pub const DISPLAY_SIDE: f32 = 2.4;
 // RGB palette index (9 bits), translucency marker, opacity class, showcase class.
@@ -34,8 +34,6 @@ pub struct Carousel {
     slide_start: Option<u64>,
     pending: i32,
     frame: Vec<Cube>,
-    frame_shrink: Option<u64>,
-    frame_previous: Vec<Cube>,
     pub drawn: Vec<DrawCube>,
 }
 impl Carousel {
@@ -59,8 +57,6 @@ impl Carousel {
             slide_start: None,
             pending: 0,
             frame: frame_cubes(),
-            frame_shrink: None,
-            frame_previous: Vec::new(),
             drawn: Vec::new(),
         }
     }
@@ -93,9 +89,7 @@ impl Carousel {
             });
         }
         self.reveal.reset();
-        self.reveal.append(5 * self.stride + self.frame.len());
-        self.frame_previous.clear();
-        self.frame_shrink = None;
+        self.reveal.append(5 * self.stride);
         Ok(())
     }
     pub fn wheel(&mut self, step: i32) {
@@ -119,7 +113,6 @@ impl Carousel {
             slot.from = i as f32 - 2. + direction as f32;
         }
         self.slide_start = Some(now);
-        self.frame_shrink = Some(now);
         Ok(())
     }
     pub fn prepare(&mut self, now: u64) -> Result<(), &'static str> {
@@ -134,32 +127,8 @@ impl Carousel {
             self.pending -= direction;
             self.step(direction, now)?;
         }
-        let frame_base = 5 * self.stride;
-        if self
-            .frame_shrink
-            .is_some_and(|start| now.saturating_sub(start) >= FRAME_SHRINK_MS)
-        {
-            self.frame_shrink = None;
-            self.frame_previous.clear();
-            self.reveal
-                .reset_range(frame_base..frame_base + self.frame.len());
-        }
-        self.reveal.begin_frame(now, frame_base + self.frame.len());
+        self.reveal.begin_frame(now, 5 * self.stride);
         self.drawn.clear();
-        if let Some(start) = self.frame_shrink {
-            let factor = 1. - now.saturating_sub(start) as f32 / FRAME_SHRINK_MS as f32;
-            for cube in &self.frame_previous {
-                self.drawn.push(DrawCube {
-                    cube: Cube {
-                        scale: (cube.scale * factor).max(0.00101),
-                        ..*cube
-                    },
-                    opacity: 0,
-                });
-            }
-        } else {
-            self.frame_previous.clear();
-        }
         let t = self.slide_start.map_or(1., |start| {
             (now.saturating_sub(start) as f32 / SLIDE_MS as f32).min(1.)
         });
@@ -170,9 +139,9 @@ impl Carousel {
             let x = (slot.from + (i as f32 - 2. - slot.from) * t) * PITCH;
             (slot, center, normalization, x)
         });
-        // Interleave all five assets and the frame under one admission budget,
+        // Interleave all five assets under one admission budget,
         // so a dense centre asset cannot starve the other four slots.
-        for j in 0..self.stride.max(self.frame.len()) {
+        for j in 0..self.stride {
             for i in [2usize, 1, 3, 0, 4] {
                 let (slot, center, normalization, x) = poses[i];
                 let Some(original) = self.pages[slot.asset].cubes.get(j) else {
@@ -197,20 +166,20 @@ impl Carousel {
                     },
                 });
             }
-            if self.frame_shrink.is_none()
-                && j < self.frame.len()
-                && self.reveal.admit(frame_base + j)
-            {
+        }
+        self.reveal.end_frame();
+        // A travelling half-cage is always present. Its clock and geometry are
+        // independent of scrolling, group changes, and asset spawn admission.
+        for original in &self.frame {
+            let factor = frame_scale(original.center, now);
+            if factor > 0. {
                 let cube = Cube {
-                    scale: (self.frame[j].scale * self.reveal.linear_scale(frame_base + j))
-                        .max(0.00101),
-                    ..self.frame[j]
+                    scale: (original.scale * factor).max(0.00101),
+                    ..*original
                 };
-                self.frame_previous.push(cube);
                 self.drawn.push(DrawCube { cube, opacity: 0 });
             }
         }
-        self.reveal.end_frame();
         if self.drawn.len() + 1 > 8192 {
             return Err("carousel-seed-budget");
         }
@@ -219,6 +188,25 @@ impl Carousel {
             .sort_unstable_by(|a, b| b.cube.center[2].total_cmp(&a.cube.center[2]));
         Ok(())
     }
+}
+fn frame_scale(center: [f32; 3], now: u64) -> f32 {
+    // Clockwise position on the square XZ perimeter; vertical edges share the
+    // phase of their corners, keeping the moving wireframe spatially connected.
+    let half = 8. * C1;
+    let [x, _, z] = center;
+    let distance = if z <= -half {
+        x + half
+    } else if x >= half {
+        2. * half + z + half
+    } else if z >= half {
+        4. * half + half - x
+    } else {
+        6. * half + half - z
+    };
+    let phase =
+        (distance / (8. * half) + (now % FRAME_CYCLE_MS) as f32 / FRAME_CYCLE_MS as f32) % 1.;
+    // Half the perimeter is active. Linear 320ms growth/shrink at opposite ends.
+    (phase / 0.08).min((0.5 - phase) / 0.08).clamp(0., 1.)
 }
 fn asset_pose(cubes: &[Cube]) -> ([f32; 3], f32) {
     let mut lo = [f32::INFINITY; 3];
@@ -304,11 +292,11 @@ mod tests {
         for group in 0..crate::GROUPS.len() {
             c.select_group(group).unwrap();
             c.prepare(0).unwrap();
-            assert!(c.drawn.is_empty());
+            assert_eq!(asset_count(&c), 0);
             c.prepare(reveal::DELAY_MS - 1).unwrap();
-            assert!(c.drawn.is_empty());
+            assert_eq!(asset_count(&c), 0);
             c.prepare(reveal::DELAY_MS).unwrap();
-            assert_eq!(c.drawn.len(), reveal::MAX_STARTS_PER_FRAME as usize);
+            assert_eq!(asset_count(&c), reveal::MAX_STARTS_PER_FRAME as usize);
             for slot in -2..=2 {
                 assert!(
                     c.drawn
@@ -326,7 +314,7 @@ mod tests {
                 .iter()
                 .map(|s| c.pages[s.asset].cubes.len())
                 .sum::<usize>()
-                + c.frame.len();
+                + frame_drawn(&c).len();
             assert_eq!(c.drawn.len(), expected);
             assert!(expected < 8192);
             for (opacity, slots) in [(0, vec![2]), (1, vec![1, 3]), (2, vec![0, 4])] {
@@ -334,7 +322,11 @@ mod tests {
                     .iter()
                     .map(|&i| c.pages[c.slots[i].asset].cubes.len())
                     .sum::<usize>()
-                    + if opacity == 0 { c.frame.len() } else { 0 };
+                    + if opacity == 0 {
+                        frame_drawn(&c).len()
+                    } else {
+                        0
+                    };
                 assert_eq!(
                     c.drawn.iter().filter(|d| d.opacity == opacity).count(),
                     expected
@@ -347,32 +339,72 @@ mod tests {
             );
         }
     }
+    fn frame_drawn(c: &Carousel) -> Vec<([f32; 3], f32)> {
+        c.drawn
+            .iter()
+            .filter(|d| c.frame.iter().any(|f| f.center == d.cube.center))
+            .map(|d| (d.cube.center, d.cube.scale))
+            .collect()
+    }
+    fn asset_count(c: &Carousel) -> usize {
+        c.drawn.len() - frame_drawn(c).len()
+    }
     #[test]
-    fn frame_uses_only_c1_c2_and_shrinks_linearly_before_rearming() {
-        let mut c = Carousel::new(crate::ASSETS, crate::GROUPS);
-        c.select_group(0).unwrap();
-        for now in (0..4000).step_by(16) {
-            c.prepare(now).unwrap();
-        }
+    fn frame_stays_present_and_scroll_and_group_changes_do_not_reset_it() {
+        let mut stationary = Carousel::new(crate::ASSETS, crate::GROUPS);
+        let mut scrolling = Carousel::new(crate::ASSETS, crate::GROUPS);
+        stationary.select_group(0).unwrap();
+        scrolling.select_group(0).unwrap();
         assert!(
-            c.frame
+            stationary
+                .frame
                 .iter()
                 .all(|cube| [C1 * 0.495, C1 * 0.99].contains(&cube.scale))
         );
-        let full = c.frame_previous[0].scale;
-        c.wheel(1);
-        c.prepare(4000).unwrap();
-        c.prepare(4000 + FRAME_SHRINK_MS / 2).unwrap();
-        let expected = full * 0.5;
-        assert!(
-            c.drawn
-                .iter()
-                .any(|d| (d.cube.scale - expected).abs() < 1e-6)
-        );
-        c.prepare(4000 + FRAME_SHRINK_MS).unwrap();
-        assert!(c.frame_previous.is_empty());
-        c.prepare(4000 + FRAME_SHRINK_MS + reveal::DELAY_MS)
-            .unwrap();
-        assert!(!c.frame_previous.is_empty());
+        for now in (0..8000).step_by(40) {
+            if now % 400 == 0 {
+                scrolling.wheel(if now < 4000 { 1 } else { -1 });
+            }
+            if now == 4000 {
+                scrolling.select_group(1).unwrap();
+            }
+            stationary.prepare(now).unwrap();
+            scrolling.prepare(now).unwrap();
+            let a = frame_drawn(&stationary);
+            let b = frame_drawn(&scrolling);
+            assert!(!a.is_empty());
+            assert_eq!(a.len(), b.len());
+            // Equal-depth sorting may reorder cubes as assets come and go.
+            assert!(a.iter().all(|cube| b.contains(cube)));
+        }
+    }
+    #[test]
+    fn frame_half_duty_cycle_and_linear_growth_shrink_loop() {
+        let cubes = frame_cubes();
+        for cube in &cubes {
+            let showing = (0..FRAME_CYCLE_MS)
+                .step_by(10)
+                .filter(|&now| frame_scale(cube.center, now) > 0.)
+                .count();
+            assert!((showing as f32 / 400. - 0.5).abs() < 0.01);
+            for now in [0, 160, 999, 1840, 3333] {
+                assert_eq!(
+                    frame_scale(cube.center, now),
+                    frame_scale(cube.center, now + FRAME_CYCLE_MS)
+                );
+            }
+        }
+        let corner = [-8. * C1; 3];
+        for (now, expected) in [
+            (0, 0.),
+            (160, 0.5),
+            (320, 1.),
+            (1000, 1.),
+            (1840, 0.5),
+            (2000, 0.),
+            (3000, 0.),
+        ] {
+            assert!((frame_scale(corner, now) - expected).abs() < 1e-6);
+        }
     }
 }

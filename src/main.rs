@@ -1188,12 +1188,8 @@ impl CubeScene {
             encode_seed(dummy, &mut seed_bytes[opaque_count * 64..seed_count * 64]);
         }
         if self.mode == SceneMode::Orchard {
-            let seed=RetainedTransformSeed {
-                translation:placeholder, previous_translation:placeholder, scale:[0.0001;3],
-                local_radius:grid::CUBE_LOCAL_RADIUS, draw_group:0, flags:0,
-                ..RetainedTransformSeed::default()
-            };
-            encode_seed(seed, &mut seed_bytes[opaque_count*64..seed_count*64]);
+            let seed = carousel_anchor_seed(placeholder);
+            encode_seed(seed, &mut seed_bytes[opaque_count * 64..seed_count * 64]);
         }
         write_exact(
             self.device,
@@ -1726,7 +1722,7 @@ impl CubeScene {
         if mode == SceneMode::Orchard {
             self.orbit=[core::f32::consts::PI,0.,12.];
             self.look_target=[0.;3];
-            logl::log(level::INFO,format_args!("Cubes: Key4 carousel group={} assets={} selected={} five slots alpha=1/.85/.5 wheel=slide",
+            logl::log(level::INFO,format_args!("Cubes: Key4 carousel group={} assets={} selected={} five slots alpha=.25/.5/1/.5/.25 wheel=slide",
                 self.carousel.name(),self.carousel.group_len(),self.carousel.asset_name()));
         } else if mode == SceneMode::World {
             self.flycam = FlyCam::new(default_camera(), 3.0);
@@ -1830,7 +1826,7 @@ impl CubeScene {
                         "2 compact-puzzle click=face/edge/corner turns=3x1s camera=WASD-orbit idle=3s-auto-orbit",
                     SceneMode::Sphere =>
                         "1 sphere=1024 camera=center WASD=look cursor-expand=10%-area Key1=interactive-grid",
-                    SceneMode::Orchard => "4 asset-carousel wheel=slide/loop Key4=next-generator-group five-assets alpha=1/.85/.5",
+                    SceneMode::Orchard => "4 asset-carousel wheel=slide/loop Key4=next-generator-group five-assets alpha=.25/.5/1/.5/.25",
                     SceneMode::World =>
                         "5 lvl27-world first-person mouse-look WASD=surface-walk Shift=walk/flight-boost Space=edge-push/approach Home=align Key5=next-world R=display-cube",
                     SceneMode::MaterialShowcase =>
@@ -1959,6 +1955,19 @@ fn write_exact(device: Device, buffer: Buffer, bytes: &[u8]) -> Result<(), i32> 
     (device.write_buffer(buffer, 0, bytes)? == bytes.len())
         .then_some(())
         .ok_or(trueos::vgpu::ERR_IO)
+}
+
+fn carousel_anchor_seed(placeholder: [f32; 3]) -> RetainedTransformSeed {
+    RetainedTransformSeed {
+        translation: placeholder,
+        previous_translation: placeholder,
+        scale: [0.0001; 3],
+        // Hidden seeds still pass transform validation; Default has a zero quaternion.
+        rotation: [0., 0., 0., 1.],
+        local_radius: grid::CUBE_LOCAL_RADIUS,
+        draw_group: 0,
+        flags: 0,
+    }
 }
 
 fn encode_seed(seed: RetainedTransformSeed, bytes: &mut [u8]) {

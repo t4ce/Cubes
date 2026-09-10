@@ -2,7 +2,7 @@
 
 Key5 remains the world view. Key4 selects the next generator group; the wheel
 slides through that group's circular list. Five asset instances are kept live:
-centre opacity 1, immediate neighbours .85, outer neighbours .5. Short groups
+centre opacity 1, immediate neighbours .5, outer neighbours .25. Short groups
 repeat assets to fill all five slots. The fixed camera reserves room for the
 incoming slot during a 333 ms slide and adapts to viewport aspect ratio.
 
@@ -17,11 +17,13 @@ Each asset is centered in its slot and uniformly fitted to a 2.4-unit box.
 Its authored cube proportions and RGB555 colours are preserved. New instances
 share the placement reveal controller: 333 ms initial delay, 1,600 starts/s,
 32 starts/frame, 700 ms Bounce + Uniform growth. Admission is interleaved across
-all five assets and the frame; moving existing instances keeps their reveal state.
+all five assets; moving existing instances keeps their reveal state.
 
-The selected slot has a hollow cubic frame made only of c1 and c2 cubes. On a
-selection change its visible cubes shrink linearly over 166 ms, then the new frame
-rearms the reveal delay and grows linearly over 700 ms. The four retained assets
+The selected slot has a hollow cubic frame made only of c1 and c2 cubes. A
+half-visible band travels around its XZ perimeter every four seconds, with linear
+320 ms growth at one end and shrink at the other. The frame is present immediately
+and runs independently of wheel input, group changes and asset reveal budgets.
+Its size and position stay fixed. The four retained assets
 slide smoothly to their next positions; the outgoing edge instance is recycled
 as the incoming one. Wheel input during a slide is queued (up to 32 steps).
 
@@ -47,5 +49,5 @@ cargo check
 ```
 
 Native appearance still needs a device check: every group, both wheel directions,
-rapid scrolling, narrow/wide windows, translucent neighbours and frame regrowth.
+rapid scrolling, narrow/wide windows, translucent neighbours and the continuous half-frame animation.
 Both the app and the newly baked TRUEOS shader bundle must be deployed together.

@@ -112,7 +112,7 @@ class PatchCubeTests(unittest.TestCase):
             manifest = write_sources(ROOT / "Cube/cube.glb", out)
             self.assertEqual(manifest["carousel_colors_rgb555"], colors)
             ds = (out / "cube.tese").read_text()
-            self.assertIn("opacity == 1u ? 0.85 : opacity == 2u ? 0.5 : 1.0", ds)
+            self.assertIn("opacity == 1u ? 0.5 : opacity == 2u ? 0.25 : 1.0", ds)
             self.assertIn("hidden = !carousel &&", ds)
             for index, color in enumerate(colors):
                 flags = 24576 | 512 | index | (2 << 10)
