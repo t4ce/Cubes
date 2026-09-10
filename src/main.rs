@@ -5,12 +5,15 @@ extern crate alloc;
 mod background;
 mod camera_entry;
 mod counters;
+mod cube_format;
 mod environment;
 mod floor;
 mod grid;
 mod modes;
 mod network;
 mod orchard;
+#[path = "SubCubes.rs"]
+mod subcubes;
 use modes::{ModeKeys, SceneMode};
 include!(concat!(env!("OUT_DIR"), "/orchard_assets.rs"));
 mod asset_brush;
@@ -121,6 +124,8 @@ struct CubeScene {
     placed_reveal: reveal::Reveal,
     asset_brush: asset_brush::Brush,
     puzzle: rubik::Puzzle,
+    mining: subcubes::Demo,
+    mining_asset: orchard::Asset,
     orbit: [f32; 3], // yaw, elevation, radius
     look_target: [f32; 3],
     last_camera_activity_millis: u64,
@@ -334,6 +339,12 @@ impl CubeScene {
             cursors: Vec::new(),
             mode: SceneMode::StaticCube,
             puzzle: rubik::Puzzle::new(0),
+            mining: subcubes::Demo::new(),
+            mining_asset: orchard::Asset {
+                name: "mining",
+                cubes: Vec::new(),
+                radius: 32.,
+            },
             active_world: None,
             world_cube: world_cube::Companion::default(),
             orbit: [core::f32::consts::PI, 0.0, 7.5],
@@ -423,6 +434,34 @@ impl CubeScene {
                     camera.look(event.dx as f32, event.dy as f32);
                 }
             }
+            if self.mode == SceneMode::MaterialShowcase {
+                if let Some(camera) = self.walker_camera.as_mut() {
+                    camera.look(event.dx as f32, event.dy as f32);
+                }
+                if event.wheel != 0 {
+                    self.mining.cycle(-(event.wheel as i32));
+                    logl::log(
+                        level::INFO,
+                        format_args!(
+                            "Cubes: Key7 mining tool=c{} side={} c1 grid=1 c1",
+                            self.mining.tool + 1,
+                            subcubes::TOOLS[self.mining.tool]
+                        ),
+                    );
+                }
+                if event.buttons_pressed & 4 != 0 {
+                    self.mining = subcubes::Demo::new();
+                    self.walker_camera = Some(walker_camera::CubesWalkerCam::mining_demo(
+                        &self.mining.blocks,
+                    ));
+                    self.refresh_mining();
+                } else if event.buttons_pressed & 1 != 0 {
+                    if let Some(cut) = self.mining_target() {
+                        self.mining.mine(cut);
+                        self.refresh_mining();
+                    }
+                }
+            }
             if self.mode == SceneMode::StaticCube
                 && self.portal_trip.is_none()
                 && self.puzzle.selected().is_none()
@@ -484,7 +523,7 @@ impl CubeScene {
                 self.last_camera_activity_millis = elapsed_millis;
             }
             let mut target = [0.0; 3];
-            if self.mode == SceneMode::World {
+            if matches!(self.mode, SceneMode::World | SceneMode::MaterialShowcase) {
                 if let Some(camera) = self.walker_camera.as_mut() {
                     let before = camera.pose().0;
                     camera.update(
@@ -507,7 +546,10 @@ impl CubeScene {
                     let (position, rotation) = camera.pose();
                     self.flycam.camera.position = position;
                     self.flycam.camera.rotation = rotation;
-                    if !self.network_singleton && elapsed_millis >= self.portal_ready_at {
+                    if self.mode == SceneMode::World
+                        && !self.network_singleton
+                        && elapsed_millis >= self.portal_ready_at
+                    {
                         if let Some(portal) = camera.crossed_portal(before) {
                             let route =
                                 world_topology::routes(self.world_index, &self.puzzle)[portal];
@@ -549,13 +591,14 @@ impl CubeScene {
                     libm::cosf(elevation - self.orbit[1]),
                 ) * ease;
                 target = cell.map(|x| x * self.puzzle_spacing(elapsed_millis));
-            } else if self.mode != SceneMode::World && self.flight.is_none() {
+            } else if !matches!(self.mode, SceneMode::World | SceneMode::MaterialShowcase)
+                && self.flight.is_none()
+            {
                 // The room uses a screen-down world Y convention, so reverse
                 // both orbit axes to retain conventional visual controls.
                 self.orbit[0] += (held(0x07) as i32 - held(0x04) as i32) as f32 * dt;
                 self.orbit[1] += (held(0x1a) as i32 - held(0x16) as i32) as f32 * dt;
                 if (self.mode == SceneMode::Orchard
-                    || self.mode == SceneMode::MaterialShowcase
                     || (self.mode == SceneMode::StaticCube && self.puzzle.selected().is_none()))
                     && elapsed_millis.saturating_sub(self.last_camera_activity_millis)
                         >= IDLE_ORBIT_DELAY_MS
@@ -575,10 +618,8 @@ impl CubeScene {
                 radius * libm::cosf(pitch) * libm::cosf(yaw),
             ];
             self.flycam.camera.position = if self.flight.is_none()
-                && matches!(
-                    self.mode,
-                    SceneMode::StaticCube | SceneMode::Orchard | SceneMode::MaterialShowcase
-                ) {
+                && matches!(self.mode, SceneMode::StaticCube | SceneMode::Orchard)
+            {
                 radial
             } else {
                 self.flycam.camera.position
@@ -593,7 +634,9 @@ impl CubeScene {
             ) {
                 self.look_target = radial.map(|v| -v);
             }
-            if self.mode != SceneMode::World && self.flight.is_none() {
+            if !matches!(self.mode, SceneMode::World | SceneMode::MaterialShowcase)
+                && self.flight.is_none()
+            {
                 self.flycam.camera.rotation =
                     look_at_camera_rotation(self.flycam.camera.position, self.look_target, up);
             }
@@ -736,6 +779,8 @@ impl CubeScene {
                 .cubes
                 .len()
                 .min(asset_brush::PREVIEW_SEEDS)
+        } else if self.mode == SceneMode::MaterialShowcase {
+            1
         } else {
             0
         };
@@ -750,6 +795,17 @@ impl CubeScene {
             .update_preview(ghost_target, ASSET_GRID_ASSETS[self.asset_brush.selected].1);
         let ghost_count = self.asset_brush.ghost.len().min(asset_brush::GHOST_SEEDS);
         let (visible, visibility_stats) = match self.mode {
+            SceneMode::MaterialShowcase => {
+                let (ids, stats) = orchard::visible_when_limited(
+                    &mut self.visibility_scratch,
+                    &self.mining_asset,
+                    self.flycam.camera.position,
+                    &camera.view_projection,
+                    grid::MAX_SEED_COUNT - preview_count,
+                    |_| true,
+                );
+                (ids, Some(stats))
+            }
             SceneMode::Orchard => {
                 let asset = &self.orchards[self.orchard_index];
                 self.orchard_reveal
@@ -800,7 +856,10 @@ impl CubeScene {
             }
             _ => (&[][..], None),
         };
-        let scene_opaque_count = if matches!(self.mode, SceneMode::Orchard | SceneMode::World) {
+        let scene_opaque_count = if matches!(
+            self.mode,
+            SceneMode::Orchard | SceneMode::World | SceneMode::MaterialShowcase
+        ) {
             // The asset preview already keeps the retained group nonempty in
             // World mode. Do not add a black placeholder to an empty view.
             visible.len().max(usize::from(preview_count == 0))
@@ -930,7 +989,10 @@ impl CubeScene {
                     )
                 }
                 SceneMode::MaterialShowcase => {
-                    (grid::material_showcase_position(i), grid::CUBE_GRID_SCALE)
+                    visible.get(i).map_or((placeholder, 0.0001), |&id| {
+                        let c = self.mining_asset.cubes[id];
+                        (c.center, c.scale)
+                    })
                 }
             };
             let seed = RetainedTransformSeed {
@@ -940,7 +1002,7 @@ impl CubeScene {
                     quaternion_from_rotation_columns(basis[0], basis[1], basis[2]).0
                 } else if self.mode == SceneMode::World && scale < 0.001 {
                     self.flycam.camera.rotation.0
-                } else if self.mode == SceneMode::World {
+                } else if matches!(self.mode, SceneMode::World | SceneMode::MaterialShowcase) {
                     orchard::WORLD_ROTATION
                 } else {
                     [0.0, 0.0, 0.0, 1.0]
@@ -964,7 +1026,9 @@ impl CubeScene {
                     } else if self.mode == SceneMode::Sphere {
                         rubik::SPHERE_GRADIENT_FLAG
                     } else {
-                        rubik::MATERIAL_SHOWCASE_FLAG | i as u32
+                        visible.get(i).map_or(rubik::MATERIAL_SHOWCASE_FLAG, |&id| {
+                            self.mining_asset.cubes[id].flags
+                        })
                     },
             };
             if scale >= 0.001 {
@@ -975,7 +1039,33 @@ impl CubeScene {
             }
             encode_seed(seed, &mut seed_bytes[i * 64..(i + 1) * 64]);
         }
-        if preview_count > 0 {
+        if self.mode == SceneMode::MaterialShowcase {
+            // A fixed-scale tool swatch keeps wheel selection visible even off-target.
+            let placement = world_cube::Placement::asset(width, height, tan_half_fov, 1.4);
+            let (local, scale) = placement.asset_pose(
+                [0.; 3],
+                subcubes::TOOLS[self.mining.tool] as f32 * subcubes::C1 * 0.5,
+            );
+            let offset = self.flycam.camera.rotation.rotate(local);
+            let translation = core::array::from_fn(|a| self.flycam.camera.position[a] + offset[a]);
+            let basis = [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]]
+                .map(|v| self.flycam.camera.rotation.rotate(world_cube::orient(v)));
+            let seed = RetainedTransformSeed {
+                translation,
+                scale: [scale; 3],
+                rotation: quaternion_from_rotation_columns(basis[0], basis[1], basis[2]).0,
+                local_radius: grid::CUBE_LOCAL_RADIUS,
+                previous_translation: translation,
+                draw_group: 0,
+                flags: ((scene_opaque_count as u32) << 16) | orchard::CUSTOM_RGB555 | 0x7fff,
+            };
+            encode_seed(
+                seed,
+                &mut seed_bytes[scene_opaque_count * 64..(scene_opaque_count + 1) * 64],
+            );
+            expanded_count += 1;
+        }
+        if preview_count > 0 && self.mode == SceneMode::World {
             let asset = &self.asset_brush.catalog[self.asset_brush.selected];
             let placement = world_cube::Placement::asset(width, height, tan_half_fov, asset.radius);
             let basis = [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]]
@@ -1104,7 +1194,15 @@ impl CubeScene {
             &seed_bytes[..seed_count * 64],
         )
         .map_err(|code| CubeError::Vgpu("grid-seed-upload", code))?;
-        let outline = self.walker_camera.as_ref().and_then(|c| c.snap_outline());
+        let outline = if self.mode == SceneMode::MaterialShowcase {
+            self.mining_target().map(|cut| walker_camera::SnapOutline {
+                lo: cut.min.map(|v| v as f32 * subcubes::C1),
+                hi: cut.min.map(|v| (v + cut.side) as f32 * subcubes::C1),
+                reachable: true,
+            })
+        } else {
+            self.walker_camera.as_ref().and_then(|c| c.snap_outline())
+        };
         let (floor_bytes, line_color) = if let Some(target) = outline {
             (
                 floor::cube_outline(&camera.view_projection, target.lo, target.hi),
@@ -1592,9 +1690,15 @@ impl CubeScene {
                 self.flycam = camera;
             }
         }
+        if self.mode == SceneMode::MaterialShowcase && mode != SceneMode::MaterialShowcase {
+            self.walker_camera = None;
+        }
         self.mode = mode;
         self.frame
-            .set_center_snapped_mouse(mode == SceneMode::World)
+            .set_center_snapped_mouse(matches!(
+                mode,
+                SceneMode::World | SceneMode::MaterialShowcase
+            ))
             .map_err(|error| CubeError::Ui4("center-snapped-mouse", error))?;
         if mode == SceneMode::StaticCube {
             self.puzzle.reenter(self.previous_elapsed_millis);
@@ -1620,8 +1724,22 @@ impl CubeScene {
             self.flycam.camera.rotation = look_at_camera_rotation(p, [0.0; 3], [0.0, -1.0, 0.0]);
         }
         if mode == SceneMode::MaterialShowcase {
-            self.orbit = [core::f32::consts::PI, -0.16, 10.5];
-            self.look_target = [0.0; 3];
+            logl::log(
+                level::INFO,
+                format_args!(
+                    "Cubes: Key7 rows={:?} c1={} renderer units",
+                    subcubes::NAMES,
+                    subcubes::C1
+                ),
+            );
+            self.mining = subcubes::Demo::new();
+            self.walker_camera = Some(walker_camera::CubesWalkerCam::mining_demo(
+                &self.mining.blocks,
+            ));
+            self.refresh_mining();
+            let (position, rotation) = self.walker_camera.as_ref().unwrap().pose();
+            self.flycam.camera.position = position;
+            self.flycam.camera.rotation = rotation;
         }
         if mode == SceneMode::Orchard {
             self.orchard_reveal.reset();
@@ -1747,7 +1865,7 @@ impl CubeScene {
                     SceneMode::World =>
                         "5 lvl27-world first-person mouse-look WASD=surface-walk Shift=walk/flight-boost Space=edge-push/approach Home=align Key5=next-world R=display-cube",
                     SceneMode::MaterialShowcase =>
-                        "7 materials six-cube palette matte/satin/gloss plastic rough/satin/polished metal WASD=orbit idle=auto-orbit",
+                        "7 mining 7 tiers x 6 materials mouse-look WASD=walk/fly Shift=boost Space=push/approach Home=align wheel=c1/c2/c3/c4 LMB=mine RMB=reset grid=c1",
                 },
                 if mode == SceneMode::Orchard {
                     self.orchards[self.orchard_index].cubes.len()
@@ -1763,6 +1881,31 @@ impl CubeScene {
         Ok(())
     }
 
+    fn mining_target(&self) -> Option<subcubes::Block> {
+        self.mining.target(
+            self.flycam.camera.position,
+            self.flycam.camera.rotation.rotate([0., 0., -1.]),
+        )
+    }
+    fn refresh_mining(&mut self) {
+        self.mining_asset.cubes = self
+            .mining
+            .blocks
+            .iter()
+            .map(|&b| {
+                let (center, scale) = b.pose();
+                orchard::Cube {
+                    center,
+                    scale,
+                    flags: rubik::MATERIAL_SHOWCASE_FLAG | b.material,
+                }
+            })
+            .collect();
+        if let Some(camera) = self.walker_camera.as_mut() {
+            camera.replace_mining_blocks(&self.mining.blocks);
+        }
+    }
+
     fn puzzle_spacing(&self, now: u64) -> f32 {
         let compact = grid::CUBE_COMPACT_SPACING;
         compact + (grid::CUBE_GRID_SPACING - compact) * self.puzzle.expansion(now)
@@ -1776,9 +1919,9 @@ impl CubeScene {
                 SceneMode::Sphere => ROOM_YFOV,
                 SceneMode::Orchard => PUZZLE_YFOV,
                 SceneMode::World => walker_camera::FOV,
-                SceneMode::MaterialShowcase => PUZZLE_YFOV,
+                SceneMode::MaterialShowcase => walker_camera::FOV,
             },
-            znear: if mode == SceneMode::World {
+            znear: if matches!(mode, SceneMode::World | SceneMode::MaterialShowcase) {
                 walker_camera::NEAR
             } else {
                 0.1

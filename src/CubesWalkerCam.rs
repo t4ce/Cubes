@@ -1,4 +1,4 @@
-//! Explore camera port from Cube/WorldShowcase.html.
+//! Cubes-owned surface walker and free-flight camera.
 //!
 //! All contact math runs in authored voxel units; only the camera output is
 //! scaled to renderer units. Packed cubes expand into an ideal solid union,
@@ -13,7 +13,7 @@ type V = [f32; 3];
 const UP: V = [0., 1., 0.];
 const FORWARD: V = [0., 0., -1.];
 const SKIN: f32 = 0.025;
-// The reference uses doubles and 1e-5. Leave enough room for f32 at cell 112.
+// Leave enough tolerance for f32 operations across the full world lattice.
 const EPS: f32 = 1e-4;
 const EYE: f32 = 0.75;
 const EDGE_TRAVEL: f32 = 1.8;
@@ -351,6 +351,7 @@ struct PushOff {
 
 #[derive(Clone, Copy)]
 struct PortalOpening {
+    half: V,
     front: V,
     inward: V,
 }
@@ -387,7 +388,7 @@ pub struct CubesWalkerCam {
     push_off: Option<PushOff>,
     approach: Option<Hit>,
     align_held: bool,
-    /// Reference defaults: 100% assistance and the soft 45-degree catch.
+    /// Full camera assistance and a soft 45-degree edge catch.
     pub camera_assist: f32,
     pub edge_perch: bool,
 }
@@ -402,28 +403,34 @@ impl CubesWalkerCam {
     /// Arrivals stand on the 2×2 connector one voxel in front of the opening.
     /// Without nearby support they stay in drift rather than snapping far away.
     pub fn from_portal(bytes: &[u8], void: bool, arrival: Option<usize>) -> Self {
-        let unit = f32::from_le_bytes(bytes[12..16].try_into().unwrap());
-        let records = &bytes[16 + 4 * bytes[10] as usize..];
-        let origin = |r: &[u8]| {
+        let v2 = bytes[4] == 2;
+        let unit = if v2 {
+            0.8
+        } else {
+            f32::from_le_bytes(bytes[12..16].try_into().unwrap())
+        };
+        let factor = if v2 { 0.25 } else { 1. };
+        let records: Vec<_> = crate::cube_format::records(bytes).collect();
+        let origin = |r: &crate::cube_format::Record| {
             [
-                r[0] as i8 as i32,
-                r[1] as i8 as i32,
-                -(r[2] as i8 as i32) - r[3] as i32,
+                r.origin[0] as f32 * factor,
+                r.origin[1] as f32 * factor,
+                -(r.origin[2] + r.side) as f32 * factor,
             ]
         };
         let mut lo = [i32::MAX; 3];
         let mut hi = [i32::MIN; 3];
         let mut portal_lows = [[f32::INFINITY; 3]; 7];
         let mut portal_highs = [[f32::NEG_INFINITY; 3]; 7];
-        for r in records.chunks_exact(8) {
+        for r in &records {
             let p = origin(r);
-            let size = r[3] as i32;
+            let size = r.side as f32 * factor;
             for a in 0..3 {
-                lo[a] = lo[a].min(p[a]);
-                hi[a] = hi[a].max(p[a] + size);
+                lo[a] = lo[a].min(libm::floorf(p[a]) as i32);
+                hi[a] = hi[a].max(libm::ceilf(p[a] + size) as i32);
             }
             let center = p.map(|x| x as f32 + size as f32 * 0.5);
-            let face = if void {
+            let face = if matches!(r.part, 13 | 14) || (void && !v2) {
                 6
             } else if center[1].abs() > center[0].abs().max(center[2].abs()) {
                 if center[1] < 0. { 4 } else { 5 }
@@ -434,7 +441,7 @@ impl CubesWalkerCam {
             } else {
                 2
             };
-            if matches!(r[5], 9 | 10) {
+            if matches!(r.part, 9 | 10 | 13 | 14) {
                 for a in 0..3 {
                     portal_lows[face][a] = portal_lows[face][a].min(p[a] as f32);
                     portal_highs[face][a] = portal_highs[face][a].max((p[a] + size) as f32);
@@ -457,25 +464,33 @@ impl CubesWalkerCam {
                     (lo[a] + hi[a]) * 0.5
                 }
             });
-            Some(PortalOpening { front, inward })
+            Some(PortalOpening {
+                front,
+                inward,
+                half: core::array::from_fn(|a| (hi[a] - lo[a]) * 0.5),
+            })
         });
         let opening = portals[arrival.unwrap_or(if void { 6 } else { 0 })];
         let mut solid = Solid::new(lo, hi);
-        let mut cubes = Vec::with_capacity(records.len() / 8);
-        for r in records.chunks_exact(8) {
-            let p = origin(r);
-            cubes.push(CubeBounds {
-                lo: p.map(|x| x as f32),
-                size: r[3] as f32,
-                gap: bytes[6] as f32 / 100.,
-            });
-            for x in 0..r[3] as i32 {
-                for y in 0..r[3] as i32 {
-                    for z in 0..r[3] as i32 {
-                        solid.insert([p[0] + x, p[1] + y, p[2] + z]);
-                    }
-                }
+        let mut cubes = Vec::with_capacity(records.len());
+        for r in &records {
+            if if v2 {
+                !crate::subcubes::walkable(r.tier)
+            } else {
+                r.side as f32 * unit < 4. * crate::subcubes::C1 - EPS
+            } {
+                continue;
             }
+            let p = origin(r);
+            let size = r.side as f32 * factor;
+            for cube in r.cubes() {
+                cubes.push(CubeBounds {
+                    lo: origin(&cube),
+                    size: cube.side as f32 * factor,
+                    gap: bytes[6] as f32 / if v2 { 1000. } else { 100. } * factor,
+                });
+            }
+            Self::insert_bounds(&mut solid, p, size);
         }
         // One authored voxel in front of the opening, on its world-facing side.
         let inward = portal_inward(arrival.unwrap_or(if void { 6 } else { 0 }));
@@ -552,6 +567,69 @@ impl CubesWalkerCam {
         cam.rotation = cam.view;
         cam
     }
+    fn insert_bounds(solid: &mut Solid, lo: V, size: f32) {
+        if size == libm::floorf(size) && lo.iter().all(|v| *v == libm::floorf(*v)) {
+            for x in 0..size as i32 {
+                for y in 0..size as i32 {
+                    for z in 0..size as i32 {
+                        solid.insert([lo[0] as i32 + x, lo[1] as i32 + y, lo[2] as i32 + z]);
+                    }
+                }
+            }
+        } else {
+            for x in 0..libm::roundf(size * 4.) as i32 {
+                for y in 0..libm::roundf(size * 4.) as i32 {
+                    for z in 0..libm::roundf(size * 4.) as i32 {
+                        solid.insert_fine(add(
+                            lo,
+                            [
+                                (x as f32 + 0.5) * 0.25,
+                                (y as f32 + 0.5) * 0.25,
+                                (z as f32 + 0.5) * 0.25,
+                            ],
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    pub fn mining_demo(blocks: &[crate::subcubes::Block]) -> Self {
+        let mut bytes = [0u8; 28];
+        bytes[10] = 1;
+        bytes[6] = 1;
+        bytes[23] = 1;
+        bytes[12..16].copy_from_slice(&0.8f32.to_le_bytes());
+        let mut cam = Self::from_world(&bytes, false);
+        cam.replace_mining_blocks(blocks);
+        cam.drift_half_extent = 64.;
+        cam.position = [0., 20., -40.];
+        cam.foot = cam.position;
+        cam.fly = true;
+        cam.view = look(norm(sub([0., 0., 0.], cam.position)), UP);
+        cam.rotation = cam.view;
+        cam.forward = tangent(cam.view.rotate(FORWARD), UP);
+        cam
+    }
+    pub fn replace_mining_blocks(&mut self, blocks: &[crate::subcubes::Block]) {
+        self.solid = Solid::new([-32; 3], [32; 3]);
+        self.cubes.clear();
+        self.portals = [None; 7];
+        for b in blocks.iter().filter(|b| crate::subcubes::walkable(b.side)) {
+            let lo = b.min.map(|v| v as f32 * 0.25);
+            let size = b.side as f32 * 0.25;
+            Self::insert_bounds(&mut self.solid, lo, size);
+            self.cubes.push(CubeBounds {
+                lo,
+                size,
+                gap: 0.0025,
+            });
+        }
+        // Edits may remove the support under a walking camera.
+        self.fly = true;
+        self.turn = None;
+        self.elevation = None;
+        self.approach = None;
+    }
     /// Swept eye test for the 2×2 connector opening, not the decorative ring.
     pub fn crossed_portal(&self, previous: V) -> Option<usize> {
         let start = mul(previous, 1. / self.unit);
@@ -567,7 +645,7 @@ impl CubesWalkerCam {
             let t = (before - 0.25) / (before - after);
             let at = sub(add(start, mul(delta, t)), p.front);
             let lateral = sub(at, mul(p.inward, dot(at, p.inward)));
-            if lateral.iter().all(|x| x.abs() <= 1.75) {
+            if (0..3).all(|a| lateral[a].abs() <= p.half[a] + EYE + SKIN + EPS) {
                 Some(face)
             } else {
                 None
@@ -701,6 +779,14 @@ impl CubesWalkerCam {
                 }
             }
         }
+        let bounds: Vec<_> = bounds
+            .into_iter()
+            .filter(|c| {
+                crate::subcubes::walkable(
+                    libm::roundf(c.size * self.unit / crate::subcubes::C1) as i32
+                )
+            })
+            .collect();
         for c in &bounds {
             for x in 0..(c.size * 4.) as i32 {
                 for y in 0..(c.size * 4.) as i32 {
@@ -1190,7 +1276,7 @@ mod tests {
     fn fixture(records: &[[i8; 4]], foot: V, forward: V) -> CubesWalkerCam {
         let mut bytes = alloc::vec![0u8;16];
         bytes[6] = 1;
-        bytes[12..16].copy_from_slice(&1f32.to_le_bytes());
+        bytes[12..16].copy_from_slice(&0.8f32.to_le_bytes());
         for &[x, y, z, size] in records {
             // Input fixtures use renderer-oriented grid cells.
             bytes.extend_from_slice(&[x as u8, y as u8, (-z - size) as u8, size as u8, 0, 0, 0, 0]);
@@ -1206,24 +1292,6 @@ mod tests {
         c.position = c.camera_target();
         c.rotation = c.view;
         c
-    }
-    #[test]
-    fn html_reference_trace_matches_through_edges_and_reversals() {
-        let mut c = fixture(&[[0, 0, 0, 4]], [3.5, 4. + SKIN, 1.5], [1., 0., 0.]);
-        for (distance, expected) in [
-            0.2f32, 0.5, 0.6, -0.3, 0.8, 0.4, 0.9, 1.2, 2.1, 3.2, 0.6, -0.4,
-        ]
-        .into_iter()
-        .zip(crate::REFERENCE_TRACES)
-        {
-            c.spider_step(mul(c.forward, distance.signum()), distance.abs());
-            close(c.foot, expected[0..3].try_into().unwrap());
-            close(c.up, expected[3..6].try_into().unwrap());
-            close(c.forward, expected[6..9].try_into().unwrap());
-            let q = Q(expected[9..13].try_into().unwrap());
-            close(c.view.rotate(FORWARD), q.rotate(FORWARD));
-            assert!((c.turn.map_or(-1., |t| t.progress) - expected[13]).abs() < 0.002);
-        }
     }
     #[test]
     fn tiny_render_gaps_are_continuous_support() {
@@ -1528,24 +1596,14 @@ mod tests {
         }
     }
     #[test]
-    fn quarter_cubes_keep_exact_collision_and_support_edge_walking() {
+    fn c1_placed_cubes_are_ghosts_for_collision_and_space_snap() {
         let mut c = fixture(&[[0, 0, 0, 4]], [1.5, 4. + SKIN, 1.5], [1., 0., 0.]);
         let piece = [(mul([4.125, 0.125, 0.125], c.unit), c.unit * 0.12375)];
         assert!(c.add_placed(&piece));
-        assert!(c.solid.has([4.125, 0.125, 0.125]));
-        assert!(!c.solid.has([4.3, 0.125, 0.125]));
+        assert!(!c.solid.has([4.125, 0.125, 0.125]));
         let hit = c.solid.ray([5., 0.125, 0.125], [-1., 0., 0.], 2.).unwrap();
-        close(hit.point, [4.25, 0.125, 0.125]);
-        c.attach(Hit {
-            point: [4.125, 0.25, 0.125],
-            normal: UP,
-            distance: 0.,
-        });
-        c.forward = [1., 0., 0.];
-        c.reset_view();
-        c.spider_step(c.forward, 0.125 + EDGE_TRAVEL);
-        close(c.up, [1., 0., 0.]);
-        assert!(!c.solid.has(c.camera_target()));
+        close(hit.point, [4., 0.125, 0.125]);
+        assert!(c.cubes.iter().all(|b| b.lo[0] < 4.));
     }
     #[test]
     fn quarter_grid_keeps_original_full_height_step_behavior() {
@@ -1737,6 +1795,42 @@ mod tests {
                 "world {} cannot leave portal {:?}",
                 index + 1,
                 c.foot
+            );
+        }
+    }
+    #[test]
+    fn all_seven_tiers_match_camera_collision_and_snap_candidates() {
+        let demo = crate::subcubes::Demo::new();
+        let c = CubesWalkerCam::mining_demo(&demo.blocks);
+        assert_eq!(c.cubes.len(), 24);
+        for b in &demo.blocks {
+            let center = b.min.map(|v| (v as f32 + b.side as f32 * 0.5) * 0.25);
+            assert_eq!(c.solid.has(center), crate::subcubes::walkable(b.side));
+        }
+        let mut bytes = alloc::vec![0u8;20];
+        bytes[..4].copy_from_slice(b"CUBE");
+        bytes[4] = 2;
+        bytes[6] = 1;
+        bytes[7] = 12;
+        bytes[10] = 1;
+        bytes[12..16].copy_from_slice(&0.2f32.to_le_bytes());
+        for (i, side) in crate::subcubes::SIDES.into_iter().enumerate() {
+            let mut r = [0u8; 12];
+            r[..2].copy_from_slice(&(i as i16 * 16).to_le_bytes());
+            r[6] = side as u8;
+            r[9] = side as u8;
+            bytes.extend_from_slice(&r);
+        }
+        let c = CubesWalkerCam::from_world(&bytes, false);
+        assert_eq!(c.cubes.len(), 4);
+        for (i, side) in crate::subcubes::SIDES.into_iter().enumerate() {
+            assert_eq!(
+                c.solid.has([
+                    (i as f32 * 16. + side as f32 * 0.5) * 0.25,
+                    side as f32 * 0.125,
+                    -side as f32 * 0.125
+                ]),
+                crate::subcubes::walkable(side)
             );
         }
     }

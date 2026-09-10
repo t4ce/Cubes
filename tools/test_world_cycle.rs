@@ -1,9 +1,15 @@
 //! Host integration check: real key routing + lazy cache + all bundled worlds.
 #![allow(dead_code)]
+extern crate alloc;
+
+#[path = "../src/cube_format.rs"]
+mod cube_format;
 #[path = "../src/modes.rs"]
 mod modes;
 #[path = "../src/orchard.rs"]
 mod orchard;
+#[path = "../src/SubCubes.rs"]
+mod subcubes;
 
 #[test]
 fn every_bundled_world_loads_in_order_and_revisits_are_cached() {

@@ -15,6 +15,8 @@ pub fn atan2f(y:f32,x:f32)->f32 {y.atan2(x)}
 pub fn floorf(x:f32)->f32 {x.floor()}
 pub fn roundf(x:f32)->f32 {x.round()}
 '''
+source += f'#[path="{APP}/src/cube_format.rs"] mod cube_format;\n'
+source += f'#[path="{APP}/src/SubCubes.rs"] mod subcubes;\n'
 for module in ('rubik', 'grid', 'picking', 'orchard', 'environment', 'world_topology', 'world_portals', 'world_cube', 'transition', 'asset_brush'):
     source += f'#[path="{APP}/src/{module}.rs"] mod {module};\n'
 source += 'const ASSETS: &[(&str, &[u8])] = &[\n'
@@ -62,10 +64,10 @@ fn entry_uses_current_permutation_and_real_authored_floors_never_change() {
         let mut asset = orchard::decode(name,bytes).unwrap();
         for cube in &mut asset.cubes {cube.center=orchard::world_from_demo(cube.center);}
         let scene = world_portals::World::new(world,&asset,bytes,&puzzle);
-        let records = bytes[16+bytes[10] as usize*4..].chunks_exact(8);
+        let records = cube_format::cubes(bytes);
         for ((a,b),r) in asset.cubes.iter().zip(&scene.scene.cubes).zip(records) {
             assert_eq!(a.center,b.center); assert_eq!(a.scale,b.scale);
-            if r[5] == 0 || world == world_topology::VOID {assert_eq!(a.flags,b.flags);}
+            if r.part == 0 || world == world_topology::VOID {assert_eq!(a.flags,b.flags);}
         }
     }
 }

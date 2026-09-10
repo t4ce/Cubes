@@ -234,6 +234,9 @@ pub fn side_by_side(assets: &[Asset]) -> Result<Asset, &'static str> {
     })
 }
 pub fn decode(name: &'static str, bytes: &[u8]) -> Result<Asset, &'static str> {
+    if bytes.len() >= 16 && bytes[4] == 2 {
+        return decode_world_v2(name, bytes);
+    }
     if bytes.len() < 16 || &bytes[..4] != b"CUBE" || bytes[4] != 1 {
         return Err("cubes-header");
     }
@@ -1410,4 +1413,110 @@ mod tests {
             (baseline_total - drawn_total) as f32 / 500.
         );
     }
+}
+
+/// Validate sparse V2 boxes with an X sweep, avoiding a dense 2048³ bitmap.
+fn decode_world_v2(name: &'static str, bytes: &[u8]) -> Result<Asset, &'static str> {
+    if &bytes[..4] != b"CUBE"
+        || bytes[5] != 0
+        || bytes[6] == 0
+        || bytes[6] >= 100
+        || bytes[7] != 12
+        || bytes[11] != 4
+    {
+        return Err("cubes-header");
+    }
+    let count = u16::from_le_bytes([bytes[8], bytes[9]]) as usize;
+    let colors = bytes[10] as usize;
+    let unit = f32::from_le_bytes(bytes[12..16].try_into().unwrap());
+    let start = 16 + colors * 4;
+    if count == 0
+        || count > MAX_ASSET_CUBES
+        || colors == 0
+        || (unit - 0.2).abs() > 1e-6
+        || !unit.is_finite()
+    {
+        return Err("cubes-limits");
+    }
+    if bytes.len() != start + count * 12 {
+        return Err("cubes-length");
+    }
+    if bytes[16..start].chunks_exact(4).any(|c| c[3] != 255) {
+        return Err("cubes-opaque-only");
+    }
+    if bytes[start..]
+        .chunks_exact(12)
+        .any(|r| r[10] != 0 || r[11] != 0)
+    {
+        return Err("cubes-record");
+    }
+    let records: Vec<_> = crate::cube_format::records(bytes).collect();
+    for r in &records {
+        if !crate::subcubes::SIDES.contains(&r.tier)
+            || r.side < r.tier
+            || r.side > 32
+            || r.side / r.tier > 4
+            || r.side % r.tier != 0
+            || r.color >= colors
+            || r.origin.iter().any(|&v| v < -1024 || v + r.side > 1024)
+        {
+            return Err("cubes-record");
+        }
+    }
+    let mut order: Vec<_> = (0..count).collect();
+    order.sort_unstable_by_key(|&i| records[i].origin[0]);
+    let mut active: Vec<usize> = Vec::new();
+    for i in order {
+        let r = records[i];
+        active.retain(|&j| records[j].origin[0] + records[j].side > r.origin[0]);
+        if active.iter().any(|&j| {
+            (1..3).all(|a| {
+                r.origin[a] < records[j].origin[a] + records[j].side
+                    && records[j].origin[a] < r.origin[a] + r.side
+            })
+        }) {
+            return Err("cubes-overlap");
+        }
+        active.push(i);
+    }
+    let mut cubes = Vec::with_capacity(
+        records
+            .iter()
+            .map(|r| (r.side / r.tier).pow(3) as usize)
+            .sum(),
+    );
+    let mut radius2 = 0f32;
+    for r in crate::cube_format::cubes(bytes) {
+        let center = [
+            (r.origin[0] as f32 + r.side as f32 * 0.5) * unit,
+            -(r.origin[1] as f32 + r.side as f32 * 0.5) * unit,
+            (r.origin[2] as f32 + r.side as f32 * 0.5) * unit,
+        ];
+        let scale = (r.side as f32 - bytes[6] as f32 / 1000.) * unit * 0.5;
+        let p = &bytes[16 + r.color * 4..];
+        let flags = CUSTOM_RGB555
+            | ((p[0] as u32 * 31 + 127) / 255)
+            | (((p[1] as u32 * 31 + 127) / 255) << 5)
+            | (((p[2] as u32 * 31 + 127) / 255) << 10);
+        radius2 = radius2.max(
+            center
+                .iter()
+                .map(|v| (v.abs() + scale) * (v.abs() + scale))
+                .sum(),
+        );
+        cubes.push(Cube {
+            center,
+            scale,
+            flags,
+        });
+    }
+    let radius = cubes
+        .iter()
+        .map(|c| c.center.iter().map(|v| v.abs() + c.scale).sum::<f32>())
+        .fold(0f32, f32::max);
+    Ok(Asset {
+        name,
+        cubes,
+        radius,
+    })
 }

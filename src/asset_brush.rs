@@ -2,7 +2,8 @@
 extern crate alloc;
 use crate::orchard::{self, Cube};
 use alloc::vec::Vec;
-pub const PLACEMENT_SCALE: f32 = 0.25;
+/// Legacy asset base cells are already c1 (0.2 renderer units).
+pub const PLACEMENT_SCALE: f32 = 1.0;
 pub const PREVIEW_SEEDS: usize = 384;
 pub const GHOST_SEEDS: usize = 768;
 pub const FULL_WORLD_SEEDS: usize = 768;

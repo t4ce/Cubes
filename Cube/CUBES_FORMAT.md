@@ -126,3 +126,40 @@ Semantic part IDs are metadata and do not change placement. Cell occupancy is
 validated before rendering; invalid assets fail the build with their filename.
 Asset +Y is mapped to demo -Y and the assembled asset is centered for orbiting;
 neither operation changes relative positions or sizes.
+
+## World geometry v2
+
+The lvl27 exporter writes version `2`. Existing v1 nature/network files remain
+readable. Cubes owns its camera, mining rules, input, and portal routing; files
+contain only cube geometry, palette colors, and semantic part identifiers. No
+HTML camera, controller, or editor settings are imported into the application.
+Cubes reconstructs the procedural cube vertices from these records.
+
+The 16-byte header and RGBA palette retain their layout, with these v2 meanings:
+version = `2`, record size = `12`, byte 11 = packing-axis limit `4`, grid unit =
+`0.2` renderer units per c1. Gap byte 6 is in **thousandths of c1**; the exporter
+writes `14` to match the preview's `0.014 c1` visual gap.
+
+| Record offset | Type | Meaning |
+|---:|---|---|
+| 0, 2, 4 | `i16` each | Minimum X, Y, Z in c1 units |
+| 6 | `u8` | Packed side length in c1, up to 32 |
+| 7 | `u8` | Palette index |
+| 8 | `u8` | Semantic part id |
+| 9 | `u8` | Constituent cube side: 1, 2, 3, 4, 6, 8, or 12 c1 |
+| 10, 11 | `u8` each | Reserved, zero |
+
+Side length must be a multiple of the constituent side, with no more than four
+constituents per axis. Packing is a storage optimization: a side-32 record with
+constituent side 8 represents 4×4×4 c4 terrain cells, not another size tier. The client expands it into 64 c4 render/target cubes.
+Coordinates occupy the [-1024, 1024] world volume. Sparse box overlap validation
+avoids allocating a dense 2048³ c1 grid. The limit remains 16,384 records.
+
+Part ids: `0` terrain; `9/10` boundary portal connector; `11/12` boundary frame;
+`13/14` center connector; `15/16` center frame (even variants are accents).
+Frame cells retain the preview's c2 geometry and balanced destination palettes.
+The center identifier keeps Void's center opening separate from its six returns.
+
+Regenerate all defaults with `node tools/export_lvl27_defaults.cjs`. Terrain keeps
+the existing deterministic compaction and Void's 4×4×4 c4 color fields; portal
+frames are exported individually from the geometry builder's default presets.

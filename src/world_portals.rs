@@ -40,17 +40,17 @@ impl World {
         // The page decoder already validated this record stream. Keep part IDs
         // alongside an active copy; cached floors and authored pages stay intact.
         let unit = f32::from_le_bytes(bytes[12..16].try_into().unwrap());
-        let start = 16 + 4 * bytes[10] as usize;
-        let pieces = bytes[start..]
-            .chunks_exact(8)
+        let pieces = crate::cube_format::cubes(bytes)
             .enumerate()
             .filter_map(|(id, r)| {
-                if !matches!(r[5], 9 | 10) {
+                if !matches!(r.part, 9..=16) {
                     return None;
                 }
                 let p: [f32; 3] =
-                    core::array::from_fn(|a| (r[a] as i8 as f32 + r[3] as f32 * 0.5) * unit);
-                let face = if index == world_topology::VOID {
+                    core::array::from_fn(|a| (r.origin[a] as f32 + r.side as f32 * 0.5) * unit);
+                let face = if matches!(r.part, 13..=16)
+                    || (index == world_topology::VOID && bytes[4] == 1)
+                {
                     6
                 } else if p[1].abs() > p[0].abs().max(p[2].abs()) {
                     if p[1] < 0. { 4 } else { 5 }
@@ -71,7 +71,7 @@ impl World {
                     index: id,
                     face,
                     base: asset.cubes[id],
-                    accent: r[5] == 10,
+                    accent: matches!(r.part, 10 | 12 | 14 | 16),
                     uv,
                     delay: noise(seed) * 0.55,
                     scatter: core::array::from_fn(|a| {

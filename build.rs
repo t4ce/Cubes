@@ -1,3 +1,10 @@
+extern crate alloc;
+#[allow(dead_code)]
+#[path = "src/cube_format.rs"]
+mod cube_format;
+#[allow(dead_code)]
+#[path = "src/SubCubes.rs"]
+mod subcubes;
 use sha2::{Digest, Sha256};
 use std::fs;
 #[allow(dead_code)]
@@ -31,7 +38,7 @@ fn main() {
             let bytes = fs::read(&path).expect("read CUBES asset");
             orchard::decode("build-validation", &bytes).unwrap_or_else(|error| {
                 panic!(
-                    "{}: {} (expected strict-grid nature v1)",
+                    "{}: {} (expected valid CUBES geometry v1/v2)",
                     path.display(),
                     error
                 )

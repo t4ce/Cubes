@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 // Export the default v16 WorldShowcase generation as the runtime's compact
-// strict-grid CUBES assets.  One grid cell represents one c4 (8 c1 units),
-// so the 2048-c1 world fits the format's signed 256-cell address range.
+// CUBES v2 assets: c1 coordinates, packed c4 terrain, and exact c2 portal frames.
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -18,15 +17,19 @@ function between(start, end) {
 // The showcase deliberately keeps its deterministic world model independent
 // of its WebGL/UI layer. Evaluate only that model, then generate all defaults.
 const model = [
-  between('const clamp=', 'class CubeRenderer'),
+  // Geometry math and deterministic color/seed helpers only. No camera,
+  // renderer, controls, or editor state enters this export model.
+  between('const clamp=', 'function lookQuaternion'),
+  between('function hexRGB', 'function cubeGeometryFromGLB'),
   between('const WORLD_THEMES', 'function geometryOverlapsBox'),
   `
   for (const world of WORLDS) generatePlatforms(world, levelData[world.id - 1]);
-  globalThis.__api = { V3, themeIndexAt, hashSeed, PALETTES, RAINBOW, themeFor };
+  globalThis.__api = { balancedPortalCells, V3, themeIndexAt, hashSeed, PALETTES, RAINBOW, themeFor };
   globalThis.__lvl27 = WORLDS.map((world) => ({
     world,
     data: levelData[world.id - 1],
     geometry: buildGeometry(world, levelData[world.id - 1]),
+    portals: portalInfo(world, levelData[world.id - 1]),
   }));
   `,
 ].join('\n');
@@ -64,10 +67,11 @@ function compact(entry) {
     if (voxel.size !== 8) throw new Error(`unexpected non-c4 voxel in world ${entry.world.id}`);
     const cell = [(voxel.x + 1024) / 8, (voxel.y + 1024) / 8, (voxel.z + 1024) / 8];
     if (!cell.every(Number.isInteger) || !cell.every(n => n >= 0 && n < 256)) throw new Error(`out-of-range c4 cell in world ${entry.world.id}`);
-    // The runtime's portal-transition code uses parts 9/10.  The exported
-    // c4 portal bridge is its compatible representation (the studio's c2
-    // decorative ring cannot be expressed in this c4-grid format).
-    const part = voxel.kind === 'portalPath' ? ((cell[0] + cell[1] + cell[2]) & 1 ? 9 : 10) : 0;
+    // Parts 9/10 remain connector triggers; 11/12 are decorative frame pieces.
+    // Generated paths can occupy a run before portalRunVoxels visits it.
+    // Classify by the actual connector volume, preserving all source geometry.
+    const portal = entry.portals.find(o => ['x','y','z'].every(a => voxel[a] >= o.runLo[a] && voxel[a]+8 <= o.runHi[a]));
+    const part = portal ? (portal.face === 'center' ? 13 : ((cell[0] + cell[1] + cell[2]) & 1 ? 9 : 10)) : 0;
     occupied.set(cell.join(','), { cell, color: colorFor(entry, voxel), part });
   }
   const used = new Set();
@@ -87,9 +91,24 @@ function compact(entry) {
       if (matches) { tier = candidate; break; }
     }
     for (let dx = 0; dx < tier; dx++) for (let dy = 0; dy < tier; dy++) for (let dz = 0; dz < tier; dz++) used.add(key(x + dx, y + dy, z + dz));
-    records.push({ x: x - 128, y: y - 128, z: z - 128, tier, color: item.color, part: item.part });
+    records.push({ x: (x - 128)*8, y: (y - 128)*8, z: (z - 128)*8, tier: tier*8, sourceTier: 8, color: item.color, part: item.part });
   }
   if (used.size !== occupied.size) throw new Error(`incomplete compaction in world ${entry.world.id}`);
+  const api = context.globalThis.__api;
+  for (const portal of entry.portals) {
+    const painted = api.balancedPortalCells(portal.shape, portal.mix, portal.settings.rotation);
+    for (const cell of painted.cells) {
+      const p = new api.V3(cell.u, cell.v, cell.z).applyQuaternion(portal.q).add(portal.pos);
+      const xyz = [p.x-1,p.y-1,p.z-1].map(Math.round);
+      if ([p.x-1,p.y-1,p.z-1].some((v,i)=>Math.abs(v-xyz[i])>1e-6)) throw new Error('off-grid portal');
+      let color = painted.palette[cell.colour].hex;
+      if (portal.edge.action === 'leave') {
+        const rgb = rgba(color).slice(0,3).map((v,i)=>Math.round(v*.92+[.97,.98,.95][i]*255*.08));
+        color = '#'+rgb.map(v=>v.toString(16).padStart(2,'0')).join('');
+      }
+      records.push({x:xyz[0],y:xyz[1],z:xyz[2],tier:2,sourceTier:2,color,part:portal.face === 'center' ? 15 : 11});
+    }
+  }
   return records;
 }
 
@@ -102,26 +121,31 @@ function encode(entry) {
     paletteIndex.set(record.color, palette.length);
     palette.push(rgba(record.color));
   }
-  const output = Buffer.alloc(16 + palette.length * 4 + records.length * 8);
-  output.write('CUBE', 0, 'ascii'); output[4] = 1; output[5] = 0; output[6] = 1; output[7] = 8;
-  output.writeUInt16LE(records.length, 8); output[10] = palette.length; output[11] = 4; output.writeFloatLE(1.6, 12);
+  const output = Buffer.alloc(16 + palette.length * 4 + records.length * 12);
+  output.write('CUBE', 0, 'ascii'); output[4] = 2; output[5] = 0; output[6] = 14; output[7] = 12;
+  output.writeUInt16LE(records.length, 8); output[10] = palette.length; output[11] = 4; output.writeFloatLE(0.2, 12);
   let offset = 16;
   for (const color of palette) { Buffer.from(color).copy(output, offset); offset += 4; }
   for (const record of records) {
-    output.writeInt8(record.x, offset); output.writeInt8(record.y, offset + 1); output.writeInt8(record.z, offset + 2);
-    output[offset + 3] = record.tier; output[offset + 4] = paletteIndex.get(record.color); output[offset + 5] = record.part;
-    offset += 8;
+    output.writeInt16LE(record.x, offset); output.writeInt16LE(record.y, offset + 2); output.writeInt16LE(record.z, offset + 4);
+    output[offset + 6] = record.tier; output[offset + 7] = paletteIndex.get(record.color); output[offset + 8] = record.part; output[offset + 9] = record.sourceTier;
+    offset += 12;
   }
   return { output, records: records.length, palette: palette.length, source: entry.geometry.primary.size };
 }
 
 const outputDir = path.join(root, 'Cube/lvl27');
-for (const entry of context.globalThis.__lvl27) {
+const outputs = context.globalThis.__lvl27.map(entry => {
   const encoded = encode(entry);
   const slug = entry.world.kind === 'special'
     ? 'void'
     : entry.world.themes.map(id => context.globalThis.__api.themeFor(id).name.toLowerCase()).join('_');
   const filename = `world_${String(entry.world.id).padStart(2, '0')}_${slug}.cubes`;
-  fs.writeFileSync(path.join(outputDir, filename), encoded.output);
+  return {filename, encoded};
+});
+for (const {filename, encoded} of outputs) {
+  if (process.argv.includes('--check')) {
+    if (!fs.readFileSync(path.join(outputDir, filename)).equals(encoded.output)) throw new Error(`stale export: ${filename}`);
+  } else fs.writeFileSync(path.join(outputDir, filename), encoded.output);
   console.log(`${filename}: ${encoded.source} c4 cells -> ${encoded.records} records, ${encoded.palette} colours`);
 }
