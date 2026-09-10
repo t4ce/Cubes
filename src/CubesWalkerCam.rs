@@ -342,6 +342,11 @@ impl CubesWalkerCam {
     /// Cycling worlds has no arrival edge, so use the north standing portal;
     /// Void uses its center portal. Look inward from inside the opening.
     pub fn from_world(bytes: &[u8], void: bool) -> Self {
+        Self::from_portal(bytes, void, None)
+    }
+    /// Explicit puzzle arrivals put the eye in the portal opening. Suspended
+    /// portals begin in drift instead of silently snapping to a remote floor.
+    pub fn from_portal(bytes: &[u8], void: bool, arrival: Option<usize>) -> Self {
         let unit = f32::from_le_bytes(bytes[12..16].try_into().unwrap());
         let records = &bytes[16 + 4 * bytes[10] as usize..];
         let origin = |r: &[u8]| {
@@ -362,7 +367,19 @@ impl CubesWalkerCam {
                 lo[a] = lo[a].min(p[a]);
                 hi[a] = hi[a].max(p[a] + size);
             }
-            if matches!(r[5], 9 | 10) && (void || (p[2] > 0 && p[2] > p[0].abs().max(p[1].abs()))) {
+            let center = p.map(|x| x as f32 + size as f32 * 0.5);
+            let face = if void {
+                6
+            } else if center[1].abs() > center[0].abs().max(center[2].abs()) {
+                if center[1] < 0. { 4 } else { 5 }
+            } else if center[0].abs() > center[2].abs() {
+                if center[0] > 0. { 1 } else { 3 }
+            } else if center[2] > 0. {
+                0
+            } else {
+                2
+            };
+            if matches!(r[5], 9 | 10) && face == arrival.unwrap_or(if void { 6 } else { 0 }) {
                 for a in 0..3 {
                     portal_lo[a] = portal_lo[a].min(p[a] as f32);
                     portal_hi[a] = portal_hi[a].max((p[a] + size) as f32);
@@ -420,6 +437,20 @@ impl CubesWalkerCam {
             camera_assist: 1.,
             edge_perch: true,
         };
+        if arrival.is_some() && portal_lo[0].is_finite() {
+            cam.foot = target;
+            cam.position = target;
+            let direction = norm(mul(target, -1.));
+            cam.up = if dot(direction, UP).abs() > 0.99 {
+                [0., 0., 1.]
+            } else {
+                UP
+            };
+            cam.forward = tangent(direction, cam.up);
+            cam.view = look(direction, cam.up);
+            cam.rotation = cam.view;
+            return cam;
+        }
         if let Some(hit) = surface {
             cam.attach(hit);
         }
@@ -1067,6 +1098,38 @@ mod tests {
         assert!(c.foot[1] >= 4.1);
         c.look(0., -100000.);
         assert_eq!(c.pitch, 1.42);
+    }
+    #[test]
+    fn explicit_portal_arrivals_are_centered_clear_and_face_the_origin() {
+        // Authored Leave slots: pure=top, dual=bottom/top, trio=west/bottom/top.
+        for (index, bytes) in crate::WORLD_PAGES.iter().take(26).enumerate() {
+            let portals: &[usize] = if index < 6 {
+                &[5]
+            } else if index < 18 {
+                &[4, 5]
+            } else {
+                &[3, 4, 5]
+            };
+            for &portal in portals {
+                let c = CubesWalkerCam::from_portal(bytes, false, Some(portal));
+                assert!(c.fly);
+                assert!(
+                    !c.solid.has(c.position),
+                    "world {} portal {}",
+                    index + 1,
+                    portal
+                );
+                close(c.position, c.foot);
+                close(c.view.rotate(FORWARD), norm(mul(c.position, -1.)));
+                if portal == 3 {
+                    assert!(c.position[0] < -100.);
+                } else if portal == 4 {
+                    assert!(c.position[1] < -70.);
+                } else {
+                    assert!(c.position[1] > 70.);
+                }
+            }
+        }
     }
     #[test]
     fn every_real_world_starts_supported_inside_its_portal_and_can_walk_inward() {

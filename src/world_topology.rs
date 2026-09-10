@@ -34,6 +34,23 @@ pub fn cubie(world: usize) -> usize {
     let [x, y, z] = solved_cell(world).map(|x| (x + 1) as usize);
     x + y * 3 + z * 9
 }
+/// Local sticker axis maps to the corresponding authored generic Leave slot.
+/// Cubie identity (not its post-turn lattice location) determines the world.
+pub fn entry(cubie_id: usize, face_axis: usize) -> Option<(usize, usize)> {
+    let world = (0..VOID).find(|&w| cubie(w) == cubie_id)?;
+    let cell = solved_cell(world);
+    let rank = (0..3)
+        .filter(|&a| cell[a] != 0)
+        .position(|a| a == face_axis)?;
+    let portal = authored_routes(world)
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| **d == Destination::Leave)
+        .nth(rank)?
+        .0;
+    Some((world, portal))
+}
+
 fn world_for_mask(mask: u8) -> usize {
     THEME_MASKS
         .iter()

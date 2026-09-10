@@ -110,12 +110,19 @@ impl Puzzle {
             let axis = *axes
                 .iter()
                 .find(|&&a| cell[a] != 0 && self.previous_axis != Some(a))
+                .or_else(|| axes.iter().find(|&&a| cell[a] != 0))
                 .unwrap();
             self.previous_axis = Some(axis); // changing axes rules out an immediate inverse
             self.turn = Some(Turn {
                 axis,
                 layer: cell[axis],
-                direction: if self.rng & 16 == 0 { -1 } else { 1 },
+                direction: if cell.iter().filter(|&&x| x != 0).count() == 1 {
+                    1
+                } else if self.rng & 16 == 0 {
+                    -1
+                } else {
+                    1
+                },
                 started: now,
             });
         }
@@ -123,7 +130,7 @@ impl Puzzle {
     pub fn select(&mut self, id: usize, now: u64) -> bool {
         if self.selected.is_some()
             || id >= 27
-            || self.cubies[id].cell.iter().filter(|&&x| x != 0).count() < 2
+            || self.cubies[id].cell.iter().filter(|&&x| x != 0).count() < 1
         {
             return false;
         }
@@ -238,7 +245,7 @@ mod tests {
         p.update(50_000);
         assert!(p.turn.is_none());
         assert!(!p.select(13, 50_000));
-        assert!(!p.select(4, 50_000));
+
         assert!(p.select(0, 50_000));
         assert!(!p.select(2, 50_000));
         let mut previous = None;

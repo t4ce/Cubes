@@ -14,7 +14,7 @@ pub fn cosf(x:f32)->f32 {x.cos()}
 pub fn atan2f(y:f32,x:f32)->f32 {y.atan2(x)}
 pub fn floorf(x:f32)->f32 {x.floor()}
 '''
-for module in ('rubik', 'grid', 'picking', 'orchard', 'environment', 'world_topology', 'world_portals', 'world_cube'):
+for module in ('rubik', 'grid', 'picking', 'orchard', 'environment', 'world_topology', 'world_portals', 'world_cube', 'transition'):
     source += f'#[path="{APP}/src/{module}.rs"] mod {module};\n'
 source += 'const ASSETS: &[(&str, &[u8])] = &[\n'
 for path in sorted((APP/'Cube/lvl27').glob('*.cubes')):
@@ -44,7 +44,7 @@ fn picking_tracks_permuted_identities_from_the_actual_visible_side() {
     for now in [1000,2000,3000,4000] {p.update(now);}
     for id in 0..27 {
         let (cell,_) = p.pose(id,0.,1.);
-        if cell.iter().filter(|&&x|x!=0.).count()<2 {continue;}
+        if cell.iter().filter(|&&x|x!=0.).count()<1 {continue;}
         let axis = cell.iter().position(|&x|x!=0.).unwrap();
         let mut origin = cell.map(|x|x*grid::CUBE_COMPACT_SPACING);
         origin[axis] = cell[axis]*10.;
@@ -52,6 +52,31 @@ fn picking_tracks_permuted_identities_from_the_actual_visible_side() {
         assert_eq!(picking::pick_poses(origin,direction,grid::CUBE_COMPACT_SPACING,
             grid::CUBE_GRID_SCALE,|i|p.pose(i,0.,1.)),Some(id));
     }
+}
+#[test]
+fn every_exposed_sticker_click_keeps_its_world_and_leave_portal_after_turns() {
+    for world in 0..world_topology::VOID {
+        let id=world_topology::cubie(world);
+        let solved=world_topology::solved_cell(world);
+        let mut p=rubik::Puzzle::new(0);
+        assert!(p.select(id,0));
+        for now in [1000,2000,3000,4000] {p.update(now);}
+        assert!(!p.locked(), "world {world} never completed its turns");
+        let (cell,basis)=p.pose(id,0.,1.);
+        for axis in 0..3 {
+            if solved[axis]==0 {continue;}
+            let outward=basis[axis].map(|x|x*solved[axis] as f32);
+            let origin=core::array::from_fn(|a|cell[a]*grid::CUBE_COMPACT_SPACING+outward[a]*10.);
+            let hit=picking::pick_face(origin,outward.map(|x|-x),grid::CUBE_COMPACT_SPACING,
+                grid::CUBE_GRID_SCALE,|i|p.pose(i,0.,1.)).unwrap();
+            assert_eq!(hit.cubie,id);
+            assert_eq!(hit.face_axis,axis);
+            let (destination,portal)=world_topology::entry(hit.cubie,hit.face_axis).unwrap();
+            assert_eq!(destination,world);
+            assert_eq!(world_topology::routes(world,&p)[portal],world_topology::Destination::Leave);
+        }
+    }
+    assert_eq!(world_topology::entry(13,0),None);
 }
 '''
 with tempfile.TemporaryDirectory(prefix='cubes-world-permutation-') as directory:

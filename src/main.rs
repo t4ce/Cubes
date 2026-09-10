@@ -119,6 +119,9 @@ struct CubeScene {
     last_camera_activity_millis: u64,
     finished_at: Option<u64>,
     flight: Option<transition::Flight>,
+    selected_entry: Option<(usize, usize)>,
+    arrival_fade: Option<u64>,
+    window_opacity: u8,
     number_keys: ModeKeys,
     demo_camera: Option<FlyCam>,
     walker_camera: Option<walker_camera::CubesWalkerCam>,
@@ -318,6 +321,9 @@ impl CubeScene {
             last_camera_activity_millis: 0,
             finished_at: None,
             flight: None,
+            selected_entry: None,
+            arrival_fade: None,
+            window_opacity: 255,
             number_keys: ModeKeys::default(),
             demo_camera: None,
             walker_camera: None,
@@ -394,17 +400,21 @@ impl CubeScene {
                     event.local_y,
                     self.frame.width(),
                     self.frame.height(),
-                ) && let Some(id) = picking::pick_poses(
+                ) && let Some(hit) = picking::pick_face(
                     origin,
                     direction,
                     grid::CUBE_COMPACT_SPACING,
                     grid::CUBE_GRID_SCALE,
                     |id| self.puzzle.pose(id, 0.0, 1.0),
-                ) && self.puzzle.select(id, elapsed_millis)
+                ) && self.puzzle.select(hit.cubie, elapsed_millis)
                 {
+                    self.selected_entry = world_topology::entry(hit.cubie, hit.face_axis);
                     logl::log(
                         level::INFO,
-                        format_args!("Cubes: selected cubie={} opening then 3 tracked turns", id),
+                        format_args!(
+                            "Cubes: selected cubie={} opening then 3 tracked turns",
+                            hit.cubie
+                        ),
                     );
                 }
             }
@@ -459,7 +469,10 @@ impl CubeScene {
                     self.flycam.camera.rotation = rotation;
                 }
             }
-            if self.mode == SceneMode::StaticCube && self.puzzle.locked() {
+            if self.mode == SceneMode::StaticCube
+                && self.puzzle.selected().is_some()
+                && self.flight.is_none()
+            {
                 let angle = self.puzzle.angle(elapsed_millis);
                 let (cell, _) = self.puzzle.pose(
                     self.puzzle.selected().unwrap(),
@@ -503,12 +516,13 @@ impl CubeScene {
                 radius * libm::sinf(pitch),
                 radius * libm::cosf(pitch) * libm::cosf(yaw),
             ];
-            self.flycam.camera.position =
-                if matches!(self.mode, SceneMode::StaticCube | SceneMode::Orchard) {
-                    radial
-                } else {
-                    self.flycam.camera.position
-                };
+            self.flycam.camera.position = if self.flight.is_none()
+                && matches!(self.mode, SceneMode::StaticCube | SceneMode::Orchard)
+            {
+                radial
+            } else {
+                self.flycam.camera.position
+            };
             let up = orbit_up(yaw, pitch);
             if !matches!(
                 self.mode,
@@ -516,7 +530,7 @@ impl CubeScene {
             ) {
                 self.look_target = radial.map(|v| -v);
             }
-            if self.mode != SceneMode::World {
+            if self.mode != SceneMode::World && self.flight.is_none() {
                 self.flycam.camera.rotation =
                     look_at_camera_rotation(self.flycam.camera.position, self.look_target, up);
             }
@@ -532,7 +546,10 @@ impl CubeScene {
                     let end = cell.map(|x| x * grid::CUBE_GRID_SPACING);
                     let start = self.flycam.camera.position;
                     let right = [-libm::cosf(yaw), 0.0, libm::sinf(yaw)];
+                    self.demo_camera = Some(self.flycam);
                     self.flight = Some(transition::Flight {
+                        rotation: self.flycam.camera.rotation.0,
+                        up,
                         started: elapsed_millis,
                         points: [
                             start,
@@ -551,33 +568,62 @@ impl CubeScene {
                         self.orbit[1] =
                             libm::atan2f(-dir[1], libm::sqrtf(dir[0] * dir[0] + dir[2] * dir[2]));
                     }
-                    let [y, p, r] = self.orbit;
+                    let [y, p, _] = self.orbit;
                     let direction = [
                         -libm::cosf(p) * libm::sinf(y),
                         -libm::sinf(p),
                         -libm::cosf(p) * libm::cosf(y),
                     ];
                     self.flycam.camera.position = pos;
-                    self.flycam.camera.rotation = look_at_camera_rotation(
+                    let target_rotation = look_at_camera_rotation(
                         pos,
                         core::array::from_fn(|i| pos[i] + direction[i]),
-                        orbit_up(y, p),
+                        flight.up,
                     );
+                    let blend = flight.orientation_blend(elapsed_millis);
+                    let sign = if (0..4)
+                        .map(|i| flight.rotation[i] * target_rotation.0[i])
+                        .sum::<f32>()
+                        < 0.
+                    {
+                        -1.
+                    } else {
+                        1.
+                    };
+                    self.flycam.camera.rotation = Quaternion(core::array::from_fn(|i| {
+                        flight.rotation[i] * (1. - blend) + target_rotation.0[i] * sign * blend
+                    }))
+                    .normalized();
                     if flight.done(elapsed_millis) {
-                        self.mode = SceneMode::InteractiveGrid;
-                        self.set_mode_projection(SceneMode::InteractiveGrid);
-                        self.flycam.camera.position = [0.0; 3];
-                        self.look_target = direction.map(|x| x * r);
-                        self.flight = None;
-                        logl::log(
-                            level::INFO,
-                            format_args!(
-                                "Cubes: flight complete -> room=6x100 seeds camera=center WASD=look"
-                            ),
-                        );
+                        let (world, portal) = self.selected_entry.ok_or(CubeError::Contract)?;
+                        self.select_mode(
+                            modes::Selection {
+                                mode: SceneMode::World,
+                                page: Some(world),
+                            },
+                            Some(portal),
+                        )?;
+                        self.arrival_fade = Some(elapsed_millis);
                     }
                 }
             }
+        }
+        let opacity = if let Some(flight) = &self.flight {
+            flight.opacity(elapsed_millis)
+        } else if let Some(start) = self.arrival_fade {
+            let elapsed = elapsed_millis.saturating_sub(start);
+            if elapsed >= transition::REVEAL_MS {
+                self.arrival_fade = None;
+            }
+            transition::reveal_opacity(elapsed)
+        } else {
+            255
+        };
+        if opacity != self.window_opacity {
+            self.frame
+                .set_opacity(opacity)
+                .map_err(|e| CubeError::Ui4("journey-opacity", e))?;
+            self.window_opacity = opacity;
         }
         let camera = self
             .flycam
@@ -1028,181 +1074,195 @@ impl CubeScene {
             self.orchards.len(),
             self.worlds.len(),
         ) {
-            let mode = selection.mode;
-            match mode {
-                SceneMode::Orchard => self.orchard_index = selection.page.unwrap(),
-                SceneMode::World => self.world_index = selection.page.unwrap(),
-                _ => {}
-            }
-            if matches!(mode, SceneMode::Orchard | SceneMode::World) {
-                let started = clock::monotonic_millis();
-                let (pages, index) = if mode == SceneMode::Orchard {
-                    (&mut self.orchards, self.orchard_index)
-                } else {
-                    (&mut self.worlds, self.world_index)
-                };
-                let loaded = if mode == SceneMode::World {
-                    pages.load_world(index)
-                } else {
-                    pages.load(index)
-                }
-                .map_err(|error| {
-                    logl::log(
-                        level::ERROR,
-                        format_args!(
-                            "Cubes: asset mode={} page={} rejected={error}",
-                            mode.number(),
-                            index + 1
-                        ),
-                    );
-                    CubeError::Contract
-                })?;
-                if loaded {
-                    logl::log(
-                        level::INFO,
-                        format_args!(
-                            "Cubes: asset mode={} page={} cubes={} decode_ms={}",
-                            mode.number(),
-                            index + 1,
-                            pages[index].cubes.len(),
-                            clock::monotonic_millis().saturating_sub(started)
-                        ),
-                    );
-                }
-            }
-            if mode == SceneMode::World && self.mode != SceneMode::World {
-                self.demo_camera = Some(self.flycam);
-            } else if mode != SceneMode::World && self.mode == SceneMode::World {
-                self.walker_camera = None;
-                if let Some(camera) = self.demo_camera.take() {
-                    self.flycam = camera;
-                }
-            }
-            self.mode = mode;
-            self.frame
-                .set_center_snapped_mouse(mode == SceneMode::World)
-                .map_err(|error| CubeError::Ui4("center-snapped-mouse", error))?;
-            if mode == SceneMode::StaticCube {
-                self.puzzle.reenter(self.previous_elapsed_millis);
-            }
-            self.last_camera_activity_millis = self.previous_elapsed_millis;
-            self.finished_at = None;
-            self.flight = None;
-            if mode == SceneMode::StaticCube {
-                let p = camera_entry::puzzle_position(self.flycam.camera.position);
-                self.flycam.camera.position = p;
-                let radius = libm::sqrtf(p.iter().map(|x| x * x).sum::<f32>()).max(7.5);
-                self.orbit = [
-                    libm::atan2f(p[0], p[2]),
-                    libm::atan2f(p[1], libm::sqrtf(p[0] * p[0] + p[2] * p[2])),
-                    radius,
-                ];
-                self.look_target = [0.0; 3];
-                self.flycam.camera.rotation =
-                    look_at_camera_rotation(p, [0.0; 3], [0.0, -1.0, 0.0]);
-            }
-            if mode == SceneMode::Orchard {
-                self.orchard_reveal.reset();
-                let asset = &self.orchards[self.orchard_index];
-                self.orbit = [core::f32::consts::PI, -0.15, (asset.radius * 2.5).max(1.0)];
-                self.look_target = [0.; 3];
-                logl::log(
-                    level::INFO,
-                    format_args!(
-                        "Cubes: Key4 asset-grid={} cubes={} assets={} visible_budget={} visibility=collective-cpu-before-HS reveal=pop delay={}ms rate={}/s burst={} rearm={}ms",
-                        asset.name,
-                        asset.cubes.len(),
-                        self.orchards.len(),
-                        grid::MAX_SEED_COUNT,
-                        reveal::DELAY_MS,
-                        reveal::STARTS_PER_SECOND,
-                        reveal::MAX_STARTS_PER_FRAME,
-                        reveal::REARM_MS
-                    ),
-                );
-            } else if mode == SceneMode::World {
-                self.flycam = FlyCam::new(default_camera(), 3.0);
-                let camera = walker_camera::CubesWalkerCam::from_world(
-                    WORLD_ASSETS[self.world_index].1,
-                    self.world_index == world_topology::VOID,
-                );
-                let (position, rotation) = camera.pose();
-                self.flycam.camera.position = position;
-                self.flycam.camera.rotation = rotation;
-                self.walker_camera = Some(camera);
-                self.background
-                    .select_world(
-                        WORLD_ASSETS[self.world_index].0,
-                        self.flycam.camera.rotation.0,
-                    )
-                    .map_err(|error| CubeError::Ui4("background-world", error))?;
-                let asset = &self.worlds[self.world_index];
-                let palette = environment::Palette::for_world(WORLD_ASSETS[self.world_index].0)
-                    .ok_or(CubeError::Contract)?;
-                // One hardware-register update per Key-5 selection, not per
-                // frame or mouse movement. Preserve the world if unavailable.
-                if let Err(error) = self.frame.set_display_bottom_color(palette.average_rgb()) {
-                    logl::log(
-                        level::WARN,
-                        format_args!("Cubes: display bottom color unavailable: {error:?}"),
-                    );
-                }
-                self.active_world = Some(world_portals::World::new(
-                    self.world_index,
-                    asset,
-                    WORLD_ASSETS[self.world_index].1,
-                    &self.puzzle,
-                ));
-                logl::log(
-                    level::INFO,
-                    format_args!(
-                        "Cubes: Key5 world={}/{} asset={} authored={} first_person=surface_walk streamed_nearest={} renderer_seed_limit={}",
-                        self.world_index + 1,
-                        self.worlds.len(),
-                        asset.name,
-                        asset.cubes.len(),
-                        WORLD_SEED_BUDGET,
-                        grid::MAX_SEED_COUNT
-                    ),
-                );
-            } else if mode != SceneMode::StaticCube {
-                self.flycam.camera.position = [0.0; 3];
-            }
-            self.set_mode_projection(mode);
-            self.previous_view_projection = self
-                .flycam
-                .camera
-                .retained(self.frame.width(), self.frame.height(), [0.0; 16])
-                .view_projection;
-            self.cursors.clear();
-            logl::log(
-                level::INFO,
-                format_args!(
-                    "Cubes: mode={} seed_count={}",
-                    match mode {
-                        SceneMode::InteractiveGrid => "1 interactive-grid",
-                        SceneMode::StaticCube =>
-                            "2 compact-puzzle click=edge/corner turns=3x1s camera=WASD-orbit idle=3s-auto-orbit",
-                        SceneMode::Sphere =>
-                            "3 sphere=1024 camera=center WASD=look cursor-expand=10%-area",
-                        SceneMode::Orchard => "4 asset-grid WASD=orbit idle=auto-orbit",
-                        SceneMode::World =>
-                            "5 lvl27-world first-person mouse-look WASD=surface-walk Ctrl=fast-walk Shift=flight-boost F=grip-drift Home=align Key5=next-world R=display-cube",
-                    },
-                    if mode == SceneMode::Orchard {
-                        self.orchards[self.orchard_index].cubes.len()
-                    } else if mode == SceneMode::World {
-                        self.worlds[self.world_index].cubes.len()
-                    } else {
-                        mode.seed_count()
-                    },
-                ),
-            );
+            self.select_mode(selection, None)?;
         }
         self.world_cube.key(
             r_held,
             self.mode == SceneMode::World,
             self.previous_elapsed_millis,
+        );
+        Ok(())
+    }
+
+    fn select_mode(
+        &mut self,
+        selection: modes::Selection,
+        arrival: Option<usize>,
+    ) -> Result<(), CubeError> {
+        let mode = selection.mode;
+        match mode {
+            SceneMode::Orchard => self.orchard_index = selection.page.unwrap(),
+            SceneMode::World => self.world_index = selection.page.unwrap(),
+            _ => {}
+        }
+        if matches!(mode, SceneMode::Orchard | SceneMode::World) {
+            let started = clock::monotonic_millis();
+            let (pages, index) = if mode == SceneMode::Orchard {
+                (&mut self.orchards, self.orchard_index)
+            } else {
+                (&mut self.worlds, self.world_index)
+            };
+            let loaded = if mode == SceneMode::World {
+                pages.load_world(index)
+            } else {
+                pages.load(index)
+            }
+            .map_err(|error| {
+                logl::log(
+                    level::ERROR,
+                    format_args!(
+                        "Cubes: asset mode={} page={} rejected={error}",
+                        mode.number(),
+                        index + 1
+                    ),
+                );
+                CubeError::Contract
+            })?;
+            if loaded {
+                logl::log(
+                    level::INFO,
+                    format_args!(
+                        "Cubes: asset mode={} page={} cubes={} decode_ms={}",
+                        mode.number(),
+                        index + 1,
+                        pages[index].cubes.len(),
+                        clock::monotonic_millis().saturating_sub(started)
+                    ),
+                );
+            }
+        }
+        if mode != SceneMode::World && self.mode != SceneMode::World {
+            self.demo_camera = None;
+        }
+        if mode == SceneMode::World && self.mode != SceneMode::World && self.demo_camera.is_none() {
+            self.demo_camera = Some(self.flycam);
+        } else if mode != SceneMode::World && self.mode == SceneMode::World {
+            self.walker_camera = None;
+            if let Some(camera) = self.demo_camera.take() {
+                self.flycam = camera;
+            }
+        }
+        self.mode = mode;
+        self.frame
+            .set_center_snapped_mouse(mode == SceneMode::World)
+            .map_err(|error| CubeError::Ui4("center-snapped-mouse", error))?;
+        if mode == SceneMode::StaticCube {
+            self.puzzle.reenter(self.previous_elapsed_millis);
+        }
+        self.last_camera_activity_millis = self.previous_elapsed_millis;
+        self.finished_at = None;
+        self.flight = None;
+        self.selected_entry = None;
+        self.arrival_fade = None;
+        if mode == SceneMode::StaticCube {
+            let p = camera_entry::puzzle_position(self.flycam.camera.position);
+            self.flycam.camera.position = p;
+            let radius = libm::sqrtf(p.iter().map(|x| x * x).sum::<f32>()).max(7.5);
+            self.orbit = [
+                libm::atan2f(p[0], p[2]),
+                libm::atan2f(p[1], libm::sqrtf(p[0] * p[0] + p[2] * p[2])),
+                radius,
+            ];
+            self.look_target = [0.0; 3];
+            self.flycam.camera.rotation = look_at_camera_rotation(p, [0.0; 3], [0.0, -1.0, 0.0]);
+        }
+        if mode == SceneMode::Orchard {
+            self.orchard_reveal.reset();
+            let asset = &self.orchards[self.orchard_index];
+            self.orbit = [core::f32::consts::PI, -0.15, (asset.radius * 2.5).max(1.0)];
+            self.look_target = [0.; 3];
+            logl::log(
+                level::INFO,
+                format_args!(
+                    "Cubes: Key4 asset-grid={} cubes={} assets={} visible_budget={} visibility=collective-cpu-before-HS reveal=pop delay={}ms rate={}/s burst={} rearm={}ms",
+                    asset.name,
+                    asset.cubes.len(),
+                    self.orchards.len(),
+                    grid::MAX_SEED_COUNT,
+                    reveal::DELAY_MS,
+                    reveal::STARTS_PER_SECOND,
+                    reveal::MAX_STARTS_PER_FRAME,
+                    reveal::REARM_MS
+                ),
+            );
+        } else if mode == SceneMode::World {
+            self.flycam = FlyCam::new(default_camera(), 3.0);
+            let camera = walker_camera::CubesWalkerCam::from_portal(
+                WORLD_ASSETS[self.world_index].1,
+                self.world_index == world_topology::VOID,
+                arrival,
+            );
+            let (position, rotation) = camera.pose();
+            self.flycam.camera.position = position;
+            self.flycam.camera.rotation = rotation;
+            self.walker_camera = Some(camera);
+            self.background
+                .select_world(
+                    WORLD_ASSETS[self.world_index].0,
+                    self.flycam.camera.rotation.0,
+                )
+                .map_err(|error| CubeError::Ui4("background-world", error))?;
+            let asset = &self.worlds[self.world_index];
+            let palette = environment::Palette::for_world(WORLD_ASSETS[self.world_index].0)
+                .ok_or(CubeError::Contract)?;
+            // One hardware-register update per Key-5 selection, not per
+            // frame or mouse movement. Preserve the world if unavailable.
+            if let Err(error) = self.frame.set_display_bottom_color(palette.average_rgb()) {
+                logl::log(
+                    level::WARN,
+                    format_args!("Cubes: display bottom color unavailable: {error:?}"),
+                );
+            }
+            self.active_world = Some(world_portals::World::new(
+                self.world_index,
+                asset,
+                WORLD_ASSETS[self.world_index].1,
+                &self.puzzle,
+            ));
+            logl::log(
+                level::INFO,
+                format_args!(
+                    "Cubes: Key5 world={}/{} asset={} authored={} first_person=surface_walk streamed_nearest={} renderer_seed_limit={}",
+                    self.world_index + 1,
+                    self.worlds.len(),
+                    asset.name,
+                    asset.cubes.len(),
+                    WORLD_SEED_BUDGET,
+                    grid::MAX_SEED_COUNT
+                ),
+            );
+        } else if mode != SceneMode::StaticCube {
+            self.flycam.camera.position = [0.0; 3];
+        }
+        self.set_mode_projection(mode);
+        self.previous_view_projection = self
+            .flycam
+            .camera
+            .retained(self.frame.width(), self.frame.height(), [0.0; 16])
+            .view_projection;
+        self.cursors.clear();
+        logl::log(
+            level::INFO,
+            format_args!(
+                "Cubes: mode={} seed_count={}",
+                match mode {
+                    SceneMode::InteractiveGrid => "1 interactive-grid",
+                    SceneMode::StaticCube =>
+                        "2 compact-puzzle click=face/edge/corner turns=3x1s camera=WASD-orbit idle=3s-auto-orbit",
+                    SceneMode::Sphere =>
+                        "3 sphere=1024 camera=center WASD=look cursor-expand=10%-area",
+                    SceneMode::Orchard => "4 asset-grid WASD=orbit idle=auto-orbit",
+                    SceneMode::World =>
+                        "5 lvl27-world first-person mouse-look WASD=surface-walk Ctrl=fast-walk Shift=flight-boost F=grip-drift Home=align Key5=next-world R=display-cube",
+                },
+                if mode == SceneMode::Orchard {
+                    self.orchards[self.orchard_index].cubes.len()
+                } else if mode == SceneMode::World {
+                    self.worlds[self.world_index].cubes.len()
+                } else {
+                    mode.seed_count()
+                },
+            ),
         );
         Ok(())
     }

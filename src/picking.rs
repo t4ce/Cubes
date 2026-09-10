@@ -38,7 +38,12 @@ pub fn pick(origin: [f32; 3], dir: [f32; 3], spacing: f32, scale: f32) -> Option
     })
 }
 
-/// Intersect the same beveled seed in its current cubie-local orientation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Hit {
+    pub cubie: usize,
+    pub face_axis: usize,
+}
+
 pub fn pick_poses(
     origin: [f32; 3],
     dir: [f32; 3],
@@ -46,6 +51,17 @@ pub fn pick_poses(
     scale: f32,
     pose: impl Fn(usize) -> ([f32; 3], [[f32; 3]; 3]),
 ) -> Option<usize> {
+    pick_face(origin, dir, spacing, scale, pose).map(|hit| hit.cubie)
+}
+
+/// Intersect the same beveled seed in its current cubie-local orientation.
+pub fn pick_face(
+    origin: [f32; 3],
+    dir: [f32; 3],
+    spacing: f32,
+    scale: f32,
+    pose: impl Fn(usize) -> ([f32; 3], [[f32; 3]; 3]),
+) -> Option<Hit> {
     let mut nearest = f32::INFINITY;
     let mut result = None;
     for id in 0..27 {
@@ -81,38 +97,41 @@ pub fn pick_poses(
         }
         if near <= far && near < nearest {
             nearest = near;
-            result = Some(id);
+            let point: [f32; 3] = core::array::from_fn(|a| o[a] + d[a] * near);
+            let local = [id % 3, (id / 3) % 3, id / 9].map(|x| x as i32 - 1);
+            let face_axis = (0..3).filter(|&a| local[a] != 0).max_by(|&a, &b| {
+                (point[a] * local[a] as f32).total_cmp(&(point[b] * local[b] as f32))
+            });
+            // The hidden core still occludes, but cannot be entered.
+            result = face_axis.map(|face_axis| Hit {
+                cubie: id,
+                face_axis,
+            });
         }
     }
-    result.filter(|&id| {
-        [id % 3, (id / 3) % 3, id / 9]
-            .iter()
-            .filter(|&&x| x != 1)
-            .count()
-            >= 2
-    })
+    result
 }
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
     fn face_centers_occlude_and_do_not_click_through() {
-        assert_eq!(pick([0., 0., -10.], [0., 0., 1.], 1.1, 0.55), None);
+        assert_eq!(pick([0., 0., -10.], [0., 0., 1.], 1.1, 0.55), Some(4));
         assert_eq!(pick([-1.1, -1.1, -10.], [0., 0., 1.], 1.1, 0.55), Some(0));
         assert_eq!(pick([0., -1.1, -10.], [0., 0., 1.], 1.1, 0.55), Some(1));
         assert_eq!(pick([8., 0., -10.], [0., 0., 1.], 1.1, 0.55), None);
     }
     #[test]
-    fn exactly_twenty_selectable_cubies() {
+    fn exactly_twenty_six_selectable_cubies() {
         assert_eq!(
             (0..27)
                 .filter(|&id| [id % 3, (id / 3) % 3, id / 9]
                     .iter()
                     .filter(|&&x| x != 1)
                     .count()
-                    >= 2)
+                    >= 1)
                 .count(),
-            20
+            26
         );
     }
 }
