@@ -1,7 +1,42 @@
 //! Authored world colors and the environment's damped quaternion follower.
 
-// Exact sRGB constants used by the world builder and its floor cubes.
+// Read the exported pure-world terrain colours. The exporter writes the first
+// terrain material as palette entry zero in each CUBES v2 asset. This keeps
+// runtime portal routing in sync without another hand-maintained RGB table.
+const fn terrain_color(bytes: &[u8]) -> u32 {
+    ((bytes[16] as u32) << 16) | ((bytes[17] as u32) << 8) | bytes[18] as u32
+}
 pub const THEMES: [(&str, u32); 6] = [
+    (
+        "sky",
+        terrain_color(include_bytes!("../Cube/lvl27/world_01_sky.cubes")),
+    ),
+    (
+        "underground",
+        terrain_color(include_bytes!("../Cube/lvl27/world_02_underground.cubes")),
+    ),
+    (
+        "black-hole",
+        terrain_color(include_bytes!("../Cube/lvl27/world_03_black-hole.cubes")),
+    ),
+    (
+        "white-hole",
+        terrain_color(include_bytes!("../Cube/lvl27/world_04_white-hole.cubes")),
+    ),
+    (
+        "island",
+        terrain_color(include_bytes!("../Cube/lvl27/world_05_island.cubes")),
+    ),
+    (
+        "city",
+        terrain_color(include_bytes!("../Cube/lvl27/world_06_city.cubes")),
+    ),
+];
+pub const VOID_COLOR: u32 = THEMES[2].1;
+
+// The optional Mandelbox shader uses these legacy packed values as geometry
+// identifiers (theme_shape.glsl), independently of the world material palette.
+const MANDELBOX_THEMES: [(&str, u32); 6] = [
     ("sky", 0x63c7f2),
     ("underground", 0x7a4b30),
     ("black-hole", 0x25153d),
@@ -9,7 +44,6 @@ pub const THEMES: [(&str, u32); 6] = [
     ("island", 0x4eaf68),
     ("city", 0xd76567),
 ];
-pub const VOID_COLOR: u32 = 0xd83cff;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Palette {
@@ -33,17 +67,25 @@ impl Palette {
     }
 
     pub fn for_world(name: &str) -> Option<Self> {
+        Self::from_themes(name, THEMES, VOID_COLOR)
+    }
+
+    pub fn for_mandelbox_world(name: &str) -> Option<Self> {
+        Self::from_themes(name, MANDELBOX_THEMES, 0xd83cff)
+    }
+
+    fn from_themes(name: &str, themes: [(&str, u32); 6], void: u32) -> Option<Self> {
         let name = name.strip_suffix(".cubes").unwrap_or(name);
         if name == "world_27_void" {
             return Some(Self {
-                colors: [VOID_COLOR; 3],
+                colors: [void; 3],
                 count: 1,
                 cathedral: false,
             });
         }
         let mut colors = [0; 3];
         let mut count = 0;
-        for (theme, color) in THEMES {
+        for (theme, color) in themes {
             if name.split('_').any(|word| word == theme) {
                 if count == colors.len() {
                     return None;

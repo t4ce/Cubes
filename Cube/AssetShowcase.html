@@ -1646,20 +1646,16 @@ window.CUBE_NATURE_ANIMALS={species:BIRD_SPECIES,timing:BIRD_TIMING,makeBirdCell
   get controller(){return controller;},get rig(){return rig;}};
 </script>
 
+<script src="material-palette.js"></script>
 <!-- Six stable material slots shared by the editor and placement, never by assets. -->
 <script type="module" id="cube-material-palette">
 import * as THREE from 'three';
 
+window.CUBE_NATURE_MATERIALS_READY=(async()=>{
+const shared=await window.SubCubesPalette.ready;
 const host=window.CUBE_NATURE_THEME_HOST;
-const BASE=Object.freeze([
-  {id:'red',name:'Red',hex:0xd96559},
-  {id:'orange',name:'Orange',hex:0xe39b42},
-  {id:'yellow',name:'Yellow',hex:0xddc35e},
-  {id:'green',name:'Green',hex:0x6f9563},
-  {id:'blue',name:'Blue',hex:0x5e91bd},
-  {id:'violet',name:'Violet',hex:0x9a77b5}
-].map(Object.freeze));
-const defaults=BASE.map(c=>({rgb:{r:((c.hex>>16)&255)/255,g:((c.hex>>8)&255)/255,b:(c.hex&255)/255},roughness:.88,metallic:0}));
+const BASE=Object.freeze(shared.materials.map(m=>Object.freeze({id:m.id,name:m.name,hex:parseInt(m.hex.slice(1),16)})));
+const defaults=shared.materials.map(m=>({rgb:{...m.rgb},roughness:m.roughness,metallic:m.metallic}));
 const slots=defaults.map(s=>({...s,rgb:{...s.rgb}}));
 const storageKey=`CubeNature.SubCubes.Materials.v1:${location.pathname}`;
 let selected=0,storageAvailable=true;
@@ -1667,7 +1663,7 @@ const normalized=value=>typeof value==='number' && Number.isFinite(value) && val
 function validSlot(s){return !!s && !!s.rgb && ['r','g','b'].every(k=>normalized(s.rgb[k])) && normalized(s.roughness) && normalized(s.metallic);}
 try{
   const saved=JSON.parse(sessionStorage.getItem(storageKey)||'null');
-  if(saved?.version===1 && Array.isArray(saved.materials)){
+  if(saved?.version===1 && saved.baseline===shared.fingerprint && Array.isArray(saved.materials)){
     for(const [i,base] of BASE.entries()){
       const s=saved.materials.find(m=>m?.id===base.id);
       if(validSlot(s))slots[i]={rgb:{r:s.rgb.r,g:s.rgb.g,b:s.rgb.b},roughness:s.roughness,metallic:s.metallic};
@@ -1689,7 +1685,7 @@ function indexOf(value){return Number.isInteger(value)&&value>=0&&value<BASE.len
 function get(value){const i=indexOf(value);if(i<0)return null;return {id:BASE[i].id,name:BASE[i].name,rgb:{...slots[i].rgb},roughness:slots[i].roughness,metallic:slots[i].metallic};}
 function data(){return {format:'subcubes-material-palette',version:1,colorSpace:'sRGB',materials:BASE.map((_,i)=>get(i))};}
 function remember(){
-  try{sessionStorage.setItem(storageKey,JSON.stringify({...data(),selectedId:BASE[selected].id}));storageAvailable=true;}
+  try{sessionStorage.setItem(storageKey,JSON.stringify({...data(),baseline:shared.fingerprint,selectedId:BASE[selected].id}));storageAvailable=true;}
   catch{storageAvailable=false;}
 }
 function refreshSwatches(){
@@ -1755,12 +1751,16 @@ function ensureEnvironment(){
 }
 window.CUBE_NATURE_MATERIALS=Object.freeze({palette,materials,get,set,select,reset,exportJSON,refreshSwatches,ensureEnvironment,
   get selectedId(){return BASE[selected].id;},get storageAvailable(){return storageAvailable;},getData:data});
+return window.CUBE_NATURE_MATERIALS;
+})();
+await window.CUBE_NATURE_MATERIALS_READY;
 </script>
 
 
 <!-- Simple, separate cube-only placement workspace. No asset stamping or physics. -->
 <script type="module" id="cube-placement">
 import * as THREE from 'three';
+await window.CUBE_NATURE_MATERIALS_READY;
 
 const host=window.CUBE_NATURE_THEME_HOST;
 const system=host.subCubes, unit=host.gridUnit, halfCells=host.gridSize/(2*unit);
@@ -2072,6 +2072,7 @@ window.CUBE_NATURE_PLACEMENT=Object.freeze({palette:PALETTE,
 <!-- Isolated 2-row × 3-column c3 material preview; never part of placement. -->
 <script type="module" id="cube-material-editor">
 import * as THREE from 'three';
+await window.CUBE_NATURE_MATERIALS_READY;
 
 const host=window.CUBE_NATURE_THEME_HOST,store=window.CUBE_NATURE_MATERIALS,placement=window.CUBE_NATURE_PLACEMENT;
 const system=host.subCubes,unit=host.gridUnit,definition=system.requireTier('c3');

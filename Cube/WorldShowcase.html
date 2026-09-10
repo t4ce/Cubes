@@ -353,7 +353,10 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
  <button id="closeHelp" class="primary">Back to making</button><p class="dialog-footer">All 27 worlds start completely empty. Generation is explicit. Control cubes and their owned platforms survive regeneration. Remove a control cube to remove its platform, growth, and branch; the generated main network is separate. 16 is a soft budget, not a hard cap. JSON includes generation recipes, eight reusable portal presets, cube colours, pinned owned-platform rolls, and saved local branch centerlines—not a game-specific loader.</p>
 </section></div>
 <input id="importInput" type="file" accept=".json,application/json" hidden>
+<script src="material-palette.js"></script>
 <script>
+(async()=>{
+const MATERIAL_PALETTE=await window.SubCubesPalette.ready;
 /* Little Worlds — dependency-free math and WebGL2 renderer.
    The bevelled cube mesh is read from the GLB in the supplied prototype. */
 'use strict';
@@ -441,15 +444,10 @@ class CanvasCompatibilityRenderer {
 
 /* Original mesh, six themes, 27-world roster and portal topology retained from cube_world_branch(1).html. */
 const EMBEDDED_CUBE_GLB = 'Z2xURgIAAADUEAAAsAMAAEpTT057ImFzc2V0Ijp7ImdlbmVyYXRvciI6Iktocm9ub3MgZ2xURiBCbGVuZGVyIEkvTyB2NS4yLjQwIiwidmVyc2lvbiI6IjIuMCJ9LCJzY2VuZSI6MCwic2NlbmVzIjpbeyJuYW1lIjoiU2NlbmUiLCJub2RlcyI6WzBdfV0sIm5vZGVzIjpbeyJtZXNoIjowLCJuYW1lIjoiT25lIiwidHJhbnNsYXRpb24iOlsxNy4wNjM3MjA3MDMxMjUsMTEuOTM5MTk2NTg2NjA4ODg3LC0xNy41Nzg3NjIwNTQ0NDMzNl19XSwibWVzaGVzIjpbeyJuYW1lIjoiQ3ViZS4wMDIiLCJwcmltaXRpdmVzIjpbeyJhdHRyaWJ1dGVzIjp7IlBPU0lUSU9OIjowLCJOT1JNQUwiOjEsIlRFWENPT1JEXzAiOjJ9LCJpbmRpY2VzIjozfV19XSwiYWNjZXNzb3JzIjpbeyJidWZmZXJWaWV3IjowLCJjb21wb25lbnRUeXBlIjo1MTI2LCJjb3VudCI6OTYsIm1heCI6WzEsMSwxXSwibWluIjpbLTEsLTEsLTFdLCJ0eXBlIjoiVkVDMyJ9LHsiYnVmZmVyVmlldyI6MSwiY29tcG9uZW50VHlwZSI6NTEyNiwiY291bnQiOjk2LCJ0eXBlIjoiVkVDMyJ9LHsiYnVmZmVyVmlldyI6MiwiY29tcG9uZW50VHlwZSI6NTEyNiwiY291bnQiOjk2LCJ0eXBlIjoiVkVDMiJ9LHsiYnVmZmVyVmlldyI6MywiY29tcG9uZW50VHlwZSI6NTEyMywiY291bnQiOjEzMiwidHlwZSI6IlNDQUxBUiJ9XSwiYnVmZmVyVmlld3MiOlt7ImJ1ZmZlciI6MCwiYnl0ZUxlbmd0aCI6MTE1MiwiYnl0ZU9mZnNldCI6MCwidGFyZ2V0IjozNDk2Mn0seyJidWZmZXIiOjAsImJ5dGVMZW5ndGgiOjExNTIsImJ5dGVPZmZzZXQiOjExNTIsInRhcmdldCI6MzQ5NjJ9LHsiYnVmZmVyIjowLCJieXRlTGVuZ3RoIjo3NjgsImJ5dGVPZmZzZXQiOjIzMDQsInRhcmdldCI6MzQ5NjJ9LHsiYnVmZmVyIjowLCJieXRlTGVuZ3RoIjoyNjQsImJ5dGVPZmZzZXQiOjMwNzIsInRhcmdldCI6MzQ5NjN9XSwiYnVmZmVycyI6W3siYnl0ZUxlbmd0aCI6MzMzNn1dfSAgIAgNAABCSU4AzcxMvwAAgL/NzEw/zcxMvwAAgL/NzEw/zcxMvwAAgL/NzEw/zcxMvwAAgL/NzEw/zcxMv83MTL8AAIA/zcxMv83MTL8AAIA/zcxMv83MTL8AAIA/zcxMv83MTL8AAIA/AACAv83MTL/NzEw/AACAv83MTL/NzEw/AACAv83MTL/NzEw/AACAv83MTL/NzEw/zcxMv83MTD8AAIA/zcxMv83MTD8AAIA/zcxMv83MTD8AAIA/zcxMv83MTD8AAIA/zcxMvwAAgD/NzEw/zcxMvwAAgD/NzEw/zcxMvwAAgD/NzEw/zcxMvwAAgD/NzEw/AACAv83MTD/NzEw/AACAv83MTD/NzEw/AACAv83MTD/NzEw/AACAv83MTD/NzEw/zcxMvwAAgL/NzEy/zcxMvwAAgL/NzEy/zcxMvwAAgL/NzEy/zcxMvwAAgL/NzEy/AACAv83MTL/NzEy/AACAv83MTL/NzEy/AACAv83MTL/NzEy/AACAv83MTL/NzEy/zcxMv83MTL8AAIC/zcxMv83MTL8AAIC/zcxMv83MTL8AAIC/zcxMv83MTL8AAIC/zcxMvwAAgD/NzEy/zcxMvwAAgD/NzEy/zcxMvwAAgD/NzEy/zcxMvwAAgD/NzEy/zcxMv83MTD8AAIC/zcxMv83MTD8AAIC/zcxMv83MTD8AAIC/zcxMv83MTD8AAIC/AACAv83MTD/NzEy/AACAv83MTD/NzEy/AACAv83MTD/NzEy/AACAv83MTD/NzEy/zcxMPwAAgL/NzEw/zcxMPwAAgL/NzEw/zcxMPwAAgL/NzEw/zcxMPwAAgL/NzEw/AACAP83MTL/NzEw/AACAP83MTL/NzEw/AACAP83MTL/NzEw/AACAP83MTL/NzEw/zcxMP83MTL8AAIA/zcxMP83MTL8AAIA/zcxMP83MTL8AAIA/zcxMP83MTL8AAIA/zcxMPwAAgD/NzEw/zcxMPwAAgD/NzEw/zcxMPwAAgD/NzEw/zcxMPwAAgD/NzEw/zcxMP83MTD8AAIA/zcxMP83MTD8AAIA/zcxMP83MTD8AAIA/zcxMP83MTD8AAIA/AACAP83MTD/NzEw/AACAP83MTD/NzEw/AACAP83MTD/NzEw/AACAP83MTD/NzEw/zcxMPwAAgL/NzEy/zcxMPwAAgL/NzEy/zcxMPwAAgL/NzEy/zcxMPwAAgL/NzEy/zcxMP83MTL8AAIC/zcxMP83MTL8AAIC/zcxMP83MTL8AAIC/zcxMP83MTL8AAIC/AACAP83MTL/NzEy/AACAP83MTL/NzEy/AACAP83MTL/NzEy/AACAP83MTL/NzEy/zcxMPwAAgD/NzEy/zcxMPwAAgD/NzEy/zcxMPwAAgD/NzEy/zcxMPwAAgD/NzEy/AACAP83MTD/NzEy/AACAP83MTD/NzEy/AACAP83MTD/NzEy/AACAP83MTD/NzEy/zcxMP83MTD8AAIC/zcxMP83MTD8AAIC/zcxMP83MTD8AAIC/zcxMP83MTD8AAIC/AAAAAPQENb/0BDU/AAAAAAAAgL8AAAAAOs0TvzrNE786zRM/9AQ1v/QENb8AAAAAAAAAAAAAAAAAAIA/AAAAAPQENb/0BDU/Os0TvzrNE786zRM/9AQ1vwAAAAD0BDU/Os0TvzrNE786zRM/9AQ1vwAAAAD0BDU/9AQ1v/QENb8AAAAAAACAvwAAAAAAAAAAAAAAAAAAAAAAAIA/AAAAAPQENT/0BDU/Os0TvzrNEz86zRM/9AQ1vwAAAAD0BDU/AAAAAPQENT/0BDU/AAAAAAAAgD8AAAAAOs0TvzrNEz86zRM/9AQ1v/QENT8AAAAAOs0TvzrNEz86zRM/9AQ1vwAAAAD0BDU/9AQ1v/QENT8AAAAAAACAvwAAAAAAAAAAAAAAAPQENb/0BDW/AAAAAAAAgL8AAAAAOs0TvzrNE786zRO/9AQ1v/QENb8AAAAAOs0TvzrNE786zRO/9AQ1vwAAAAD0BDW/9AQ1v/QENb8AAAAAAACAvwAAAAAAAAAAAAAAAAAAAAAAAIC/AAAAAPQENb/0BDW/Os0TvzrNE786zRO/9AQ1vwAAAAD0BDW/AAAAAPQENT/0BDW/AAAAAAAAgD8AAAAAOs0TvzrNEz86zRO/9AQ1v/QENT8AAAAAAAAAAAAAAAAAAIC/AAAAAPQENT/0BDW/Os0TvzrNEz86zRO/9AQ1vwAAAAD0BDW/Os0TvzrNEz86zRO/9AQ1vwAAAAD0BDW/9AQ1v/QENT8AAAAAAACAvwAAAAAAAAAA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';
-const WORLD_THEMES = [
-  {id:1, name:'Sky',         color:'#63C7F2'},
-  {id:2, name:'Underground', color:'#3B2B34'},
-  {id:3, name:'black-hole',  color:'#2D2438'},
-  {id:4, name:'white-hole',  color:'#F4E8A6'},
-  {id:5, name:'Island',      color:'#4EAF68'},
-  {id:6, name:'City',        color:'#D76567'}
-];
-const SPECIAL_THEME = {id:'S', name:'void', color:'#D83CFF'};
+const WORLD_THEMES = ['blue','orange','violet','yellow','green','red'].map((materialId,i)=>({
+ id:i+1,materialId,name:MATERIAL_PALETTE.byId[materialId].name,color:MATERIAL_PALETTE.byId[materialId].hex
+}));
+const SPECIAL_THEME = {id:'S', name:'void', color:MATERIAL_PALETTE.byId.violet.hex};
 const LEAVE_PORTAL = {id:'L', name:'leave', color:'#CBD5E1'};
 const OPPOSING_PAIRS = [[1,2],[3,4],[5,6]];
 const OPPOSING_KEYS = new Set(OPPOSING_PAIRS.map(([a,b]) => `${a}-${b}`));
@@ -602,7 +600,7 @@ const PATH_CUBE_SIZE=CUBE_TIERS.c4,PORTAL_MAX_RADIUS=6.8*PORTAL_SCALE,PORTAL_MAX
 const PORTAL_STYLES=Object.freeze(['terraced','twin','tri']);
 const DEFAULT_PORTALS=Object.freeze({style:'twin',opening:40,depth:3,rotation:0,flatColours:false});
 const PORTAL_PRESET_KEYS=Object.freeze(['1','2','3','4','5','6','S','L']);
-const RAINBOW=Object.freeze(['#EF6969','#EDA34C','#E4CE64','#70B97C','#64BDD8','#7985D8','#BD7BD4']);
+const RAINBOW=Object.freeze(MATERIAL_PALETTE.materials.map(m=>m.hex));
 const portalShapeCache=new Map();
 function defaultPortalPreset(key){return {styleOverride:null,opening:40,depth:3,rotation:0,flatColours:false};}
 function makePortalPresets(){return Object.fromEntries(PORTAL_PRESET_KEYS.map(key=>[key,defaultPortalPreset(key)]));}
@@ -668,7 +666,7 @@ function portalFrameCells(settings=DEFAULT_PORTALS){
  portalShapeCache.set(key,shape);return shape;
 }
 function portalPalette(mix){
- if(mix.length===1&&mix[0]==='S')return RAINBOW.map((hex,i)=>({id:'rainbow-'+i,name:['Red','Orange','Yellow','Green','Blue','Indigo','Violet'][i],hex}));
+ if(mix.length===1&&mix[0]==='S')return MATERIAL_PALETTE.materials.map(m=>({id:m.id,name:m.name,hex:m.hex}));
  return mix.map(id=>({id,name:themeFor(id).name,hex:themeFor(id).color}));
 }
 function balancedPortalCells(shape,mix,rotation=0){
@@ -733,7 +731,7 @@ const PLATFORM_MIN=16,PLATFORM_MAX=24,PLATFORM_BOOST_MIN=22,PLATFORM_SIZE_MAX=48
 const buildStats={baseBuilds:0,platformBuilds:0,branchBuilds:0,compositions:0};
 const DEFAULT_SPAN=4,WORLD_LAYOUTS=Object.freeze([4]);
 const FACE_NORMAL={north:new V3(0,0,1),south:new V3(0,0,-1),east:new V3(-1,0,0),west:new V3(1,0,0),top:new V3(0,-1,0),bottom:new V3(0,1,0),center:new V3(0,0,1)};
-const PALETTES={1:'#93c8d1',2:'#938791',3:'#8b85b1',4:'#e6d797',5:'#93b995',6:'#d89c92',S:'#bba0cd'};
+const PALETTES=Object.freeze(Object.fromEntries([...WORLD_THEMES,SPECIAL_THEME].map(t=>[t.id,t.color])));
 function themeFor(id){return id==='S'?SPECIAL_THEME:id==='L'?LEAVE_PORTAL:themeById.get(id);}
 function voidTerrainColour(p){
  // Void terrain is rainbow at voxel resolution: adjacent full and small
@@ -1263,7 +1261,7 @@ function updatePortalUI(){
  $('portalDesignNote').textContent=names[effectiveStyle]+' · '+(preset.styleOverride?'preset override':'automatic type default')+' · outermost frame layer stays flush to the world boundary. Live changes keep terrain and routes fixed.';
  const bar=$('portalBalance');bar.replaceChildren();bar.setAttribute('aria-label',summary.palette.map((p,i)=>p.name+': '+summary.counts[i]+' cubes').join('; '));
  summary.palette.forEach((p,i)=>{const part=document.createElement('span');part.style.flex=summary.counts[i];part.style.background=p.hex;part.title=p.name+': '+summary.counts[i]+' cubes ('+(100*summary.counts[i]/summary.cubes).toFixed(2)+'%)';bar.append(part);});
- const ratio=summary.palette.length===1?'One solid colour':summary.palette.length===2?'½ + ½':summary.palette.length===3?'⅓ + ⅓ + ⅓':'Seven balanced rainbow bands';$('portalBalanceNote').textContent=ratio+' · '+summary.counts.join(' / ')+' cubes';
+ const ratio=summary.palette.length===1?'One solid colour':summary.palette.length===2?'½ + ½':summary.palette.length===3?'⅓ + ⅓ + ⅓':`${summary.palette.length} balanced palette bands`;$('portalBalanceNote').textContent=ratio+' · '+summary.counts.join(' / ')+' cubes';
  $('portalFocusNote').textContent=portalFocus?'Inspecting '+portalFace+(portalFocus.back?' from the back':' at an angle')+' · World tab or Home returns to the world.':'Choose a current-world portal for a close preview.';
  for(const [id,active] of [['portalBack',!!portalFocus&&portalFocus.back],['portalAngle',!!portalFocus&&!portalFocus.back]]){$(id).classList.toggle('active',active);$(id).setAttribute('aria-pressed',String(active));}
  $('portalReset').disabled=JSON.stringify(preset)===JSON.stringify(defaultPortalPreset(key));
@@ -1377,9 +1375,7 @@ function updateScene(){
   if(v.size===SLOT&&SIX.every(a=>currentGeometry.primary.get(voxelKey(v.x+a[0]*SLOT,v.y+a[1]*SLOT,v.z+a[2]*SLOT))?.size===SLOT))continue;
   const p=new V3(v.x+v.size*.5,v.y+v.size*.5,v.z+v.size*.5),id=v.theme??w.themes[themeIndexAt(w,p,seed)];
   const base=hexRGB(w.kind==='special'&&v.kind!=='manual'?voidTerrainColour(p):v.kind==='manual'?themeFor(id).color:PALETTES[id]);
-  const noise=(hashSeed(voxelKey(v.x/SLOT,v.y/SLOT,v.z/SLOT))%100)/100;
-  const tint=v.kind==='expansion'?.22:['path','portalPath','branch'].includes(v.kind)?.12:v.kind==='manual'?.07:.04;
-  instance(terrain,p,cubeRenderSize(v.size),mixRGB(base,[.97,.975,.94],tint+noise*.035));surfaceCount++;
+  instance(terrain,p,cubeRenderSize(v.size),base);surfaceCount++;
  }
  renderEngine.setBatch('terrain',terrain);
  const pathCubeCount=renderTierPaths(w,d,seed),assetTowerCount=renderAssetScaleTowers(w,d,seed);
@@ -1703,5 +1699,6 @@ window.LITTLE_WORLDS={
 };
 try{renderEngine=new CubeRenderer(canvas,cubeGeometryFromGLB(EMBEDDED_CUBE_GLB));buildUI();attachInput();frameWorld();updateScene();$('loading').hidden=true;requestAnimationFrame(animate);window.LITTLE_WORLDS.ready=true;}catch(err){console.error(err);$('loading').classList.add('error');$('loading').firstElementChild.textContent=err.message;window.LITTLE_WORLDS.error=err.message;}
 
+})();
 </script>
 </body></html>

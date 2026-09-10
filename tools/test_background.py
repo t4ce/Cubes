@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Verify the actual world palette, quaternion follower and Chroma source chain."""
 from pathlib import Path
+import json
 import re
 import subprocess
 import sys
@@ -20,9 +21,11 @@ pub fn atan2f(y:f32,x:f32)->f32 {y.atan2(x)}
 program += f'#[path="{APP}/src/environment.rs"] mod environment;\n'
 program += f'#[path="{APP}/src/world_look.rs"] mod world_look;\n'
 program += 'use environment::*;\n#[test] fn authored_world_palettes_and_presets_match() {\n'
-colors = [0x63c7f2,0x7a4b30,0x25153d,0xf4e8a6,0x4eaf68,0xd76567]
+materials = {m['id']: m for m in json.loads((APP/'Cube/subcubes-materials.json').read_text())['materials']}
+colors = [int.from_bytes(bytes(int(materials[id]['rgb'][axis]*255+.5) for axis in 'rgb'), 'big')
+          for id in ['blue','orange','violet','yellow','green','red']]
 for world, mask in zip(worlds, expected):
-    palette = [color for i,color in enumerate(colors) if mask & (1<<i)] or [0xd83cff]
+    palette = [color for i,color in enumerate(colors) if mask & (1<<i)] or [colors[2]]
     # The selected colors must also occur in the exported floor/portal palette.
     data = world.read_bytes()
     authored = [int.from_bytes(data[i:i+3],"big") for i in range(16,16+4*data[10],4)]
@@ -39,6 +42,8 @@ with tempfile.TemporaryDirectory(prefix="cubes-background-") as directory:
     (root/"tests.rs").write_text(program)
     subprocess.run(["rustc","--edition=2024","--test",str(root/"tests.rs"),"-o",str(root/"tests")],check=True)
     subprocess.run([str(root/"tests")],check=True)
+# Legacy shader identifiers still select the original recursive geometry.
+colors = [0x63c7f2,0x7a4b30,0x25153d,0xf4e8a6,0x4eaf68,0xd76567]
 source = (APP/"src/environment.rs").read_text().lower()
 for color in colors+[0xd83cff]:
     assert f"0x{color:06x}" in source
@@ -57,4 +62,4 @@ for mask in expected[:-1]:
     signatures.append(signature)
 assert len(set(signatures)) == 26, 'two worlds have identical recursive folds'
 subprocess.run([sys.executable,str(APP/"tools/bake_mandelbox.py"),"--check"],check=True)
-print("27 worlds, seven authored colors, 26 distinct shape signatures, Chroma presets and follower verified")
+print("27 worlds, shared six-color palette, 26 distinct shape signatures, Chroma presets and follower verified")

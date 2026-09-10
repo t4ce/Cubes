@@ -5,7 +5,7 @@
   "materials": [
     {
       "id": "red",
-      "name": "Red",
+      "name": "City",
       "rgb": {
         "r": 0.869,
         "g": 0.245,
@@ -16,7 +16,7 @@
     },
     {
       "id": "orange",
-      "name": "Orange",
+      "name": "Underground",
       "rgb": {
         "r": 0.971,
         "g": 0.607843,
@@ -27,7 +27,7 @@
     },
     {
       "id": "yellow",
-      "name": "Yellow",
+      "name": "white-hole",
       "rgb": {
         "r": 0.866667,
         "g": 0.764706,
@@ -38,7 +38,7 @@
     },
     {
       "id": "green",
-      "name": "Green",
+      "name": "Island",
       "rgb": {
         "r": 0.237,
         "g": 0.706,
@@ -49,7 +49,7 @@
     },
     {
       "id": "blue",
-      "name": "Blue",
+      "name": "Sky",
       "rgb": {
         "r": 0.269,
         "g": 0.535,
@@ -60,7 +60,7 @@
     },
     {
       "id": "violet",
-      "name": "Violet",
+      "name": "black-hole",
       "rgb": {
         "r": 0.603922,
         "g": 0.314,

@@ -33,7 +33,9 @@ const model = [
   }));
   `,
 ].join('\n');
-const context = { console, globalThis: {} };
+const MATERIAL_PALETTE = require('../Cube/material-palette.js').parse(
+  JSON.parse(fs.readFileSync(path.join(root, 'Cube/subcubes-materials.json'), 'utf8')));
+const context = { console, globalThis: {}, MATERIAL_PALETTE };
 vm.createContext(context);
 vm.runInContext(model, context, { filename: 'WorldShowcase-default-model.js' });
 

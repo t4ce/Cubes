@@ -139,7 +139,7 @@ impl Background {
             shared,
             previous: [u32::MAX; COMMAND_WORDS],
             generation: 0,
-            palette: Palette::for_world("world_27_void").unwrap(),
+            palette: Palette::for_mandelbox_world("world_27_void").unwrap(),
             follower: RotationFollower::new([0.0, 0.0, 0.0, 1.0]),
             palette_time: 0.,
         })
@@ -150,7 +150,7 @@ impl Background {
         if !WORLD_MANDELBOX_ENABLED {
             return Ok(());
         }
-        self.palette = Palette::for_world(name).ok_or(Error::Invalid)?;
+        self.palette = Palette::for_mandelbox_world(name).ok_or(Error::Invalid)?;
         self.generation = self.generation.wrapping_add(1).max(1);
         self.follower = RotationFollower::new(rotation);
         Ok(())
