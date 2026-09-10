@@ -16,6 +16,12 @@ preview has no exported files, and the two extra portal assets form Other assets
 Build validation rejects duplicates, unknown filenames and ungrouped assets.
 No generator camera or animation controller is imported into Cubes.
 
+One additional runtime group, `Key7 cubes: 7 sizes x 6 materials`, follows the
+exported groups. Its 42 entries come directly from `SubCubes::Demo`, each once
+per loop. These single cubes retain their Key7 scale and palette material finish;
+they do not use the asset fit-to-box normalization. Key4 and W/S include this
+group; wheel and A/D browse its cubes with the same five-slot opacity and frame.
+
 Each asset is centered in its slot and uniformly fitted to a 2.4-unit box.
 Its authored cube proportions and RGB555 colours are preserved. New instances
 share the placement reveal controller: 333 ms initial delay, 1,600 starts/s,
@@ -39,6 +45,8 @@ The palette index uses bits 0–8, alpha class uses 10–11, and flags 24576|512
 the carousel path. Existing material and world flags remain distinct. No input
 layout, server API, or draw-pass contract changes are needed. The complete native
 shader now needs a 40 KiB state slot including its descriptor page.
+Within the carousel path, bit 12 selects the shared Key7 material instead of
+an RGB555 palette entry; bits 0–2 then carry the material index.
 
 Checks:
 

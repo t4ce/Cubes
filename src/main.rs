@@ -1021,6 +1021,9 @@ impl CubeScene {
                         rubik::ROOM_PALETTE_FLAG
                     } else if self.mode == SceneMode::Orchard {
                         self.carousel.drawn.get(i).map_or(carousel::FLAGS, |draw| {
+                            if draw.cube.flags & orchard::CUSTOM_RGB555 == 0 {
+                                return carousel::FLAGS | draw.cube.flags | (draw.opacity << 10);
+                            }
                             let rgb=draw.cube.flags & 0x7fff;
                             let index=baked_materials::CAROUSEL_COLORS.binary_search(&rgb).unwrap();
                             carousel::FLAGS | index as u32 | (draw.opacity << 10)
@@ -1408,7 +1411,7 @@ impl CubeScene {
             current,
             self.mode,
             self.orchard_index,
-            ASSET_GROUPS.len(),
+            self.carousel.group_count(),
             self.worlds.len(),
         ) {
             self.network_singleton = false;

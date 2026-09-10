@@ -335,7 +335,8 @@ void main() {
         // on the containing sphere.
         bool carousel = (flags & 57856u) == 25088u; // no RGB555 bit; both showcase bits plus group-1 bit
         if (carousel) {
-            baseColor = carouselColor(flags & 511u);
+            if ((flags & 4096u) != 0u) material = int(flags & 7u);
+            else baseColor = carouselColor(flags & 511u);
             uint opacity = (flags >> 10u) & 3u;
             alpha = opacity == 1u ? 0.5 : opacity == 2u ? 0.25 : 1.0;
         } else if ((flags & 32768u) != 0u) {
