@@ -6,7 +6,7 @@ pass. The independent background worker publishes the latest procedural time;
 it does not queue old camera frames. Key5's Mandelbox environment is unchanged.
 
 The Palette Grid source keeps its palette, grid modulation, glow and animation.
-Only the cell-radius metric changes: `max(abs(x), abs(y), (abs(x)+abs(y))/1.8)`
+Only the cell-radius metric changes: `max(max(abs(x), abs(y)), (abs(x)+abs(y))/1.8)`
 gives square contours with straight 20% corner bevels, matching the cube face.
 This updates the shared program 4 package, including the ShaderToy gallery's
 Palette Grid example. Canonical source and baked artifacts remain in
