@@ -58,6 +58,7 @@ const ROOM_YFOV: f32 = 5.0 * core::f32::consts::PI / 12.0;
 const IDLE_ORBIT_DELAY_MS: u64 = 3_000;
 const IDLE_ORBIT_RADIANS_PER_SECOND: f32 = 0.18;
 const WORLD_SEED_BUDGET: usize = grid::MAX_SEED_COUNT;
+const _: () = assert!(WORLD_SEED_BUDGET <= trueos::vgpu::MAX_RETAINED_SCENE_INSTANCES);
 
 struct GridCursor {
     source: CursorSource,
