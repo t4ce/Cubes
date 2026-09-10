@@ -1,3 +1,7 @@
+> Key4 now runs the [five-slot asset carousel](CAROUSEL.md). The grid/orbit
+> descriptions below document the retained visibility helpers and their regression
+> fixtures, not the active Key4 presentation.
+
 # Key 4: compact opaque cube assets
 
 Put `.cubes` files in `Cube/` and rebuild Cubes. The build discovers the 49

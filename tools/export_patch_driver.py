@@ -11,6 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def export(bake, output):
     manifest = json.loads((bake / 'manifest.json').read_text())
+    from bake_patch_cube import carousel_colors
+    assert manifest['carousel_colors_rgb555'] == carousel_colors(), 'asset colors changed since bake; rebake before exporting'
     assert manifest['palette_sha256'] == hashlib.sha256(
         (ROOT / 'Cube/subcubes-materials.json').read_bytes()
     ).hexdigest(), 'palette changed since bake; rebake before exporting'

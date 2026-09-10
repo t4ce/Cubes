@@ -752,7 +752,10 @@ impl CubeScene {
         if self.mode == SceneMode::Orchard {
             // Keep five full slots framed at every viewport aspect ratio.
             let aspect=width.max(1) as f32/height.max(1) as f32;
-            let distance=(9.0/(aspect*libm::tanf(PUZZLE_YFOV*0.5))).max(4.0)+2.0;
+            let distance=(12.4/(aspect*libm::tanf(PUZZLE_YFOV*0.5))).max(4.0)+2.0;
+            if let Projection::Perspective {ref mut zfar, ..}=self.flycam.camera.projection {
+                *zfar=Some((distance+16.0).max(100.0));
+            }
             self.flycam.camera.position=[0.,0.,-distance];
             self.flycam.camera.rotation=look_at_camera_rotation(self.flycam.camera.position,[0.;3],[0.,-1.,0.]);
         }
@@ -1289,7 +1292,7 @@ impl CubeScene {
                             && matches!(
                                 self.mode,
                                 SceneMode::Sphere
-                                        | SceneMode::World
+                                    | SceneMode::World
                                     | SceneMode::MaterialShowcase
                             )
                         {
@@ -1723,8 +1726,8 @@ impl CubeScene {
         if mode == SceneMode::Orchard {
             self.orbit=[core::f32::consts::PI,0.,12.];
             self.look_target=[0.;3];
-            logl::log(level::INFO,format_args!("Cubes: Key4 carousel group={} assets={} five slots alpha=1/.85/.5 wheel=slide",
-                self.carousel.name(),self.carousel.group_len()));
+            logl::log(level::INFO,format_args!("Cubes: Key4 carousel group={} assets={} selected={} five slots alpha=1/.85/.5 wheel=slide",
+                self.carousel.name(),self.carousel.group_len(),self.carousel.asset_name()));
         } else if mode == SceneMode::World {
             self.flycam = FlyCam::new(default_camera(), 3.0);
             let (world_name, world_bytes, asset) = if self.network_singleton {

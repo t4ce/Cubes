@@ -211,6 +211,9 @@ impl Carousel {
             }
         }
         self.reveal.end_frame();
+        if self.drawn.len() + 1 > 8192 {
+            return Err("carousel-seed-budget");
+        }
         // Fixed camera looks down +Z. Blend every cube back-to-front, including frame.
         self.drawn
             .sort_unstable_by(|a, b| b.cube.center[2].total_cmp(&a.cube.center[2]));
@@ -248,7 +251,7 @@ fn frame_cubes() -> Vec<Cube> {
                 continue;
             }
             let mut along = -7.;
-            let mut side = 1.;
+            let mut side: f32 = 1.;
             while along < 7. {
                 side = side.min(7. - along);
                 let mut center = p;
@@ -264,4 +267,112 @@ fn frame_cubes() -> Vec<Cube> {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn five_slots_wrap_every_exported_group_in_both_directions() {
+        let mut c = Carousel::new(crate::ASSETS, crate::GROUPS);
+        for group in 0..crate::GROUPS.len() {
+            c.select_group(group).unwrap();
+            assert_eq!(c.slots.len(), 5);
+            assert_eq!(c.selected, 0);
+            for direction in [1, -1] {
+                for n in 0..c.group_len() * 2 {
+                    let previous = c.selected;
+                    c.wheel(direction);
+                    c.prepare(n as u64 * 1000 + if direction < 0 { 100000 } else { 0 })
+                        .unwrap();
+                    assert_eq!(
+                        c.selected,
+                        (previous as i32 + direction).rem_euclid(c.group_len() as i32) as usize
+                    );
+                    assert_eq!(c.slots.len(), 5);
+                    for i in 0..5 {
+                        assert_eq!(c.slots[i].asset, c.asset_at(i as i32 - 2));
+                    }
+                }
+                c.slide_start = None;
+            }
+        }
+    }
+    #[test]
+    fn shared_spawn_budget_reaches_all_five_slots_then_exact_geometry_and_opacity() {
+        let mut c = Carousel::new(crate::ASSETS, crate::GROUPS);
+        for group in 0..crate::GROUPS.len() {
+            c.select_group(group).unwrap();
+            c.prepare(0).unwrap();
+            assert!(c.drawn.is_empty());
+            c.prepare(reveal::DELAY_MS - 1).unwrap();
+            assert!(c.drawn.is_empty());
+            c.prepare(reveal::DELAY_MS).unwrap();
+            assert_eq!(c.drawn.len(), reveal::MAX_STARTS_PER_FRAME as usize);
+            for slot in -2..=2 {
+                assert!(
+                    c.drawn
+                        .iter()
+                        .any(|d| (d.cube.center[0] - slot as f32 * PITCH).abs()
+                            < DISPLAY_SIDE * 0.5 + 0.01),
+                    "slot {slot} starved"
+                );
+            }
+            for now in (reveal::DELAY_MS + 16..12000).step_by(16) {
+                c.prepare(now).unwrap();
+            }
+            let expected = c
+                .slots
+                .iter()
+                .map(|s| c.pages[s.asset].cubes.len())
+                .sum::<usize>()
+                + c.frame.len();
+            assert_eq!(c.drawn.len(), expected);
+            assert!(expected < 8192);
+            for (opacity, slots) in [(0, vec![2]), (1, vec![1, 3]), (2, vec![0, 4])] {
+                let expected = slots
+                    .iter()
+                    .map(|&i| c.pages[c.slots[i].asset].cubes.len())
+                    .sum::<usize>()
+                    + if opacity == 0 { c.frame.len() } else { 0 };
+                assert_eq!(
+                    c.drawn.iter().filter(|d| d.opacity == opacity).count(),
+                    expected
+                );
+            }
+            assert!(
+                c.drawn
+                    .windows(2)
+                    .all(|d| d[0].cube.center[2] >= d[1].cube.center[2])
+            );
+        }
+    }
+    #[test]
+    fn frame_uses_only_c1_c2_and_shrinks_linearly_before_rearming() {
+        let mut c = Carousel::new(crate::ASSETS, crate::GROUPS);
+        c.select_group(0).unwrap();
+        for now in (0..4000).step_by(16) {
+            c.prepare(now).unwrap();
+        }
+        assert!(
+            c.frame
+                .iter()
+                .all(|cube| [C1 * 0.495, C1 * 0.99].contains(&cube.scale))
+        );
+        let full = c.frame_previous[0].scale;
+        c.wheel(1);
+        c.prepare(4000).unwrap();
+        c.prepare(4000 + FRAME_SHRINK_MS / 2).unwrap();
+        let expected = full * 0.5;
+        assert!(
+            c.drawn
+                .iter()
+                .any(|d| (d.cube.scale - expected).abs() < 1e-6)
+        );
+        c.prepare(4000 + FRAME_SHRINK_MS).unwrap();
+        assert!(c.frame_previous.is_empty());
+        c.prepare(4000 + FRAME_SHRINK_MS + reveal::DELAY_MS)
+            .unwrap();
+        assert!(!c.frame_previous.is_empty());
+    }
 }

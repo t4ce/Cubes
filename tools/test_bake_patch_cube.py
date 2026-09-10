@@ -102,6 +102,28 @@ class PatchCubeTests(unittest.TestCase):
             self.assertFalse(manifest["host_render_verified"])
             self.assertFalse(manifest["baremetal_verified"])
 
+    def test_carousel_preserves_rgb555_and_uses_existing_transparent_group(self):
+        from bake_patch_cube import carousel_colors
+        colors = carousel_colors()
+        self.assertLessEqual(len(colors), 512)
+        self.assertEqual(colors, sorted(set(colors)))
+        with tempfile.TemporaryDirectory() as folder:
+            out = Path(folder)
+            manifest = write_sources(ROOT / "Cube/cube.glb", out)
+            self.assertEqual(manifest["carousel_colors_rgb555"], colors)
+            ds = (out / "cube.tese").read_text()
+            self.assertIn("opacity == 1u ? 0.85 : opacity == 2u ? 0.5 : 1.0", ds)
+            self.assertIn("hidden = !carousel &&", ds)
+            for index, color in enumerate(colors):
+                flags = 24576 | 512 | index | (2 << 10)
+                self.assertEqual(flags & 57856, 25088)
+                self.assertFalse(flags & 32768)
+                self.assertTrue(flags & 512)
+                self.assertEqual(flags & 511, index)
+                self.assertIn(f"rgb = {color}u;", ds)
+            for flags in [8192, 16384, 24576, 256, 256 | 128 | 512 | (5 << 10), 32768 | 0x7fff]:
+                self.assertNotEqual(flags & 57856, 25088)
+
     def test_all_162_square_faces_exclude_bevels(self):
         _, triangles = geometry(ROOT / "Cube/cube.glb")
         per_face = {}
