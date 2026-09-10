@@ -1,3 +1,4 @@
+// trueos-blueprint: features=["tokio-net-probe"]
 // Native background workers use the TRUEOS standard-library runtime.
 
 extern crate alloc;
@@ -8,6 +9,7 @@ mod environment;
 mod floor;
 mod grid;
 mod modes;
+mod network;
 mod orchard;
 use modes::{ModeKeys, SceneMode};
 include!(concat!(env!("OUT_DIR"), "/orchard_assets.rs"));
@@ -131,12 +133,20 @@ struct CubeScene {
     arrival_fade: Option<u64>,
     window_opacity: u8,
     number_keys: ModeKeys,
+    network: network::Client,
+    network_world: Option<NetworkWorld>,
+    network_singleton: bool,
     demo_camera: Option<FlyCam>,
     walker_camera: Option<walker_camera::CubesWalkerCam>,
     pending_resize: Option<ResizeEvent>,
     previous_elapsed_millis: u64,
     first_frame: bool,
     previous_view_projection: [f32; 16],
+}
+
+struct NetworkWorld {
+    bytes: Vec<u8>,
+    asset: orchard::Asset,
 }
 
 fn main() {
@@ -338,6 +348,9 @@ impl CubeScene {
             arrival_fade: None,
             window_opacity: 255,
             number_keys: ModeKeys::default(),
+            network: network::Client::new(),
+            network_world: None,
+            network_singleton: false,
             demo_camera: None,
             walker_camera: None,
             pending_resize: None,
@@ -353,6 +366,7 @@ impl CubeScene {
             elapsed_millis.saturating_sub(self.previous_elapsed_millis) as f32 * 0.001;
         self.previous_elapsed_millis = elapsed_millis;
         self.service_mode_hotkeys()?;
+        self.service_network_world()?;
         // A selected Key-2 action continues after entering a world. Only its
         // exact committed quarter-turns change the portal topology.
         self.puzzle.update(elapsed_millis);
@@ -493,7 +507,7 @@ impl CubeScene {
                     let (position, rotation) = camera.pose();
                     self.flycam.camera.position = position;
                     self.flycam.camera.rotation = rotation;
-                    if elapsed_millis >= self.portal_ready_at {
+                    if !self.network_singleton && elapsed_millis >= self.portal_ready_at {
                         if let Some(portal) = camera.crossed_portal(before) {
                             let route =
                                 world_topology::routes(self.world_index, &self.puzzle)[portal];
@@ -753,7 +767,13 @@ impl CubeScene {
             }
             SceneMode::World => {
                 let asset = &self.active_world.as_ref().unwrap().scene;
-                let base = self.worlds[self.world_index].cubes.len();
+                let base = if self.network_singleton {
+                    self.network_world
+                        .as_ref()
+                        .map_or(0, |world| world.asset.cubes.len())
+                } else {
+                    self.worlds[self.world_index].cubes.len()
+                };
                 self.placed_reveal
                     .begin_frame(elapsed_millis, asset.cubes.len() - base);
                 let eye = self.flycam.camera.position;
@@ -1251,6 +1271,14 @@ impl CubeScene {
         let r_held = state
             .as_ref()
             .is_some_and(|keyboard| keyboard.is_down(0x15));
+        let network_held = state
+            .as_ref()
+            .is_some_and(|keyboard| keyboard.is_down(0x25));
+        self.network.key(
+            network_held,
+            self.flycam.camera.position,
+            self.flycam.camera.rotation.rotate([0.0, 0.0, -1.0]),
+        );
         let current = state.map_or(0, |keyboard| {
             (keyboard.is_down(0x1e) as u8)
                 | ((keyboard.is_down(0x1f) as u8) << 1)
@@ -1266,6 +1294,8 @@ impl CubeScene {
             self.orchards.len(),
             self.worlds.len(),
         ) {
+            self.network_singleton = false;
+            self.network_world = None;
             if self.portal_trip.is_some() {
                 self.puzzle.cancel_travel(self.previous_elapsed_millis);
             }
@@ -1277,6 +1307,47 @@ impl CubeScene {
             self.previous_elapsed_millis,
         );
         Ok(())
+    }
+
+    fn service_network_world(&mut self) -> Result<(), CubeError> {
+        let Some(result) = self.network.take_ready() else {
+            return Ok(());
+        };
+        let bytes = match result {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                logl::log(level::INFO, format_args!("Cubes: Key8 cubesrv {error}"));
+                return Ok(());
+            }
+        };
+        let mut asset =
+            orchard::decode(WORLD_ASSETS[world_topology::VOID].0, &bytes).map_err(|error| {
+                logl::log(
+                    level::WARN,
+                    format_args!("Cubes: Key8 cubesrv world rejected={error}"),
+                );
+                CubeError::Contract
+            })?;
+        for cube in &mut asset.cubes {
+            cube.center = orchard::world_from_demo(cube.center);
+        }
+        logl::log(
+            level::INFO,
+            format_args!(
+                "Cubes: Key8 cubesrv connected world=27 bytes={} cubes={}",
+                bytes.len(),
+                asset.cubes.len()
+            ),
+        );
+        self.network_world = Some(NetworkWorld { bytes, asset });
+        self.network_singleton = true;
+        self.select_mode(
+            modes::Selection {
+                mode: SceneMode::World,
+                page: Some(world_topology::VOID),
+            },
+            None,
+        )
     }
 
     fn place_selected_asset(&mut self) -> Result<(), CubeError> {
@@ -1573,11 +1644,28 @@ impl CubeScene {
             );
         } else if mode == SceneMode::World {
             self.flycam = FlyCam::new(default_camera(), 3.0);
-            let mut camera = walker_camera::CubesWalkerCam::from_portal(
-                WORLD_ASSETS[self.world_index].1,
-                self.world_index == world_topology::VOID,
-                arrival,
-            );
+            let (world_name, world_bytes, asset) = if self.network_singleton {
+                let network = self.network_world.as_ref().ok_or(CubeError::Contract)?;
+                (network.asset.name, network.bytes.as_slice(), &network.asset)
+            } else {
+                (
+                    WORLD_ASSETS[self.world_index].0,
+                    WORLD_ASSETS[self.world_index].1,
+                    &self.worlds[self.world_index],
+                )
+            };
+            let mut camera = if self.network_singleton {
+                walker_camera::CubesWalkerCam::from_world(
+                    world_bytes,
+                    self.world_index == world_topology::VOID,
+                )
+            } else {
+                walker_camera::CubesWalkerCam::from_portal(
+                    world_bytes,
+                    self.world_index == world_topology::VOID,
+                    arrival,
+                )
+            };
             let placed_bounds: Vec<_> = self.asset_brush.worlds[self.world_index]
                 .iter()
                 .map(|c| (c.center, c.scale))
@@ -1590,14 +1678,9 @@ impl CubeScene {
             self.flycam.camera.rotation = rotation;
             self.walker_camera = Some(camera);
             self.background
-                .select_world(
-                    WORLD_ASSETS[self.world_index].0,
-                    self.flycam.camera.rotation.0,
-                )
+                .select_world(world_name, self.flycam.camera.rotation.0)
                 .map_err(|error| CubeError::Ui4("background-world", error))?;
-            let asset = &self.worlds[self.world_index];
-            let palette = environment::Palette::for_world(WORLD_ASSETS[self.world_index].0)
-                .ok_or(CubeError::Contract)?;
+            let palette = environment::Palette::for_world(world_name).ok_or(CubeError::Contract)?;
             // One hardware-register update per Key-5 selection, not per
             // frame or mouse movement. Preserve the world if unavailable.
             if let Err(error) = self.frame.set_display_bottom_color(palette.average_rgb()) {
@@ -1609,7 +1692,7 @@ impl CubeScene {
             self.active_world = Some(world_portals::World::new(
                 self.world_index,
                 asset,
-                WORLD_ASSETS[self.world_index].1,
+                world_bytes,
                 &self.puzzle,
             ));
             self.active_world
@@ -1621,13 +1704,23 @@ impl CubeScene {
             logl::log(
                 level::INFO,
                 format_args!(
-                    "Cubes: Key5 world={}/{} asset={} authored={} first_person=surface_walk streamed_nearest={} renderer_seed_limit={}",
+                    "Cubes: {} world={}/{} asset={} authored={} first_person=surface_walk streamed_nearest={} renderer_seed_limit={} portals={}",
+                    if self.network_singleton {
+                        "Key8 cubesrv"
+                    } else {
+                        "Key5"
+                    },
                     self.world_index + 1,
                     self.worlds.len(),
                     asset.name,
                     asset.cubes.len(),
                     WORLD_SEED_BUDGET,
-                    grid::MAX_SEED_COUNT
+                    grid::MAX_SEED_COUNT,
+                    if self.network_singleton {
+                        "disabled"
+                    } else {
+                        "enabled"
+                    }
                 ),
             );
         } else if mode != SceneMode::StaticCube {
@@ -1659,7 +1752,9 @@ impl CubeScene {
                 if mode == SceneMode::Orchard {
                     self.orchards[self.orchard_index].cubes.len()
                 } else if mode == SceneMode::World {
-                    self.worlds[self.world_index].cubes.len()
+                    self.active_world
+                        .as_ref()
+                        .map_or(0, |world| world.scene.cubes.len())
                 } else {
                     mode.seed_count()
                 },
