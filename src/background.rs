@@ -6,7 +6,7 @@ use trueos::ui4_scene::{BackgroundLayer, Error, ShadertoyParamsV1};
 
 const SHADER: u32 = 16;
 const PACKAGE: &[u8] = include_bytes!("../Cube/mandelbox/mandelbox.stpkg");
-const CLOUD_PACKAGE: &[u8] = include_bytes!("../Cube/protean_clouds/protean_clouds.stpkg");
+const PALETTE_PACKAGE: &[u8] = include_bytes!("../Cube/palette_grid/palette_grid.stpkg");
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
@@ -32,14 +32,14 @@ pub struct Background {
     generation: u32,
     palette: Palette,
     follower: RotationFollower,
-    cloud_time: f64,
+    palette_time: f64,
 }
 
 impl Background {
     pub fn start(mut layer: BackgroundLayer) -> Result<Self, Error> {
         layer.set_opacity(128)?;
         layer.register_shadertoy(SHADER, PACKAGE)?;
-        layer.register_shadertoy(6, CLOUD_PACKAGE)?;
+        layer.register_shadertoy(4, PALETTE_PACKAGE)?;
         let shared = Arc::new(Shared {
             sequence: AtomicU32::new(0),
             command: core::array::from_fn(|_| AtomicU32::new(0)),
@@ -81,7 +81,7 @@ impl Background {
                     // Program 16 owns one resident cubemap. Only a new generation
                     // runs the expensive bake; orientation/extent only resample it.
                     let params = ShadertoyParamsV1 {
-                        shader_id: if command[0] == 2 { 6 } else { SHADER },
+                        shader_id: if command[0] == 2 { 4 } else { SHADER },
                         frame: command[1],
                         frame_rate: 60.0,
                         mouse_x: f32::from_bits(command[7]),
@@ -94,8 +94,12 @@ impl Background {
                         date_day: command[4] as f32,
                         sample_rate: command[5] as f32,
                         date_seconds: command[6] as f32,
-                        time_seconds: command[0] as f32,
-                        flags: if command[0] == 2 { 4 } else { 0 },
+                        time_seconds: if command[0] == 2 {
+                            f32::from_bits(command[2])
+                        } else {
+                            command[0] as f32
+                        },
+                        flags: 0,
                     };
                     if let Err(error) = layer.render_shadertoy(&params) {
                         failed(&worker, error);
@@ -103,7 +107,7 @@ impl Background {
                     }
                     completed = sequence;
                     // Leave a write-free interval for paired resize staging.
-                    trueos::vsys::sleep_ms(16);
+                    trueos::vsys::sleep_ms(if command[0] == 2 { 1 } else { 16 });
                 }
                 worker.done.store(true, Ordering::Release);
             })
@@ -115,7 +119,7 @@ impl Background {
             generation: 0,
             palette: Palette::for_world("world_27_void").unwrap(),
             follower: RotationFollower::new([0.0, 0.0, 0.0, 1.0]),
-            cloud_time: 0.,
+            palette_time: 0.,
         })
     }
 
@@ -157,10 +161,11 @@ impl Background {
             ]);
         }
         if mode == Mode::Cube {
-            self.cloud_time += delta_seconds.clamp(0., 0.1) as f64;
-            // 96 cached samples, reflected playback: no discontinuous time wrap.
+            self.palette_time += delta_seconds.max(0.) as f64;
+            // Native procedural evaluation: no cached frames, resolution cap, or replay.
             command[0] = 2;
-            command[1] = ((self.cloud_time * 24.) as u64 % 190) as u32;
+            command[1] = (self.palette_time * 60.) as u32;
+            command[2] = (self.palette_time as f32).to_bits();
         }
         // Other modes retain the neutral shade; their cameras cause no work.
         command[12] = extent.0;
