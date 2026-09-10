@@ -2,6 +2,9 @@
 use crate::environment::{Palette, RotationFollower};
 use alloc::sync::Arc;
 use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use alloc::vec::Vec;
+use std::sync::Mutex;
+use crate::pointlist;
 use trueos::ui4_scene::{BackgroundLayer, Error, ShadertoyParamsV1};
 
 /// Enable Key5's Mandelbox geometry, resident cubemap bake and view projection.
@@ -19,12 +22,13 @@ pub enum Mode {
     Cube,
 }
 
-const COMMAND_WORDS: usize = 14;
+const COMMAND_WORDS: usize = 15;
 
 struct Shared {
     sequence: AtomicU32,
     // enabled, generation, RGB x3, color count, preset, quaternion x4, FOV, extent.
     command: [AtomicU32; COMMAND_WORDS],
+    points: Mutex<Vec<pointlist::Point>>,
     stop: AtomicBool,
     done: AtomicBool,
     failed: AtomicBool,
@@ -37,6 +41,8 @@ pub struct Background {
     palette: Palette,
     follower: RotationFollower,
     palette_time: f64,
+    resize_generation: u32,
+    point_generation: u32,
 }
 
 impl Background {
@@ -49,6 +55,7 @@ impl Background {
         let shared = Arc::new(Shared {
             sequence: AtomicU32::new(0),
             command: core::array::from_fn(|_| AtomicU32::new(0)),
+            points: Mutex::new(Vec::new()),
             stop: AtomicBool::new(false),
             done: AtomicBool::new(false),
             failed: AtomicBool::new(false),
@@ -60,6 +67,7 @@ impl Background {
             trueos::worker::spawn(move || {
                 let mut completed = u32::MAX;
                 let mut opacity = 0;
+                let mut points_renderer = None;
                 while !worker.stop.load(Ordering::Acquire)
                     && !trueos::worker::cancellation_requested()
                 {
@@ -71,11 +79,13 @@ impl Background {
                     let command = core::array::from_fn::<_, COMMAND_WORDS, _>(|i| {
                         worker.command[i].load(Ordering::SeqCst)
                     });
+                    let mut points = if command[0] == 3 {
+                        worker.points.lock().unwrap().clone()
+                    } else { Vec::new() };
                     if worker.sequence.load(Ordering::SeqCst) != sequence {
                         continue;
                     }
-                    let hidden = !WORLD_MANDELBOX_ENABLED && command[0] == 0;
-                    let next_opacity = if hidden { 0 } else { 128 };
+                    let next_opacity = if command[0] == 3 { 255 } else { 128 };
                     if next_opacity != opacity {
                         if let Err(error) = layer.set_opacity(next_opacity) {
                             failed(&worker, error);
@@ -83,10 +93,26 @@ impl Background {
                         }
                         opacity = next_opacity;
                     }
-                    // Hide any previous Key2 image, with no GPU frame, cubemap
-                    // allocation, geometry bake or background projection.
-                    if hidden {
+                    if command[0] == 0 || command[0] == 3 {
+                        if points_renderer.is_none() {
+                            match pointlist::Renderer::new() {
+                                Ok(renderer) => points_renderer = Some(renderer),
+                                Err(code) => {
+                                    trueos::logl::log(trueos::logl::level::ERROR,
+                                        format_args!("Cubes: point-list renderer init error={code}"));
+                                    failed(&worker, Error::Ui4); break;
+                                }
+                            }
+                        }
+                        if command[0] == 0 { points = pointlist::pattern(command[1] as u64 * pointlist::PATTERN_MS); }
+                        let batch = pointlist::Batch::new(&mut points);
+                        let result = points_renderer.as_ref().unwrap().render(&mut layer, &batch,
+                            (command[12],command[13]), || worker.stop.load(Ordering::Acquire)
+                                || trueos::worker::cancellation_requested());
+                        if worker.stop.load(Ordering::Acquire) || trueos::worker::cancellation_requested() { break; }
+                        if let Err(error) = result { failed(&worker,error); break; }
                         completed = sequence;
+                        trueos::vsys::sleep_ms(10);
                         continue;
                     }
                     match layer.begin_gpu_frame() {
@@ -142,6 +168,8 @@ impl Background {
             palette: Palette::for_mandelbox_world("world_27_void").unwrap(),
             follower: RotationFollower::new([0.0, 0.0, 0.0, 1.0]),
             palette_time: 0.,
+            resize_generation: 0,
+            point_generation: 0,
         })
     }
 
@@ -192,21 +220,49 @@ impl Background {
             command[1] = (self.palette_time * 60.) as u32;
             command[2] = (self.palette_time as f32).to_bits();
         }
-        // With Mandelbox disabled, non-Key2 modes hide the background layer.
-        // Otherwise they retain its neutral shade; cameras cause no work.
+        if command[0] == 0 {
+            command[1] = (trueos::clock::monotonic_millis() / pointlist::PATTERN_MS) as u32;
+        }
         command[12] = extent.0;
         command[13] = extent.1;
+        command[14] = self.resize_generation;
+        self.send(command, None);
+        Ok(())
+    }
+
+    /// A resize transaction needs publication even if it returns to an earlier
+    /// extent before the worker wakes (A -> B -> A). Do not deduplicate by size.
+    pub fn resized(&mut self) {
+        self.resize_generation = self.resize_generation.wrapping_add(1);
+    }
+
+    pub fn world_points(&mut self, cubes: &[crate::orchard::Cube], matrix: &[f32;16], extent: (u32,u32)) -> Result<(), Error> {
+        if self.shared.failed.load(Ordering::Acquire) { return Err(Error::Ui4); }
+        let mut points = Vec::with_capacity(cubes.len());
+        pointlist::project(cubes, matrix, &mut points);
+        self.point_generation = self.point_generation.wrapping_add(1);
+        let mut command = [0; COMMAND_WORDS];
+        command[0] = 3;
+        command[1] = self.point_generation;
+        command[12] = extent.0;
+        command[13] = extent.1;
+        command[14] = self.resize_generation;
+        self.send(command, Some(points));
+        Ok(())
+    }
+
+    fn send(&mut self, command: [u32; COMMAND_WORDS], points: Option<Vec<pointlist::Point>>) {
         if command != self.previous {
             // A single publisher and atomic fields give the worker one coherent
             // latest command. No camera-update queue accumulates behind a bake.
             self.shared.sequence.fetch_add(1, Ordering::SeqCst);
+            if let Some(points) = points { *self.shared.points.lock().unwrap() = points; }
             for (destination, value) in self.shared.command.iter().zip(command) {
                 destination.store(value, Ordering::SeqCst);
             }
             self.shared.sequence.fetch_add(1, Ordering::SeqCst);
             self.previous = command;
         }
-        Ok(())
     }
 }
 

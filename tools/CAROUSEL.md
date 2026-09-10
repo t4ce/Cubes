@@ -29,8 +29,8 @@ share the placement reveal controller: 333 ms initial delay, 1,600 starts/s,
 all five assets; moving existing instances keeps their reveal state.
 
 The selected slot has a hollow cubic frame made only of c1 and c2 cubes. A
-half-visible band travels around its XZ perimeter every four seconds, with linear
-320 ms growth at one end and shrink at the other. The frame is present immediately
+half-visible band travels around its XZ perimeter every four seconds, with shared
+Bounce + Uniform growth over 320 ms at one end and linear shrink at the other. The frame is present immediately
 and runs independently of wheel input, group changes and asset reveal budgets.
 Its size and position stay fixed. The four retained assets
 slide smoothly to their next positions; the outgoing edge instance is recycled

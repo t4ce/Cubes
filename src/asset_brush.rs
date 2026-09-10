@@ -125,8 +125,11 @@ pub fn lod_distance_squared(center: [f32; 3], eye: [f32; 3], view: &[f32; 16]) -
     (radial_squared - (1. - 1. / (LOD_FORWARD_REACH * LOD_FORWARD_REACH)) * along * along).max(0.)
 }
 pub fn detailed(rank: usize, cube: Cube, distance_squared: f32, projection_y: f32, height: u32) -> bool {
+    detailed_with_budget(rank, cube, distance_squared, projection_y, height, FULL_WORLD_SEEDS)
+}
+pub fn detailed_with_budget(rank: usize, cube: Cube, distance_squared: f32, projection_y: f32, height: u32, budget: usize) -> bool {
     let projected = cube.scale * height as f32 * projection_y.abs();
-    rank < FULL_WORLD_SEEDS && projected * projected >= 4. * distance_squared.max(0.000001)
+    rank < budget && projected * projected >= 4. * distance_squared.max(0.000001)
 }
 
 #[cfg(test)]

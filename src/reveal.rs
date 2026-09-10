@@ -12,7 +12,7 @@ pub const GROWTH_MS: u64 = 700;
 
 /// Uniform acceleration / constant speed / deceleration, then two shrinking
 /// bounce dips. No overshoot beyond the authored bounds and no transcendental math.
-fn bounce_uniform(t: f32) -> f32 {
+pub(crate) fn bounce_uniform(t: f32) -> f32 {
     let t = t.clamp(0., 1.);
     if t < 0.65 {
         let u = t / 0.65;

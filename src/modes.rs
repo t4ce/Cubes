@@ -42,7 +42,7 @@ impl ModeKeys {
             SceneMode::StaticCube
         } else if pressed & 8 != 0 && orchards > 0 {
             SceneMode::Orchard
-        } else if pressed & 16 != 0 && worlds > 0 {
+        } else if pressed & (16 | 32) != 0 && worlds > 0 {
             SceneMode::World
         } else if pressed & 64 != 0 {
             SceneMode::MaterialShowcase

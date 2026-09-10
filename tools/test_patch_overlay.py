@@ -19,7 +19,7 @@ class OverlayBuildTests(unittest.TestCase):
                 shutil.copy2(ROOT / name, app / name)
             manifest = (ROOT / "Cargo.toml").read_text()
             # Blueprint rewrites path dependencies to the real workspace too.
-            for dependency in ("TRUEOS-Blueprints/api", "TRUEOS-Picasso"):
+            for dependency in ("TRUEOS-Blueprints/api", "TRUEOS-Picasso", "PotatoStamps"):
                 manifest = manifest.replace(f'"../{dependency}"', f'"{ROOT.parent / dependency}"')
             (app / "Cargo.toml").write_text(manifest)
             self.assertFalse((app.parent / "TRUEOS").exists())

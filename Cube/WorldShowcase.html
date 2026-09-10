@@ -340,7 +340,7 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
   <strong>Build camera</strong><span>Drag to orbit. Scroll to zoom. Right-drag to pan. Home frames the world. Alt-drag also orbits while placing or removing.</span>
   <strong>World layout</strong><span>Each world remains 4 × 4 × 4 chunks. Each chunk is 64 × 64 × 64 c4 cells, or 512³ c1 units. The full world is now 2048³ c1 units: eight times the previous side length. Cube tier sizes themselves are unchanged.</span>
   <strong>Place / remove</strong><span>Place a c1 control cube at the center of a new platform. Placement addresses snap to the c4 terrain grid; the control is centered on the actual footprint. Its platform, growth, and local branch belong to it. With tower demos visible, click the tower to select or remove the same owner. Keys 1 / 2 / 3 choose Select / Place / Remove. Deleting an owner does not remove other platforms or the main network.</span>
-  <strong>Platform size</strong><span>Platforms and paths both use c4 cubes (8 c1 per side) on the same lattice. The seeded 16–24 roll stays the same: 16–21 remain unchanged; 22 / 23 / 24 become 44 / 46 / 48 c4 across. The four platform layers are each c4 thick. Generated and manual platforms use the same full-cube terracing, with no small finishing rim. Placed platforms keep their pinned rolls when the world regenerates.</span>
+  <strong>Platform size</strong><span>Platforms and paths both use c4 cubes (8 c1 per side) on the same lattice. The seeded 16–24 roll stays the same: 16–21 remain unchanged; 22 / 23 / 24 become 44 / 46 / 48 c4 across. The top two platform layers are each c4 thick. Generated and manual platforms use the same full-cube terracing, with no small finishing rim. Placed platforms keep their pinned rolls when the world regenerates.</span>
   <strong>Cube-size towers</strong><span>Seven cubes, one per tier: bottom to top r3 (12), c4 (8), r2 (6), c3 (4), r1 (3), c2 (2), c1 (1). Each tower is 36 c1 tall and centered on its platform. Inspect tower zooms in and labels each cube. These display-only rulers do not affect routes, collision, or budgets; toggle them off to reveal manual control cubes.</span>
   <strong>Small-cube growth</strong><span>Optional growth is off by default. Each platform retains its independent 250–500% roll. When enabled, it adds connected c3 (4 c1) shelves, exactly half the side length of the c4 terrain cubes. No extra cube tiers are introduced.</span>
   <strong>Local branches</strong><span>With automatic paths on, each owned platform gets one link to existing generated terrain. In a blank world, the first cube grows an isolated platform; later platforms connect to earlier ones. With automatic paths off, the platforms remain and only the paths are hidden. Removing an empty-world anchor repairs only dependent links. World 27 offers all six colours plus Void.</span>
@@ -775,7 +775,7 @@ function manualSupportPoint(d,m){const p=cellOrigin(d,m.cell);return [p.x,p.y-SL
 function platformBounds(d,m,platformSize=null){
  const p=cellOrigin(d,m.cell),count=platformSize??platformProfile(d,m).size;
  const left=-Math.floor(count/2)*SLOT,size=count*SLOT;
- return {lo:p.clone().add(new V3(left,-4*SLOT,left)),hi:p.clone().add(new V3(left+size,0,left+size))};
+ return {lo:p.clone().add(new V3(left,-2*SLOT,left)),hi:p.clone().add(new V3(left+size,0,left+size))};
 }
 function platformCenter(d,m){const b=platformBounds(d,m);return new V3((b.lo.x+b.hi.x)/2,b.hi.y,(b.lo.z+b.hi.z)/2);}
 function platformAssetBounds(d,m){
@@ -842,8 +842,8 @@ function themeIndexAt(world,p,seed=0){p=p.clone().multiplyScalar(1/SLOT);if(worl
 function moduleVoxels(world,d,m,put){
  const p=cellOrigin(d,m.cell),owner=(m.kind==='manual'?'cube-platform:':'platform:')+cellKey(m.cell),variant=m.variant||0;
  const size=platformProfile(d,m).size;
- // Identical c4 terracing for generated and owned platforms. No small-cube rim.
- for(let layer=0;layer<4;layer++){
+ // Retain the two largest top terraces for generated and owned platforms.
+ for(let layer=0;layer<2;layer++){
   const width=size-layer*2,lo=-Math.floor(width/2),hi=lo+width,cut=Math.floor(width*.18);
   for(let x=lo;x<hi;x++)for(let z=lo;z<hi;z++){
    if(Math.min(x-lo,hi-1-x)+Math.min(z-lo,hi-1-z)<cut)continue;
@@ -990,7 +990,7 @@ function buildBaseGeometry(world,d){
  * removal never edits the generated base or any other platform's contribution. */
 function buildOwnedPlatform(world,d,m,reuse=null){
  const profile=platformProfile(d,m),seed=m.platform?.seed??d.config.seed;
- const signature=JSON.stringify(['c4-owned-v16',world.id,d.spanChunks,m.cell,m.variant,profile.size,profile.growth,seed]);
+ const signature=JSON.stringify(['c4-owned-v17',world.id,d.spanChunks,m.cell,m.variant,profile.size,profile.growth,seed]);
  if(reuse?.signature===signature)return reuse;buildStats.platformBuilds++;
  const primary=new Map(),owner='cube-platform:'+cellKey(m.cell);
  moduleVoxels(world,d,m,(x,y,z,kind,owner,variant)=>primary.set(voxelKey(x,y,z),{x,y,z,size:SLOT,kind,owner,variant}));

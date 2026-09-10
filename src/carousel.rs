@@ -313,8 +313,10 @@ fn frame_scale(center: [f32; 3], now: u64) -> f32 {
     };
     let phase =
         (distance / (8. * half) + (now % FRAME_CYCLE_MS) as f32 / FRAME_CYCLE_MS as f32) % 1.;
-    // Half the perimeter is active. Linear 320ms growth/shrink at opposite ends.
-    (phase / 0.08).min((0.5 - phase) / 0.08).clamp(0., 1.)
+    // Half the perimeter is active. Shared Bounce + Uniform growth over 320ms,
+    // with a linear shrink at the trailing end.
+    reveal::bounce_uniform(phase / 0.08)
+        .min(((0.5 - phase) / 0.08).clamp(0., 1.))
 }
 fn asset_pose(cubes: &[Cube]) -> ([f32; 3], f32) {
     let mut lo = [f32::INFINITY; 3];
@@ -578,7 +580,7 @@ mod tests {
         }
     }
     #[test]
-    fn frame_half_duty_cycle_and_linear_growth_shrink_loop() {
+    fn frame_half_duty_cycle_bounce_growth_and_linear_shrink_loop() {
         let cubes = frame_cubes();
         for cube in &cubes {
             let showing = (0..FRAME_CYCLE_MS)
@@ -596,7 +598,7 @@ mod tests {
         let corner = [-8. * C1; 3];
         for (now, expected) in [
             (0, 0.),
-            (160, 0.5),
+            (160, reveal::bounce_uniform(0.5)),
             (320, 1.),
             (1000, 1.),
             (1840, 0.5),
@@ -605,5 +607,8 @@ mod tests {
         ] {
             assert!((frame_scale(corner, now) - expected).abs() < 1e-6);
         }
+        // The leading end must include the same bounce dip as asset growth.
+        assert!(frame_scale(corner, 242) < frame_scale(corner, 208));
+        assert!(frame_scale(corner, 298) > frame_scale(corner, 242));
     }
 }
