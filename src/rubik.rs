@@ -139,6 +139,30 @@ impl Puzzle {
         self.rng ^= now as u32 ^ ((id as u32 + 1) * 7919);
         true
     }
+    /// Cancel an automatic journey without altering committed lattice poses.
+    pub fn cancel_travel(&mut self, now: u64) {
+        self.turn = None;
+        self.selected = None;
+        self.completed = 0;
+        self.opened = now;
+        self.previous_axis = None;
+    }
+    /// One portal-travel turn moves both adjacent worlds in the same layer.
+    pub fn travel_turn(&mut self, source: usize, destination: usize, now: u64) {
+        let a = self.cubies[source].cell;
+        let b = self.cubies[destination].cell;
+        let axis = (0..3).find(|&axis| a[axis] == b[axis]).unwrap();
+        self.selected = Some(source);
+        self.opened = now;
+        self.completed = 2;
+        self.previous_axis = Some(axis);
+        self.turn = Some(Turn {
+            axis,
+            layer: a[axis],
+            direction: 1,
+            started: now,
+        });
+    }
     pub fn selected(&self) -> Option<usize> {
         self.selected
     }

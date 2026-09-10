@@ -149,9 +149,60 @@ pub fn routes(world: usize, puzzle: &Puzzle) -> Routes {
     })
 }
 
+/// Current cube-view normal of an authored portal, including inward neighbor faces.
+pub fn portal_normal(world: usize, portal: usize, puzzle: &Puzzle) -> [f32; 3] {
+    let (cell, basis) = puzzle.lattice_pose(cubie(world));
+    if let Destination::World(target) = routes(world, puzzle)[portal] {
+        let (neighbor, _) = puzzle.lattice_pose(cubie(target));
+        return core::array::from_fn(|a| (neighbor[a] - cell[a]) as f32);
+    }
+    if world == VOID {
+        return [0., 0., 1.];
+    }
+    let rank = authored_routes(world)
+        .iter()
+        .take(portal)
+        .filter(|&&d| d == Destination::Leave)
+        .count();
+    let local = solved_cell(world);
+    let axis = (0..3).filter(|&a| local[a] != 0).nth(rank).unwrap_or(0);
+    basis[axis].map(|x| (x * local[axis]) as f32)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn portal_travel_commits_one_turn_and_keeps_the_selected_connection() {
+        let mut puzzle = Puzzle::new(0);
+        for source in 0..27 {
+            for portal in 0..7 {
+                let Destination::World(destination) = routes(source, &puzzle)[portal] else {
+                    continue;
+                };
+                let revision = puzzle.revision();
+                puzzle.travel_turn(cubie(source), cubie(destination), 10_000);
+                assert!(puzzle.locked());
+                puzzle.update(10_999);
+                assert_eq!(puzzle.revision(), revision);
+                puzzle.update(11_000);
+                puzzle.update(20_000);
+                assert_eq!(puzzle.revision(), revision + 1);
+                assert!(!puzzle.locked());
+                assert_eq!(puzzle.expansion(11_000), 1.);
+                assert_eq!(
+                    routes(source, &puzzle)[portal],
+                    Destination::World(destination)
+                );
+                let arrival = routes(destination, &puzzle)
+                    .iter()
+                    .position(|&d| d == Destination::World(source))
+                    .unwrap();
+                let normal = portal_normal(destination, arrival, &puzzle);
+                assert_eq!(normal.iter().map(|v| v.abs()).sum::<f32>(), 1.);
+            }
+        }
+    }
     #[test]
     fn roster_is_a_bijection_and_solved_topology_matches_the_exports() {
         let puzzle = Puzzle::new(0);

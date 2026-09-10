@@ -1,15 +1,22 @@
 # World walker camera
 
 `src/CubesWalkerCam.rs` replaces the flat world-plane controller in World View.
-Use **5 or F5** to enter/cycle worlds. Each page starts inside its north standing
-portal, facing the world center. Void starts in its center portal, facing -Z.
-World cycling has no source/arrival portal, so entry uses this deterministic rule.
+Use **5 or F5** to enter/cycle worlds. Arrival is one authored voxel in front
+of the portal's inner plane, standing on its 2×2 connector and facing the world
+center. World cycling uses the north portal; Void uses its central portal and
+faces -Z. If there is no nearby support, arrival stays in drift.
 
-Key2 click journeys instead arrive at the selected world's equivalent Leave
-portal, centered laterally and looking toward the world origin in free drift.
-If terrain backs the opening, arrival moves inward until clear. Local sticker
+Key2 clicks use the selected sticker's equivalent Leave portal. Local sticker
 axes are ranked X/Y/Z: pure worlds use top; duo worlds use bottom/top; trio worlds
-use west/bottom/top. This mapping survives puzzle rotations. Space flies toward the aimed surface and attaches when ready to walk.
+use west/bottom/top. This mapping survives puzzle rotations.
+
+Entering a world-linked portal fades out the world and reverses the cube-entry
+flight into Key2. Exactly one quarter-turn moves both connected cubies together
+while the puzzle expands. The camera then approaches the destination's matching
+return face and fades into that world. Generic Leave portals finish in Key2
+without a turn or re-entry. Mode hotkeys cancel automatic travel. Portal entry
+is blocked for five seconds after arrival; Space push-off/approach has no cooldown.
+The trigger tests a crossing of the opening, not contact with its decorative ring.
 
 - Mouse: look; WASD or arrows: walk; either Shift: twice normal walking speed.
 - Flight speed is twice the original; Shift retains the 2.8× flight boost.
@@ -20,7 +27,7 @@ use west/bottom/top. This mapping survives puzzle rotations. Space flies toward 
   push-off. Holding Space through launch does not immediately trigger a return.
 - Q/E while walking: visual lean up to ±13.5° (15% of a quarter-turn), returning
   quickly on release without affecting movement. In flight: roll at 90°/s.
-  Flight mouse-look follows the rolled screen axes, with unrestricted local turns.
+  Flight mouse-look and A/D strafing follow the rolled screen axes, with unrestricted local turns.
   Home resets roll.
 - F and Ctrl have no camera binding.
 - Aim at a cube in drift: its white wireframe marks the Space destination.

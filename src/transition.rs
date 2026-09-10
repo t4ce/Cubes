@@ -8,6 +8,29 @@ pub struct Flight {
     pub up: [f32; 3],
     pub points: [[f32; 3]; 4],
 }
+pub const PORTAL_COOLDOWN_MS: u64 = 5_000;
+pub struct PortalTrip {
+    pub source: usize,
+    pub portal: usize,
+    pub destination: Option<usize>,
+    pub stage: PortalStage,
+}
+pub enum PortalStage {
+    FadeOut(u64),
+    Exit(Flight),
+    Turn,
+    Enter { flight: Flight, arrival: usize },
+}
+impl PortalTrip {
+    pub fn opacity(&self, now: u64) -> u8 {
+        match &self.stage {
+            PortalStage::FadeOut(start) => 255 - reveal_opacity(now.saturating_sub(*start)),
+            PortalStage::Exit(flight) => reveal_opacity(now.saturating_sub(flight.started)),
+            PortalStage::Turn => 255,
+            PortalStage::Enter { flight, .. } => flight.opacity(now),
+        }
+    }
+}
 /// Bend toward the clicked face, with a final tangent perpendicular to its center.
 /// The normal is the clicked local sticker normal after the puzzle's final turn.
 pub fn face_approach(

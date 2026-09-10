@@ -119,6 +119,8 @@ struct CubeScene {
     last_camera_activity_millis: u64,
     finished_at: Option<u64>,
     flight: Option<transition::Flight>,
+    portal_trip: Option<transition::PortalTrip>,
+    portal_ready_at: u64,
     selected_entry: Option<(usize, usize)>,
     selected_face_axis: Option<usize>,
     arrival_fade: Option<u64>,
@@ -322,6 +324,8 @@ impl CubeScene {
             last_camera_activity_millis: 0,
             finished_at: None,
             flight: None,
+            portal_trip: None,
+            portal_ready_at: 0,
             selected_entry: None,
             selected_face_axis: None,
             arrival_fade: None,
@@ -382,12 +386,13 @@ impl CubeScene {
             if event.dx != 0 || event.dy != 0 {
                 self.last_camera_activity_millis = elapsed_millis;
             }
-            if self.mode == SceneMode::World {
+            if self.mode == SceneMode::World && self.portal_trip.is_none() {
                 if let Some(camera) = self.walker_camera.as_mut() {
                     camera.look(event.dx as f32, event.dy as f32);
                 }
             }
             if self.mode == SceneMode::StaticCube
+                && self.portal_trip.is_none()
                 && self.puzzle.selected().is_none()
                 && event.buttons_pressed & 1 != 0
             {
@@ -433,7 +438,7 @@ impl CubeScene {
         }
         let width = self.frame.width();
         let height = self.frame.height();
-        {
+        if self.portal_trip.is_none() {
             let held = |key| {
                 routes
                     .iter()
@@ -449,6 +454,7 @@ impl CubeScene {
             let mut target = [0.0; 3];
             if self.mode == SceneMode::World {
                 if let Some(camera) = self.walker_camera.as_mut() {
+                    let before = camera.pose().0;
                     camera.update(
                         walker_camera::Input {
                             forward: ((held(0x1a) || held(0x52)) as i32
@@ -469,6 +475,23 @@ impl CubeScene {
                     let (position, rotation) = camera.pose();
                     self.flycam.camera.position = position;
                     self.flycam.camera.rotation = rotation;
+                    if elapsed_millis >= self.portal_ready_at {
+                        if let Some(portal) = camera.crossed_portal(before) {
+                            let route =
+                                world_topology::routes(self.world_index, &self.puzzle)[portal];
+                            if route != world_topology::Destination::None {
+                                self.portal_trip = Some(transition::PortalTrip {
+                                    source: self.world_index,
+                                    portal,
+                                    destination: match route {
+                                        world_topology::Destination::World(w) => Some(w),
+                                        _ => None,
+                                    },
+                                    stage: transition::PortalStage::FadeOut(elapsed_millis),
+                                });
+                            }
+                        }
+                    }
                 }
             }
             if self.mode == SceneMode::StaticCube
@@ -618,7 +641,10 @@ impl CubeScene {
                 }
             }
         }
-        let opacity = if let Some(flight) = &self.flight {
+        self.update_portal_trip(elapsed_millis)?;
+        let opacity = if let Some(trip) = &self.portal_trip {
+            trip.opacity(elapsed_millis)
+        } else if let Some(flight) = &self.flight {
             flight.opacity(elapsed_millis)
         } else if let Some(start) = self.arrival_fade {
             let elapsed = elapsed_millis.saturating_sub(start);
@@ -1084,6 +1110,9 @@ impl CubeScene {
             self.orchards.len(),
             self.worlds.len(),
         ) {
+            if self.portal_trip.is_some() {
+                self.puzzle.cancel_travel(self.previous_elapsed_millis);
+            }
             self.select_mode(selection, None)?;
         }
         self.world_cube.key(
@@ -1094,12 +1123,160 @@ impl CubeScene {
         Ok(())
     }
 
+    fn portal_flight(
+        &self,
+        world: usize,
+        portal: usize,
+        now: u64,
+        reverse: bool,
+    ) -> transition::Flight {
+        let (cell, _) = self.puzzle.pose(world_topology::cubie(world), 0., 1.);
+        let spacing = if reverse {
+            grid::CUBE_COMPACT_SPACING
+        } else {
+            grid::CUBE_GRID_SPACING
+        };
+        let center = cell.map(|v| v * spacing);
+        let normal = world_topology::portal_normal(world, portal, &self.puzzle);
+        let up = if normal[1].abs() > 0.9 {
+            [0., 0., 1.]
+        } else {
+            [0., 1., 0.]
+        };
+        let start = if reverse {
+            let outward: [f32; 3] = core::array::from_fn(|i| cell[i] + normal[i] * 2.);
+            let length = libm::sqrtf(outward.iter().map(|x| x * x).sum::<f32>()).max(0.1);
+            outward.map(|v| v * 7.5 / length)
+        } else {
+            self.flycam.camera.position
+        };
+        let mut points =
+            transition::face_approach(start, center, normal, up, grid::CUBE_GRID_SCALE);
+        if reverse {
+            points.reverse();
+        }
+        transition::Flight {
+            started: now,
+            points,
+            up,
+            rotation: if reverse {
+                look_at_camera_rotation(points[0], center, up).0
+            } else {
+                self.flycam.camera.rotation.0
+            },
+        }
+    }
+    fn present_portal_flight(&mut self, flight: &transition::Flight, target: [f32; 3], now: u64) {
+        let pos = flight.position(now);
+        let target_rotation = look_at_camera_rotation(pos, target, flight.up);
+        let blend = flight.orientation_blend(now);
+        let sign = if (0..4)
+            .map(|i| flight.rotation[i] * target_rotation.0[i])
+            .sum::<f32>()
+            < 0.
+        {
+            -1.
+        } else {
+            1.
+        };
+        self.flycam.camera.position = pos;
+        self.flycam.camera.rotation = Quaternion(core::array::from_fn(|i| {
+            flight.rotation[i] * (1. - blend) + target_rotation.0[i] * sign * blend
+        }))
+        .normalized();
+    }
+    fn update_portal_trip(&mut self, now: u64) -> Result<(), CubeError> {
+        use transition::PortalStage;
+        let Some(mut trip) = self.portal_trip.take() else {
+            return Ok(());
+        };
+        match &trip.stage {
+            PortalStage::FadeOut(start) if now.saturating_sub(*start) >= transition::REVEAL_MS => {
+                self.select_mode(
+                    modes::Selection {
+                        mode: SceneMode::StaticCube,
+                        page: None,
+                    },
+                    None,
+                )?;
+                let flight = self.portal_flight(trip.source, trip.portal, now, true);
+                self.flycam.camera.position = flight.points[0];
+                self.flycam.camera.rotation = Quaternion(flight.rotation);
+                trip.stage = PortalStage::Exit(flight);
+            }
+            PortalStage::Exit(flight) => {
+                let (cell, _) = self.puzzle.pose(world_topology::cubie(trip.source), 0., 1.);
+                self.present_portal_flight(
+                    flight,
+                    cell.map(|v| v * grid::CUBE_COMPACT_SPACING),
+                    now,
+                );
+                if flight.done(now) {
+                    if let Some(destination) = trip.destination {
+                        self.puzzle.travel_turn(
+                            world_topology::cubie(trip.source),
+                            world_topology::cubie(destination),
+                            now,
+                        );
+                        trip.stage = PortalStage::Turn;
+                    } else {
+                        let p = self.flycam.camera.position;
+                        self.orbit = [
+                            libm::atan2f(p[0], p[2]),
+                            libm::atan2f(p[1], libm::sqrtf(p[0] * p[0] + p[2] * p[2])),
+                            7.5,
+                        ];
+                        self.look_target = [0.; 3];
+                        return Ok(());
+                    }
+                }
+            }
+            PortalStage::Turn => {
+                if !self.puzzle.locked() {
+                    let destination = trip.destination.ok_or(CubeError::Contract)?;
+                    let arrival = world_topology::routes(destination, &self.puzzle)
+                        .iter()
+                        .position(|&d| d == world_topology::Destination::World(trip.source))
+                        .ok_or(CubeError::Contract)?;
+                    let flight = self.portal_flight(destination, arrival, now, false);
+                    trip.stage = PortalStage::Enter { flight, arrival };
+                }
+            }
+            PortalStage::Enter { flight, arrival } => {
+                // Look just through the face so the endpoint has a stable heading.
+                let destination = trip.destination.ok_or(CubeError::Contract)?;
+                let normal = world_topology::portal_normal(destination, *arrival, &self.puzzle);
+                let target = core::array::from_fn(|i| flight.points[3][i] - normal[i] * 0.1);
+                self.present_portal_flight(flight, target, now);
+                if flight.done(now) {
+                    let arrival = *arrival;
+                    self.select_mode(
+                        modes::Selection {
+                            mode: SceneMode::World,
+                            page: Some(destination),
+                        },
+                        Some(arrival),
+                    )?;
+                    self.arrival_fade = Some(now);
+                    return Ok(());
+                }
+            }
+            _ => {}
+        }
+        self.portal_trip = Some(trip);
+        Ok(())
+    }
+
     fn select_mode(
         &mut self,
         selection: modes::Selection,
         arrival: Option<usize>,
     ) -> Result<(), CubeError> {
+        self.portal_trip = None;
         let mode = selection.mode;
+        if mode == SceneMode::World {
+            self.portal_ready_at = self.previous_elapsed_millis + transition::PORTAL_COOLDOWN_MS;
+        }
         match mode {
             SceneMode::Orchard => self.orchard_index = selection.page.unwrap(),
             SceneMode::World => self.world_index = selection.page.unwrap(),

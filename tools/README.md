@@ -103,9 +103,12 @@ to that face and ends at its center. Its initial view is preserved and blends in
 450 ms. The window fades out over the last 700 ms, switches directly to the
 matching Key5 world, and fades in over 900 ms. This is a fade-through, not a
 simultaneous two-scene crossfade. Arrival uses the clicked sticker's equivalent
-Leave portal, faces the world center, and starts in free drift. Solid portal
-backing is cleared by moving inward from its center. The core/Void has no Key2
-entry. On-device journey feel remains to be verified.
+Leave portal, one voxel in front on its connector, facing the world center.
+World-linked portals reverse the flight into Key2, perform exactly one shared
+layer turn while expanding, and enter the destination's reciprocal face. Generic
+Leave portals exit to Key2 without turning. A five-second arrival cooldown prevents
+immediate re-entry. The core/Void has no direct Key2 click entry. On-device portal
+journey feel remains to be verified.
 
 Key 1 places 100 seeds on each of six walls at ±6 units, with a 75° vertical
 field of view (Key 2 remains 60°). This makes the surrounding room cubes read
