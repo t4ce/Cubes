@@ -10,6 +10,7 @@ pub const CUBE_GRID_AXIS: usize = 3;
 pub const CUBE_GRID_COUNT: usize = CUBE_GRID_AXIS * CUBE_GRID_AXIS * CUBE_GRID_AXIS;
 /// Key 3 fills the renderer's single retained draw group exactly.
 pub const SPHERE_COUNT: usize = 1024;
+pub const MATERIAL_SHOWCASE_COUNT: usize = 6;
 pub const SPHERE_RADIUS: f32 = 6.0;
 /// The expanding cursor circle covers 10% of the current viewport area.
 pub const SPHERE_CURSOR_AREA_FRACTION: f32 = 0.10;
@@ -85,6 +86,12 @@ pub fn sphere_position(index: usize) -> [f32; 3] {
         SPHERE_RADIUS * y,
         SPHERE_RADIUS * radial * libm::sinf(azimuth),
     ]
+}
+
+/// Six identical cubes in one row so color and finish can be compared under
+/// the exact same geometry, camera, light, and shader workload.
+pub fn material_showcase_position(index: usize) -> [f32; 3] {
+    [(index as f32 - 2.5) * 1.65, 0.0, 0.0]
 }
 
 pub fn sphere_cursor_radius_px(width: u32, height: u32) -> f32 {
@@ -163,6 +170,15 @@ mod tests {
                 1
             );
         }
+    }
+
+    #[test]
+    fn material_showcase_is_centered_and_evenly_spaced() {
+        let positions: [_; MATERIAL_SHOWCASE_COUNT] =
+            core::array::from_fn(material_showcase_position);
+        assert_eq!(positions[0][0], -positions[5][0]);
+        assert_eq!(positions[1][0] - positions[0][0], 1.65);
+        assert!(positions.iter().all(|p| p[1] == 0.0 && p[2] == 0.0));
     }
     #[test]
     fn cube_lattice_has_27_centered_unique_seeds() {

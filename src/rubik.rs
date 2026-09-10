@@ -4,6 +4,9 @@ pub const PALETTE_FLAG: u32 = 256;
 pub const ROOM_PALETTE_FLAG: u32 = 1 << 13;
 /// Shade Key-3 seeds from their sphere position rather than the base material.
 pub const SPHERE_GRADIENT_FLAG: u32 = 1 << 14;
+/// Key 7 combines the otherwise-exclusive room and sphere bits. Bits 0..2
+/// select one of six fixed metallic/roughness records in the cube shader.
+pub const MATERIAL_SHOWCASE_FLAG: u32 = ROOM_PALETTE_FLAG | SPHERE_GRADIENT_FLAG;
 const TURN_MS: u64 = 1_000;
 pub const OPEN_MS: u64 = 1_000;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

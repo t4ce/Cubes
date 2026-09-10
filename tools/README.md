@@ -17,8 +17,9 @@ canonical positions, then select the per-corner normal from instruction
 immediates. The 132-corner triangle mapping remains exact, while geometric
 position state is explicitly 24 points. Each patch writes three control
 points and unit tessellation factors. The triangle-domain DS interpolates the patch
-and uses the existing camera matrix at byte 128. DS applies the baseline's
-material-0 lighting; PS writes the resulting color. This is baked reference geometry, not
+and uses the existing camera matrix at byte 128. DS supplies world-space surface
+data; PS keeps the baseline diffuse result for established modes and evaluates
+the Key-7 metallic/roughness response. This is baked reference geometry, not
 a general-purpose cube-generation or arbitrary-asset shader API.
 
 ## Checks and bake
@@ -71,11 +72,11 @@ a 1,024-seed sphere via V3's buffered transform seeds. VS reads
 camera/instances/compacted IDs at BTI1/2/3.
 Only translations, quaternion rotations, positive uniform scales and the
 full 44-patch range are accepted. V3's material envelope must remain default;
-the shader uses baseline material-0 lighting. Vertex layout ID 6 prevents
+the shader uses its baked palette/material table. Vertex layout ID 9 prevents
 older translation-only kernels from accepting the oriented app. Rebuild both.
 VS passes original instance identity through HS; DS uses BTI2 to apply the
-instance matrix to generated positions and normals. Its shaded-color varying
-replaces the former normal varying; PS consumes one vec4 including alpha.
+instance matrix to generated positions and normals. DS supplies base color,
+normal, view vector, roughness, metallic, and alpha in three vec4 varyings.
 
 Key 2 is the default and starts ordered and compact (1.111-unit center spacing):
 the 0.011-unit separation is exactly 1% of a cubie's 1.1-unit side, preventing
@@ -123,6 +124,13 @@ the camera. It uses Key 1's centered WASD look controls; every seed uses an RGB
 gradient from its sphere position, both as a dot and as an expanded cube. Routed
 cursor movement expands the nearby seeds with a screen-space circle whose area
 is 10% of the current viewport.
+
+Key 7 places six identical expanded cubes in one centered row. They retain the
+red, orange, white, yellow, green, and blue palette and share one texture-free
+GGX/Smith/Schlick pixel-shader path. Their data-only presets are matte paint,
+satin plastic, glossy plastic, rough metal, satin metal, and polished metal.
+The camera orbits as in Key 4; changing finish does not change geometry, draw
+count, texture sampling, shader executable, or material-specific passes.
 
 Counts are logged once per second in four 250 ms samples; no HUD task or
 counter window is used. Modes 1–3 report expanded cubes and compact markers.

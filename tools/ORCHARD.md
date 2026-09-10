@@ -137,7 +137,8 @@ HiZ feedback. Conservative uncertainty intentionally keeps some hidden cubes.
 
 The custom color flag takes precedence over overlapping Rubik/room/sphere flag
 bits in both shader decoding and driver admission. Rebuild TRUEOS and Cubes:
-contract/layout 8 prevents old kernels from silently misreading these colors.
+contract/layout 9 prevents old kernels from silently misreading these colors
+or the combined Key-7 material-showcase flag.
 Precompiled shader artifacts are checked in; no runtime shader compiler needed.
 
 Checks: `cargo check`, `python3 tools/test_bake_patch_cube.py`,

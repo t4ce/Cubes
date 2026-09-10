@@ -6,6 +6,7 @@ pub enum SceneMode {
     Sphere,
     Orchard,
     World,
+    MaterialShowcase,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -41,6 +42,8 @@ impl ModeKeys {
             SceneMode::Orchard
         } else if pressed & 16 != 0 && worlds > 0 {
             SceneMode::World
+        } else if pressed & 64 != 0 {
+            SceneMode::MaterialShowcase
         } else {
             return None;
         };
@@ -123,5 +126,15 @@ mod tests {
             keys.update(0, mode, 0, 2, 27);
         }
         assert_eq!(keys.update(16, SceneMode::StaticCube, 0, 0, 0), None);
+    }
+
+    #[test]
+    fn key7_selects_material_showcase_once_per_press() {
+        let mut keys = ModeKeys::default();
+        let selection = keys.update(64, SceneMode::StaticCube, 0, 0, 0).unwrap();
+        assert_eq!(selection.mode, SceneMode::MaterialShowcase);
+        assert_eq!(selection.page, None);
+        assert_eq!(keys.update(64, selection.mode, 0, 0, 0), None);
+        assert_eq!(keys.update(0, selection.mode, 0, 0, 0), None);
     }
 }

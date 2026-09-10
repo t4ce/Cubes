@@ -222,12 +222,15 @@ void main() {
     (out / "cube.tese").write_text('''#version 450
 layout(triangles, equal_spacing, ccw) in;
 layout(location=0) in vec4 controlNormal[];
-layout(location=0) out vec4 shadedColor;
+layout(location=0) out vec4 surfaceColor;
+layout(location=1) out vec4 surfaceNormal;
+layout(location=2) out vec4 surfaceView;
 // Retained camera ABI: view-projection starts at byte 128.
 layout(std430, set=0, binding=0) readonly buffer Camera {
     mat4 view;
     mat4 projection;
     mat4 viewProjection;
+    vec4 position_near;
 } camera;
 layout(std430, set=0, binding=1) readonly buffer Instances { vec4 rows[]; } instances;
 void main() {
@@ -241,6 +244,10 @@ void main() {
     // The ordinary (Key-2) material stays fully opaque neutral mid-gray.
     vec3 baseColor = vec3(0.5);
     float alpha = 1.0;
+    // A negative roughness keeps every established Cubes mode on its exact
+    // diffuse shader. Key 7 alone opts into the shared material response.
+    float roughness = -1.0;
+    float metallic = 0.0;
     bool hidden = false;
     bool marker = controlNormal[0].w < 0.0;
     if (marker) {
@@ -262,6 +269,15 @@ void main() {
         // on the containing sphere.
         if ((flags & 32768u) != 0u) {
             baseColor = vec3(flags & 31u, (flags >> 5u) & 31u, (flags >> 10u) & 31u) / 31.0;
+        // Key 7 combines the otherwise-exclusive room and sphere flags. Each
+        // cube uses one palette color and one data-only surface finish.
+        } else if ((flags & 24576u) == 24576u && id < 6u) {
+            if (id == 0u) { baseColor=vec3(1,0.025,0.015); roughness=0.80; metallic=0.0; }
+            if (id == 1u) { baseColor=vec3(1,0.28,0.015);  roughness=0.50; metallic=0.0; }
+            if (id == 2u) { baseColor=vec3(1,1,1);       roughness=0.20; metallic=0.0; }
+            if (id == 3u) { baseColor=vec3(1,0.85,0.015);roughness=0.65; metallic=1.0; }
+            if (id == 4u) { baseColor=vec3(0.02,0.8,0.08);roughness=0.35; metallic=1.0; }
+            if (id == 5u) { baseColor=vec3(0.02,0.08,1); roughness=0.18; metallic=1.0; }
         } else if ((flags & 16384u) != 0u) {
             baseColor = 0.5 + 0.5 * normalize(model[3].xyz);
         // Key 1 is six 10×10 room walls in the same palette order as the
@@ -295,9 +311,9 @@ void main() {
             normal = normalize(mat3(model) * normal); // positive uniform scale only
         }
     }
-    float diffuse = max(dot(normal, normalize(vec3(0.35,0.80,0.45))), 0.0);
-    float sky = 0.18 + 0.12 * max(normal.y, 0.0);
-    shadedColor = vec4(baseColor * (sky + diffuse * 0.82), alpha);
+    surfaceColor = vec4(baseColor, roughness);
+    surfaceNormal = vec4(normal, metallic);
+    surfaceView = vec4(camera.position_near.xyz - p.xyz, alpha);
     gl_Position = camera.viewProjection * p;
     // Every vertex of the excluded planar triangle clips together. No PS
     // discard/early-depth side effects and no opaque depth written for glass.
@@ -305,12 +321,44 @@ void main() {
 }
 ''')
     (out / "cube.frag").write_text('''#version 450
-layout(location=0) in vec4 shadedColor;
+layout(location=0) in vec4 surfaceColor;
+layout(location=1) in vec4 surfaceNormal;
+layout(location=2) in vec4 surfaceView;
 layout(location=0) out vec4 color;
-// DS applies the baseline lighting to each planar triangle's oriented normal.
-// Carrying its shaded colour and alpha keeps the raster-stage interface at one vec4.
 void main() {
-    color = shadedColor;
+    vec3 baseColor = surfaceColor.rgb;
+    vec3 normal = normalize(surfaceNormal.xyz);
+    vec3 light = normalize(vec3(0.35,0.80,0.45));
+    float nDotL = max(dot(normal, light), 0.0);
+    float sky = 0.18 + 0.12 * max(normal.y, 0.0);
+    if (surfaceColor.a < 0.0) {
+        // Preserve the established diffuse result byte-for-byte in modes 1-5.
+        color = vec4(baseColor * (sky + nDotL * 0.82), surfaceView.a);
+        return;
+    }
+    float roughness = clamp(surfaceColor.a, 0.045, 1.0);
+    float metallic = clamp(surfaceNormal.a, 0.0, 1.0);
+    vec3 viewDelta = surfaceView.xyz;
+    vec3 view = viewDelta*inversesqrt(max(dot(viewDelta,viewDelta), 0.00000001));
+    vec3 halfDelta = light + view;
+    vec3 halfVector = halfDelta*inversesqrt(max(dot(halfDelta,halfDelta), 0.00000001));
+    float nDotV = max(dot(normal, view), 0.0001);
+    float nDotH = max(dot(normal, halfVector), 0.0);
+    float vDotH = max(dot(view, halfVector), 0.0);
+    float alpha = roughness * roughness;
+    float alphaSquared = alpha * alpha;
+    float denominator = nDotH*nDotH*(alphaSquared-1.0)+1.0;
+    float distribution = alphaSquared / max(3.14159265*denominator*denominator, 0.0001);
+    float k = (roughness+1.0)*(roughness+1.0)/8.0;
+    float visibilityV = nDotV / (nDotV*(1.0-k)+k);
+    float visibilityL = nDotL / (nDotL*(1.0-k)+k);
+    vec3 f0 = mix(vec3(0.04), baseColor, metallic);
+    vec3 fresnel = f0 + (1.0-f0)*pow(1.0-vDotH, 5.0);
+    vec3 specular = distribution*visibilityV*visibilityL*fresnel
+                  / max(4.0*nDotV*nDotL, 0.0001);
+    vec3 diffuse = (1.0-fresnel)*(1.0-metallic)*baseColor/3.14159265;
+    vec3 ambient = baseColor*sky*(1.0-metallic) + f0*0.04;
+    color = vec4(ambient + (diffuse+specular)*nDotL*2.6, surfaceView.a);
 }
 ''')
     (out / "seed.f32le").write_bytes(struct.pack("<3f", 0, 0, 0))
@@ -422,7 +470,7 @@ def make_dumper(out, patches):
     # One position at byte 0, zero indices at byte 12, and a camera at an
     # aligned offset. They share one allocation, not one vertex attribute.
     camera_offset = ((12 + patches * 4 + 255) // 256) * 256
-    size = camera_offset + 192
+    size = camera_offset + 208
     start = c.index("    const float *vertices = line_adjacency")
     end = c.index("    const VkBufferCreateInfo buffer_info", start)
     c = c[:start] + f'''    float seed_and_camera[{size // 4}] = {{0}};
@@ -449,7 +497,7 @@ def make_dumper(out, patches):
     }};
     VkDescriptorSet camera_set;
     CHECK_VK(vkAllocateDescriptorSets(device, &set_alloc, &camera_set));
-    VkDescriptorBufferInfo camera_buffer = {{vertex_buffer, {camera_offset}, 192}};
+    VkDescriptorBufferInfo camera_buffer = {{vertex_buffer, {camera_offset}, 208}};
     VkWriteDescriptorSet camera_write = {{
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .dstSet = camera_set, .dstBinding = 0, .descriptorCount = 1,
