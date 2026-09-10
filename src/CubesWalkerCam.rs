@@ -5,6 +5,7 @@
 //! ignoring decorative gaps. Edge progress is signed walking distance, never
 //! a timed animation. Keep the body/contact frame separate from the view.
 extern crate alloc;
+use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use trueos_picasso::cam::Quaternion as Q;
 
@@ -118,6 +119,7 @@ struct Solid {
     lo: [i32; 3],
     dims: [usize; 3],
     bits: Vec<u64>,
+    fine: BTreeMap<[i32; 3], u64>,
 }
 impl Solid {
     fn new(lo: [i32; 3], hi: [i32; 3]) -> Self {
@@ -126,6 +128,7 @@ impl Solid {
             lo,
             dims,
             bits: alloc::vec![0; dims.iter().product::<usize>().div_ceil(64)],
+            fine: BTreeMap::new(),
         }
     }
     fn index(&self, p: [i32; 3]) -> Option<usize> {
@@ -140,13 +143,36 @@ impl Solid {
             self.bits[i / 64] |= 1 << (i % 64);
         }
     }
+    fn fine_key(p: V) -> ([i32; 3], u32) {
+        let coarse = cell(p);
+        let q: [u32; 3] = core::array::from_fn(|a| {
+            libm::floorf((p[a] - coarse[a] as f32) * 4.).clamp(0., 3.) as u32
+        });
+        (coarse, q[0] * 16 + q[1] * 4 + q[2])
+    }
+    fn insert_fine(&mut self, p: V) {
+        let (key, bit) = Self::fine_key(p);
+        *self.fine.entry(key).or_insert(0) |= 1u64 << bit;
+    }
+    fn grid_step(&self) -> f32 {
+        if self.fine.is_empty() { 1. } else { 0.25 }
+    }
     fn has(&self, p: V) -> bool {
-        self.index(cell(p))
+        if self
+            .index(cell(p))
             .is_some_and(|i| self.bits[i / 64] & (1 << (i % 64)) != 0)
+        {
+            return true;
+        }
+        let (key, bit) = Self::fine_key(p);
+        self.fine
+            .get(&key)
+            .is_some_and(|mask| mask & (1u64 << bit) != 0)
     }
     fn ray(&self, origin: V, dir: V, max: f32) -> Option<Hit> {
         let dir = norm(dir);
-        let mut p = cell(origin);
+        let grid = self.grid_step();
+        let mut p = cell(mul(origin, 1. / grid));
         let step = dir.map(|x| {
             if x > 0. {
                 1
@@ -160,23 +186,23 @@ impl Solid {
             if x == 0. {
                 f32::INFINITY
             } else {
-                (1. / x).abs()
+                (grid / x).abs()
             }
         });
         let mut next: V = core::array::from_fn(|i| {
             if step[i] == 0 {
                 f32::INFINITY
             } else {
-                (p[i] as f32 + if step[i] > 0 { 1. } else { 0. } - origin[i]) / dir[i]
+                ((p[i] as f32 + if step[i] > 0 { 1. } else { 0. }) * grid - origin[i]) / dir[i]
             }
         });
         let mut distance = 0.;
         let mut normal = mul(dir, -1.);
-        for _ in 0..2048 {
+        for _ in 0..8192 {
             if distance > max {
                 break;
             }
-            if self.has(p.map(|x| x as f32)) {
+            if self.has(p.map(|x| (x as f32 + 0.5) * grid)) {
                 return Some(Hit {
                     point: add(origin, mul(dir, distance)),
                     normal,
@@ -635,8 +661,9 @@ impl CubesWalkerCam {
         let bounds: Vec<_> = pieces
             .iter()
             .map(|&(center, scale)| {
-                let size = libm::roundf(scale * 2. / self.unit).max(1.);
-                let lo = sub(mul(center, 1. / self.unit), [size * 0.5; 3]).map(libm::roundf);
+                let size = libm::roundf(scale * 8. / self.unit).max(1.) * 0.25;
+                let lo = sub(mul(center, 1. / self.unit), [size * 0.5; 3])
+                    .map(|v| libm::roundf(v * 4.) * 0.25);
                 CubeBounds {
                     lo,
                     size,
@@ -660,36 +687,35 @@ impl CubesWalkerCam {
             }) {
                 return false;
             }
-            for x in 0..c.size as i32 {
-                for y in 0..c.size as i32 {
-                    for z in 0..c.size as i32 {
-                        if self.solid.has(add(c.lo, [x as f32, y as f32, z as f32])) {
+            for x in 0..(c.size * 4.) as i32 {
+                for y in 0..(c.size * 4.) as i32 {
+                    for z in 0..(c.size * 4.) as i32 {
+                        if self.solid.has(add(
+                            c.lo,
+                            [
+                                (x as f32 + 0.5) * 0.25,
+                                (y as f32 + 0.5) * 0.25,
+                                (z as f32 + 0.5) * 0.25,
+                            ],
+                        )) {
                             return false;
                         }
                     }
                 }
             }
         }
-        // Reserve the world flight envelope once when editing first needs it.
-        if self.solid.lo != [-h; 3] || self.solid.dims != [(h * 2) as usize; 3] {
-            self.solid = Solid::new([-h; 3], [h; 3]);
-            for c in &self.cubes {
-                for x in 0..c.size as i32 {
-                    for y in 0..c.size as i32 {
-                        for z in 0..c.size as i32 {
-                            self.solid
-                                .insert(cell(add(c.lo, [x as f32, y as f32, z as f32])));
-                        }
-                    }
-                }
-            }
-        }
         for c in &bounds {
-            for x in 0..c.size as i32 {
-                for y in 0..c.size as i32 {
-                    for z in 0..c.size as i32 {
-                        self.solid
-                            .insert(cell(add(c.lo, [x as f32, y as f32, z as f32])));
+            for x in 0..(c.size * 4.) as i32 {
+                for y in 0..(c.size * 4.) as i32 {
+                    for z in 0..(c.size * 4.) as i32 {
+                        self.solid.insert_fine(add(
+                            c.lo,
+                            [
+                                (x as f32 + 0.5) * 0.25,
+                                (y as f32 + 0.5) * 0.25,
+                                (z as f32 + 0.5) * 0.25,
+                            ],
+                        ));
                     }
                 }
             }
@@ -868,19 +894,24 @@ impl CubesWalkerCam {
         }
     }
     fn valid_segment(&self, t: Turn, segment: f32) -> bool {
+        let grid = self.solid.grid_step();
         let mut p = t.edge;
-        p[t.edge_axis] = segment + 0.5;
-        p = cell(add(
-            add(p, mul(t.from, -0.5)),
-            mul(t.to, if t.convex { -0.5 } else { 0.5 }),
-        ))
-        .map(|x| x as f32);
+        p[t.edge_axis] = segment + grid * 0.5;
+        p = add(
+            add(p, mul(t.from, -grid * 0.5)),
+            mul(t.to, if t.convex { -grid * 0.5 } else { grid * 0.5 }),
+        )
+        .map(|v| libm::floorf(v / grid) * grid + grid * 0.5);
         self.solid.has(p)
-            && !self.solid.has(add(p, t.from))
+            && !self.solid.has(add(p, mul(t.from, grid)))
             && if t.convex {
-                !self.solid.has(add(p, t.to)) && !self.solid.has(add(add(p, t.from), t.to))
+                !self.solid.has(add(p, mul(t.to, grid)))
+                    && !self
+                        .solid
+                        .has(add(add(p, mul(t.from, grid)), mul(t.to, grid)))
             } else {
-                self.solid.has(sub(add(p, t.from), t.to))
+                self.solid
+                    .has(sub(add(p, mul(t.from, grid)), mul(t.to, grid)))
             }
     }
     fn begin_turn(&mut self, normal: V, edge: V, convex: bool) -> bool {
@@ -902,20 +933,21 @@ impl CubesWalkerCam {
             cross_input: 0.,
             run: [0.; 2],
         };
-        let mut lo = libm::floorf(edge[edge_axis]);
-        let mut hi = lo + 1.;
-        let limit = self.solid.dims[edge_axis] + 2;
+        let grid = self.solid.grid_step();
+        let mut lo = libm::floorf(edge[edge_axis] / grid) * grid;
+        let mut hi = lo + grid;
+        let limit = (self.solid.dims[edge_axis] as f32 / grid) as usize + 2;
         for _ in 0..limit {
-            if !self.valid_segment(t, lo - 1.) {
+            if !self.valid_segment(t, lo - grid) {
                 break;
             }
-            lo -= 1.;
+            lo -= grid;
         }
         for _ in 0..limit {
             if !self.valid_segment(t, hi) {
                 break;
             }
-            hi += 1.;
+            hi += grid;
         }
         t.run = [lo + EPS, hi - EPS];
         self.turn = Some(t);
@@ -1069,8 +1101,9 @@ impl CubesWalkerCam {
                 return;
             };
             let contact = sub(self.foot, mul(self.up, SKIN));
-            let c = cell(sub(contact, mul(self.up, EPS))).map(|x| x as f32);
-            if !self.solid.has(c) || self.solid.has(add(c, self.up)) {
+            let grid = self.solid.grid_step();
+            let c = sub(contact, mul(self.up, EPS)).map(|v| libm::floorf(v / grid) * grid);
+            if !self.solid.has(c) || self.solid.has(add(c, mul(self.up, grid))) {
                 return;
             }
             let mut edge_axis = None;
@@ -1079,7 +1112,7 @@ impl CubesWalkerCam {
                 if a == normal_axis || direction[a].abs() < 1e-9 {
                     continue;
                 }
-                let boundary = c[a] + if direction[a] > 0. { 1. } else { 0. };
+                let boundary = c[a] + if direction[a] > 0. { grid } else { 0. };
                 let d = ((boundary - contact[a]) / direction[a]).max(0.);
                 if d < edge_distance - 1e-9 {
                     edge_distance = d;
@@ -1094,29 +1127,33 @@ impl CubesWalkerCam {
                 return;
             }
             let mut edge = add(contact, mul(direction, edge_distance));
-            edge[normal_axis] = c[normal_axis] + if self.up[normal_axis] > 0. { 1. } else { 0. };
+            edge[normal_axis] = c[normal_axis] + if self.up[normal_axis] > 0. { grid } else { 0. };
             let mut side = [0.; 3];
             side[a] = direction[a].signum();
-            edge[a] = c[a] + if side[a] > 0. { 1. } else { 0. };
+            edge[a] = c[a] + if side[a] > 0. { grid } else { 0. };
             for i in 0..3 {
                 if i != normal_axis && i != a {
-                    edge[i] = edge[i].clamp(c[i] + EPS, c[i] + 1. - EPS);
+                    edge[i] = edge[i].clamp(c[i] + EPS, c[i] + grid - EPS);
                 }
             }
             remaining = (remaining - edge_distance).max(0.);
-            let across = add(c, side);
-            let above = add(across, self.up);
+            let across = add(c, mul(side, grid));
+            let above = add(across, mul(self.up, grid));
             let after = add(edge, mul(side, EPS));
             if self.solid.has(above) {
-                let landing = add(after, self.up);
-                let clear = self.solid.has(across)
-                    && !self.solid.has(add(above, self.up))
+                let mut rise = grid;
+                while rise <= 1. + EPS && self.solid.has(add(across, mul(self.up, rise + grid))) {
+                    rise += grid;
+                }
+                let landing = add(after, mul(self.up, rise));
+                let clear = rise <= 1. + EPS
+                    && self.solid.has(across)
                     && self
                         .solid
                         .ray(add(landing, mul(self.up, 0.07)), self.up, EYE)
                         .is_none();
                 if clear {
-                    self.begin_elevation(edge, side, 1.);
+                    self.begin_elevation(edge, side, rise);
                     continue;
                 }
                 self.foot = add(add(edge, mul(side, -EPS)), mul(self.up, SKIN));
@@ -1130,8 +1167,10 @@ impl CubesWalkerCam {
                 remaining = (remaining - EPS).max(0.);
                 continue;
             }
-            if self.solid.has(sub(c, self.up)) && self.solid.has(sub(across, self.up)) {
-                self.begin_elevation(edge, side, -1.);
+            if self.solid.has(sub(c, mul(self.up, grid)))
+                && self.solid.has(sub(across, mul(self.up, grid)))
+            {
+                self.begin_elevation(edge, side, -grid);
                 continue;
             }
             self.foot = add(add(edge, mul(side, -EPS)), mul(self.up, SKIN));
@@ -1467,6 +1506,40 @@ mod tests {
                 );
             }
         }
+    }
+    #[test]
+    fn quarter_cubes_keep_exact_collision_and_support_edge_walking() {
+        let mut c = fixture(&[[0, 0, 0, 4]], [1.5, 4. + SKIN, 1.5], [1., 0., 0.]);
+        let piece = [(mul([4.125, 0.125, 0.125], c.unit), c.unit * 0.12375)];
+        assert!(c.add_placed(&piece));
+        assert!(c.solid.has([4.125, 0.125, 0.125]));
+        assert!(!c.solid.has([4.3, 0.125, 0.125]));
+        let hit = c.solid.ray([5., 0.125, 0.125], [-1., 0., 0.], 2.).unwrap();
+        close(hit.point, [4.25, 0.125, 0.125]);
+        c.attach(Hit {
+            point: [4.125, 0.25, 0.125],
+            normal: UP,
+            distance: 0.,
+        });
+        c.forward = [1., 0., 0.];
+        c.reset_view();
+        c.spider_step(c.forward, 0.125 + EDGE_TRAVEL);
+        close(c.up, [1., 0., 0.]);
+        assert!(!c.solid.has(c.camera_target()));
+    }
+    #[test]
+    fn quarter_grid_keeps_original_full_height_step_behavior() {
+        let mut c = fixture(
+            &[[0, 0, 0, 1], [1, 0, 0, 1], [1, 1, 0, 1]],
+            [0.5, 1. + SKIN, 0.5],
+            [1., 0., 0.],
+        );
+        c.solid.insert_fine([10.125, 0.125, 0.125]);
+        c.spider_step(c.forward, 0.5);
+        c.spider_step(c.forward, 0.5);
+        close(c.up, UP);
+        assert!(c.elevation.is_some());
+        assert!((c.foot[1] - (1.5 + SKIN)).abs() < 0.001);
     }
     #[test]
     fn placed_cubes_join_collision_and_cannot_overlap_existing_solids() {

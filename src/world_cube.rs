@@ -63,7 +63,7 @@ impl Placement {
     pub fn asset(width: u32, height: u32, tan_half_fov: f32, radius: f32) -> Self {
         let h = height.max(1) as f32;
         let w = width.max(1) as f32;
-        let edge = (w.min(h) * 0.28).min(160.);
+        let edge = (w.min(h) * 0.56).min(320.);
         let pad = 14.;
         let half = edge / h * tan_half_fov;
         let x = -(w - 2. * pad - edge) / h * tan_half_fov;

@@ -43,10 +43,10 @@ fn all_catalog_assets_fit_preview_and_place_on_grid() {
             let pieces=asset_brush::place(bytes,[0.;3],n);
             assert_eq!(pieces.len(),asset.cubes.len());
             for c in pieces {
-                let half=roundf(c.scale*10.)*0.1;
+                let half=roundf(c.scale*40.)*0.025;
                 assert!(c.center[axis]*sign-half > -0.0001);
                 for a in 0..3 {
-                    let lo=(c.center[a]-half)*5.;
+                    let lo=(c.center[a]-half)*20.;
                     assert!((lo-roundf(lo)).abs()<0.001);
                 }
             }

@@ -2,13 +2,18 @@
 extern crate alloc;
 use crate::orchard::{self, Cube};
 use alloc::vec::Vec;
+pub const PLACEMENT_SCALE: f32 = 0.25;
 pub const PREVIEW_SEEDS: usize = 384;
+pub const GHOST_SEEDS: usize = 768;
 pub const FULL_WORLD_SEEDS: usize = 768;
 pub const MAX_PLACED_CUBES: usize = 16_384;
 
 pub struct Brush {
     pub catalog: orchard::Pages,
     pub selected: usize,
+    pub placement_preview: bool,
+    ghost_key: Option<(usize, [f32; 3], [f32; 3])>,
+    pub ghost: Vec<Cube>,
     pub worlds: Vec<Vec<Cube>>,
 }
 impl Brush {
@@ -16,8 +21,23 @@ impl Brush {
         Self {
             catalog: orchard::Pages::new(sources, false),
             selected: 0,
+            placement_preview: false,
+            ghost_key: None,
+            ghost: Vec::new(),
             worlds: (0..27).map(|_| Vec::new()).collect(),
         }
+    }
+    pub fn update_preview(&mut self, target: Option<([f32; 3], [f32; 3])>, bytes: &[u8]) {
+        let key = if self.placement_preview {
+            target.map(|(p, n)| (self.selected, p, n))
+        } else {
+            None
+        };
+        if key == self.ghost_key {
+            return;
+        }
+        self.ghost_key = key;
+        self.ghost = key.map_or_else(Vec::new, |(_, p, n)| place(bytes, p, n));
     }
     pub fn cycle(&mut self, wheel: i16) -> Result<(), &'static str> {
         let step = if wheel > 0 {
@@ -35,7 +55,7 @@ impl Brush {
 }
 /// Preserve authored cube sizes and color, placing the base on the selected face.
 pub fn place(bytes: &[u8], point: [f32; 3], normal: [f32; 3]) -> Vec<Cube> {
-    let unit = f32::from_le_bytes(bytes[12..16].try_into().unwrap());
+    let unit = f32::from_le_bytes(bytes[12..16].try_into().unwrap()) * PLACEMENT_SCALE;
     let records = &bytes[16 + 4 * bytes[10] as usize..];
     let origin = |r: &[u8]| {
         [
@@ -119,7 +139,7 @@ mod tests {
                 normal[axis] = sign;
                 let pieces = place(TREE, [0.; 3], normal);
                 assert!(!pieces.is_empty());
-                let unit = f32::from_le_bytes(TREE[12..16].try_into().unwrap());
+                let unit = f32::from_le_bytes(TREE[12..16].try_into().unwrap()) * PLACEMENT_SCALE;
                 let mut nearest = f32::INFINITY;
                 for c in pieces {
                     let half = libm::roundf(c.scale * 2. / unit) * unit * 0.5;
@@ -133,6 +153,33 @@ mod tests {
                 assert!(nearest.abs() < 0.001);
             }
         }
+    }
+    #[test]
+    fn placement_preview_is_visual_only_and_follows_toggle_and_target() {
+        static SOURCES: &[(&str, &[u8])] = &[("tree", TREE)];
+        let mut b = Brush::new(SOURCES);
+        let target = Some(([0.; 3], [0., 1., 0.]));
+        b.update_preview(target, TREE);
+        assert!(b.ghost.is_empty());
+        b.placement_preview = true;
+        b.update_preview(target, TREE);
+        let expected = place(TREE, [0.; 3], [0., 1., 0.]);
+        assert_eq!(b.ghost.len(), expected.len());
+        for (a, c) in b.ghost.iter().zip(expected) {
+            assert_eq!(a.center, c.center);
+            assert_eq!(a.scale, c.scale);
+            assert!(marker_scale(c.scale, 10., 1., 1000) < 0.001);
+        }
+        let ptr = b.ghost.as_ptr();
+        b.update_preview(target, TREE);
+        assert_eq!(b.ghost.as_ptr(), ptr);
+        assert!(b.worlds.iter().all(Vec::is_empty));
+        b.update_preview(None, TREE);
+        assert!(b.ghost.is_empty());
+        b.update_preview(target, TREE);
+        b.placement_preview = false;
+        b.update_preview(target, TREE);
+        assert!(b.ghost.is_empty());
     }
     #[test]
     fn wheel_wraps_and_marker_width_tracks_projected_cube_size() {

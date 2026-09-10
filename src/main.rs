@@ -397,6 +397,9 @@ impl CubeScene {
                         .cycle(event.wheel)
                         .map_err(|_| CubeError::Contract)?;
                 }
+                if event.buttons_pressed & 4 != 0 {
+                    self.asset_brush.placement_preview = !self.asset_brush.placement_preview;
+                }
                 if event.buttons_pressed & 1 != 0 {
                     self.place_selected_asset()?;
                 }
@@ -710,6 +713,16 @@ impl CubeScene {
         } else {
             0
         };
+        let ghost_target = if self.mode == SceneMode::World && self.portal_trip.is_none() {
+            self.walker_camera
+                .as_ref()
+                .and_then(|c| c.placement_target())
+        } else {
+            None
+        };
+        self.asset_brush
+            .update_preview(ghost_target, ASSET_GRID_ASSETS[self.asset_brush.selected].1);
+        let ghost_count = self.asset_brush.ghost.len().min(asset_brush::GHOST_SEEDS);
         let (visible, visibility_stats) = match self.mode {
             SceneMode::Orchard => {
                 let asset = &self.orchards[self.orchard_index];
@@ -740,6 +753,7 @@ impl CubeScene {
                     &camera.view_projection,
                     WORLD_SEED_BUDGET
                         - preview_count
+                        - ghost_count
                         - if companion { world_cube::SEEDS } else { 0 },
                     |id| {
                         asset.cubes[id].scale >= 0.001
@@ -761,10 +775,12 @@ impl CubeScene {
         };
         // Visibility removes submissions, not authored scene instances. The
         // fallback seed is an ABI placeholder and is never a countable cube.
-        let opaque_count = scene_opaque_count + preview_count + if companion { 27 } else { 0 };
+        let opaque_count =
+            scene_opaque_count + preview_count + ghost_count + if companion { 27 } else { 0 };
         let countable_seed_count = visibility_stats
             .map_or(scene_opaque_count, |stats| stats.source)
             + preview_count
+            + ghost_count
             + if companion { 27 } else { 0 };
         let seed_count = opaque_count
             + if self.mode == SceneMode::StaticCube || companion {
@@ -947,6 +963,25 @@ impl CubeScene {
                 }
             }
         }
+        for i in 0..ghost_count {
+            let cube = self.asset_brush.ghost[i * self.asset_brush.ghost.len() / ghost_count];
+            let depth = -(camera.view[2] * cube.center[0]
+                + camera.view[6] * cube.center[1]
+                + camera.view[10] * cube.center[2]
+                + camera.view[14]);
+            let scale = asset_brush::marker_scale(cube.scale, depth, camera.projection[5], height);
+            let row = scene_opaque_count + preview_count + i;
+            let seed = RetainedTransformSeed {
+                translation: cube.center,
+                previous_translation: cube.center,
+                scale: [scale; 3],
+                rotation: self.flycam.camera.rotation.0,
+                local_radius: grid::CUBE_LOCAL_RADIUS,
+                draw_group: 0,
+                flags: ((row as u32) << 16) | cube.flags,
+            };
+            encode_seed(seed, &mut seed_bytes[row * 64..(row + 1) * 64]);
+        }
         if companion {
             let placement = world_cube::Placement::new(
                 width,
@@ -961,7 +996,7 @@ impl CubeScene {
                 let translation =
                     core::array::from_fn(|a| self.flycam.camera.position[a] + offset[a]);
                 let basis = basis.map(|axis| self.flycam.camera.rotation.rotate(axis));
-                let row = scene_opaque_count + preview_count + id;
+                let row = scene_opaque_count + preview_count + ghost_count + id;
                 let seed = RetainedTransformSeed {
                     translation,
                     previous_translation: translation,
