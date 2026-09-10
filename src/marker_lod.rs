@@ -84,6 +84,19 @@ impl Reducer {
         projection_y: f32,
         height: u32,
     ) {
+        self.prepare_with_growth(source, visible, eye, view, projection_y, height, |_| 1.);
+    }
+
+    pub fn prepare_with_growth(
+        &mut self,
+        source: &[Cube],
+        visible: &[usize],
+        eye: [f32; 3],
+        view: &[f32; 16],
+        projection_y: f32,
+        height: u32,
+        growth: impl Fn(usize) -> f32,
+    ) {
         self.cubes.clear();
         self.entries.clear();
         self.dots_before = 0;
@@ -92,7 +105,12 @@ impl Reducer {
             let cube = source[id];
             let distance_squared = asset_brush::lod_distance_squared(cube.center, eye, view);
             if asset_brush::detailed(rank, cube, distance_squared, projection_y, height) {
-                self.cubes.push(cube);
+                // Classify LOD using authored size. Keep growing solids above
+                // the shader's 0.001 flat-dot threshold, including their first frame.
+                self.cubes.push(Cube {
+                    scale: (cube.scale * growth(id)).max(0.00101),
+                    ..cube
+                });
                 continue;
             }
             self.dots_before += 1;
@@ -210,6 +228,30 @@ mod tests {
             })
             .collect()
     }
+    #[test]
+    fn growth_keeps_authored_lod_and_does_not_change_source_or_colour() {
+        let cubes = [Cube {
+            center: [0.; 3],
+            scale: 0.1,
+            flags: CUSTOM_RGB555 | 31,
+        }];
+        let mut reducer = Reducer::new();
+        for factor in [0., 0.5, 1.] {
+            reducer.prepare_with_growth(&cubes, &[0], [0., 0., 2.], &view(2.), 2.414, 441, |_| {
+                factor
+            });
+            let drawn = reducer.cubes[0];
+            assert_eq!(drawn.center, cubes[0].center);
+            assert_eq!(drawn.flags, cubes[0].flags);
+            assert!(drawn.scale >= 0.001);
+            assert_eq!(reducer.dots_before, 0);
+            if factor > 0. {
+                assert_eq!(drawn.scale, cubes[0].scale * factor);
+            }
+        }
+        assert_eq!(cubes[0].scale, 0.1);
+    }
+
     #[test]
     fn close_markers_stay_individual_and_distance_steps_reach_sixteen_to_one() {
         let cubes = patch();

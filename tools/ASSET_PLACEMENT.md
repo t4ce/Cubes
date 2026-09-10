@@ -17,9 +17,18 @@ areas reject placement. Placements remain associated with their world for the
 running session, including portal trips and Key5 cycling; they are not written
 back to the authored `.cubes` files.
 
-Placed cubes use Key4's reveal controller: 120 ms initial wait, at most 1,600
-starts per second and 96 per frame. Adding another asset preserves existing
+Placed cubes use Key4's reveal controller: 333 ms initial wait, at most 1,600
+starts per second and 32 per frame. Adding another asset preserves existing
 reveal state. Each world stores at most 16,384 added cubes.
+
+`src/reveal.rs::PLACED_BOUNCE_UNIFORM_GROWTH` enables the Key5 growth experiment
+(default `true`). After admission, solid cubes grow uniformly on all axes about
+their centers over `GROWTH_MS = 700`: uniform acceleration/deceleration followed
+by two diminishing bounce dips. The scale never exceeds the authored size.
+Growing cubes do not provide occlusion coverage until settled. Collision geometry
+is placed at full size immediately. LOD uses the authored size throughout;
+distant dots retain their existing size/merging behaviour. Disable the flag to
+restore full-size pop-in with the same delay and rate limits. Key4 keeps pop-in.
 
 The 8,192-seed frame limit includes both previews. The asset inset uses at most
 384 evenly sampled cubes for larger assets. The placement ghost reserves up to

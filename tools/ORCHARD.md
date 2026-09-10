@@ -67,9 +67,9 @@ Visible seeds are compacted and sorted near-to-far on the CPU before upload.
 Only admitted visible seeds enter the existing VS/HS/TE/DS path; no CPU cube
 mesh is built.
 
-Newly exposed cubes now wait 120 ms, then pop directly to their full authored
+Newly exposed cubes now wait 333 ms, then pop directly to their full authored
 size and color. Admission follows the culler's nearest-first order at up to
-1,600 new cubes per second, capped at 96 starts in any one frame. Waiting cubes
+1,600 new cubes per second, capped at 32 starts in any one frame. Waiting cubes
 have no submitted seed or marker and do not provide occlusion coverage. A cube
 that becomes hidden leaves the draw immediately; if it reappears within 240 ms
 of the first observed hidden frame, its admitted state is reused. Longer
@@ -82,7 +82,7 @@ This is intentional temporary pop-in. Once a stationary view catches up, it
 uses exactly the former cube IDs, order, scales, colors and patch counts. Extra
 savings occur during entry and visibility changes, not after settling. The
 parameters are together at the top of `src/reveal.rs`. A stalled render cannot
-bank more than the 96-start burst cap or count as an observed hidden frame.
+bank more than the 32-start burst cap or count as an observed hidden frame.
 At very low FPS the per-frame cap reduces the effective admission rate.
 
 Visibility rejects cubes outside the camera frustum, then sorts survivors by

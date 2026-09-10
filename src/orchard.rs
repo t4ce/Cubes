@@ -673,6 +673,21 @@ pub fn visible_with_lod<'a>(
     mut admit: impl FnMut(usize) -> bool,
     mut occludes: impl FnMut(usize, usize) -> bool,
 ) -> (&'a [usize], VisibilityStats) {
+    visible_with_admission(scratch, asset, eye, matrix, max_visible, |id, rank| {
+        admit(id).then(|| occludes(id, rank))
+    })
+}
+
+/// One decision per candidate: None waits; Some(false) draws without blocking
+/// other candidates (for example, a growing cube); Some(true) also occludes.
+pub fn visible_with_admission<'a>(
+    scratch: &'a mut VisibilityScratch,
+    asset: &Asset,
+    eye: [f32; 3],
+    matrix: &[f32; 16],
+    max_visible: usize,
+    mut admit: impl FnMut(usize, usize) -> Option<bool>,
+) -> (&'a [usize], VisibilityStats) {
     scratch.depth.fill(f32::INFINITY);
     scratch.projected.clear();
     scratch.visible.clear();
@@ -709,11 +724,11 @@ pub fn visible_with_lod<'a>(
                 continue;
             }
         }
-        if !admit(candidate.id) {
+        let Some(occludes) = admit(candidate.id, scratch.visible.len()) else {
             stats.pending += 1;
             continue;
-        }
-        if candidate.projection.is_some() && occludes(candidate.id, scratch.visible.len()) {
+        };
+        if candidate.projection.is_some() && occludes {
             let cube = asset.cubes[candidate.id];
             let inner = Cube {
                 scale: cube.scale * INNER_SCALE,
@@ -1324,6 +1339,23 @@ mod tests {
     }
 
     #[test]
+    fn growing_cubes_leave_background_visible_until_settled() {
+        let asset = scene(alloc::vec![cube([0., 0., 4.], 1.), cube([0., 0., 8.], 0.3)]);
+        let mut scratch = VisibilityScratch::new();
+        let mut reveal = reveal::Reveal::new();
+        for now in [0, reveal::DELAY_MS, reveal::DELAY_MS + reveal::GROWTH_MS / 2,
+                    reveal::DELAY_MS + reveal::GROWTH_MS] {
+            reveal.begin_frame(now, 2);
+            let (ids, _) = visible_with_admission(&mut scratch, &asset, [0.; 3], &PERSPECTIVE, 2,
+                |id, _| reveal.admit(id).then(|| reveal.settled(id)));
+            if now < reveal::DELAY_MS { assert!(ids.is_empty()); }
+            else if reveal::PLACED_BOUNCE_UNIFORM_GROWTH && now < reveal::DELAY_MS + reveal::GROWTH_MS { assert_eq!(ids, &[0, 1]); }
+            else { assert_eq!(ids, &[0]); }
+            reveal.end_frame();
+        }
+    }
+
+    #[test]
     fn reveal_reaches_the_exact_original_submission_at_each_stationary_view() {
         let asset = side_by_side(&[
             decode("orchard", include_bytes!("../Cube/cube_orchard.cubes")).unwrap(),
@@ -1341,7 +1373,8 @@ mod tests {
             reveal.reset();
             let mut previous = 0;
             let mut settled_at = None;
-            for now in (0..1300).step_by(67) {
+            let deadline = reveal::DELAY_MS + (asset.cubes.len() as u64).div_ceil(reveal::MAX_STARTS_PER_FRAME) * 67 + 134;
+            for now in (0..deadline).step_by(67) {
                 reveal.begin_frame(now, asset.cubes.len());
                 let (ids, stats) =
                     visible_when(&mut scratch, &asset, eye, &matrix, |id| reveal.admit(id));
@@ -1362,7 +1395,7 @@ mod tests {
                 }
                 previous = ids.len();
             }
-            assert!(settled_at.unwrap() < 1000);
+            assert!(settled_at.unwrap() < deadline);
             std::println!(
                 "pop-in view={view} final={} settled={}ms at ~15fps",
                 expected.len(),

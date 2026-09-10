@@ -838,7 +838,7 @@ impl CubeScene {
                     .begin_frame(elapsed_millis, asset.cubes.len() - base);
                 let eye = self.flycam.camera.position;
                 let projection_y = camera.projection[5];
-                let (ids, stats) = orchard::visible_with_lod(
+                let (ids, stats) = orchard::visible_with_admission(
                     &mut self.visibility_scratch,
                     asset,
                     eye,
@@ -847,14 +847,14 @@ impl CubeScene {
                         - preview_count
                         - ghost_count
                         - if companion { world_cube::SEEDS } else { 0 },
-                    |id| {
-                        asset.cubes[id].scale >= 0.001
-                            && (id < base || self.placed_reveal.admit(id - base))
-                    },
                     |id, rank| {
                         let cube = asset.cubes[id];
+                        if cube.scale < 0.001 || (id >= base && !self.placed_reveal.admit(id - base)) {
+                            return None;
+                        }
                         let distance_squared = asset_brush::lod_distance_squared(cube.center, eye, &camera.view);
-                        asset_brush::detailed(rank, cube, distance_squared, projection_y, height)
+                        Some((id < base || self.placed_reveal.settled(id - base))
+                            && asset_brush::detailed(rank, cube, distance_squared, projection_y, height))
                     },
                 );
                 self.placed_reveal.end_frame();
@@ -863,13 +863,18 @@ impl CubeScene {
             _ => (&[][..], None),
         };
         if self.mode == SceneMode::World {
-            self.world_markers.prepare(
-                &self.active_world.as_ref().unwrap().scene.cubes,
+            let source = &self.active_world.as_ref().unwrap().scene.cubes;
+            let base = source.len() - self.asset_brush.worlds[self.world_index].len();
+            self.world_markers.prepare_with_growth(
+                source,
                 visible,
                 self.flycam.camera.position,
                 &camera.view,
                 camera.projection[5],
                 height,
+                |id| {
+                    if id < base { 1. } else { self.placed_reveal.growth_scale(id - base) }
+                },
             );
         }
         let scene_opaque_count = if matches!(
