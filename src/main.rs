@@ -773,7 +773,9 @@ impl CubeScene {
             _ => (&[][..], None),
         };
         let scene_opaque_count = if matches!(self.mode, SceneMode::Orchard | SceneMode::World) {
-            visible.len().max(1)
+            // The asset preview already keeps the retained group nonempty in
+            // World mode. Do not add a black placeholder to an empty view.
+            visible.len().max(usize::from(preview_count == 0))
         } else {
             self.mode.seed_count()
         };
@@ -799,6 +801,11 @@ impl CubeScene {
         let mut seed_bytes = [0u8; grid::MAX_SEED_COUNT * 64];
         let mut opaque_seeds = [RetainedTransformSeed::default(); 27];
         let mut expanded_count = 0usize;
+        // A tiny seed becomes a visible flat marker in the hull shader. If
+        // the ABI needs one, place it in camera-local +Z (behind the eye),
+        // never at twice the world position: that can appear as a distant dot.
+        let behind = self.flycam.camera.rotation.rotate([0., 0., 2.]);
+        let placeholder = core::array::from_fn(|a| self.flycam.camera.position[a] + behind[a]);
         for i in 0..scene_opaque_count {
             let (cell, basis) = self.puzzle.pose(i.min(26), turn_sin, turn_cos);
             let (translation, scale) = match self.mode {
@@ -808,7 +815,7 @@ impl CubeScene {
                         (cube.center, cube.scale)
                     } else {
                         // Empty view: a required nonempty retained group, behind the eye.
-                        (self.flycam.camera.position.map(|v| v * 2.0), 0.0001)
+                        (placeholder, 0.0001)
                     }
                 }
                 SceneMode::World => {
@@ -836,7 +843,7 @@ impl CubeScene {
                         };
                         (cube.center, scale)
                     } else {
-                        (self.flycam.camera.position.map(|v| v * 2.0), 0.0001)
+                        (placeholder, 0.0001)
                     }
                 }
                 SceneMode::InteractiveGrid => {

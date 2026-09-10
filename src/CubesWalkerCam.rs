@@ -645,14 +645,11 @@ impl CubesWalkerCam {
     }
     pub fn placement_target(&self) -> Option<(V, V)> {
         let hit = self.snap_target()?;
-        let inside = sub(hit.point, mul(hit.normal, EPS));
-        let c = self
-            .cubes
-            .iter()
-            .find(|c| (0..3).all(|a| inside[a] >= c.lo[a] && inside[a] < c.lo[a] + c.size))?;
-        let center = add(c.lo, [c.size * 0.5; 3]);
+        // Follow the aimed point across a face, including large authored cubes.
+        // Quarter-voxel spacing matches placed cubes and fine collision cells;
+        // selecting the containing cube's center loses that precision.
         Some((
-            mul(add(center, mul(hit.normal, c.size * 0.5)), self.unit),
+            mul(hit.point.map(|v| libm::roundf(v * 4.) * 0.25), self.unit),
             hit.normal,
         ))
     }
@@ -1504,6 +1501,29 @@ mod tests {
                     sub(c.foot, start),
                     mul(screen.rotate([1., 0., 0.]), sign * 24. * 0.025),
                 );
+            }
+        }
+    }
+    #[test]
+    fn placement_tracks_quarter_grid_across_large_faces() {
+        for axis in 0..3 {
+            for sign in [-1., 1.] {
+                let mut c = fixture(&[[-4, -4, -4, 8]], [0., 5., 0.], [1., 0., 0.]);
+                let mut normal = [0.; 3];
+                normal[axis] = sign;
+                let tangent = (axis + 1) % 3;
+                let mut up = [0.; 3];
+                up[tangent] = 1.;
+                c.rotation = look(mul(normal, -1.), up);
+                for coordinate in [-1.24, -0.76, 0.26, 0.51, 1.24] {
+                    c.position = mul(normal, 6.);
+                    c.position[tangent] = coordinate;
+                    let (point, facing) = c.placement_target().unwrap();
+                    let mut expected = mul(normal, 4.);
+                    expected[tangent] = libm::roundf(coordinate * 4.) * 0.25;
+                    close(point, mul(expected, c.unit));
+                    close(facing, normal);
+                }
             }
         }
     }
