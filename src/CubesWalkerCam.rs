@@ -280,12 +280,23 @@ struct Turn {
     cross_input: f32,
     run: [f32; 2],
 }
+/// A one-cell rise/drop is traversed at walking speed without turning the
+/// contact frame. Signed input can pause or retrace the vertical segment.
+#[derive(Clone, Copy)]
+struct ElevationStep {
+    from: V,
+    to: V,
+    across: V,
+    height: f32,
+    progress: f32,
+}
 #[derive(Default)]
 pub struct Input {
     pub forward: f32,
     pub right: f32,
     pub vertical: f32,
     pub boost: bool,
+    pub fast_walk: bool,
     pub grip: bool,
     pub align: bool,
 }
@@ -317,6 +328,7 @@ pub struct CubesWalkerCam {
     position: V,
     rotation: Q,
     turn: Option<Turn>,
+    elevation: Option<ElevationStep>,
     fly: bool,
     grip_held: bool,
     align_held: bool,
@@ -401,6 +413,7 @@ impl CubesWalkerCam {
             position: target,
             rotation: Q::IDENTITY,
             turn: None,
+            elevation: None,
             fly: true,
             grip_held: false,
             align_held: false,
@@ -446,6 +459,7 @@ impl CubesWalkerCam {
     }
     fn attach(&mut self, hit: Hit) {
         self.turn = None;
+        self.elevation = None;
         self.up = hit.normal;
         self.foot = add(hit.point, mul(hit.normal, SKIN));
         self.forward = tangent(self.view.rotate(FORWARD), self.up);
@@ -492,6 +506,7 @@ impl CubesWalkerCam {
         if input.grip && !self.grip_held {
             if !self.fly {
                 self.turn = None;
+                self.elevation = None;
                 self.foot = self.position;
                 self.fly = true;
             } else if let Some(hit) = self.snap_target().filter(|h| h.distance <= 12.) {
@@ -521,7 +536,7 @@ impl CubesWalkerCam {
             );
             if dot(movement, movement) > 0. {
                 let direction = norm(movement);
-                let distance = 12. * if input.boost { 2.8 } else { 1. } * dt;
+                let distance = 24. * if input.boost { 2.8 } else { 1. } * dt;
                 let distance = self
                     .solid
                     .ray(self.foot, direction, distance + 0.12)
@@ -533,7 +548,7 @@ impl CubesWalkerCam {
                 }
             }
         } else if input.forward != 0. || input.right != 0. {
-            let total = if input.boost { 4.5 } else { 2.9 } * dt;
+            let total = 2.9 * if input.fast_walk { 10. } else { 5. } * dt;
             let steps = (libm::ceilf(total / 0.055) as usize).max(1);
             for _ in 0..steps {
                 let direction = norm(add(
@@ -688,6 +703,55 @@ impl CubesWalkerCam {
             (0., rotation)
         }
     }
+    fn begin_elevation(&mut self, edge: V, side: V, height: f32) {
+        let from = add(add(edge, mul(side, -EPS)), mul(self.up, SKIN));
+        let to = add(add(edge, mul(side, EPS)), mul(self.up, height + SKIN));
+        self.elevation = Some(ElevationStep {
+            from,
+            to,
+            across: side,
+            height,
+            progress: 0.,
+        });
+        self.elevation_pose();
+    }
+    fn elevation_pose(&mut self) {
+        let step = self.elevation.unwrap();
+        // Rise on the near side of the riser; descend on its far side.
+        // A straight diagonal chord between contacts would cut through solid.
+        let base = if step.height > 0. {
+            step.from
+        } else {
+            sub(step.to, mul(self.up, step.height))
+        };
+        self.foot = add(base, mul(self.up, step.height * step.progress));
+    }
+    fn advance_elevation(&mut self, direction: V, distance: f32) -> f32 {
+        let mut step = self.elevation.unwrap();
+        let cross = dot(direction, step.across).clamp(-1., 1.);
+        if cross.abs() < 1e-9 {
+            return 0.;
+        }
+        let available = if cross > 0. {
+            1. - step.progress
+        } else {
+            step.progress
+        };
+        let used = distance.min(available / cross.abs());
+        step.progress = (step.progress + cross * used).clamp(0., 1.);
+        self.elevation = Some(step);
+        self.elevation_pose();
+        if used < distance
+            || (cross > 0. && step.progress >= 1.)
+            || (cross < 0. && step.progress <= 0.)
+        {
+            self.foot = if cross > 0. { step.to } else { step.from };
+            self.elevation = None;
+            (distance - used).max(0.)
+        } else {
+            0.
+        }
+    }
     fn spider_step(&mut self, direction: V, distance: f32) {
         if !distance.is_finite() || distance <= 0. || !direction.iter().all(|x| x.is_finite()) {
             return;
@@ -701,6 +765,10 @@ impl CubesWalkerCam {
         for _ in 0..96 {
             if remaining <= EPS {
                 return;
+            }
+            if self.elevation.is_some() {
+                remaining = self.advance_elevation(direction, remaining);
+                continue;
             }
             if self.turn.is_some() {
                 let (rest, rotation) = self.advance_turn(direction, remaining);
@@ -759,8 +827,7 @@ impl CubesWalkerCam {
                         .ray(add(landing, mul(self.up, 0.07)), self.up, EYE)
                         .is_none();
                 if clear {
-                    self.foot = add(landing, mul(self.up, SKIN));
-                    remaining = (remaining - EPS).max(0.);
+                    self.begin_elevation(edge, side, 1.);
                     continue;
                 }
                 self.foot = add(add(edge, mul(side, -EPS)), mul(self.up, SKIN));
@@ -775,8 +842,7 @@ impl CubesWalkerCam {
                 continue;
             }
             if self.solid.has(sub(c, self.up)) && self.solid.has(sub(across, self.up)) {
-                self.foot = add(after, mul(self.up, -1. + SKIN));
-                remaining = (remaining - EPS).max(0.);
+                self.begin_elevation(edge, side, -1.);
                 continue;
             }
             self.foot = add(add(edge, mul(side, -EPS)), mul(self.up, SKIN));
@@ -878,9 +944,12 @@ mod tests {
             [1., 0., 0.],
         );
         c.spider_step(c.forward, 0.75);
+        close(c.foot, [1. - EPS, 1.25 + SKIN, 0.5]);
+        close(c.up, UP);
+        c.spider_step(c.forward, 1.);
         close(c.foot, [1.25, 2. + SKIN, 0.5]);
         assert!(c.turn.is_none());
-        c.spider_step(mul(c.forward, -1.), 0.5);
+        c.spider_step(mul(c.forward, -1.), 1.5);
         close(c.foot, [0.75, 1. + SKIN, 0.5]);
         let mut c = fixture(
             &[[0, 0, 0, 1], [1, 0, 0, 1], [1, 1, 0, 1], [1, 2, 0, 1]],
@@ -891,6 +960,31 @@ mod tests {
         assert!(!c.turn.unwrap().convex);
         close(c.up, [-0.70710677, 0.70710677, 0.]);
         assert!(!c.solid.has(c.camera_target()));
+    }
+    #[test]
+    fn elevation_consumes_distance_and_can_pause_or_reverse_without_rotating() {
+        let mut c = fixture(
+            &[[0, 0, 0, 1], [1, 0, 0, 1], [1, 1, 0, 1]],
+            [0.5, 1. + SKIN, 0.5],
+            [1., 0., 0.],
+        );
+        let view = c.view;
+        c.spider_step(c.forward, 0.5);
+        for _ in 0..10 {
+            let before = c.foot;
+            c.spider_step(c.forward, 0.05);
+            close(sub(c.foot, before), mul(UP, 0.05));
+            assert!(!c.solid.has(c.foot));
+            assert!(!c.solid.has(c.camera_target()));
+            assert_eq!(c.view, view);
+        }
+        let before = c.foot;
+        c.update(Input::default(), 0.035);
+        assert_eq!(c.foot, before);
+        c.spider_step(mul(c.forward, -1.), 0.75);
+        close(c.foot, [0.75, 1. + SKIN, 0.5]);
+        assert!(c.elevation.is_none());
+        close(c.up, UP);
     }
     #[test]
     fn half_assist_rotates_view_half_as_far_as_contact() {
