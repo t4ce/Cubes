@@ -115,16 +115,18 @@ pub fn marker_scale(scale: f32, depth: f32, projection_y: f32, height: u32) -> f
     (pixels * depth.abs() / (height.max(1) as f32 * projection_y.abs().max(0.001)) / 1000.)
         .clamp(0.0000001, 0.0009)
 }
-pub fn detailed(rank: usize, cube: Cube, eye: [f32; 3], projection_y: f32, height: u32) -> bool {
-    let distance_squared = (0..3)
-            .map(|a| {
-                let d = cube.center[a] - eye[a];
-                d * d
-            })
-            .sum::<f32>()
-    .max(0.000001);
+/// Camera-centered LOD ellipsoid: forward/back reach is twice either lateral axis.
+pub const LOD_FORWARD_REACH: f32 = 2.0;
+pub fn lod_distance_squared(center: [f32; 3], eye: [f32; 3], view: &[f32; 16]) -> f32 {
+    let delta: [f32; 3] = core::array::from_fn(|a| center[a] - eye[a]);
+    // The rigid view matrix's Z row is the unit viewing axis. Its sign cancels.
+    let along = delta[0] * view[2] + delta[1] * view[6] + delta[2] * view[10];
+    let radial_squared: f32 = delta.into_iter().map(|d| d * d).sum();
+    (radial_squared - (1. - 1. / (LOD_FORWARD_REACH * LOD_FORWARD_REACH)) * along * along).max(0.)
+}
+pub fn detailed(rank: usize, cube: Cube, distance_squared: f32, projection_y: f32, height: u32) -> bool {
     let projected = cube.scale * height as f32 * projection_y.abs();
-    rank < FULL_WORLD_SEEDS && projected * projected >= 4. * distance_squared
+    rank < FULL_WORLD_SEEDS && projected * projected >= 4. * distance_squared.max(0.000001)
 }
 
 #[cfg(test)]
@@ -198,7 +200,24 @@ mod tests {
             scale: 1.,
             flags: 0,
         };
-        assert!(detailed(FULL_WORLD_SEEDS - 1, c, [0.; 3], 1., 1000));
-        assert!(!detailed(FULL_WORLD_SEEDS, c, [0.; 3], 1., 1000));
+        assert!(detailed(FULL_WORLD_SEEDS - 1, c, 1., 1., 1000));
+        assert!(!detailed(FULL_WORLD_SEEDS, c, 1., 1., 1000));
+    }
+    #[test]
+    fn lod_ellipsoid_has_double_forward_reach_and_follows_camera_rotation() {
+        let view = [1.,0.,0.,0.,0.,1.,0.,0.,0.,0.,1.,0.,0.,0.,0.,1.];
+        let turned = [0.,0.,1.,0.,0.,1.,0.,0.,-1.,0.,0.,0.,0.,0.,0.,1.];
+        let eye = [17.,-8.,3.];
+        for (delta, expected) in [([0.,0.,-200.],10000.), ([100.,0.,0.],10000.),
+                                  ([0.,100.,0.],10000.), ([100.,0.,-200.],20000.)] {
+            let point = core::array::from_fn(|a| eye[a] + delta[a]);
+            assert_eq!(lod_distance_squared(point, eye, &view), expected);
+        }
+        assert_eq!(lod_distance_squared([-200.,0.,0.], [0.;3], &turned), 10000.);
+        assert_eq!(lod_distance_squared([0.,0.,-200.], [0.;3], &turned), 40000.);
+        let cube = Cube { center: [0.,0.,-180.], scale: 0.2, flags: 0 };
+        assert!(detailed(0, cube, lod_distance_squared(cube.center,[0.;3],&view),1.,1000));
+        assert!(!detailed(0, cube, lod_distance_squared(cube.center,[0.;3],&turned),1.,1000));
+        assert!(!detailed(FULL_WORLD_SEEDS, cube, 1., 1., 1000));
     }
 }

@@ -68,6 +68,12 @@ others use the existing marker shader, within the total seed budget. Increasing
 the view range makes distant geometry eligible for this selection; it does not
 force all distant cubes to become dots. World selection logs the projection range.
 
+Unexpanded world dots then use distance-based spatial averaging, reaching groups
+of up to 16 in the far distance band. Close dots remain individual.
+Expansion and grouping measure distance in a camera-aligned ellipsoid with
+twice the reach along the viewing axis as along either lateral axis.
+See `MARKER_LOD.md` for the thresholds, sparse-area preservation and CPU benchmark.
+
 ## Validation
 
 Run `python3 tools/test_walker_camera.py` and `cargo check` from Cubes.

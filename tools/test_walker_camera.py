@@ -47,7 +47,7 @@ fn distant_world_cubes_reach_detail_or_marker_selection() {
          0., 0., far * near / (near - far), 0.]
     };
     // c2 becomes a marker at this distance; c4 remains a detailed cube.
-    for (side, depth, expected_detail) in [(2., 200., false), (8., 350., true)] {
+    for (side, depth, expected_detail) in [(2., 300., false), (8., 350., true)] {
         let cube = orchard::Cube {
             center: [0., 0., -depth],
             scale: (side - 0.014) * subcubes::C1 * 0.5,
@@ -60,8 +60,10 @@ fn distant_world_cubes_reach_detail_or_marker_selection() {
             let (ids, stats) = orchard::visible_with_lod(
                 &mut scratch, &asset, [0.; 3], &projection(limit), 8192,
                 |_| true,
-                |rank, id| {
-                    let detail = asset_brush::detailed(rank, asset.cubes[id], [0.; 3], focal, height);
+                |id, rank| {
+                    let view = [1.,0.,0.,0.,0.,1.,0.,0.,0.,0.,1.,0.,0.,0.,0.,1.];
+                    let distance = asset_brush::lod_distance_squared(asset.cubes[id].center,[0.;3],&view);
+                    let detail = asset_brush::detailed(rank, asset.cubes[id], distance, focal, height);
                     selected = Some(detail);
                     detail
                 },

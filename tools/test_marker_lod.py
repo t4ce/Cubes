@@ -22,7 +22,7 @@ fn benchmark_marker_lod() {
     use std::{hint::black_box, time::Instant};
     let cubes: Vec<_> = (0..8192).map(|i| orchard::Cube {
         center: [(i % 128) as f32 * 1.6 - 102.4, (i / 128) as f32 * 1.6 - 51.2, 0.],
-        scale: 0.7986, flags: orchard::CUSTOM_RGB555 | (i as u32 & 0x7fff),
+        scale: 0.1, flags: orchard::CUSTOM_RGB555 | (i as u32 & 0x7fff),
     }).collect();
     let ids: Vec<_> = (0..cubes.len()).collect();
     let view = [1.,0.,0.,0.,0.,1.,0.,0.,0.,0.,1.,0.,0.,0.,-710.,1.];
@@ -35,7 +35,8 @@ fn benchmark_marker_lod() {
     for _ in 0..iterations {
         for (rank, &id) in black_box(&ids).iter().enumerate() {
             let cube = cubes[id];
-            let scale = if asset_brush::detailed(rank, cube, eye, 2.414, 441) { cube.scale }
+            let distance = asset_brush::lod_distance_squared(cube.center, eye, &view);
+            let scale = if asset_brush::detailed(rank, cube, distance, 2.414, 441) { cube.scale }
                 else { asset_brush::marker_scale(cube.scale, 710., 2.414, 441) };
             black_box((cube.center, scale, cube.flags));
         }
@@ -47,8 +48,8 @@ fn benchmark_marker_lod() {
         black_box(&reducer.cubes);
     }
     let reduced = start.elapsed().as_secs_f64() * 1e6 / iterations as f64;
-    println!("8192 visible far dots -> {count} submitted dots; marker preparation baseline={baseline:.1}us grouped={reduced:.1}us/frame (CPU only, 1000 warm frames)");
-    assert!(count <= 8192 / 16 + 128, "dense far markers should approach 16:1 despite tile edges");
+    println!("8192 dots at one world diagonal ahead -> {count} submitted dots; marker preparation baseline={baseline:.1}us grouped={reduced:.1}us/frame (CPU only, 1000 warm frames)");
+    assert!(count <= 8192 / 4 + 128, "double forward reach keeps this fixture near the 4:1 band");
 }
 '''
 with tempfile.TemporaryDirectory(prefix='cubes-marker-lod-') as temporary:

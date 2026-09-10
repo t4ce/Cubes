@@ -852,7 +852,9 @@ impl CubeScene {
                             && (id < base || self.placed_reveal.admit(id - base))
                     },
                     |id, rank| {
-                        asset_brush::detailed(rank, asset.cubes[id], eye, projection_y, height)
+                        let cube = asset.cubes[id];
+                        let distance_squared = asset_brush::lod_distance_squared(cube.center, eye, &camera.view);
+                        asset_brush::detailed(rank, cube, distance_squared, projection_y, height)
                     },
                 );
                 self.placed_reveal.end_frame();
