@@ -457,11 +457,10 @@ impl CubeScene {
                             right: ((held(0x07) || held(0x4f)) as i32
                                 - (held(0x04) || held(0x50)) as i32)
                                 as f32,
-                            vertical: (held(0x2c) as i32 - (held(0x14) || held(0xe0)) as i32)
-                                as f32,
+                            vertical: -(held(0xe0) as i32) as f32,
                             boost: held(0xe1) || held(0xe5),
-                            fast_walk: held(0xe0) || held(0xe4),
-                            grip: held(0x09),
+                            fast_walk: held(0xe1) || held(0xe5),
+                            space: held(0x2c),
                             // R already opens the world cube. Home aligns the walk view.
                             align: held(0x4a),
                         },
@@ -1267,7 +1266,7 @@ impl CubeScene {
                         "3 sphere=1024 camera=center WASD=look cursor-expand=10%-area",
                     SceneMode::Orchard => "4 asset-grid WASD=orbit idle=auto-orbit",
                     SceneMode::World =>
-                        "5 lvl27-world first-person mouse-look WASD=surface-walk Ctrl=fast-walk Shift=flight-boost F=grip-drift Home=align Key5=next-world R=display-cube",
+                        "5 lvl27-world first-person mouse-look WASD=surface-walk Shift=walk/flight-boost Space=edge-push/approach Home=align Key5=next-world R=display-cube",
                 },
                 if mode == SceneMode::Orchard {
                     self.orchards[self.orchard_index].cubes.len()

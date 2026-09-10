@@ -297,7 +297,7 @@ pub struct Input {
     pub vertical: f32,
     pub boost: bool,
     pub fast_walk: bool,
-    pub grip: bool,
+    pub space: bool,
     pub align: bool,
 }
 
@@ -308,11 +308,19 @@ struct CubeBounds {
     gap: f32,
 }
 
-/// Renderer-space bounds of the packed cube selected by the grip probe.
+/// Renderer-space bounds of the packed cube selected by the Space approach probe.
 pub struct SnapOutline {
     pub lo: V,
     pub hi: V,
     pub reachable: bool,
+}
+
+#[derive(Clone, Copy)]
+struct PushOff {
+    direction: V,
+    look_at: V,
+    remaining: f32,
+    speed: f32,
 }
 
 pub struct CubesWalkerCam {
@@ -330,7 +338,9 @@ pub struct CubesWalkerCam {
     turn: Option<Turn>,
     elevation: Option<ElevationStep>,
     fly: bool,
-    grip_held: bool,
+    space_held: bool,
+    push_off: Option<PushOff>,
+    approach: Option<Hit>,
     align_held: bool,
     /// Reference defaults: 100% assistance and the soft 45-degree catch.
     pub camera_assist: f32,
@@ -450,7 +460,9 @@ impl CubesWalkerCam {
             turn: None,
             elevation: None,
             fly: true,
-            grip_held: false,
+            space_held: false,
+            push_off: None,
+            approach: None,
             align_held: false,
             camera_assist: 1.,
             edge_perch: true,
@@ -507,6 +519,8 @@ impl CubesWalkerCam {
         );
     }
     fn attach(&mut self, hit: Hit) {
+        self.approach = None;
+        self.push_off = None;
         self.turn = None;
         self.elevation = None;
         self.up = hit.normal;
@@ -526,12 +540,14 @@ impl CubesWalkerCam {
         let height = hit.map_or(EYE, |h| (h.distance - 0.065).max(0.12));
         add(self.foot, mul(self.up, height))
     }
-    // The rendered pose drives the probe, so the outline and F agree with
+    // The rendered pose drives the probe, so the outline and Space agree with
     // the center of the screen even during camera smoothing.
     fn snap_target(&self) -> Option<Hit> {
-        self.solid
-            .ray(self.position, self.rotation.rotate(FORWARD), 512.)
-            .or_else(|| self.solid.nearest(self.position, 6.))
+        self.solid.ray(
+            self.position,
+            self.rotation.rotate(FORWARD),
+            self.drift_half_extent * 4.,
+        )
     }
     pub fn snap_outline(&self) -> Option<SnapOutline> {
         if !self.fly {
@@ -548,25 +564,22 @@ impl CubesWalkerCam {
         Some(SnapOutline {
             lo: mul(add(cube.lo, [inset; 3]), self.unit),
             hi: mul(add(cube.lo, [cube.size - inset; 3]), self.unit),
-            reachable: hit.distance <= 12.,
+            reachable: true,
         })
     }
     pub fn update(&mut self, input: Input, dt: f32) {
-        if input.grip && !self.grip_held {
-            if !self.fly {
-                self.turn = None;
-                self.elevation = None;
-                self.foot = self.position;
-                self.fly = true;
-            } else if let Some(hit) = self.snap_target().filter(|h| h.distance <= 12.) {
-                self.attach(hit);
+        let space_pressed = input.space && !self.space_held;
+        if space_pressed && self.fly {
+            if let Some(hit) = self.snap_target() {
+                self.push_off = None;
+                self.approach = Some(hit);
             }
         }
         if input.align && !self.align_held {
             self.pitch = 0.;
             self.reset_view();
         }
-        self.grip_held = input.grip;
+        self.space_held = input.space;
         self.align_held = input.align;
         if !dt.is_finite() || dt <= 0. {
             return;
@@ -575,7 +588,12 @@ impl CubesWalkerCam {
         if let Some(t) = self.turn.as_mut() {
             t.cross_input = 0.;
         }
-        if self.fly {
+        if input.space && !self.fly {
+            self.begin_push_off(input.fast_walk);
+        }
+        if self.push_off.is_some() || self.approach.is_some() {
+            self.advance_space_flight(dt);
+        } else if self.fly {
             let movement = add(
                 add(
                     mul(self.view.rotate(FORWARD), input.forward),
@@ -605,6 +623,9 @@ impl CubesWalkerCam {
                     mul(norm(cross(self.forward, self.up)), input.right),
                 ));
                 self.spider_step(direction, total / steps as f32);
+                if input.space && self.begin_push_off(input.fast_walk) {
+                    break;
+                }
             }
         }
         if let Some(t) = self.turn
@@ -626,6 +647,71 @@ impl CubesWalkerCam {
             self.position = target;
         }
         self.rotation = slerp(self.rotation, self.view, ease);
+    }
+    /// Only outside edges launch: ordinary steps and inside corners keep walking.
+    fn begin_push_off(&mut self, fast_walk: bool) -> bool {
+        let Some(t) = self.turn.filter(|t| t.convex) else {
+            return false;
+        };
+        self.push_off = Some(PushOff {
+            direction: norm(add(t.from, t.to)),
+            look_at: sub(t.edge, mul(add(t.from, t.to), 0.1)),
+            remaining: 6.,
+            speed: 2. * 2.9 * if fast_walk { 10. } else { 5. },
+        });
+        self.turn = None;
+        self.elevation = None;
+        self.approach = None;
+        self.foot = self.position;
+        self.fly = true;
+        true
+    }
+    fn aim_at(&mut self, point: V) {
+        let direction = norm(sub(point, self.foot));
+        if dot(direction, direction) < 0.5 {
+            return;
+        }
+        if dot(direction, self.up).abs() > 0.99 {
+            self.up = tangent(UP, direction);
+        }
+        self.forward = tangent(direction, self.up);
+        self.pitch = libm::asinf(dot(direction, self.up).clamp(-1., 1.));
+        self.view = look(direction, self.up);
+    }
+    fn advance_space_flight(&mut self, dt: f32) {
+        if let Some(mut push) = self.push_off {
+            let requested = (push.speed * dt).min(push.remaining);
+            let distance = self
+                .solid
+                .ray(self.foot, push.direction, requested + 0.12)
+                .map_or(requested, |h| (h.distance - 0.12).max(0.));
+            self.foot = add(self.foot, mul(push.direction, distance));
+            self.aim_at(push.look_at);
+            push.remaining -= distance;
+            self.push_off = if push.remaining <= EPS || distance < requested {
+                None
+            } else {
+                Some(push)
+            };
+        } else if let Some(hit) = self.approach {
+            let target = add(hit.point, mul(hit.normal, EYE + SKIN));
+            let offset = sub(target, self.foot);
+            let remaining = libm::sqrtf(dot(offset, offset));
+            let direction = norm(offset);
+            let requested = (48. * dt).min(remaining);
+            let distance = self
+                .solid
+                .ray(self.foot, direction, requested + 0.12)
+                .map_or(requested, |h| (h.distance - 0.12).max(0.));
+            self.foot = add(self.foot, mul(direction, distance));
+            self.aim_at(hit.point);
+            if distance < requested {
+                // Another surface blocks the approach; stop safely rather than teleport.
+                self.approach = None;
+            } else if remaining <= requested + EPS {
+                self.attach(hit);
+            }
+        }
     }
     fn valid_segment(&self, t: Turn, segment: f32) -> bool {
         let mut p = t.edge;
@@ -1044,55 +1130,90 @@ mod tests {
         close(c.view.rotate(FORWARD), [0.70710677, -0.70710677, 0.]);
     }
     #[test]
-    fn f_toggle_is_edge_triggered_and_outline_uses_the_same_snap_target() {
-        let mut c = fixture(&[[0, 0, 0, 4]], [1.5, 4. + SKIN, 1.5], [1., 0., 0.]);
+    fn space_pushes_from_an_edge_and_returns_from_beyond_old_grip_range() {
+        let mut c = fixture(&[[0, 0, 0, 4]], [3.5, 4. + SKIN, 1.5], [1., 0., 0.]);
         c.update(
             Input {
-                grip: true,
+                space: true,
                 ..Input::default()
             },
             0.02,
         );
+        assert!(!c.fly); // Space on a flat surface does not detach.
+        for _ in 0..30 {
+            c.update(
+                Input {
+                    space: true,
+                    forward: 1.,
+                    ..Input::default()
+                },
+                0.02,
+            );
+        }
         assert!(c.fly);
-        c.update(
-            Input {
-                grip: true,
-                ..Input::default()
-            },
-            0.02,
-        );
-        assert!(c.fly);
-        c.position = [1.5, 20., 1.5];
+        assert!(c.turn.is_none());
+        assert!(c.push_off.is_none());
+        assert!(!c.solid.has(c.position));
+        let toward = norm(sub([4., 4., 1.5], c.position));
+        assert!(dot(c.rotation.rotate(FORWARD), toward) > 0.95);
+        assert!(c.approach.is_none()); // Holding Space cannot immediately return.
+        c.position = [1.5, 30., 1.5];
         c.foot = c.position;
         c.view = look([0., -1., 0.], [0., 0., 1.]);
         c.rotation = c.view;
-        assert!(!c.snap_outline().unwrap().reachable);
-        c.update(Input::default(), 0.);
+        assert!(c.snap_outline().unwrap().reachable);
+        c.update(Input::default(), 0.02);
         c.update(
             Input {
-                grip: true,
+                space: true,
                 ..Input::default()
             },
-            0.,
+            0.02,
         );
-        assert!(c.fly); // Black means F cannot attach, including fallback.
-        c.position = [1.5, 10., 1.5];
-        c.foot = c.position;
-        let outline = c.snap_outline().unwrap();
-        assert!(outline.reachable);
-        close(outline.lo, [0.; 3]);
-        close(outline.hi, [4.; 3]);
-        c.update(Input::default(), 0.);
-        c.update(
-            Input {
-                grip: true,
-                ..Input::default()
-            },
-            0.,
-        );
+        assert!(c.approach.is_some());
+        assert!(c.fly); // Travel is animated, not an instant snap.
+        for _ in 0..60 {
+            c.update(Input::default(), 0.02);
+            assert!(!c.solid.has(c.position));
+        }
         assert!(!c.fly);
         close(c.up, UP);
         assert!(c.snap_outline().is_none());
+    }
+    #[test]
+    fn space_can_interrupt_an_existing_outside_turn_without_cooldown() {
+        for fast in [false, true] {
+            let mut c = fixture(&[[0, 0, 0, 4]], [3.5, 4. + SKIN, 1.5], [1., 0., 0.]);
+            c.spider_step(c.forward, 0.8);
+            assert!(c.turn.is_some());
+            let start = c.position;
+            c.update(
+                Input {
+                    space: true,
+                    fast_walk: fast,
+                    ..Input::default()
+                },
+                0.02,
+            );
+            assert!(c.fly);
+            assert!(c.push_off.is_some());
+            assert!(c.turn.is_none());
+            let moved = sub(c.foot, start);
+            let expected = if fast { 58. } else { 29. } * 0.02;
+            assert!((libm::sqrtf(dot(moved, moved)) - expected).abs() < 1e-5);
+            // A fresh press can reverse immediately, even before push-off finishes.
+            c.update(Input::default(), 0.02);
+            c.rotation = look(sub([3.5, 4., 1.5], c.position), [0., 0., 1.]);
+            c.update(
+                Input {
+                    space: true,
+                    ..Input::default()
+                },
+                0.001,
+            );
+            assert!(c.push_off.is_none());
+            assert!(c.approach.is_some() || !c.fly);
+        }
     }
     #[test]
     fn drift_stops_at_solids_and_look_cannot_flip_pitch() {

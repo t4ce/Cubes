@@ -41,6 +41,7 @@ extern crate self as libm;
 extern crate self as trueos_picasso;
 pub fn sqrtf(x:f32)->f32 {x.sqrt()}
 pub fn sinf(x:f32)->f32 {x.sin()}
+pub fn asinf(x:f32)->f32 {x.asin()}
 pub fn cosf(x:f32)->f32 {x.cos()}
 pub fn acosf(x:f32)->f32 {x.acos()}
 pub fn expf(x:f32)->f32 {x.exp()}
