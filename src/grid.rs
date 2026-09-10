@@ -8,13 +8,13 @@ pub const SPACING: f32 = 0.8;
 pub const ROOM_HALF_EXTENT: f32 = 6.0;
 pub const CUBE_GRID_AXIS: usize = 3;
 pub const CUBE_GRID_COUNT: usize = CUBE_GRID_AXIS * CUBE_GRID_AXIS * CUBE_GRID_AXIS;
-/// Key 3 fills the renderer's single retained draw group exactly.
+/// The Key-1 sphere uses 1,024 seeds in a single retained draw group.
 pub const SPHERE_COUNT: usize = 1024;
 pub const MATERIAL_SHOWCASE_COUNT: usize = 42;
 pub const SPHERE_RADIUS: f32 = 6.0;
 /// The expanding cursor circle covers 10% of the current viewport area.
 pub const SPHERE_CURSOR_AREA_FRACTION: f32 = 0.10;
-/// Retained V3 permits 8,192 seeds. Key 3 intentionally keeps its original
+/// Retained V3 permits 8,192 seeds. The Key-1 sphere keeps its original
 /// 1,024-sphere scene; Key 5 uses the additional world budget.
 pub const MAX_SEED_COUNT: usize = 8192;
 pub const CUBE_GRID_SPACING: f32 = 2.2;
@@ -74,7 +74,7 @@ pub fn cube_position(index: usize) -> [f32; 3] {
     ]
 }
 
-/// Evenly distributes the Key-3 seeds across the inside of a radius-six sphere
+/// Evenly distributes the sphere seeds across the inside of a radius-six sphere
 /// without a vertex buffer or pole clustering.
 pub fn sphere_position(index: usize) -> [f32; 3] {
     let t = (index as f32 + 0.5) / SPHERE_COUNT as f32;

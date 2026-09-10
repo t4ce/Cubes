@@ -2,7 +2,7 @@
 pub const PALETTE_FLAG: u32 = 256;
 /// Shade an entire key-1 room wall with its matching Rubik palette colour.
 pub const ROOM_PALETTE_FLAG: u32 = 1 << 13;
-/// Shade Key-3 seeds from their sphere position rather than the base material.
+/// Shade the Key-1 sphere seeds from their position rather than the base material.
 pub const SPHERE_GRADIENT_FLAG: u32 = 1 << 14;
 /// Key 7 combines the otherwise-exclusive room and sphere bits. Bits 0..2
 /// select one of six fixed metallic/roughness records in the cube shader.

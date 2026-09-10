@@ -655,6 +655,11 @@ impl CubesWalkerCam {
     pub fn pose(&self) -> (V, Q) {
         (mul(self.position, self.unit), self.rotation)
     }
+    /// Cover the world from anywhere in the drift envelope, in renderer units.
+    /// Its diagonal bounds eye-to-geometry distance in every view direction.
+    pub fn far_plane(&self) -> f32 {
+        (2. * self.drift_half_extent * self.unit * libm::sqrtf(3.) + self.unit).max(100.)
+    }
     pub fn look(&mut self, dx: f32, dy: f32) {
         if !dx.is_finite() || !dy.is_finite() {
             return;
@@ -1761,6 +1766,28 @@ mod tests {
                 assert_eq!(entered, Some(face), "world {} face {}", world + 1, face);
             }
         }
+    }
+    #[test]
+    fn far_plane_covers_all_world_geometry_from_every_drift_corner() {
+        for (world, bytes) in crate::WORLD_PAGES.iter().enumerate() {
+            let c = CubesWalkerCam::from_world(bytes, world == 26);
+            let unit = f32::from_le_bytes(bytes[12..16].try_into().unwrap());
+            // Include decorative/ghost tiers as well as collision solids.
+            for r in crate::cube_format::records(bytes) {
+                let squared_distance: f32 = (0..3)
+                    .map(|a| {
+                        let extent = r.origin[a].abs().max((r.origin[a] + r.side).abs())
+                            as f32 * unit;
+                        let separation = extent + c.drift_half_extent * c.unit;
+                        separation * separation
+                    })
+                    .sum();
+                assert!(c.far_plane() > libm::sqrtf(squared_distance), "world {}", world + 1);
+            }
+        }
+        // Legacy pages retain their own scale; small scenes keep the old floor.
+        let c = fixture(&[[0, 0, 0, 4]], [1.5, 4. + SKIN, 1.5], [1., 0., 0.]);
+        assert_eq!(c.far_plane(), 100.);
     }
     #[test]
     fn every_real_world_starts_in_front_of_its_portal_and_can_move() {

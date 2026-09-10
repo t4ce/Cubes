@@ -83,7 +83,7 @@ impl SceneMode {
         match self {
             Self::InteractiveGrid => 1,
             Self::StaticCube => 2,
-            Self::Sphere => 3,
+            Self::Sphere => 1,
             Self::Orchard => 4,
             Self::World => 5,
             Self::MaterialShowcase => 7,
@@ -1381,7 +1381,6 @@ impl CubeScene {
         let current = state.map_or(0, |keyboard| {
             (keyboard.is_down(0x1e) as u8)
                 | ((keyboard.is_down(0x1f) as u8) << 1)
-                | ((keyboard.is_down(0x20) as u8) << 2)
                 | ((keyboard.is_down(0x21) as u8) << 3)
                 | (((keyboard.is_down(0x22) || keyboard.is_down(0x3e)) as u8) << 4)
                 | ((keyboard.is_down(0x24) as u8) << 6)
@@ -1857,11 +1856,11 @@ impl CubeScene {
             format_args!(
                 "Cubes: mode={} seed_count={}",
                 match mode {
-                    SceneMode::InteractiveGrid => "1 interactive-grid",
+                    SceneMode::InteractiveGrid => "1 interactive-grid Key1=sphere",
                     SceneMode::StaticCube =>
                         "2 compact-puzzle click=face/edge/corner turns=3x1s camera=WASD-orbit idle=3s-auto-orbit",
                     SceneMode::Sphere =>
-                        "3 sphere=1024 camera=center WASD=look cursor-expand=10%-area",
+                        "1 sphere=1024 camera=center WASD=look cursor-expand=10%-area Key1=interactive-grid",
                     SceneMode::Orchard => "4 asset-grid WASD=orbit idle=auto-orbit",
                     SceneMode::World =>
                         "5 lvl27-world first-person mouse-look WASD=surface-walk Shift=walk/flight-boost Space=edge-push/approach Home=align Key5=next-world R=display-cube",
@@ -1913,6 +1912,23 @@ impl CubeScene {
     }
 
     fn set_mode_projection(&mut self, mode: SceneMode) {
+        let zfar = match mode {
+            SceneMode::World | SceneMode::MaterialShowcase => self
+                .walker_camera
+                .as_ref()
+                .map_or(100., walker_camera::CubesWalkerCam::far_plane),
+            SceneMode::Orchard => (self.orchards[self.orchard_index].radius * 10.0).max(100.0),
+            _ => 100.,
+        };
+        if mode == SceneMode::World {
+            logl::log(
+                level::INFO,
+                format_args!(
+                    "Cubes: world projection near={} far={} renderer_units c1={}",
+                    walker_camera::NEAR, zfar, subcubes::C1
+                ),
+            );
+        }
         self.flycam.camera.projection = Projection::Perspective {
             yfov: match mode {
                 SceneMode::InteractiveGrid => ROOM_YFOV,
@@ -1927,11 +1943,7 @@ impl CubeScene {
             } else {
                 0.1
             },
-            zfar: Some(if mode == SceneMode::Orchard {
-                (self.orchards[self.orchard_index].radius * 10.0).max(100.0)
-            } else {
-                100.0
-            }),
+            zfar: Some(zfar),
             aspect_ratio: None,
         };
     }

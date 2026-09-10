@@ -119,11 +119,12 @@ palette colour; they do not use the puzzle's translucent sticker pass. Its camer
 stays at the origin; W/S look up/down and A/D look left/right. Mouse-look and
 Q/E are disabled.
 
-Key 3 places 1,024 Fibonacci-distributed seeds on a radius-six sphere around
+Press Key 1 again to toggle to 1,024 Fibonacci-distributed seeds on a radius-six sphere around
 the camera. It uses Key 1's centered WASD look controls; every seed uses an RGB
 gradient from its sphere position, both as a dot and as an expanded cube. Routed
 cursor movement expands the nearby seeds with a screen-space circle whose area
-is 10% of the current viewport.
+is 10% of the current viewport. Another Key 1 press returns to the room;
+from other modes Key 1 enters the room. Key 3 is unassigned.
 
 Key 7 places six identical expanded cubes in one centered row. They retain the
 red, orange, white, yellow, green, and blue palette and share one texture-free

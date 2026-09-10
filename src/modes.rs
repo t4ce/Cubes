@@ -1,4 +1,4 @@
-//! Number-key routing. The world sequence belongs only to Key 5.
+//! Number-key routing. Key 1 toggles room/sphere; Key 5 owns the world sequence.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SceneMode {
     InteractiveGrid,
@@ -33,11 +33,13 @@ impl ModeKeys {
         let pressed = held & !self.held;
         self.held = held;
         let mode = if pressed & 1 != 0 {
-            SceneMode::InteractiveGrid
+            if current == SceneMode::InteractiveGrid {
+                SceneMode::Sphere
+            } else {
+                SceneMode::InteractiveGrid
+            }
         } else if pressed & 2 != 0 {
             SceneMode::StaticCube
-        } else if pressed & 4 != 0 {
-            SceneMode::Sphere
         } else if pressed & 8 != 0 && orchards > 0 {
             SceneMode::Orchard
         } else if pressed & 16 != 0 && worlds > 0 {
@@ -98,8 +100,8 @@ mod tests {
             keys.update(0, mode, 0, 2, 27);
             for (key, expected) in [
                 (1, SceneMode::InteractiveGrid),
+                (1, SceneMode::Sphere),
                 (2, SceneMode::StaticCube),
-                (4, SceneMode::Sphere),
                 (8, SceneMode::Orchard),
             ] {
                 let selection = keys.update(key, mode, 0, 2, 27).unwrap();
@@ -109,6 +111,7 @@ mod tests {
                     (expected == SceneMode::Orchard).then_some(0)
                 );
                 mode = expected;
+                assert_eq!(keys.update(key, mode, 0, 2, 27), None);
                 keys.update(0, mode, 0, 2, 27);
             }
         }
@@ -117,7 +120,8 @@ mod tests {
     fn existing_demo_repeat_actions_and_empty_catalogs() {
         let mut keys = ModeKeys::default();
         for (held, mode, page) in [
-            (1, SceneMode::InteractiveGrid, None),
+            (1, SceneMode::InteractiveGrid, Some(None)),
+            (1, SceneMode::Sphere, Some(None)),
             (2, SceneMode::StaticCube, Some(None)),
             (4, SceneMode::Sphere, None),
             (8, SceneMode::Orchard, Some(Some(1))),
@@ -126,6 +130,10 @@ mod tests {
             keys.update(0, mode, 0, 2, 27);
         }
         assert_eq!(keys.update(16, SceneMode::StaticCube, 0, 0, 0), None);
+        for mode in [SceneMode::InteractiveGrid, SceneMode::Sphere, SceneMode::StaticCube] {
+            assert_eq!(keys.update(4, mode, 0, 2, 27), None);
+            keys.update(0, mode, 0, 2, 27);
+        }
     }
 
     #[test]

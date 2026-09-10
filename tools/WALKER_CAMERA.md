@@ -35,41 +35,54 @@ The trigger tests a crossing of the opening, not contact with its decorative rin
   places it on the aimed face. See `ASSET_PLACEMENT.md`.
 - Home: align the view to the current surface. R retains the world-cube control.
 
-The HTML Explore camera settings are retained, with faster movement: 45-degree FOV, 0.003 rad/pixel look,
+Camera behavior is owned by Cubes; world imports contain only `.cubes` geometry
+and material records. Settings: 45-degree FOV, 0.003 rad/pixel look,
 0.75-voxel eye height, 14.5/29 voxels per second walking (normal/Shift), 1.8-voxel quarter-turn
 travel, 100% camera assist, 45-degree soft perch, and exponential camera smoothing.
 Stop to hold an edge, reverse to return, or move sideways along it. A one-cell
 step is traversed automatically; larger walls become walkable faces. At a
 three-face vertex, choose a face by moving across the edge.
 
-The authored cell size is 0.2 renderer units in the current exports. Movement
-and eye height scale with that cell size; mouse and transition timing do not.
-Collision expands packed cubes into their ideal cell union. Tiny visual gaps
+The authored c1 cell size is 0.2 renderer units in v2 exports. The camera's movement
+unit is four c1 (0.8 renderer units), with collision sampled on the c1 grid.
+Only c3, r2, c4 and r3 affect walking, drift collision and Space attachment;
+c1, c2 and r1 are pass-through geometry. Tiny visual gaps
 and bevels do not split the walking surface. The occupancy includes the full
 page, independent of streamed/culled seeds, and retains the authored portal
 footprint during portal recoloring/scatter. No world population is changed.
 
 The outline reuses the existing static line-list pass and outlines the complete
-visible packed cube. Space uses the rendered view's first surface hit, matching
+visible walkable constituent cube. Space uses the rendered view's first surface hit, matching
 the center of the screen during smoothing. Approaches stop safely if another
 surface obstructs travel; no instant long-distance snap is used.
+
+The near plane is 0.01 renderer units. Key5's far plane covers the diagonal of
+the camera's drift envelope, including a small margin (about 799 units for the
+current 409.6-unit-wide worlds). The former fixed 100-unit plane clipped before
+the world center when viewed from a boundary entrance. CPU visibility and GPU
+projection use the same range. Key7 also derives its range from its camera bounds.
+
+Frustum clipping precedes detail/marker selection. Of the admitted visible seeds,
+the first 3,840 are detailed if their projected size is at least two pixels;
+others use the existing marker shader, within the total seed budget. Increasing
+the view range makes distant geometry eligible for this selection; it does not
+force all distant cubes to become dots. World selection logs the projection range.
 
 ## Validation
 
 Run `python3 tools/test_walker_camera.py` and `cargo check` from Cubes.
-If the showcase HTML is being redesigned independently, pass `--reference PATH`
-to use the original camera reference instead of the current document.
-The host tests execute the HTML's actual edge controller to produce comparison
-traces, then check the Rust implementation, seam support, steps, inner corners,
+The host tests exercise the Rust implementation, seam support, steps, inner corners,
 reverse/perch, assistance, drift collision, Space/outline agreement, and all 27
-real portal entries. They do not establish GPU rendering or subjective feel.
+real portal entries. They also check all 27 worlds against the far-plane bounds
+and verify distant cubes reach detail/marker selection. They do not establish
+GPU rendering or subjective feel.
 
 Three useful on-device checks:
 
 1. Enter World View: verify portal entry, inward heading, eye height and walking
    speed; cross several visible cube seams without camera bumps.
 2. Approach a floor/ramp edge: keep walking around it, stop near 45 degrees,
-   move along the edge, then reverse. Compare the motion with HTML Explore.
+   move along the edge, then reverse.
 3. Hold Space while walking off an outside edge, then try pressing it midway
    through a turn. Check the short push and backward look. Aim at a distant cube
    and press Space again: verify fast travel and attachment without passing

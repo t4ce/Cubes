@@ -63,7 +63,7 @@ fn every_bundled_world_loads_in_order_and_revisits_are_cached() {
         keys.update(0, SceneMode::World, 0, 1, 27);
         // World sequence must survive visiting every existing demo.
         current = SceneMode::World;
-        for key in [1, 2, 4, 8] {
+        for key in [1, 1, 2, 8] {
             current = keys.update(key, current, 0, 1, 27).unwrap().mode;
             keys.update(0, current, 0, 1, 27);
         }
