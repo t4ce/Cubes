@@ -129,9 +129,29 @@ def geometry(path: Path):
     return raw, triangles
 
 
+def carousel_colors():
+    colors = {0x7fff}
+    for path in sorted((ROOT / "Cube/Assets").glob("*.cubes")):
+        data = path.read_bytes()
+        for i in range(data[10]):
+            rgb = data[16+i*4:19+i*4]
+            colors.add(sum(((v*31+127)//255) << (a*5) for a,v in enumerate(rgb)))
+    if len(colors) > 512:
+        raise ValueError("carousel palette exceeds 512 colors")
+    return sorted(colors)
+
+
+def carousel_shader(colors):
+    # Immediate selections keep this relocation-free: an indirectly indexed
+    # constant array creates an unsupported native constant-data section.
+    choices = "\n".join(f" if (index == {i}u) rgb = {color}u;" for i,color in enumerate(colors[1:],1))
+    return f"vec3 carouselColor(uint index) {{\n uint rgb = {colors[0]}u;\n{choices}\n return vec3(rgb&31u,(rgb>>5u)&31u,(rgb>>10u)&31u)/31.0;\n}}\n"
+
+
 def write_sources(source: Path, out: Path, palette: Path = PALETTE):
     raw, triangles = geometry(source)
     palette_raw, materials = load_palette(palette)
+    asset_colors = carousel_colors()
     out.mkdir(parents=True, exist_ok=True)
     # uintBitsToFloat preserves every reference float bit, including signed
     # zero. Constants belong to shader code, never a runtime vertex mesh.
@@ -277,7 +297,7 @@ layout(std430, set=0, binding=0) readonly buffer Camera {
     vec4 position_near;
 } camera;
 layout(std430, set=0, binding=1) readonly buffer Instances { vec4 rows[]; } instances;
-''' + palette_shader(materials) + '''
+''' + palette_shader(materials) + carousel_shader(asset_colors) + '''
 void main() {
     vec3 b = gl_TessCoord;
     vec4 p = b.x * gl_in[0].gl_Position
@@ -313,7 +333,12 @@ void main() {
                           instances.rows[base+2u], instances.rows[base+3u]);
         // The Key 1 sphere colours marker dots and expanded cubes by position
         // on the containing sphere.
-        if ((flags & 32768u) != 0u) {
+        bool carousel = (flags & 57856u) == 25088u; // no RGB555 bit; both showcase bits plus group-1 bit
+        if (carousel) {
+            baseColor = carouselColor(flags & 511u);
+            uint opacity = (flags >> 10u) & 3u;
+            alpha = opacity == 1u ? 0.85 : opacity == 2u ? 0.5 : 1.0;
+        } else if ((flags & 32768u) != 0u) {
             baseColor = vec3(flags & 31u, (flags >> 5u) & 31u, (flags >> 10u) & 31u) / 31.0;
         // Key 7 combines the otherwise-exclusive room and sphere flags. Each
         // cube uses one palette color and one data-only surface finish.
@@ -348,7 +373,7 @@ void main() {
         }
         if (material >= 0) paletteMaterial(uint(material), baseColor, roughness, metallic);
         bool transparentPass = (flags & 32768u) == 0u && (flags & 512u) != 0u;
-        hidden = transparentPass ? (sticker < 0 || sticker != int((flags >> 10u) & 7u)) : sticker >= 0;
+        hidden = !carousel && (transparentPass ? (sticker < 0 || sticker != int((flags >> 10u) & 7u)) : sticker >= 0);
         if (sticker >= 0) alpha=0.35;
         if (!marker) {
             p = model * p;
@@ -431,6 +456,7 @@ void main() {
         "triangle_corner_count": len(positions),
         "unique_positions": len(canonical_positions), "unique_normals": len(set(normals)),
         "coordinate_space": "mesh-local, matching Cubes/build.rs",
+        "carousel_colors_rgb555": asset_colors,
         "runtime_integrated": False, "host_render_verified": False,
         "baremetal_verified": False,
     }

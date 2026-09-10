@@ -66,6 +66,53 @@ fn main() {
         49,
         "expected all generated showcase assets"
     );
+    let mut colors = std::collections::BTreeSet::from([0x7fff_u32]);
+    for path in &showcase_assets {
+        let data = fs::read(path).unwrap();
+        for rgb in data[16..16 + data[10] as usize * 4].chunks_exact(4) {
+            colors.insert(
+                (0..3)
+                    .map(|a| ((rgb[a] as u32 * 31 + 127) / 255) << (a * 5))
+                    .sum(),
+            );
+        }
+    }
+    assert_eq!(
+        colors.into_iter().collect::<Vec<_>>(),
+        exported::CAROUSEL_COLORS,
+        "asset colours changed: rebake/export cube shader"
+    );
+    let names: Vec<_> = showcase_assets
+        .iter()
+        .map(|p| p.file_name().unwrap().to_str().unwrap().to_owned())
+        .collect();
+    let catalogue: serde_json::Value =
+        serde_json::from_slice(&fs::read("Cube/asset-groups.json").unwrap()).unwrap();
+    registry.push_str("const ASSET_GROUPS: &[(&str, &[usize])] = &[\n");
+    let mut grouped = std::collections::BTreeSet::new();
+    for group in catalogue["groups"].as_array().unwrap() {
+        let ids: Vec<_> = group["assets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|name| {
+                let index = names
+                    .iter()
+                    .position(|n| n == name.as_str().unwrap())
+                    .expect("unknown grouped asset");
+                assert!(grouped.insert(index), "duplicate grouped asset");
+                index
+            })
+            .collect();
+        assert!(!ids.is_empty());
+        registry.push_str(&format!(
+            "({:?}, &{:?}),\n",
+            group["name"].as_str().unwrap(),
+            ids
+        ));
+    }
+    assert_eq!(grouped.len(), names.len(), "ungrouped asset");
+    registry.push_str("];\n");
     registry.push_str(&write_registry("ASSET_GRID_ASSETS", showcase_assets));
     let world_dir = std::path::Path::new("Cube/lvl27");
     let mut worlds: Vec<_> = fs::read_dir(world_dir)

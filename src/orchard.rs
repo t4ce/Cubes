@@ -1343,14 +1343,26 @@ mod tests {
         let asset = scene(alloc::vec![cube([0., 0., 4.], 1.), cube([0., 0., 8.], 0.3)]);
         let mut scratch = VisibilityScratch::new();
         let mut reveal = reveal::Reveal::new();
-        for now in [0, reveal::DELAY_MS, reveal::DELAY_MS + reveal::GROWTH_MS / 2,
-                    reveal::DELAY_MS + reveal::GROWTH_MS] {
+        for now in [
+            0,
+            reveal::DELAY_MS,
+            reveal::DELAY_MS + reveal::GROWTH_MS / 2,
+            reveal::DELAY_MS + reveal::GROWTH_MS,
+        ] {
             reveal.begin_frame(now, 2);
-            let (ids, _) = visible_with_admission(&mut scratch, &asset, [0.; 3], &PERSPECTIVE, 2,
-                |id, _| reveal.admit(id).then(|| reveal.settled(id)));
-            if now < reveal::DELAY_MS { assert!(ids.is_empty()); }
-            else if reveal::PLACED_BOUNCE_UNIFORM_GROWTH && now < reveal::DELAY_MS + reveal::GROWTH_MS { assert_eq!(ids, &[0, 1]); }
-            else { assert_eq!(ids, &[0]); }
+            let (ids, _) =
+                visible_with_admission(&mut scratch, &asset, [0.; 3], &PERSPECTIVE, 2, |id, _| {
+                    reveal.admit(id).then(|| reveal.settled(id))
+                });
+            if now < reveal::DELAY_MS {
+                assert!(ids.is_empty());
+            } else if reveal::PLACED_BOUNCE_UNIFORM_GROWTH
+                && now < reveal::DELAY_MS + reveal::GROWTH_MS
+            {
+                assert_eq!(ids, &[0, 1]);
+            } else {
+                assert_eq!(ids, &[0]);
+            }
             reveal.end_frame();
         }
     }
@@ -1373,7 +1385,9 @@ mod tests {
             reveal.reset();
             let mut previous = 0;
             let mut settled_at = None;
-            let deadline = reveal::DELAY_MS + (asset.cubes.len() as u64).div_ceil(reveal::MAX_STARTS_PER_FRAME) * 67 + 134;
+            let deadline = reveal::DELAY_MS
+                + (asset.cubes.len() as u64).div_ceil(reveal::MAX_STARTS_PER_FRAME) * 67
+                + 134;
             for now in (0..deadline).step_by(67) {
                 reveal.begin_frame(now, asset.cubes.len());
                 let (ids, stats) =

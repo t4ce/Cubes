@@ -79,6 +79,19 @@ impl Reveal {
         self.seeds.resize(source, Seed::default());
     }
 
+    pub fn reset_range(&mut self, range: core::ops::Range<usize>) {
+        for seed in &mut self.seeds[range] {
+            *seed = Seed::default();
+        }
+    }
+    pub fn linear_scale(&self, id: usize) -> f32 {
+        match self.seeds[id].phase {
+            Phase::Full(start) => {
+                (self.now.saturating_sub(start) as f32 / GROWTH_MS as f32).min(1.)
+            }
+            _ => 0.,
+        }
+    }
     pub fn begin_frame(&mut self, now: u64, source: usize) {
         if self.seeds.len() != source {
             self.reset();

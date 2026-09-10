@@ -76,6 +76,7 @@ name = "cubes"
 version = "0.1.0"
 dependencies = [
  "libm",
+ "serde_json",
  "sha2",
  "trueos",
  "trueos-picasso",

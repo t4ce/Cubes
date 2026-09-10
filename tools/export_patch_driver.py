@@ -112,6 +112,7 @@ pub(crate) fn matches(pipeline: &TrianglePipeline) -> bool {
         f'pub(crate) const SOURCE_SHA256: &str = "{manifest["source_sha256"]}";\n'
         f'pub(crate) const PALETTE_SHA256: &str = "{manifest["palette_sha256"]}";\n'
         f'pub(crate) const CONTRACT_VERSION: u32 = 10;\n'
+        f'pub(crate) const CAROUSEL_COLORS: &[u32] = &{manifest["carousel_colors_rgb555"]};\n'
     )
 
 if __name__ == '__main__':

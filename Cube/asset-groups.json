@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "groups": [
+    {
+      "name": "Trees",
+      "assets": [
+        "pine.cubes",
+        "broad.cubes",
+        "orchard.cubes",
+        "tall.cubes"
+      ]
+    },
+    {
+      "name": "Rocks & Ores",
+      "assets": [
+        "stonePile.cubes",
+        "ironPile.cubes",
+        "copperPile.cubes",
+        "goldPile.cubes"
+      ]
+    },
+    {
+      "name": "Bushes",
+      "assets": [
+        "roundBush.cubes",
+        "berryBush.cubes",
+        "grassTuft.cubes",
+        "wildBush.cubes"
+      ]
+    },
+    {
+      "name": "Small Bushes",
+      "assets": [
+        "compactBush.cubes",
+        "lowMoundBush.cubes",
+        "forkedBush.cubes",
+        "smallBerryBush.cubes"
+      ]
+    },
+    {
+      "name": "Chests",
+      "assets": [
+        "travelerChest.cubes",
+        "gemChest.cubes",
+        "ironboundChest.cubes",
+        "royalChest.cubes"
+      ]
+    },
+    {
+      "name": "Vegetables",
+      "assets": [
+        "chilliPepper.cubes",
+        "banana.cubes",
+        "carrot.cubes",
+        "eggplant.cubes",
+        "cornCob.cubes",
+        "pumpkin.cubes",
+        "radish.cubes",
+        "cucumber.cubes"
+      ]
+    },
+    {
+      "name": "Tools",
+      "assets": [
+        "pickaxe.cubes",
+        "hatchet.cubes",
+        "hammer.cubes",
+        "spade.cubes",
+        "hoe.cubes",
+        "rake.cubes",
+        "sickle.cubes",
+        "wateringCan.cubes"
+      ]
+    },
+    {
+      "name": "packed_lite demo",
+      "assets": [
+        "packedLiteBush.cubes",
+        "packedLiteWildflower.cubes",
+        "packedLiteRose.cubes",
+        "packedLiteSunflower.cubes",
+        "packedLiteDaisy.cubes",
+        "packedLiteGrass.cubes",
+        "packedLitePalmTree.cubes",
+        "packedLiteOakTree.cubes",
+        "packedLiteBirchTree.cubes",
+        "packedLiteTree.cubes",
+        "packedLiteSpruceTree.cubes"
+      ]
+    },
+    {
+      "name": "Other assets",
+      "assets": [
+        "dynamicPortalCircle.cubes",
+        "dynamicPortalStanding.cubes"
+      ]
+    }
+  ]
+}
