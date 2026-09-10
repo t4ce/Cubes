@@ -25,10 +25,10 @@ def export(bake, output):
     expected = {
         'vertex_TRUEOS_VS_state_v1.txt': dict(verx10=120, dispatch_grf_start=2, urb_entry_64b=1, max_threads=546,
             uses_instanceid=1, vf_packing0=0xa7, binding_table_entries=4, vue_slots=3),
-        'fragment_TRUEOS_PS_state_v1.txt': dict(verx10=120, grf_start8=4, num_varying_inputs=3,
+        'fragment_TRUEOS_PS_state_v1.txt': dict(verx10=120, grf_start8=4, num_varying_inputs=4,
             flat_inputs=0, binding_table_entries=1, scratch_bytes=0, push_bytes=0),
         'tess_control_TRUEOS_HS_state_v1.txt': dict(verx10=120, instances=3, urb_entry_64b=2),
-        'tess_eval_TRUEOS_DS_state_v1.txt': dict(verx10=120, dispatch_grf_start=5, urb_read_length=15, vue_slots=5),
+        'tess_eval_TRUEOS_DS_state_v1.txt': dict(verx10=120, dispatch_grf_start=5, urb_read_length=15, vue_slots=6),
         'tessellation_TRUEOS_TE_state_v1.txt': dict(domain=1, partitioning=0, output_topology_lower_left=2,
             domain_origin=0, triangle_domain=1),
     }
@@ -94,7 +94,7 @@ pub(crate) static PIPELINE: TrianglePipeline = TrianglePipeline {
         urb_entry_output_length: 1 } },
     ps: TrianglePixelShader { code: &FRAGMENT, meta: TrianglePixelShaderMetadata {
         kernel: kernel(((VERTEX.len() as u32 * 4) + 63) & !63, FRAGMENT.len() as u32 * 4, 4, 1),
-        num_varying_inputs: 3, uses_vmask: true, computed_stencil: false,
+        num_varying_inputs: 4, uses_vmask: true, computed_stencil: false,
         persample_dispatch: false, computed_depth_mode: 0, flat_inputs: 0 } },
 };
 pub(crate) fn matches(pipeline: &TrianglePipeline) -> bool {

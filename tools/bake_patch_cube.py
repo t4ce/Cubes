@@ -268,6 +268,7 @@ layout(location=0) in vec4 controlNormal[];
 layout(location=0) out vec4 surfaceColor;
 layout(location=1) out vec4 surfaceNormal;
 layout(location=2) out vec4 surfaceView;
+layout(location=3) out vec4 surfaceLight;
 // Retained camera ABI: view-projection starts at byte 128.
 layout(std430, set=0, binding=0) readonly buffer Camera {
     mat4 view;
@@ -354,6 +355,14 @@ void main() {
             normal = normalize(mat3(model) * normal); // positive uniform scale only
         }
     }
+    // The single sun follows the camera orientation: above, behind, and
+    // slightly to the player's right. Rows of the world-to-view rotation
+    // are the camera's world-space right/up/back axes (GLSL indexes columns
+    // first). Ignore translation so this remains a directional light.
+    vec3 cameraRight = vec3(camera.view[0][0],camera.view[1][0],camera.view[2][0]);
+    vec3 cameraUp = vec3(camera.view[0][1],camera.view[1][1],camera.view[2][1]);
+    vec3 cameraBack = vec3(camera.view[0][2],camera.view[1][2],camera.view[2][2]);
+    surfaceLight = vec4(cameraRight*0.35 + cameraUp*0.80 + cameraBack*0.45, 0.0);
     surfaceColor = vec4(baseColor, roughness);
     surfaceNormal = vec4(normal, metallic);
     surfaceView = vec4(camera.position_near.xyz - p.xyz, alpha);
@@ -367,15 +376,16 @@ void main() {
 layout(location=0) in vec4 surfaceColor;
 layout(location=1) in vec4 surfaceNormal;
 layout(location=2) in vec4 surfaceView;
+layout(location=3) in vec4 surfaceLight;
 layout(location=0) out vec4 color;
 void main() {
     vec3 baseColor = surfaceColor.rgb;
     vec3 normal = normalize(surfaceNormal.xyz);
-    vec3 light = normalize(vec3(0.35,0.80,0.45));
+    vec3 light = normalize(surfaceLight.xyz);
     float nDotL = max(dot(normal, light), 0.0);
     float sky = 0.18 + 0.12 * max(normal.y, 0.0);
     if (surfaceColor.a < 0.0) {
-        // Preserve the established diffuse result byte-for-byte in modes 1-5.
+        // Same diffuse response in modes 1-5; only the sun direction changed.
         color = vec4(baseColor * (sky + nDotL * 0.82), surfaceView.a);
         return;
     }
