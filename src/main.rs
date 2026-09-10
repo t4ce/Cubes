@@ -447,9 +447,9 @@ impl CubeScene {
                     logl::log(
                         level::INFO,
                         format_args!(
-                            "Cubes: Key7 mining tool=c{} side={} c1 grid=1 c1",
-                            self.mining.tool + 1,
-                            subcubes::TOOLS[self.mining.tool]
+                            "Cubes: Key7 mining tool={} side={} c1 grid=1 c1",
+                            self.mining.tool_name(),
+                            self.mining.tool_side().unwrap_or(0)
                         ),
                     );
                 }
@@ -784,7 +784,7 @@ impl CubeScene {
                 .len()
                 .min(asset_brush::PREVIEW_SEEDS)
         } else if self.mode == SceneMode::MaterialShowcase {
-            1
+            usize::from(self.mining.tool_side().is_some())
         } else {
             0
         };
@@ -1042,12 +1042,12 @@ impl CubeScene {
             }
             encode_seed(seed, &mut seed_bytes[i * 64..(i + 1) * 64]);
         }
-        if self.mode == SceneMode::MaterialShowcase {
+        if self.mode == SceneMode::MaterialShowcase && preview_count > 0 {
             // A fixed-scale tool swatch keeps wheel selection visible even off-target.
             let placement = world_cube::Placement::asset(width, height, tan_half_fov, 1.4);
             let (local, scale) = placement.asset_pose(
                 [0.; 3],
-                subcubes::TOOLS[self.mining.tool] as f32 * subcubes::C1 * 0.5,
+                self.mining.tool_side().unwrap() as f32 * subcubes::C1 * 0.5,
             );
             let offset = self.flycam.camera.rotation.rotate(local);
             let translation = core::array::from_fn(|a| self.flycam.camera.position[a] + offset[a]);
@@ -1194,23 +1194,24 @@ impl CubeScene {
             &seed_bytes[..seed_count * 64],
         )
         .map_err(|code| CubeError::Vgpu("grid-seed-upload", code))?;
-        let outline = if self.mode == SceneMode::MaterialShowcase {
-            self.mining_target().map(|cut| walker_camera::SnapOutline {
-                lo: cut.min.map(|v| v as f32 * subcubes::C1),
-                hi: cut.min.map(|v| (v + cut.side) as f32 * subcubes::C1),
-                reachable: true,
-            })
-        } else {
-            self.walker_camera.as_ref().and_then(|c| c.snap_outline())
-        };
-        let (floor_bytes, line_color) = if let Some(target) = outline {
+        let outline = self.walker_camera.as_ref().and_then(|c| c.snap_outline());
+        let (floor_bytes, line_color) = if self.mode == SceneMode::MaterialShowcase {
+            let target = self.mining.target_details(
+                self.flycam.camera.position,
+                self.flycam.camera.rotation.rotate([0., 0., -1.]),
+            );
+            let mut overlay = floor::Overlay::new();
+            if let Some(snap) = outline {
+                overlay.cube(&camera.view_projection, snap.lo, snap.hi);
+            }
+            if let Some(target) = target {
+                overlay.mining_grid(&camera.view_projection, target);
+            }
+            (overlay.bytes, [255, 255, 255, 191]) // 75% straight alpha.
+        } else if let Some(target) = outline {
             (
                 floor::cube_outline(&camera.view_projection, target.lo, target.hi),
-                if target.reachable {
-                    [255, 255, 255, 255]
-                } else {
-                    [0, 0, 0, 255]
-                },
+                if target.reachable { [255, 255, 255, 255] } else { [0, 0, 0, 255] },
             )
         } else {
             (
@@ -1872,7 +1873,7 @@ impl CubeScene {
                     SceneMode::World =>
                         "5 lvl27-world first-person mouse-look WASD=surface-walk Shift=walk/flight-boost Space=edge-push/approach Home=align Key5=next-world R=display-cube",
                     SceneMode::MaterialShowcase =>
-                        "7 mining 7 tiers x 6 materials mouse-look WASD=walk/fly Shift=boost Space=push/approach Home=align wheel=c1/c2/c3/c4 LMB=mine RMB=reset grid=c1",
+                        "7 mining 7 tiers x 6 materials mouse-look WASD=walk/fly Shift=boost Space=push/approach Home=align wheel=none/c1/c2/c3/c4 LMB=mine RMB=reset grid=c1",
                 },
                 if mode == SceneMode::Orchard {
                     self.orchards[self.orchard_index].cubes.len()

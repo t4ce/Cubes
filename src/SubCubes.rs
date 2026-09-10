@@ -12,6 +12,15 @@ pub const C1: f32 = 0.2;
 pub const SIDES: [i32; 7] = [1, 2, 3, 4, 6, 8, 12];
 pub const NAMES: [&str; 7] = ["c1", "c2", "r1", "c3", "r2", "c4", "r3"];
 pub const TOOLS: [i32; 4] = [1, 2, 4, 8];
+pub const NO_TOOL: usize = TOOLS.len();
+
+#[derive(Clone, Copy, Debug)]
+pub struct MiningTarget {
+    pub cut: Block,
+    pub face_axis: usize,
+    /// Ideal hit-face coordinate in c1 units; shared by preview and mining.
+    pub face: i32,
+}
 pub fn walkable(side: i32) -> bool {
     matches!(side, 4 | 6 | 8 | 12)
 }
@@ -103,14 +112,29 @@ impl Demo {
                 });
             }
         }
-        Self { blocks, tool: 0 }
+        Self {
+            blocks,
+            tool: NO_TOOL,
+        }
     }
     pub fn cycle(&mut self, wheel: i32) {
-        self.tool = (self.tool as i32 + wheel.signum()).rem_euclid(4) as usize;
+        self.tool = (self.tool as i32 + wheel.signum()).rem_euclid(5) as usize;
+    }
+    pub fn tool_side(&self) -> Option<i32> {
+        TOOLS.get(self.tool).copied()
+    }
+    pub fn tool_name(&self) -> &'static str {
+        ["c1", "c2", "c3", "c4", "none"][self.tool]
+    }
+
+    pub fn target(&self, origin: [f32; 3], direction: [f32; 3]) -> Option<Block> {
+        self.target_details(origin, direction)
+            .map(|target| target.cut)
     }
     /// Ray hits ideal faces. Tangential coordinates always advance by c1,
     /// independent of the tool side; the tool extends inward from that face.
-    pub fn target(&self, origin: [f32; 3], direction: [f32; 3]) -> Option<Block> {
+    pub fn target_details(&self, origin: [f32; 3], direction: [f32; 3]) -> Option<MiningTarget> {
+        let side = self.tool_side()?;
         let origin = origin.map(|x| x / C1);
         let mut best = f32::INFINITY;
         let mut result = None;
@@ -140,7 +164,6 @@ impl Demo {
                 continue;
             }
             best = near;
-            let side = TOOLS[self.tool];
             let mut min = core::array::from_fn(|a| {
                 floor(origin[a] + direction[a] * near - direction[a] * 0.0001)
             });
@@ -154,10 +177,18 @@ impl Demo {
             } else {
                 block.min[axis] + block.side - side
             };
-            result = Some(Block {
-                min,
-                side,
-                material: 0,
+            result = Some(MiningTarget {
+                cut: Block {
+                    min,
+                    side,
+                    material: 0,
+                },
+                face_axis: axis,
+                face: if direction[axis] > 0. {
+                    block.min[axis]
+                } else {
+                    block.min[axis] + block.side
+                },
             });
         }
         result
@@ -174,6 +205,27 @@ impl Demo {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn no_tool_disables_target_and_wheel_reenters_each_direction() {
+        let mut demo = Demo::new();
+        assert_eq!(demo.tool, NO_TOOL);
+        demo.blocks = alloc::vec![Block {
+            min: [0; 3],
+            side: 12,
+            material: 0
+        }];
+        let origin = [C1, C1, -C1];
+        let direction = [0., 0., 1.];
+        assert!(demo.target(origin, direction).is_none());
+        demo.cycle(1);
+        assert_eq!(demo.tool_side(), Some(1));
+        assert!(demo.target(origin, direction).is_some());
+        demo.cycle(-1);
+        assert!(demo.target(origin, direction).is_none());
+        demo.cycle(-1);
+        assert_eq!(demo.tool_side(), Some(8));
+        assert!(demo.target(origin, direction).is_some());
+    }
     #[test]
     fn every_surface_cell_and_tool_preserves_exact_volume_and_material() {
         for side in SIDES {
@@ -257,7 +309,7 @@ mod tests {
         assert!(out.iter().any(|b| b.side >= 4));
     }
     #[test]
-    fn ray_tools_use_c1_steps_on_every_face_and_cycle_four_sizes() {
+    fn ray_tools_use_c1_steps_on_every_face_and_cycle_tools_and_none() {
         let mut d = Demo {
             blocks: alloc::vec![Block {
                 min: [0; 3],
@@ -276,7 +328,11 @@ mod tests {
                         let mut origin = [1.1 * C1; 3];
                         origin[axis] = if sign > 0. { 20. * C1 } else { -8. * C1 };
                         origin[(axis + 1) % 3] = (cell as f32 + 0.5) * C1;
+                        let target = d.target_details(origin, direction).unwrap();
                         let cut = d.target(origin, direction).unwrap();
+                        assert_eq!(target.cut, cut);
+                        assert_eq!(target.face_axis, axis);
+                        assert_eq!(target.face, if sign > 0. { 12 } else { 0 });
                         assert_eq!(cut.side, TOOLS[tool]);
                         assert_eq!(cut.min[(axis + 1) % 3], cell);
                         assert_eq!(cut.min[axis], if sign > 0. { 12 - TOOLS[tool] } else { 0 });
@@ -285,12 +341,12 @@ mod tests {
             }
         }
         d.tool = 0;
-        for expected in [1, 2, 3, 0] {
+        for expected in [1, 2, 3, NO_TOOL, 0] {
             d.cycle(1);
             assert_eq!(d.tool, expected);
         }
         d.cycle(-1);
-        assert_eq!(d.tool, 3);
+        assert_eq!(d.tool, NO_TOOL);
         assert!(d.target([-1.; 3], [-1., 0., 0.]).is_none());
     }
     #[test]

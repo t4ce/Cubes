@@ -11,12 +11,19 @@ opaque (alpha 1). See `README.md` for rebaking after a palette re-export.
 
 - Mouse: look; WASD: move; Shift: boost; Q/E: flight roll.
 - Space: push away / approach a walkable face; Home: align the walk view.
-- Wheel: cycle c1 → c2 → c3 → c4 mining volumes (reverse wheel reverses).
+- Wheel: cycle none → c1 → c2 → c3 → c4 → none (reverse wheel reverses).
+  Entry and reset start with no tool; left click then does nothing.
 - Left click: remove the outlined volume, extending inward from the aimed face.
 - Right click: restore all 42 blocks and the starting view.
 
-A white tool swatch shows the current tool size even when aiming into empty space.
-The outline moves in c1 increments for every tool. Mine any of the six faces,
+With a tool enabled, a white swatch shows its size even when aiming into empty
+space. Over a target face, a 75%-opacity wireframe shows the exact cut volume,
+and a c1 grid extends two cells beyond its footprint in each tangent direction.
+The grid and cut share the mining ray hit on all six faces and move in c1
+increments for every tool. The Space approach target retains its own outline,
+including when no mining tool is selected. Guides are clipped to the viewport
+before drawing over the scene, so geometry cannot bury them. Key5 also uses this
+overlay-depth fix for its Space outline; mining and the regional grid stay in Key7. Mine any of the six faces,
 including edges, corners, existing cavities, and fragments. Each cut removes only
 its intersection with existing geometry. `src/SubCubes.rs` packs each affected
 block's remaining c1 cells in descending tier order, preserving its material.

@@ -97,7 +97,7 @@ class CameraSunTests(unittest.TestCase):
         self.assertIn("urb_read_length=15, vue_slots=6", exporter)
 
     def test_pixel_lighting_math_is_unchanged_except_for_direction(self):
-        # Canonical PS body from Cubes 155206c, with comments/whitespace removed.
+        # Canonical PS body from merge parent Cubes 6ba2830, with comments/whitespace removed.
         # Replace only the new direction input before checking that every
         # ambient, diffuse, material, specular and alpha expression is intact.
         body = self.ps[self.ps.index("void main() {"):]
@@ -105,7 +105,7 @@ class CameraSunTests(unittest.TestCase):
         body = re.sub(r"//[^\n]*", "", body)
         body = re.sub(r"\s+", "", body)
         self.assertEqual(hashlib.sha256(body.encode()).hexdigest(),
-                         "473312acd2fca035eb1118d75628a0b7d49cfa9ae6495c7c1e45ed7e0c261401")
+                         "b504c18c4c9478f6223231d5aa28d8e0bd921f1a68cc445a18b7ff5274ee4764")
 
 
 if __name__ == "__main__":
