@@ -2,11 +2,15 @@
 
 Key5 remains the world view. Key4 selects the next generator group; the wheel
 slides through that group's circular list. A/D step backward/forward through assets;
-W/S step to the next/previous group, wrapping once per press. Five asset instances are kept live:
+W/S step to the next/previous group, wrapping once per press. Seven asset instances are kept live. The five horizontal slots keep:
 centre opacity 1, immediate neighbours .5, outer neighbours .25. Short groups
-repeat assets to fill all five slots. Mouse movement orbits the centred selection
+repeat assets to fill all five horizontal slots. Two fixed previews sit above
+and below the centre, each at 50% opacity: above shows the first asset of the W
+(next) group, below the first asset of the S (previous) group, including wraparound
+and the Key7 cube group. A/D and the wheel leave their selection, position and
+reveal state unchanged. W/S or Key4 refresh them for the newly selected group. Mouse movement orbits the centred selection
 with pitch limited to avoid the poles. The camera radius is two-thirds of the
-previous distance and adapts to viewport aspect ratio; the closer view can crop
+previous distance, with a minimum distance that fits the vertical previews, and adapts to viewport aspect ratio; the closer view can crop
 the outer slots. Group changes preserve the orbit. Slides take 333 ms.
 
 `Cube/asset-groups.json` contains only labels and asset filenames. Regenerate it
@@ -26,7 +30,7 @@ Each asset is centered in its slot and uniformly fitted to a 2.4-unit box.
 Its authored cube proportions and RGB555 colours are preserved. New instances
 share the placement reveal controller: 333 ms initial delay, 1,600 starts/s,
 32 starts/frame, 700 ms Bounce + Uniform growth. Admission is interleaved across
-all five assets; moving existing instances keeps their reveal state.
+all seven assets; moving existing instances keeps their reveal state.
 
 The selected slot has a hollow cubic frame made only of c1 and c2 cubes. A
 half-visible band travels around its XZ perimeter every four seconds, with shared
@@ -35,6 +39,11 @@ and runs independently of wheel input, group changes and asset reveal budgets.
 Its size and position stay fixed. The four retained assets
 slide smoothly to their next positions; the outgoing edge instance is recycled
 as the incoming one. Wheel input during a slide is queued (up to 32 steps).
+
+Key9's session rendering limits also apply here. If the current scene exceeds
+its full-cube or retained-seed budget, the closest cubes to the selection are
+kept. Increasing the budget restores admitted geometry without restarting growth.
+One retained slot is reserved for the required opaque anchor.
 
 All carousel cubes use the existing back-to-front group-1 alpha pass, sorted
 against the current orbit view direction. The opaque

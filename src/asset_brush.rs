@@ -4,32 +4,41 @@ use crate::orchard::{self, Cube};
 use alloc::vec::Vec;
 /// Legacy asset base cells are already c1 (0.2 renderer units).
 pub const PLACEMENT_SCALE: f32 = 1.0;
-pub const PREVIEW_SEEDS: usize = 384;
 pub const GHOST_SEEDS: usize = 768;
 pub const FULL_WORLD_SEEDS: usize = 3840;
 pub const MAX_PLACED_CUBES: usize = 16_384;
 
 pub struct Brush {
-    pub catalog: orchard::Pages,
     pub selected: usize,
-    pub placement_preview: bool,
+    pub tool_active: bool,
     ghost_key: Option<(usize, [f32; 3], [f32; 3])>,
     pub ghost: Vec<Cube>,
     pub worlds: Vec<Vec<Cube>>,
 }
 impl Brush {
-    pub fn new(sources: &'static [(&'static str, &'static [u8])]) -> Self {
+    pub fn new() -> Self {
         Self {
-            catalog: orchard::Pages::new(sources, false),
             selected: 0,
-            placement_preview: false,
+            tool_active: false,
             ghost_key: None,
             ghost: Vec::new(),
             worlds: (0..27).map(|_| Vec::new()).collect(),
         }
     }
+    pub fn confirm(&mut self, selected: usize) {
+        self.selected = selected;
+        self.tool_active = true;
+    }
+    pub fn disable(&mut self) {
+        self.tool_active = false;
+        self.ghost_key = None;
+        self.ghost.clear();
+    }
     pub fn update_preview(&mut self, target: Option<([f32; 3], [f32; 3])>, bytes: &[u8]) {
-        let key = if self.placement_preview {
+        self.update_preview_with(target, |p,n| place(bytes,p,n));
+    }
+    pub fn update_preview_with(&mut self, target: Option<([f32; 3], [f32; 3])>, make: impl FnOnce([f32;3],[f32;3])->Vec<Cube>) {
+        let key = if self.tool_active {
             target.map(|(p, n)| (self.selected, p, n))
         } else {
             None
@@ -38,21 +47,9 @@ impl Brush {
             return;
         }
         self.ghost_key = key;
-        self.ghost = key.map_or_else(Vec::new, |(_, p, n)| place(bytes, p, n));
+        self.ghost = key.map_or_else(Vec::new, |(_, p, n)| make(p, n));
     }
-    pub fn cycle(&mut self, wheel: i16) -> Result<(), &'static str> {
-        let step = if wheel > 0 {
-            -1
-        } else if wheel < 0 {
-            1
-        } else {
-            0
-        };
-        self.selected =
-            (self.selected as isize + step).rem_euclid(self.catalog.len() as isize) as usize;
-        self.catalog.load(self.selected)?;
-        Ok(())
-    }
+
 }
 /// Preserve authored cube sizes and color, placing the base on the selected face.
 pub fn place(bytes: &[u8], point: [f32; 3], normal: [f32; 3]) -> Vec<Cube> {
@@ -161,12 +158,11 @@ mod tests {
     }
     #[test]
     fn placement_preview_is_visual_only_and_follows_toggle_and_target() {
-        static SOURCES: &[(&str, &[u8])] = &[("tree", TREE)];
-        let mut b = Brush::new(SOURCES);
+        let mut b = Brush::new();
         let target = Some(([0.; 3], [0., 1., 0.]));
         b.update_preview(target, TREE);
         assert!(b.ghost.is_empty());
-        b.placement_preview = true;
+        b.confirm(0);
         b.update_preview(target, TREE);
         let expected = place(TREE, [0.; 3], [0., 1., 0.]);
         assert_eq!(b.ghost.len(), expected.len());
@@ -182,18 +178,12 @@ mod tests {
         b.update_preview(None, TREE);
         assert!(b.ghost.is_empty());
         b.update_preview(target, TREE);
-        b.placement_preview = false;
+        b.disable();
         b.update_preview(target, TREE);
         assert!(b.ghost.is_empty());
     }
     #[test]
-    fn wheel_wraps_and_marker_width_tracks_projected_cube_size() {
-        static SOURCES: &[(&str, &[u8])] = &[("a", TREE), ("b", TREE)];
-        let mut b = Brush::new(SOURCES);
-        b.cycle(1).unwrap();
-        assert_eq!(b.selected, 1);
-        b.cycle(-1).unwrap();
-        assert_eq!(b.selected, 0);
+    fn marker_width_tracks_projected_cube_size() {
         let small = marker_scale(0.01, 10., 1., 1000);
         let large = marker_scale(0.08, 10., 1., 1000);
         assert!(large > small);

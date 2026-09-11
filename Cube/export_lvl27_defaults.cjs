@@ -4,6 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const {createHash} = require('crypto');
 
 const html = fs.readFileSync(path.join(__dirname, 'WorldShowcase.html'), 'utf8');
 function between(start, end) {
@@ -23,7 +24,7 @@ const model = [
   between('const WORLD_THEMES', 'function geometryOverlapsBox'),
   `
   for (const world of WORLDS) generatePlatforms(world, levelData[world.id - 1]);
-  globalThis.__api = { balancedPortalCells, V3, themeIndexAt, hashSeed, PALETTES, RAINBOW, themeFor };
+  globalThis.__api = { platformHulls, balancedPortalCells, V3, themeIndexAt, hashSeed, PALETTES, RAINBOW, themeFor };
   globalThis.__lvl27 = WORLDS.map((world) => ({
     world,
     data: levelData[world.id - 1],
@@ -132,7 +133,21 @@ function encode(entry) {
     output[offset + 6] = record.tier; output[offset + 7] = paletteIndex.get(record.color); output[offset + 8] = record.part; output[offset + 9] = record.sourceTier;
     offset += 12;
   }
-  return { output, records: records.length, palette: palette.length, source: entry.geometry.primary.size };
+  // Map decoded (constituent) cube IDs, not packed record IDs. Compaction can
+  // cross an ownership boundary; recovering each cell preserves that boundary.
+  const hulls = context.globalThis.__api.platformHulls(entry.geometry).map(h=>({...h,ranges:[],rgb:[0,0,0],count:0}));
+  const byOwner = new Map(hulls.map(h=>[h.owner,h]));
+  let id=0;
+  for(const r of records)for(let x=0;x<r.tier;x+=r.sourceTier)for(let y=0;y<r.tier;y+=r.sourceTier)for(let z=0;z<r.tier;z+=r.sourceTier,id++){
+    const v=entry.geometry.primary.get([r.x+x,r.y+y,r.z+z].join(','));
+    const h=r.part===0&&r.sourceTier===8?byOwner.get(v?.owner):null;
+    if(!h)continue;
+    const last=h.ranges[h.ranges.length-1];
+    if(last&&last[1]===id)last[1]++;else h.ranges.push([id,id+1]);
+    rgba(r.color).slice(0,3).forEach((c,a)=>h.rgb[a]+=c);h.count++;
+  }
+  for(const h of hulls){if(!h.count)throw new Error('empty platform hull');h.rgb=h.rgb.map(c=>Math.round(c/h.count));}
+  return { output, hulls, decoded:id, records: records.length, palette: palette.length, source: entry.geometry.primary.size };
 }
 
 const outputDir = path.join(__dirname, 'lvl27');
@@ -150,3 +165,12 @@ for (const {filename, encoded} of outputs) {
   } else fs.writeFileSync(path.join(outputDir, filename), encoded.output);
   console.log(`${filename}: ${encoded.source} c4 cells -> ${encoded.records} records, ${encoded.palette} colours`);
 }
+
+const manifest=Buffer.from(JSON.stringify({version:1,worlds:outputs.map(({filename,encoded})=>({
+  filename,sha256:createHash('sha256').update(encoded.output).digest('hex'),decoded:encoded.decoded,hulls:encoded.hulls,
+}))},null,2)+'\n');
+const manifestPath=path.join(outputDir,'platform-hulls.json');
+if(process.argv.includes('--check')){
+  if(!fs.readFileSync(manifestPath).equals(manifest))throw new Error('stale platform hull export');
+}else fs.writeFileSync(manifestPath,manifest);
+console.log('platform-hulls.json: ownership and padded hulls for all 27 worlds');

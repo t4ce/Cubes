@@ -290,6 +290,7 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
    <div class="field-head"><span>Platform size</span><strong>16–21 / 44–48 c4</strong></div><div id="platformSizeNote" class="field-note">Roll 22 / 23 / 24 → 44 / 46 / 48 c4</div>
    <div class="roll-growth"><div class="field-head"><span>Small-cube growth</span><strong>250–500%</strong></div><div id="growthNote" class="field-note">Individual growth rolls · connected c3 shelves</div></div>
    <div class="field-note" style="margin-top:9px"><strong style="color:var(--ink)">Seven-cube size tower</strong><br>Bottom → top: r3 · c4 · r2 · c3 · r1 · c2 · c1<br>One of each, 36 c1 tall. No nested 2×2×2 piles.</div>
+  <label class="checks"><input id="showPlatformHulls" type="checkbox" checked><span>Platform hull indicators</span><span>LOD</span></label>
   <label class="checks"><input id="showTierTowers" type="checkbox" checked><span>Show cube-tier towers</span><span>DEMO</span></label>
   <div class="tower-controls"><select id="towerSelect" aria-label="Platform tower to inspect"></select><button id="inspectTower" type="button" disabled>Inspect tower</button></div>
   </div>
@@ -1111,6 +1112,19 @@ function buildGeometry(world,d,{reuseBase=null,reuseOwned=null,syncBranches=fals
  }
  return {base,ownedPlatforms,voxels,blocks,primary,details,nodes:base.nodes,edges:base.edges,routePaths:base.routePaths||[],branchMaps,localLinks:manuals.filter(m=>m.branch&&d.config.autoPaths).length};
 }
+// Geometry-only proxy contract shared with the runtime exporter. Padding is one
+// c1 on each face; the uniform side encloses even the widest platform layer.
+function platformHulls(geometry){
+ const groups=new Map();
+ for(const v of [...geometry.primary.values(),...geometry.details.values()]){
+  if(!v.owner||!(/^(platform:|cube-platform:)/).test(v.owner))continue;
+  let h=groups.get(v.owner);
+  if(!h){h={owner:v.owner,lo:[Infinity,Infinity,Infinity],hi:[-Infinity,-Infinity,-Infinity]};groups.set(v.owner,h);}
+  ['x','y','z'].forEach((a,i)=>{h.lo[i]=Math.min(h.lo[i],v[a]);h.hi[i]=Math.max(h.hi[i],v[a]+v.size);});
+ }
+ return [...groups.values()].sort((a,b)=>a.owner<b.owner?-1:a.owner>b.owner?1:0).map(h=>({...h,
+  center:h.lo.map((v,i)=>(v+h.hi[i])/2),side:Math.max(...h.lo.map((v,i)=>h.hi[i]-v))+2}));
+}
 function geometryOverlapsBox(geometry,lo,hi){
  const map=geometry.voxels,u=map.step||SLOT,seen=new Set();
  for(let x=snapGrid(lo.x,u);x<hi.x-1e-7;x+=u)for(let y=snapGrid(lo.y,u);y<hi.y-1e-7;y+=u)for(let z=snapGrid(lo.z,u);z<hi.z-1e-7;z+=u){
@@ -1379,6 +1393,9 @@ function updateScene(){
  }
  renderEngine.setBatch('terrain',terrain);
  const pathCubeCount=renderTierPaths(w,d,seed),assetTowerCount=renderAssetScaleTowers(w,d,seed);
+ const hullLines=[];
+ if($('showPlatformHulls').checked)for(const h of platformHulls(currentGeometry))wireCube(hullLines,V3.from(h.center),h.side,[.96,.75,.32],.55);
+ renderEngine.setLines('platformHulls',hullLines,true);
  renderPortals();renderEngine.setBatch('ghost',[],.085);updateGuides();updateSelectionGraphics();updateUI();
  $('voxelStats').textContent=`${surfaceCount.toLocaleString()} VISIBLE CUBES · ${pathCubeCount.toLocaleString()} c4 PATH CUBES · ${currentGeometry.details.size} c3 GROWTH · ${assetTowerCount} TIER TOWERS`;
 }
@@ -1595,6 +1612,7 @@ function activatePortal(o){
 function buildUI(){
 $('inspectTower').onclick=()=>focusTierTower();
 $('towerSelect').onchange=()=>{if(towerFocus)focusTierTower();};
+$('showPlatformHulls').onchange=()=>updateScene();
 $('showTierTowers').onchange=e=>{showTierTowers=e.target.checked;if(!showTierTowers)towerFocus=null;updateScene();};
 for(const key of PORTAL_PRESET_KEYS){const option=document.createElement('option');option.value=key;option.textContent=portalPresetLabel(key);$('portalPreset').append(option);}
 function setSidebarTab(tab){const portals=tab==='portals';$('portalTabPane').hidden=!portals;$('worldTabPane').hidden=portals;$('portalTabButton').classList.toggle('active',portals);$('worldTabButton').classList.toggle('active',!portals);$('portalTabButton').setAttribute('aria-selected',String(portals));$('worldTabButton').setAttribute('aria-selected',String(!portals));}
@@ -1687,7 +1705,7 @@ function animate(){
 window.LITTLE_WORLDS={
  getState:()=>({selectedWorldId,mode:'build',tool,level:JSON.parse(JSON.stringify(data())),allEmpty:levelData.every(d=>d.modules.length===0),renderer:renderEngine?.kind,
   ownedPlatformCount:currentGeometry.ownedPlatforms?.size||0,portalCount:currentPortals.length,portalDesign:{...portalPresets[portalPresetKeySelected]},portalPresetKey:portalPresetKeySelected,portalPresets:JSON.parse(JSON.stringify(portalPresets)),portalSummaries:JSON.parse(JSON.stringify(portalSummaries)),portalRenderBuilds,portalPreview:showPortalRun,portalFocus,voxels:currentGeometry.voxels.size,blocks:currentGeometry.blocks?.length||0,
-  expansionBlocks:[...(currentGeometry.details?.values()||[])].filter(v=>v.kind==='expansion').length,finishingBlocks:[...(currentGeometry.details?.values()||[])].filter(v=>v.kind==='platformRim').length,localLinks:currentGeometry.localLinks||0,buildStats:{...buildStats},cubeThemes:cubeThemes(world()),platformProfiles:data().modules.map(m=>({cell:m.cell,kind:m.kind,...platformProfile(data(),m)})),pickingStep:currentGeometry.voxels.step||1,assetCubeTiers:ASSET_CUBE_TIERS.map(t=>({...t})),cubeTiers:{...CUBE_TIERS},pathCubeTier:'c4',portalCubeTier:'c2',worldTierCapacity:{c4PerAxis:Math.floor(data().spanChunks*CHUNK/CUBE_TIERS.c4),c4Total:Math.floor(data().spanChunks*CHUNK/CUBE_TIERS.c4)**3,r3PerAxis:Math.floor(data().spanChunks*CHUNK/CUBE_TIERS.r3),r3Total:Math.floor(data().spanChunks*CHUNK/CUBE_TIERS.r3)**3,r3Remainder:(data().spanChunks*CHUNK)%CUBE_TIERS.r3},assetScaleTowerCount:showTierTowers?assetTowerSummaries.length:0,assetTowerSummaries:JSON.parse(JSON.stringify(assetTowerSummaries)),showTierTowers,towerFocus,
+  expansionBlocks:[...(currentGeometry.details?.values()||[])].filter(v=>v.kind==='expansion').length,finishingBlocks:[...(currentGeometry.details?.values()||[])].filter(v=>v.kind==='platformRim').length,localLinks:currentGeometry.localLinks||0,buildStats:{...buildStats},cubeThemes:cubeThemes(world()),platformHulls:platformHulls(currentGeometry),showPlatformHulls:$('showPlatformHulls').checked,platformProfiles:data().modules.map(m=>({cell:m.cell,kind:m.kind,...platformProfile(data(),m)})),pickingStep:currentGeometry.voxels.step||1,assetCubeTiers:ASSET_CUBE_TIERS.map(t=>({...t})),cubeTiers:{...CUBE_TIERS},pathCubeTier:'c4',portalCubeTier:'c2',worldTierCapacity:{c4PerAxis:Math.floor(data().spanChunks*CHUNK/CUBE_TIERS.c4),c4Total:Math.floor(data().spanChunks*CHUNK/CUBE_TIERS.c4)**3,r3PerAxis:Math.floor(data().spanChunks*CHUNK/CUBE_TIERS.r3),r3Total:Math.floor(data().spanChunks*CHUNK/CUBE_TIERS.r3)**3,r3Remainder:(data().spanChunks*CHUNK)%CUBE_TIERS.r3},assetScaleTowerCount:showTierTowers?assetTowerSummaries.length:0,assetTowerSummaries:JSON.parse(JSON.stringify(assetTowerSummaries)),showTierTowers,towerFocus,
   layouts:WORLD_LAYOUTS.slice(),defaultLayout:DEFAULT_SPAN,chunkCount:data().spanChunks**3,chunkSizeC1:CHUNK,worldSizeC1:halfOf(data())*2,platformCubeTier:'c4',platformCubeSize:SLOT,worldScale:8,
   camera:{pos:camera.pos.toArray(),quaternion:camera.q.toArray()}}),
  exportProject,importProject,selectWorld,generate:generateCurrent,clear:clearWorld,place:placeModule,remove:removeModule,

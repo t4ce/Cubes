@@ -15,7 +15,7 @@ pub fn sinf(x:f32)->f32{x.sin()}
 pub fn cosf(x:f32)->f32{x.cos()}
 pub fn tanf(x:f32)->f32{x.tan()}
 '''
-for name,file in [('orchard','orchard'),('subcubes','SubCubes'),('cube_format','cube_format'),('reveal','reveal'),('carousel','carousel')]:
+for name,file in [('orchard','orchard'),('subcubes','SubCubes'),('cube_format','cube_format'),('reveal','reveal'),('carousel','carousel'),('asset_brush','asset_brush')]:
  source+=f'#[path="{ROOT}/src/{file}.rs"] mod {name};\n'
 source+='static ASSETS: &[(&str,&[u8])] = &[\n'+''.join(f'("{p.name}",include_bytes!("{p}")),\n' for p in assets)+'];\n'
 source+='static GROUPS: &[(&str,&[usize])] = &[\n'+''.join('('+json.dumps(g['name'])+', &'+str([assets.index(ROOT/'Cube/Assets'/n) for n in g['assets']])+'),\n' for g in groups)+'];\n'

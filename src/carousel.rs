@@ -1,4 +1,5 @@
-//! Five live asset instances. Group metadata is exported from AssetShowcase.
+//! Five scrolling asset instances plus two fixed neighbouring-group previews.
+//! Group metadata is exported from AssetShowcase.
 use crate::{
     orchard::{self, Cube},
     reveal,
@@ -9,6 +10,9 @@ pub const SLIDE_MS: u64 = 333;
 pub const FRAME_CYCLE_MS: u64 = 4000;
 pub const PITCH: f32 = 3.6;
 pub const DISPLAY_SIDE: f32 = 2.4;
+pub const GROUP_PITCH: f32 = 3.6;
+const ROW_SLOTS: usize = 5;
+const SLOT_COUNT: usize = 7;
 // RGB palette index (9 bits), translucency marker, opacity class, showcase class.
 // Uses the existing sorted group-1 contract, without changing renderer/server APIs.
 pub const FLAGS: u32 = 24576 | 512;
@@ -32,7 +36,10 @@ impl Orbit {
     }
     pub fn position(&self, width: u32, height: u32, yfov: f32) -> [f32; 3] {
         let aspect = width.max(1) as f32 / height.max(1) as f32;
-        let radius = ((12.4 / (aspect * libm::tanf(yfov * 0.5))).max(4.) + 2.) * (2. / 3.);
+        let tan_half = libm::tanf(yfov * 0.5);
+        let radius = ((12.4 / (aspect * tan_half)).max(4.) + 2.) * (2. / 3.);
+        // Keep the two group previews inside the default view on wide windows.
+        let radius = radius.max((GROUP_PITCH + DISPLAY_SIDE * 0.5) / tan_half + DISPLAY_SIDE * 0.5);
         [
             radius * libm::cosf(self.pitch) * libm::sinf(self.yaw),
             radius * libm::sinf(self.pitch),
@@ -52,6 +59,7 @@ pub struct DrawCube {
     pub opacity: u32,
 }
 pub struct Carousel {
+    sources: &'static [(&'static str, &'static [u8])],
     pages: orchard::Pages,
     palette: Vec<orchard::Asset>,
     source_count: usize,
@@ -80,6 +88,7 @@ impl Carousel {
             .max()
             .unwrap_or(1);
         Self {
+            sources,
             pages: orchard::Pages::new(sources, false),
             palette: crate::subcubes::Demo::new()
                 .blocks
@@ -148,17 +157,22 @@ impl Carousel {
         }
         self.groups[self.group].1.len()
     }
-    fn asset_at(&self, offset: i32) -> usize {
-        if self.group == self.groups.len() {
-            return self.source_count
-                + (self.selected as i32 + offset).rem_euclid(self.palette.len() as i32) as usize;
+    fn group_asset_at(&self, group: usize, index: i32) -> usize {
+        if group == self.groups.len() {
+            return self.source_count + index.rem_euclid(self.palette.len() as i32) as usize;
         }
-        let ids = self.groups[self.group].1;
-        ids[(self.selected as i32 + offset).rem_euclid(ids.len() as i32) as usize]
+        let ids = self.groups[group].1;
+        ids[index.rem_euclid(ids.len() as i32) as usize]
+    }
+    fn asset_at(&self, offset: i32) -> usize {
+        self.group_asset_at(self.group, self.selected as i32 + offset)
     }
     pub fn select_group(&mut self, group: usize) -> Result<(), &'static str> {
+        self.select_item(group, 0)
+    }
+    pub fn select_item(&mut self, group: usize, selected: usize) -> Result<(), &'static str> {
         self.group = group % self.group_count();
-        self.selected = 0;
+        self.selected = selected % self.group_len();
         self.pending = 0;
         self.slide_start = None;
         self.slots.clear();
@@ -171,14 +185,45 @@ impl Carousel {
                 from: i as f32 - 2.,
             });
         }
+        // W selects the upper group, S the lower one. Both preview its first
+        // asset, exactly what select_group will centre. Horizontal input never
+        // rotates these slots or resets their reveal state.
+        for (i, direction) in [1, -1].into_iter().enumerate() {
+            let asset = self.group_asset_at(self.adjacent_group(direction), 0);
+            self.load(asset)?;
+            self.slots.push(Slot { asset, key: ROW_SLOTS + i, from: 0. });
+        }
         self.reveal.reset();
-        self.reveal.append(5 * self.stride);
+        self.reveal.append(SLOT_COUNT * self.stride);
         Ok(())
+    }
+    pub fn selected_id(&self) -> usize { self.asset_at(0) }
+    /// World-wheel selection is immediate and wraps only within the chosen group.
+    pub fn cycle_selection(&mut self, wheel: i16) -> Result<(), &'static str> {
+        let selected = (self.selected as i32 - wheel.signum() as i32).rem_euclid(self.group_len() as i32) as usize;
+        self.select_item(self.group, selected)
+    }
+    pub fn placement(&self, point: [f32; 3], normal: [f32; 3], material_flags: u32) -> Vec<Cube> {
+        let id = self.selected_id();
+        if id < self.source_count {
+            return crate::asset_brush::place(self.sources[id].1, point, normal);
+        }
+        // The existing Key7 group is also selectable. Preserve its real tier
+        // and material, snapping the base and both tangents to the c1 lattice.
+        let original = self.asset(id).cubes[0];
+        let side = libm::roundf(original.scale * 2. / C1) as i32;
+        alloc::vec![Cube {
+            center: core::array::from_fn(|a| libm::roundf(point[a]/C1)*C1
+                + if normal[a].abs()>0.5 { normal[a]*side as f32*C1*0.5 }
+                  else { (side%2) as f32*C1*0.5 }),
+            scale: original.scale,
+            flags: material_flags | (original.flags & 7),
+        }]
     }
     pub fn wheel(&mut self, step: i32) {
         self.pending = (self.pending + step.signum()).clamp(-32, 32);
     }
-    // A/D/W/S bits, tracked outside Key4 too so held movement keys don't
+    // A/D/W/S bits, tracked outside the picker too so held movement keys don't
     // unexpectedly select an asset when entering the carousel.
     pub fn key_input(&mut self, held: u8, active: bool) -> (i32, i32) {
         let pressed = held & !self.held_keys;
@@ -198,9 +243,9 @@ impl Carousel {
         self.selected =
             (self.selected as i32 + direction).rem_euclid(self.group_len() as i32) as usize;
         if direction > 0 {
-            self.slots.rotate_left(1);
+            self.slots[..ROW_SLOTS].rotate_left(1);
         } else {
-            self.slots.rotate_right(1);
+            self.slots[..ROW_SLOTS].rotate_right(1);
         }
         let incoming = if direction > 0 { 4 } else { 0 };
         let asset = self.asset_at(incoming as i32 - 2);
@@ -208,11 +253,21 @@ impl Carousel {
         self.slots[incoming].asset = asset;
         let start = self.slots[incoming].key * self.stride;
         self.reveal.reset_range(start..start + self.stride);
-        for (i, slot) in self.slots.iter_mut().enumerate() {
+        for (i, slot) in self.slots[..ROW_SLOTS].iter_mut().enumerate() {
             slot.from = i as f32 - 2. + direction as f32;
         }
         self.slide_start = Some(now);
         Ok(())
+    }
+    /// Keep the closest visible geometry when a global budget is reduced.
+    /// Admission/growth remains unchanged, so raising the cap restores it.
+    pub fn limit(&mut self, count: usize) {
+        if self.drawn.len() <= count { return; }
+        let distance = |d: &DrawCube| d.cube.center.iter().map(|v| v*v).sum::<f32>();
+        self.drawn.sort_unstable_by(|a,b| distance(a).total_cmp(&distance(b)));
+        self.drawn.truncate(count);
+        let depth = |d: &DrawCube| (0..3).map(|a| d.cube.center[a]*self.view_forward[a]).sum::<f32>();
+        self.drawn.sort_unstable_by(|a,b| depth(b).total_cmp(&depth(a)));
     }
     pub fn prepare(&mut self, now: u64) -> Result<(), &'static str> {
         if self
@@ -226,27 +281,31 @@ impl Carousel {
             self.pending -= direction;
             self.step(direction, now)?;
         }
-        self.reveal.begin_frame(now, 5 * self.stride);
+        self.reveal.begin_frame(now, SLOT_COUNT * self.stride);
         self.drawn.clear();
         let t = self.slide_start.map_or(1., |start| {
             (now.saturating_sub(start) as f32 / SLIDE_MS as f32).min(1.)
         });
         let t = t * t * (3. - 2. * t);
-        let poses: [_; 5] = core::array::from_fn(|i| {
+        let poses: [_; SLOT_COUNT] = core::array::from_fn(|i| {
             let slot = self.slots[i];
             let (center, normalization) = if slot.asset >= self.source_count {
                 ([0.; 3], 1.) // Preserve Key7's actual tier sizes, including c1.
             } else {
                 asset_pose(&self.asset(slot.asset).cubes)
             };
-            let x = (slot.from + (i as f32 - 2. - slot.from) * t) * PITCH;
-            (slot, center, normalization, x)
+            let offset = match i {
+                5 => [0., -GROUP_PITCH, 0.],
+                6 => [0., GROUP_PITCH, 0.],
+                _ => [(slot.from + (i as f32 - 2. - slot.from) * t) * PITCH, 0., 0.],
+            };
+            (slot, center, normalization, offset)
         });
-        // Interleave all five assets under one admission budget,
-        // so a dense centre asset cannot starve the other four slots.
+        // Interleave all seven assets under one admission budget,
+        // so a dense centre asset cannot starve either group preview.
         for j in 0..self.stride {
-            for i in [2usize, 1, 3, 0, 4] {
-                let (slot, center, normalization, x) = poses[i];
+            for i in [2usize, 5, 6, 1, 3, 0, 4] {
+                let (slot, center, normalization, offset) = poses[i];
                 let Some(original) = self.asset(slot.asset).cubes.get(j).copied() else {
                     continue;
                 };
@@ -256,7 +315,7 @@ impl Carousel {
                 }
                 let mut cube = original;
                 cube.center = core::array::from_fn(|a| {
-                    (cube.center[a] - center[a]) * normalization + if a == 0 { x } else { 0. }
+                    (cube.center[a] - center[a]) * normalization + offset[a]
                 });
                 cube.scale =
                     (cube.scale * normalization * self.reveal.growth_scale(id)).max(0.00101);
@@ -264,7 +323,7 @@ impl Carousel {
                     cube,
                     opacity: match i {
                         2 => 0,
-                        1 | 3 => 1,
+                        1 | 3 | 5 | 6 => 1,
                         _ => 2,
                     },
                 });
@@ -423,9 +482,10 @@ mod tests {
         for (width, height) in [(784, 441), (441, 784), (2000, 400)] {
             let old = (12.4 / (width as f32 / height as f32 * libm::tanf(fov / 2.))).max(4.) + 2.;
             let radius = |p: [f32; 3]| libm::sqrtf(p.iter().map(|x| x * x).sum());
-            assert!((radius(c.orbit.position(width, height, fov)) - old * 2. / 3.).abs() < 1e-5);
+            let expected = (old * 2. / 3.).max((GROUP_PITCH + DISPLAY_SIDE * 0.5) / libm::tanf(fov / 2.) + DISPLAY_SIDE * 0.5);
+            assert!((radius(c.orbit.position(width, height, fov)) - expected).abs() < 1e-5);
             c.orbit.look(200., 150.);
-            assert!((radius(c.orbit.position(width, height, fov)) - old * 2. / 3.).abs() < 1e-5);
+            assert!((radius(c.orbit.position(width, height, fov)) - expected).abs() < 1e-5);
         }
         let before = c.orbit.position(784, 441, fov);
         c.select_group(1).unwrap();
@@ -462,7 +522,7 @@ mod tests {
         let mut c = Carousel::new(crate::ASSETS, crate::GROUPS);
         for group in 0..c.group_count() {
             c.select_group(group).unwrap();
-            assert_eq!(c.slots.len(), 5);
+            assert_eq!(c.slots.len(), SLOT_COUNT);
             assert_eq!(c.selected, 0);
             for direction in [1, -1] {
                 for n in 0..c.group_len() * 2 {
@@ -474,7 +534,7 @@ mod tests {
                         c.selected,
                         (previous as i32 + direction).rem_euclid(c.group_len() as i32) as usize
                     );
-                    assert_eq!(c.slots.len(), 5);
+                    assert_eq!(c.slots.len(), SLOT_COUNT);
                     for i in 0..5 {
                         assert_eq!(c.slots[i].asset, c.asset_at(i as i32 - 2));
                     }
@@ -484,7 +544,7 @@ mod tests {
         }
     }
     #[test]
-    fn shared_spawn_budget_reaches_all_five_slots_then_exact_geometry_and_opacity() {
+    fn shared_spawn_budget_reaches_all_seven_slots_then_exact_geometry_and_opacity() {
         let mut c = Carousel::new(crate::ASSETS, crate::GROUPS);
         for group in 0..c.group_count() {
             c.select_group(group).unwrap();
@@ -518,7 +578,7 @@ mod tests {
                 + frame_drawn(&c).len();
             assert_eq!(c.drawn.len(), expected);
             assert!(expected < 8192);
-            for (opacity, slots) in [(0, vec![2]), (1, vec![1, 3]), (2, vec![0, 4])] {
+            for (opacity, slots) in [(0, vec![2]), (1, vec![1, 3, 5, 6]), (2, vec![0, 4])] {
                 let expected = slots
                     .iter()
                     .map(|&i| c.asset(c.slots[i].asset).cubes.len())
@@ -538,6 +598,96 @@ mod tests {
                     .windows(2)
                     .all(|d| d[0].cube.center[2] >= d[1].cube.center[2])
             );
+        }
+    }
+    #[test]
+    fn group_previews_match_w_s_destinations_and_ignore_horizontal_input() {
+        let mut c = Carousel::new(crate::ASSETS, crate::GROUPS);
+        for group in 0..c.group_count() {
+            c.select_group(group).unwrap();
+            for now in (0..12000).step_by(16) { c.prepare(now).unwrap(); }
+            let previews = [c.slots[5].asset, c.slots[6].asset];
+            let snapshot = |c: &Carousel| {
+                let mut out: Vec<_> = c.drawn.iter().filter(|d| d.cube.center[1].abs() > GROUP_PITCH - DISPLAY_SIDE * 0.5 - 0.01)
+                    .map(|d| (d.cube.center, d.cube.scale, d.cube.flags, d.opacity)).collect();
+                out.sort_by(|a,b| a.0[0].total_cmp(&b.0[0]).then(a.0[1].total_cmp(&b.0[1])).then(a.0[2].total_cmp(&b.0[2])));
+                out
+            };
+            let original = snapshot(&c);
+            assert_eq!(original.len(), previews.iter().map(|&id| c.asset(id).cubes.len()).sum::<usize>());
+            assert!(original.iter().all(|d| d.3 == 1)); // Existing 50% alpha class.
+            for (i, direction) in [1, -1].into_iter().enumerate() {
+                let mut destination = Carousel::new(crate::ASSETS, crate::GROUPS);
+                destination.select_group(c.adjacent_group(direction)).unwrap();
+                assert_eq!(previews[i], destination.slots[2].asset);
+            }
+            let mut now = 12000;
+            // Wheel and both A/D directions use the same pending horizontal step.
+            for key in [0, 1, 2] {
+                let direction = if key == 0 { 1 } else {
+                    c.key_input(0, true); c.key_input(key, true).0
+                };
+                c.wheel(direction);
+                for _ in 0..30 {
+                    c.prepare(now).unwrap(); now += 16;
+                    assert_eq!([c.slots[5].asset, c.slots[6].asset], previews);
+                    assert_eq!(snapshot(&c), original, "group previews moved or restarted growth");
+                }
+            }
+            // Every possible horizontal selection fits the retained seed budget,
+            // even counting the entire cage instead of its half-visible portion.
+            for selected in 0..c.group_len() {
+                c.selected = selected;
+                let row: usize = (-2..=2).map(|offset| {
+                    let id = c.asset_at(offset); c.load(id).unwrap(); c.asset(id).cubes.len()
+                }).sum();
+                assert!(row + original.len() + c.frame.len() + 1 <= 8192);
+            }
+        }
+    }
+    #[test]
+    fn runtime_cap_limits_geometry_and_restores_it_without_resetting_growth() {
+        let mut c = Carousel::new(crate::ASSETS, crate::GROUPS);
+        for group in 0..c.group_count() {
+            c.select_group(group).unwrap();
+            for now in (0..20000).step_by(16) { c.prepare(now).unwrap(); }
+            c.prepare(20000).unwrap();
+            let baseline=c.drawn.len();
+            for cap in [768,1024,2048,3840,8191] {
+                c.limit(cap);
+                assert!(c.drawn.len()<=cap);
+                assert!(c.drawn.windows(2).all(|d|d[0].cube.center[2]>=d[1].cube.center[2]));
+                c.prepare(20000).unwrap();
+                assert_eq!(c.drawn.len(),baseline);
+            }
+        }
+    }
+    #[test]
+    fn placement_selection_stays_in_group_and_reopens_at_last_item() {
+        let mut c=Carousel::new(crate::ASSETS,crate::GROUPS);
+        for group in 0..c.group_count() {
+            c.select_item(group, c.group_len()).unwrap();
+            for direction in [-1,1] {
+                for _ in 0..c.group_len()+1 {
+                    let old=c.selected;
+                    c.cycle_selection(direction).unwrap();
+                    assert_eq!(c.group,group);
+                    assert_eq!(c.selected,(old as i32-direction as i32).rem_euclid(c.group_len() as i32) as usize);
+                    let id=c.selected_id(); let selected=c.selected;
+                    c.select_item(c.group,c.selected).unwrap();
+                    assert_eq!((c.selected_id(),c.selected),(id,selected));
+                    for axis in 0..3 { for sign in [-1.,1.] {
+                        let mut normal=[0.;3];normal[axis]=sign;
+                        let placed=c.placement([0.;3],normal,24576);
+                        assert_eq!(placed.len(),c.asset(id).cubes.len());
+                        assert!(placed.iter().all(|cube|cube.center[axis]*sign-cube.scale>=-0.00001));
+                        if id>=c.source_count {
+                            assert_eq!(placed[0].flags,24576|(c.asset(id).cubes[0].flags&7));
+                            assert_eq!(placed[0].scale,c.asset(id).cubes[0].scale);
+                        }
+                    }}
+                }
+            }
         }
     }
     fn frame_drawn(c: &Carousel) -> Vec<([f32; 3], f32)> {

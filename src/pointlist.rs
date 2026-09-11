@@ -1,10 +1,10 @@
 //! Native XYZ POINT_LIST batches, shared by the migrated PotatoStamps Key1
-//! background and Key6's far-field markers. No hull/domain or compute shader.
+//! circle background. No hull/domain or compute shader.
 use alloc::vec::Vec;
 use trueos::ui4_scene::{BackgroundLayer, Damage, Error};
 use trueos::vgpu::*;
 
-pub const MAX_POINTS: usize = 32768;
+pub const MAX_POINTS: usize = 256;
 #[derive(Clone, Copy, Debug)]
 pub struct Point {
     pub position: [f32; 3],
@@ -30,36 +30,6 @@ pub fn circles() -> Vec<Point> {
             })
         })
         .collect()
-}
-
-/// Project only forward, in-viewport marker centres. Source cubes were already
-/// conservatively frustum/occlusion tested; never mirror points behind the eye.
-pub fn project(cubes: &[crate::orchard::Cube], matrix: &[f32; 16], out: &mut Vec<Point>) {
-    out.clear();
-    for cube in cubes.iter().take(MAX_POINTS) {
-        let p: [f32; 4] = core::array::from_fn(|row| {
-            matrix[row] * cube.center[0]
-                + matrix[4 + row] * cube.center[1]
-                + matrix[8 + row] * cube.center[2]
-                + matrix[12 + row]
-        });
-        if !p.iter().all(|v| v.is_finite())
-            || p[3] <= 0.
-            || p[2] < 0.
-            || p[2] > p[3]
-            || p[0].abs() > p[3]
-            || p[1].abs() > p[3]
-        {
-            continue;
-        }
-        let rgb: [u8; 3] =
-            core::array::from_fn(|a| (((cube.flags >> (a * 5)) & 31) * 255 / 31) as u8);
-        out.push(Point {
-            position: [p[0] / p[3], p[1] / p[3], p[2] / p[3]],
-            color: u32::from_le_bytes([rgb[0], rgb[1], rgb[2], 255]),
-            width: 2,
-        });
-    }
 }
 
 pub struct Batch {

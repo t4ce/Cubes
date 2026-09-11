@@ -97,7 +97,7 @@ fn await_publications(n:usize){
         assert_eq!(p.width,POINT_RING_POINT_WIDTHS_PX[circle]);
     }}
 }
-#[test] fn real_background_worker_releases_resize_during_idle_empty_world_and_aba(){
+#[test] fn real_background_worker_releases_resize_during_idle_world_and_aba(){
     reset();let mut bg=background::Background::start(ui4_scene::BackgroundLayer).unwrap();
     let q=[0.,0.,0.,1.];
     bg.update(background::Mode::Neutral,q,0.,1.,(784,441)).unwrap();await_publications(1);
@@ -110,8 +110,8 @@ fn await_publications(n:usize){
     bg.update(background::Mode::Neutral,q,0.,1.,(784,441)).unwrap();await_publications(2);
     assert_eq!(STATE.lock().unwrap().commits,1);
     {let mut s=STATE.lock().unwrap();s.pending=true;}
-    bg.resized();bg.world_points(&[],&[0.;16],(2560,1440)).unwrap();await_publications(3);
-    {let s=STATE.lock().unwrap();assert_eq!(s.commits,2);assert_eq!(s.batches.last().unwrap()[0].rgba8_srgb,0);assert!(s.shaders.is_empty());}
+    bg.resized();bg.update(background::Mode::World,q,0.,1.,(2560,1440)).unwrap();await_publications(3);
+    {let s=STATE.lock().unwrap();assert_eq!(s.commits,2);assert_eq!(s.batches.last().unwrap().iter().map(|d|d.index_count).sum::<u32>(),256);assert!(s.shaders.is_empty());}
     bg.update(background::Mode::Cube,q,0.016,1.,(2560,1440)).unwrap();await_publications(4);
     assert_eq!(STATE.lock().unwrap().shaders,vec![4]);
     NOW.store(5000,Ordering::Relaxed);
@@ -120,16 +120,10 @@ fn await_publications(n:usize){
     drop(bg);
 }
 #[test] fn point_batch_offsets_avoid_duplicate_vertex_prefixes_and_bound_colors(){
-    let mut points:Vec<_>=(0..32768).map(|i|pointlist::Point{position:[0.;3],color:(i as u32)|0xff000000,width:2}).collect();
+    let mut points:Vec<_>=(0..pointlist::MAX_POINTS).map(|i|pointlist::Point{position:[0.;3],color:(i as u32)|0xff000000,width:2}).collect();
     let batch=pointlist::Batch::new(&mut points);
-    assert!(batch.draws.len()<=600);assert_eq!(batch.vertices.len(),32768*12);
+    assert!(batch.draws.len()<=600);assert_eq!(batch.vertices.len(),pointlist::MAX_POINTS*12);
     let mut cursor=0;
     for d in batch.draws{assert_eq!(d.first_index,0);assert_eq!(d.base_vertex,cursor);cursor+=d.index_count as i32;}
-    assert_eq!(cursor,32768);
-}
-#[test] fn world_points_reject_behind_eye_and_outside_view(){
-    let matrix=[1.,0.,0.,0.,0.,1.,0.,0.,0.,0.,1.,1.,0.,0.,0.,0.];
-    let cubes:Vec<_>=[[0.,0.,1.],[0.,0.,-1.],[2.,0.,1.],[0.,2.,1.]].into_iter().map(|center|orchard::Cube{center,scale:0.0001,flags:32768|31}).collect();
-    let mut points=Vec::new();pointlist::project(&cubes,&matrix,&mut points);
-    assert_eq!(points.len(),1);assert_eq!(points[0].color,u32::from_le_bytes([255,0,0,255]));
+    assert_eq!(cursor,pointlist::MAX_POINTS as i32);
 }

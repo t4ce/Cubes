@@ -1,11 +1,9 @@
 //! Independent background producer: Key2's shader, PotatoStamps Key1 circles,
-//! or Key6's native world points, all inside the owning Cubes VM.
+//! all inside the owning Cubes VM.
 use crate::environment::{Palette, RotationFollower};
 use crate::pointlist;
 use alloc::sync::Arc;
-use alloc::vec::Vec;
 use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::Mutex;
 use trueos::ui4_scene::{BackgroundLayer, Error, ShadertoyParamsV1};
 
 /// Enable Key5's Mandelbox geometry, resident cubemap bake and view projection.
@@ -29,7 +27,6 @@ struct Shared {
     sequence: AtomicU32,
     // kind, generation, RGB x3, count, preset, quaternion x4, FOV, extent, resize.
     command: [AtomicU32; COMMAND_WORDS],
-    points: Mutex<Vec<pointlist::Point>>,
     stop: AtomicBool,
     done: AtomicBool,
     failed: AtomicBool,
@@ -43,7 +40,6 @@ pub struct Background {
     follower: RotationFollower,
     palette_time: f64,
     resize_generation: u32,
-    point_generation: u32,
 }
 
 impl Background {
@@ -56,7 +52,6 @@ impl Background {
         let shared = Arc::new(Shared {
             sequence: AtomicU32::new(0),
             command: core::array::from_fn(|_| AtomicU32::new(0)),
-            points: Mutex::new(Vec::new()),
             stop: AtomicBool::new(false),
             done: AtomicBool::new(false),
             failed: AtomicBool::new(false),
@@ -81,15 +76,10 @@ impl Background {
                     let command = core::array::from_fn::<_, COMMAND_WORDS, _>(|i| {
                         worker.command[i].load(Ordering::SeqCst)
                     });
-                    let mut points = if command[0] == 3 {
-                        worker.points.lock().unwrap().clone()
-                    } else {
-                        Vec::new()
-                    };
                     if worker.sequence.load(Ordering::SeqCst) != sequence {
                         continue;
                     }
-                    let next_opacity = if command[0] == 3 { 255 } else { 128 };
+                    let next_opacity = 128;
                     if next_opacity != opacity {
                         if let Err(error) = layer.set_opacity(next_opacity) {
                             failed(&worker, error);
@@ -97,7 +87,7 @@ impl Background {
                         }
                         opacity = next_opacity;
                     }
-                    if command[0] == 0 || command[0] == 3 {
+                    if command[0] == 0 {
                         if points_renderer.is_none() {
                             match pointlist::Renderer::new() {
                                 Ok(renderer) => points_renderer = Some(renderer),
@@ -113,9 +103,7 @@ impl Background {
                                 }
                             }
                         }
-                        if command[0] == 0 {
-                            points = pointlist::circles();
-                        }
+                        let mut points = pointlist::circles();
                         let batch = pointlist::Batch::new(&mut points);
                         let result = points_renderer.as_ref().unwrap().render(
                             &mut layer,
@@ -138,7 +126,7 @@ impl Background {
                         if command[0] == 0 || reported != (command[0], command[14]) {
                             trueos::logl::log(trueos::logl::level::INFO, format_args!(
                                 "Cubes: background native=POINT_LIST source={} points={} draws={} resize_generation={} extent={}x{}",
-                                if command[0] == 3 { "Key6-world" } else { "PotatoStamps-Key1-rings" },
+                                "PotatoStamps-Key1-rings",
                                 points.len(), batch.draws.len(), command[14], command[12], command[13]));
                             reported = (command[0], command[14]);
                         }
@@ -200,7 +188,6 @@ impl Background {
             follower: RotationFollower::new([0.0, 0.0, 0.0, 1.0]),
             palette_time: 0.,
             resize_generation: 0,
-            point_generation: 0,
         })
     }
 
@@ -254,7 +241,7 @@ impl Background {
         command[12] = extent.0;
         command[13] = extent.1;
         command[14] = self.resize_generation;
-        self.send(command, None);
+        self.send(command);
         Ok(())
     }
 
@@ -264,36 +251,11 @@ impl Background {
         self.resize_generation = self.resize_generation.wrapping_add(1);
     }
 
-    pub fn world_points(
-        &mut self,
-        cubes: &[crate::orchard::Cube],
-        matrix: &[f32; 16],
-        extent: (u32, u32),
-    ) -> Result<(), Error> {
-        if self.shared.failed.load(Ordering::Acquire) {
-            return Err(Error::Ui4);
-        }
-        let mut points = Vec::with_capacity(cubes.len());
-        pointlist::project(cubes, matrix, &mut points);
-        self.point_generation = self.point_generation.wrapping_add(1);
-        let mut command = [0; COMMAND_WORDS];
-        command[0] = 3;
-        command[1] = self.point_generation;
-        command[12] = extent.0;
-        command[13] = extent.1;
-        command[14] = self.resize_generation;
-        self.send(command, Some(points));
-        Ok(())
-    }
-
-    fn send(&mut self, command: [u32; COMMAND_WORDS], points: Option<Vec<pointlist::Point>>) {
+    fn send(&mut self, command: [u32; COMMAND_WORDS]) {
         if command != self.previous {
             // A single publisher and atomic fields give the worker one coherent
             // latest command. No camera-update queue accumulates behind a bake.
             self.shared.sequence.fetch_add(1, Ordering::SeqCst);
-            if let Some(points) = points {
-                *self.shared.points.lock().unwrap() = points;
-            }
             for (destination, value) in self.shared.command.iter().zip(command) {
                 destination.store(value, Ordering::SeqCst);
             }

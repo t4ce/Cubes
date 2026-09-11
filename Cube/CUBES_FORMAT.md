@@ -169,3 +169,25 @@ Regenerate all defaults with `node Cube/export_lvl27_defaults.cjs` from the repo
 (or `node export_lvl27_defaults.cjs` beside WorldShowcase). Terrain keeps
 the existing deterministic compaction and Void's 4×4×4 c4 color fields; portal
 frames are exported individually from the geometry builder's default presets.
+
+The same pass writes `lvl27/platform-hulls.json`: geometry-only platform bounds,
+one-c1 padding per face, averaged RGB, and ownership ranges in **decoded cube**
+order. Each world entry is paired with its `.cubes` SHA-256; the build rejects
+stale metadata, overlapping ownership and portal assignments. No camera or
+control settings enter this sidecar, and the CUBES v2 bytes are unchanged.
+
+WorldShowcase's “Platform hull indicators” checkbox displays these bounds as
+wire cubes without removing terrain. Cubes Key5 enables the render experiment
+with `platform_lod::ENABLED`; `DETAIL_PLATFORMS` defaults to two. Distance to the
+actual platform bounds chooses the detailed platforms. Other platforms become
+one opaque, uniformly sized, averaged-colour cube each before existing frustum
+and occlusion culling. Kept platforms and hulls request full geometry, subject to Key9's runtime
+full-geometry and retained-seed budgets. Paths, portals, placed assets, picking and walking retain the
+authored geometry. Network worlds use the existing rendering path; Key6 is unassigned.
+Switching between detail and hull is immediate; proxies can visually cover
+nearby paths because they enclose the full platform footprint in all three axes.
+
+Run `python3 tools/test_platform_lod.py` to check all 27 worlds, ownership,
+nearest-platform switching, portal updates, placement IDs and marker bypass.
+The periodic `Cubes: platform-lod` log reports source and candidate counts;
+these are pre-visibility counts, not GPU timings.

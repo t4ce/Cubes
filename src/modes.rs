@@ -7,6 +7,7 @@ pub enum SceneMode {
     Orchard,
     World,
     MaterialShowcase,
+    RenderLimits,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -17,14 +18,14 @@ pub struct Selection {
 
 #[derive(Default)]
 pub struct ModeKeys {
-    held: u8,
+    held: u16,
     next_world: usize,
 }
 
 impl ModeKeys {
     pub fn update(
         &mut self,
-        held: u8,
+        held: u16,
         current: SceneMode,
         orchard: usize,
         orchards: usize,
@@ -40,10 +41,10 @@ impl ModeKeys {
             }
         } else if pressed & 2 != 0 {
             SceneMode::StaticCube
-        } else if pressed & 8 != 0 && orchards > 0 {
-            SceneMode::Orchard
-        } else if pressed & (16 | 32) != 0 && worlds > 0 {
+        } else if pressed & 16 != 0 && worlds > 0 {
             SceneMode::World
+        } else if pressed & 256 != 0 {
+            SceneMode::RenderLimits
         } else if pressed & 64 != 0 {
             SceneMode::MaterialShowcase
         } else {
@@ -102,7 +103,6 @@ mod tests {
                 (1, SceneMode::InteractiveGrid),
                 (1, SceneMode::Sphere),
                 (2, SceneMode::StaticCube),
-                (8, SceneMode::Orchard),
             ] {
                 let selection = keys.update(key, mode, 0, 2, 27).unwrap();
                 assert_eq!(selection.mode, expected);
@@ -124,7 +124,7 @@ mod tests {
             (1, SceneMode::Sphere, Some(None)),
             (2, SceneMode::StaticCube, Some(None)),
             (4, SceneMode::Sphere, None),
-            (8, SceneMode::Orchard, Some(Some(1))),
+            (8, SceneMode::Orchard, None),
         ] {
             assert_eq!(keys.update(held, mode, 0, 2, 27).map(|s| s.page), page);
             keys.update(0, mode, 0, 2, 27);
@@ -148,17 +148,19 @@ mod tests {
 }
 
 #[cfg(test)]
-mod point_world_tests {
+mod limit_keys_tests {
     use super::*;
     #[test]
-    fn key6_cycles_the_same_world_catalog_once_per_press() {
-        let mut keys = ModeKeys::default();
-        for n in 0..54 {
-            let key = if n%2==0 {32} else {16};
-            let selected=keys.update(key,SceneMode::World,0,10,27).unwrap();
-            assert_eq!(selected,Selection{mode:SceneMode::World,page:Some(n%27)});
-            assert_eq!(keys.update(key,SceneMode::World,0,10,27),None);
-            keys.update(0,SceneMode::World,0,10,27);
-        }
+    fn key6_is_unused_and_key9_does_not_consume_world_pages() {
+        let mut keys=ModeKeys::default();
+        assert_eq!(keys.update(8,SceneMode::World,0,10,27),None);
+        keys.update(0,SceneMode::World,0,10,27);
+        assert_eq!(keys.update(32,SceneMode::World,0,10,27),None);
+        keys.update(0,SceneMode::World,0,10,27);
+        let selected=keys.update(256,SceneMode::World,0,10,27).unwrap();
+        assert_eq!(selected,Selection{mode:SceneMode::RenderLimits,page:None});
+        assert_eq!(keys.update(256,selected.mode,0,10,27),None);
+        keys.update(0,selected.mode,0,10,27);
+        assert_eq!(keys.update(16,selected.mode,0,10,27).unwrap().page,Some(0));
     }
 }

@@ -29,17 +29,9 @@ for path in sorted((APP/'Cube/Assets').glob('*.cubes')):
 source += '];\n'
 source += r'''
 #[test]
-fn all_catalog_assets_fit_preview_and_place_on_grid() {
-    let mut brush=asset_brush::Brush::new(BRUSH_ASSETS);
-    for (index, &(name,bytes)) in BRUSH_ASSETS.iter().enumerate() {
-        brush.catalog.load(index).unwrap();
-        let asset=&brush.catalog[index];
-        let preview=world_cube::Placement::asset(784,441,0.41421356,asset.radius);
-        for c in &asset.cubes {
-            let (p,s)=preview.asset_pose(c.center,c.scale);
-            assert!(p[0] < 0. && p[1] > 0. && p[2] < -0.1, "{}",name);
-            assert!(s>0.);
-        }
+fn all_catalog_assets_place_on_grid() {
+    for &(name,bytes) in BRUSH_ASSETS {
+        let asset=orchard::decode(name,bytes).unwrap();
         for axis in 0..3 { for sign in [-1.,1.] {
             let mut n=[0.;3];n[axis]=sign;
             let pieces=asset_brush::place(bytes,[0.;3],n);
