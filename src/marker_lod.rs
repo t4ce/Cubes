@@ -97,12 +97,27 @@ impl Reducer {
         height: u32,
         growth: impl Fn(usize) -> f32,
     ) {
-        self.prepare_with_budget(source, visible, eye, view, projection_y, height, asset_brush::FULL_WORLD_SEEDS, growth);
+        self.prepare_with_budget(
+            source,
+            visible,
+            eye,
+            view,
+            projection_y,
+            height,
+            asset_brush::FULL_WORLD_SEEDS,
+            growth,
+        );
     }
 
     pub fn prepare_with_budget(
-        &mut self, source: &[Cube], visible: &[usize], eye: [f32; 3],
-        view: &[f32; 16], projection_y: f32, height: u32, detail_budget: usize,
+        &mut self,
+        source: &[Cube],
+        visible: &[usize],
+        eye: [f32; 3],
+        view: &[f32; 16],
+        projection_y: f32,
+        height: u32,
+        detail_budget: usize,
         growth: impl Fn(usize) -> f32,
     ) {
         self.cubes.clear();
@@ -112,7 +127,14 @@ impl Reducer {
         for (rank, &id) in visible.iter().enumerate() {
             let cube = source[id];
             let distance_squared = asset_brush::lod_distance_squared(cube.center, eye, view);
-            if asset_brush::detailed_with_budget(rank, cube, distance_squared, projection_y, height, detail_budget) {
+            if asset_brush::detailed_with_budget(
+                rank,
+                cube,
+                distance_squared,
+                projection_y,
+                height,
+                detail_budget,
+            ) {
                 // Classify LOD using authored size. Keep growing solids above
                 // the shader's 0.001 flat-dot threshold, including their first frame.
                 self.cubes.push(Cube {
@@ -215,7 +237,12 @@ impl Reducer {
     pub fn separate_points(&mut self, points: &mut Vec<Cube>) {
         points.clear();
         self.cubes.retain(|cube| {
-            if cube.scale <= 0.001 { points.push(*cube); false } else { true }
+            if cube.scale <= 0.001 {
+                points.push(*cube);
+                false
+            } else {
+                true
+            }
         });
     }
 }
@@ -459,6 +486,30 @@ mod tests {
                     assert!(keys.insert(spread(x) | spread(y) << 1 | spread(z) << 2));
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod point_world_tests {
+    use super::*;
+    #[test]
+    fn native_points_leave_no_marker_in_hull_seeds_and_allow_twice_the_nearfield() {
+        let cubes =
+            alloc::vec![Cube { center:[0.,0.,-1.], scale:0.1, flags:CUSTOM_RGB555 | 31 };8192];
+        let ids: Vec<_> = (0..cubes.len()).collect();
+        let view = [
+            1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.,
+        ];
+        let mut reducer = Reducer::new();
+        let mut points = Vec::new();
+        for budget in [3840, 7680] {
+            reducer.prepare_with_budget(&cubes, &ids, [0.; 3], &view, 1., 1000, budget, |_| 1.);
+            reducer.separate_points(&mut points);
+            assert_eq!(reducer.cubes.len(), budget);
+            assert_eq!(points.len(), 8192 - budget);
+            assert!(reducer.cubes.iter().all(|c| c.scale > 0.001));
+            assert!(points.iter().all(|c| c.scale <= 0.001));
         }
     }
 }

@@ -127,6 +127,7 @@ struct CubeScene {
     visibility_scratch: orchard::VisibilityScratch,
     world_markers: marker_lod::Reducer,
     point_world: bool,
+    point_world_key: bool,
     raw_world_points: Vec<orchard::Cube>,
     placed_reveal: reveal::Reveal,
     asset_brush: asset_brush::Brush,
@@ -331,6 +332,7 @@ impl CubeScene {
             visibility_scratch: orchard::VisibilityScratch::new(),
             world_markers: marker_lod::Reducer::new(),
             point_world: false,
+            point_world_key: false,
             raw_world_points: Vec::new(),
             placed_reveal: reveal::Reveal::new(),
             asset_brush: asset_brush::Brush::new(ASSET_GRID_ASSETS),
@@ -1419,6 +1421,8 @@ impl CubeScene {
                 | ((keyboard.is_down(0x23) as u8) << 5)
                 | ((keyboard.is_down(0x24) as u8) << 6)
         });
+        let point_world_pressed = current & 32 != 0 && !self.point_world_key;
+        self.point_world_key = current & 32 != 0;
         if let Some(selection) = self.number_keys.update(
             current,
             self.mode,
@@ -1426,7 +1430,7 @@ impl CubeScene {
             self.carousel.group_count(),
             self.worlds.len(),
         ) {
-            self.point_world = selection.mode == SceneMode::World && current & 32 != 0;
+            self.point_world = selection.mode == SceneMode::World && point_world_pressed;
             self.network_singleton = false;
             self.network_world = None;
             if self.portal_trip.is_some() {
@@ -1484,6 +1488,7 @@ impl CubeScene {
         );
         self.network_world = Some(NetworkWorld { bytes, asset });
         self.network_singleton = true;
+        self.point_world = false;
         self.select_mode(
             modes::Selection {
                 mode: SceneMode::World,

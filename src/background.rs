@@ -1,10 +1,11 @@
-//! Independent ShaderToy producer for the layered window's environment.
+//! Independent background producer: Key2's shader, PotatoStamps Key1 patterns,
+//! or Key6's native world points, all inside the owning Cubes VM.
 use crate::environment::{Palette, RotationFollower};
-use alloc::sync::Arc;
-use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use alloc::vec::Vec;
-use std::sync::Mutex;
 use crate::pointlist;
+use alloc::sync::Arc;
+use alloc::vec::Vec;
+use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::Mutex;
 use trueos::ui4_scene::{BackgroundLayer, Error, ShadertoyParamsV1};
 
 /// Enable Key5's Mandelbox geometry, resident cubemap bake and view projection.
@@ -26,7 +27,7 @@ const COMMAND_WORDS: usize = 15;
 
 struct Shared {
     sequence: AtomicU32,
-    // enabled, generation, RGB x3, color count, preset, quaternion x4, FOV, extent.
+    // kind, generation, RGB x3, count, preset, quaternion x4, FOV, extent, resize.
     command: [AtomicU32; COMMAND_WORDS],
     points: Mutex<Vec<pointlist::Point>>,
     stop: AtomicBool,
@@ -68,6 +69,7 @@ impl Background {
                 let mut completed = u32::MAX;
                 let mut opacity = 0;
                 let mut points_renderer = None;
+                let mut reported = (u32::MAX, u32::MAX);
                 while !worker.stop.load(Ordering::Acquire)
                     && !trueos::worker::cancellation_requested()
                 {
@@ -81,7 +83,9 @@ impl Background {
                     });
                     let mut points = if command[0] == 3 {
                         worker.points.lock().unwrap().clone()
-                    } else { Vec::new() };
+                    } else {
+                        Vec::new()
+                    };
                     if worker.sequence.load(Ordering::SeqCst) != sequence {
                         continue;
                     }
@@ -98,19 +102,46 @@ impl Background {
                             match pointlist::Renderer::new() {
                                 Ok(renderer) => points_renderer = Some(renderer),
                                 Err(code) => {
-                                    trueos::logl::log(trueos::logl::level::ERROR,
-                                        format_args!("Cubes: point-list renderer init error={code}"));
-                                    failed(&worker, Error::Ui4); break;
+                                    trueos::logl::log(
+                                        trueos::logl::level::ERROR,
+                                        format_args!(
+                                            "Cubes: point-list renderer init error={code}"
+                                        ),
+                                    );
+                                    failed(&worker, Error::Ui4);
+                                    break;
                                 }
                             }
                         }
-                        if command[0] == 0 { points = pointlist::pattern(command[1] as u64 * pointlist::PATTERN_MS); }
+                        if command[0] == 0 {
+                            points = pointlist::pattern(command[1] as u64 * pointlist::PATTERN_MS);
+                        }
                         let batch = pointlist::Batch::new(&mut points);
-                        let result = points_renderer.as_ref().unwrap().render(&mut layer, &batch,
-                            (command[12],command[13]), || worker.stop.load(Ordering::Acquire)
-                                || trueos::worker::cancellation_requested());
-                        if worker.stop.load(Ordering::Acquire) || trueos::worker::cancellation_requested() { break; }
-                        if let Err(error) = result { failed(&worker,error); break; }
+                        let result = points_renderer.as_ref().unwrap().render(
+                            &mut layer,
+                            &batch,
+                            (command[12], command[13]),
+                            || {
+                                worker.stop.load(Ordering::Acquire)
+                                    || trueos::worker::cancellation_requested()
+                            },
+                        );
+                        if worker.stop.load(Ordering::Acquire)
+                            || trueos::worker::cancellation_requested()
+                        {
+                            break;
+                        }
+                        if let Err(error) = result {
+                            failed(&worker, error);
+                            break;
+                        }
+                        if command[0] == 0 || reported != (command[0], command[14]) {
+                            trueos::logl::log(trueos::logl::level::INFO, format_args!(
+                                "Cubes: background native=POINT_LIST source={} points={} draws={} resize_generation={} extent={}x{}",
+                                if command[0] == 3 { "Key6-world" } else if command[1] % 2 == 0 { "PotatoStamps-Key1-grid" } else { "PotatoStamps-Key1-rings" },
+                                points.len(), batch.draws.len(), command[14], command[12], command[13]));
+                            reported = (command[0], command[14]);
+                        }
                         completed = sequence;
                         trueos::vsys::sleep_ms(10);
                         continue;
@@ -236,8 +267,15 @@ impl Background {
         self.resize_generation = self.resize_generation.wrapping_add(1);
     }
 
-    pub fn world_points(&mut self, cubes: &[crate::orchard::Cube], matrix: &[f32;16], extent: (u32,u32)) -> Result<(), Error> {
-        if self.shared.failed.load(Ordering::Acquire) { return Err(Error::Ui4); }
+    pub fn world_points(
+        &mut self,
+        cubes: &[crate::orchard::Cube],
+        matrix: &[f32; 16],
+        extent: (u32, u32),
+    ) -> Result<(), Error> {
+        if self.shared.failed.load(Ordering::Acquire) {
+            return Err(Error::Ui4);
+        }
         let mut points = Vec::with_capacity(cubes.len());
         pointlist::project(cubes, matrix, &mut points);
         self.point_generation = self.point_generation.wrapping_add(1);
@@ -256,7 +294,9 @@ impl Background {
             // A single publisher and atomic fields give the worker one coherent
             // latest command. No camera-update queue accumulates behind a bake.
             self.shared.sequence.fetch_add(1, Ordering::SeqCst);
-            if let Some(points) = points { *self.shared.points.lock().unwrap() = points; }
+            if let Some(points) = points {
+                *self.shared.points.lock().unwrap() = points;
+            }
             for (destination, value) in self.shared.command.iter().zip(command) {
                 destination.store(value, Ordering::SeqCst);
             }

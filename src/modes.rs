@@ -146,3 +146,19 @@ mod tests {
         assert_eq!(keys.update(0, selection.mode, 0, 0, 0), None);
     }
 }
+
+#[cfg(test)]
+mod point_world_tests {
+    use super::*;
+    #[test]
+    fn key6_cycles_the_same_world_catalog_once_per_press() {
+        let mut keys = ModeKeys::default();
+        for n in 0..54 {
+            let key = if n%2==0 {32} else {16};
+            let selected=keys.update(key,SceneMode::World,0,10,27).unwrap();
+            assert_eq!(selected,Selection{mode:SceneMode::World,page:Some(n%27)});
+            assert_eq!(keys.update(key,SceneMode::World,0,10,27),None);
+            keys.update(0,SceneMode::World,0,10,27);
+        }
+    }
+}
