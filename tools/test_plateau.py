@@ -45,6 +45,7 @@ pub mod logl { pub mod level {pub const WARN:u8=1;} pub fn log(_:u8,_:core::fmt:
                          ('protocol', SERVER/'protocol.rs'), ('plateau_client', APP/'src/plateau_client.rs'),
                          ('cam', APP.parent/'TRUEOS-Picasso/src/cam.rs'),
                          ('walker_camera', APP/'src/CubesWalkerCam.rs'), ('subcubes', APP/'src/SubCubes.rs'),
+                         ('cubepathfind', APP/'src/cubepathfind.rs'),
                          ('cube_format', APP/'src/cube_format.rs'), ('orchard', APP/'src/orchard.rs'),
                          ('slideshow', APP/'src/slideshow.rs'), ('floor', APP/'src/floor.rs'), ('asset_brush', APP/'src/asset_brush.rs')]:
         source += f'#[path="{path}"] pub mod {module};\n'

@@ -19,6 +19,12 @@ is blocked for five seconds after arrival; Space push-off/approach has no cooldo
 The trigger tests a crossing of the opening, not contact with its decorative ring.
 
 - Mouse: look; WASD or arrows: walk; either Shift: twice normal walking speed.
+- Key4/Key5, attached to a surface: Tab toggles path preview. Aim at a cube
+  to reuse the flight landing highlight and show a dashed surface route.
+  Space locks a ready route and follows it at 58 voxels/s (twice Shift speed).
+  The view follows travel; WASD/arrows cancel it, and Tab cancels and exits
+  path mode. Opening the picker or changing modes also cancels travel.
+  Tab does nothing in flight, Key7 or the network image wall.
 - Flight speed is twice the original; Shift retains the 2.8× flight boost.
 - Space held at an outside edge, or pressed during its turn: push off 18 voxels
   at twice current walking speed while turning the view back toward the edge.
@@ -30,9 +36,10 @@ The trigger tests a crossing of the opening, not contact with its decorative rin
   Flight mouse-look and A/D strafing follow the rolled screen axes, with unrestricted local turns.
   Home resets roll.
 - F and Ctrl have no camera binding.
-- Aim at a cube: its white wireframe marks the placement target; in drift it
-  also marks the Space destination. Wheel selects a top-left asset; left-click
-  places it on the aimed face. See `ASSET_PLACEMENT.md`.
+- In flight, aim at a cube: a half-size translucent cube on the aimed face marks
+  the Space destination. Ordinary walking has no landing indicator; Tab path
+  mode reuses it. Placement previews and left-click placement pause during
+  path mode and resume when it closes; see `ASSET_PLACEMENT.md`.
 - Home: align the view to the current surface. R retains the world-cube control.
 
 Camera behavior is owned by Cubes; world imports contain only `.cubes` geometry
@@ -51,12 +58,43 @@ and bevels do not split the walking surface. The occupancy includes the full
 page, independent of streamed/culled seeds, and retains the authored portal
 footprint during portal recoloring/scatter. No world population is changed.
 
-The outline marks the complete visible walkable constituent cube using UI4
-screen-space strokes after the retained render retires. Its three-pixel white
-stroke and dark border retain their width after resize; scene depth cannot hide
-them. Space uses the rendered view's first surface hit, matching
-the center of the screen during smoothing. Approaches stop safely if another
-surface obstructs travel; no instant long-distance snap is used.
+The flight indicator is one actual beveled cube at half the visible constituent
+cube's side length and 35% opacity. Its color uses the target's shared material;
+RGB555 world shades and placed assets map to the nearest of the six theme colors.
+It grows out of the aimed face over 700 ms with a damped physical spring (four
+oscillations, decay five), then holds until the target changes, disappears, or the
+camera lands. It never creates collision or persistent geometry. Key7 uses it only
+for Space flight targeting, without mining guides.
+
+The indicator uses the existing transparent retained cube group with depth testing
+and no depth writes. The group retains an invisible slot after landing, keeping
+the draw contract stable. With the world companion visible it joins the sorted
+transparent seeds. No post-render UI4 outline overlay remains.
+
+Space uses the rendered view's first surface hit, matching the center of the
+screen during smoothing. Approaches stop safely if another surface obstructs
+travel; no instant long-distance snap is used.
+
+`src/cubepathfind.rs` provides reusable incremental A* on oriented voxel faces,
+with four cardinal outgoing directions per face. The camera probes each edge
+through its existing walker, so occupancy, step heights, headroom, inside/outside
+corners and directed drops match manual movement. Costs include the walker's
+step/turn travel, at millivoxel precision. The shortest grid route connects face
+centers; a short initial segment joins the current foot position to that grid.
+The destination is the aimed cell on the selected cube's face.
+
+Search runs up to 128 queue visits per frame with a 65,536-node memory limit.
+Unreachable or limited searches show no route and Space does not launch travel.
+The `surface-path` log reports searching, ready, travelling, unreachable or
+limited states. Retargeting, geometry edits and mode changes discard stale paths.
+Standing partway through a step/turn requires finishing it before previewing.
+
+The preview samples the actual walking trajectory, then places at most 512
+separated beveled cubes along its full length. Their material and opacity match
+the destination indicator. They stay above the marker-size encoding and reserve
+full geometry before world LOD admission; long routes widen their dash spacing.
+They share depth-sorted transparency with the target and world companion, and
+never enter occupancy or saved placements.
 
 The near plane is 0.01 renderer units. Key5's far plane covers the diagonal of
 the camera's drift envelope, including a small margin (about 799 units for the
@@ -80,10 +118,16 @@ See `MARKER_LOD.md` for the thresholds, sparse-area preservation and CPU benchma
 
 Run `python3 tools/test_walker_camera.py` and `cargo check` from Cubes.
 The host tests exercise the Rust implementation, seam support, steps, inner corners,
-reverse/perch, assistance, drift collision, Space/outline agreement, and all 27
+reverse/perch, assistance, drift collision, Space/indicator agreement, and all 27
 real portal entries. They also check all 27 worlds against the far-plane bounds
 and verify distant cubes reach detail/marker selection. They do not establish
 GPU rendering or subjective feel.
+
+Path regressions cover shortest weighted search, all six faces, step/inside-corner
+travel, fine-grid extensions, long diagonal routes, disconnected solids,
+retargeting, edit invalidation, entry connectors and Tab/Space/cancel behavior.
+`python3 tools/test_plateau.py` also exercises preview and travel on the actual
+generated terrace; `python3 tools/test_carousel_submit.py` checks retained seeds.
 
 Three useful on-device checks:
 

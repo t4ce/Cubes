@@ -10,7 +10,11 @@ platform, with two terraced c4 layers and clipped corners (428 cubes).
 The top is at authored Y = -88 c1, approximately one third above the volume's
 bottom. Theme affects the terrace color. There are no portals.
 
-Walking, flight, target outlines and asset placement use the Key 5 code.
+Walking, flight, the translucent landing cube and asset placement use the Key 5 code.
+While walking, Tab opens surface path preview with small dashed cubes in the
+aimed target's material. Space confirms the route and travels at twice Shift
+speed; WASD/arrows cancel travel and Tab exits path mode. Placement resumes
+after leaving path mode. See `WALKER_CAMERA.md` for search and movement details.
 Middle-click opens the existing asset picker when the tool is off. Confirming
 an asset returns to the plateau and the same camera; a subsequent left-click
 places it. Middle-click with an active tool disables it. Placements save

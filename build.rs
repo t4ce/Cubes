@@ -142,8 +142,8 @@ fn main() {
     let digest = format!("{:x}", Sha256::digest(&source));
     assert_eq!(
         exported::CONTRACT_VERSION,
-        10,
-        "rebake the material-finish cube shader contract"
+        11,
+        "rebake the flight-indicator cube shader contract"
     );
     assert_eq!(
         digest,

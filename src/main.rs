@@ -6,9 +6,10 @@ mod background;
 mod camera_entry;
 mod counters;
 mod cube_format;
+mod cubepathfind;
 mod environment;
 mod floor;
-mod interaction_overlay;
+mod flight_target;
 mod carousel;
 mod baked_materials { include!("../Cube/cube_driver_manifest.rs"); }
 mod grid;
@@ -150,6 +151,7 @@ struct CubeScene {
     limits: render_limits::Limits,
     limits_cursor: Option<GridCursor>,
     placed_reveal: reveal::Reveal,
+    flight_target: flight_target::Indicator,
     asset_brush: asset_brush::Brush,
     puzzle: rubik::Puzzle,
     mining: subcubes::Demo,
@@ -366,6 +368,7 @@ impl CubeScene {
             limits: render_limits::Limits::new(),
             limits_cursor: None,
             placed_reveal: reveal::Reveal::new(),
+            flight_target: flight_target::Indicator::default(),
             asset_brush: asset_brush::Brush::new(),
             frame,
             device,
@@ -525,7 +528,8 @@ impl CubeScene {
                     self.carousel.cycle_selection(event.wheel).map_err(|_| CubeError::Contract)?;
                     self.asset_brush.confirm(self.carousel.selected_id());
                 }
-                if event.buttons_pressed & 1 != 0 && self.asset_brush.tool_active && !self.network_singleton {
+                if event.buttons_pressed & 1 != 0 && self.asset_brush.tool_active && !self.network_singleton
+                    && !self.walker_camera.as_ref().is_some_and(|c| c.path_enabled()) {
                     self.place_selected_asset()?;
                 }
                 if let Some(camera) = self.walker_camera.as_mut() {
@@ -624,6 +628,7 @@ impl CubeScene {
             if matches!(self.mode, SceneMode::World | SceneMode::Plateau | SceneMode::MaterialShowcase) {
                 if let Some(camera) = self.walker_camera.as_mut() {
                     let before = camera.pose().0;
+                    let path_status = camera.path_status();
                     camera.update(
                         walker_camera::Input {
                             forward: ((held(0x1a) || held(0x52)) as i32
@@ -638,9 +643,13 @@ impl CubeScene {
                             space: held(0x2c),
                             // R already opens the world cube. Home aligns the walk view.
                             align: held(0x4a),
+                            path_tab: self.mode.is_world() && !self.network_singleton && held(0x2b),
                         },
                         delta_seconds,
                     );
+                    if path_status != camera.path_status() {
+                        logl::log(level::INFO, format_args!("Cubes: surface-path {}", camera.path_status()));
+                    }
                     let (position, rotation) = camera.pose();
                     self.flycam.camera.position = position;
                     self.flycam.camera.rotation = rotation;
@@ -896,12 +905,22 @@ impl CubeScene {
             self.carousel.limit(self.limits.full().min(self.limits.seeds()-1));
         }
         let companion = self.world_cube.visible(self.mode == SceneMode::World);
-        let preview_count = if self.mode == SceneMode::MaterialShowcase {
-            usize::from(self.mining.tool_side().is_some())
-        } else {
-            0
-        };
-        let ghost_target = if self.mode.is_world() && self.portal_trip.is_none() {
+        let flight_slot = usize::from(self.mode.is_world() || self.mode == SceneMode::MaterialShowcase);
+        let target = if flight_slot != 0 && self.portal_trip.is_none() {
+            self.walker_camera.as_ref().and_then(|c| c.path_target().or_else(|| c.landing_target()))
+        } else { None };
+        let target_cubes = if self.mode.is_world() {
+            &self.active_world.as_ref().unwrap().scene.cubes[..]
+        } else if self.mode == SceneMode::MaterialShowcase {
+            &self.mining_asset.cubes[..]
+        } else { &[] };
+        let flight_cube = self.flight_target.update(target, elapsed_millis, target_cubes, &MATERIAL_PALETTE_RGBA);
+        let path_cubes = if self.mode.is_world() && self.portal_trip.is_none() {
+            self.flight_target.flags().and_then(|flags| self.walker_camera.as_ref()
+                .map(|c| c.path_cubes(flags, 512))).unwrap_or_default()
+        } else { Vec::new() };
+        let ghost_target = if self.mode.is_world() && self.portal_trip.is_none()
+            && !self.walker_camera.as_ref().is_some_and(|c| c.path_enabled()) {
             self.walker_camera
                 .as_ref()
                 .and_then(|c| c.placement_target())
@@ -912,8 +931,8 @@ impl CubeScene {
             self.carousel.placement(point, normal, rubik::MATERIAL_SHOWCASE_FLAG));
         let ghost_count = if self.mode.is_world() { self.asset_brush.ghost.len().min(asset_brush::GHOST_SEEDS) } else { 0 };
         let (detail_budget, solid_capacity) = self.limits.scene_budget(
-            preview_count + if companion { 27 } else { 0 },
-            preview_count + ghost_count + if companion { world_cube::SEEDS } else { 0 },
+            flight_slot + path_cubes.len() + if companion { 27 } else { 0 },
+            flight_slot + path_cubes.len() + ghost_count + if companion { world_cube::SEEDS } else { 0 },
         );
         if self.mode.is_world() {
             let metadata = if platform_lod::ENABLED && self.mode == SceneMode::World && !self.network_singleton {
@@ -1002,8 +1021,8 @@ impl CubeScene {
             self.mode,
             SceneMode::Orchard | SceneMode::World | SceneMode::Plateau | SceneMode::MaterialShowcase | SceneMode::RenderLimits
         ) {
-            // The asset preview already keeps the retained group nonempty in
-            // World mode. Do not add a black placeholder to an empty view.
+            // Keep the opaque retained group valid even when the view is empty.
+            // The fallback seed stays behind the eye.
             let count = if self.mode.is_world() {
                 self.world_markers.cubes.len()
             } else if self.mode == SceneMode::Orchard {
@@ -1013,20 +1032,21 @@ impl CubeScene {
             } else {
                 visible.len()
             };
-            count.max(usize::from(preview_count == 0))
+            count.max(1)
         } else {
             self.mode.seed_count().min(self.limits.seeds().saturating_sub(1))
         };
         // Visibility removes submissions, not authored scene instances. The
         // fallback seed is an ABI placeholder and is never a countable cube.
         let opaque_count =
-            scene_opaque_count + preview_count + ghost_count + if companion { 27 } else { 0 };
+            scene_opaque_count + ghost_count + if companion { 27 } else { 0 };
         let countable_seed_count = visibility_stats
             .map_or(scene_opaque_count, |stats| stats.source)
-            + preview_count
+            + usize::from(flight_cube.is_some())
+            + path_cubes.len()
             + ghost_count
             + if companion { 27 } else { 0 };
-        let seed_count = opaque_count
+        let seed_count = opaque_count + flight_slot + path_cubes.len()
             + if self.mode == SceneMode::Orchard { 1 } else if self.mode == SceneMode::StaticCube {
                 rubik::ALL_FACE_COUNT
             } else if companion {
@@ -1176,32 +1196,6 @@ impl CubeScene {
             }
             encode_seed(seed, &mut seed_bytes[i * 64..(i + 1) * 64]);
         }
-        if self.mode == SceneMode::MaterialShowcase && preview_count > 0 {
-            // A fixed-scale tool swatch keeps wheel selection visible even off-target.
-            let placement = world_cube::Placement::asset(width, height, tan_half_fov, 1.4);
-            let (local, scale) = placement.asset_pose(
-                [0.; 3],
-                self.mining.tool_side().unwrap() as f32 * subcubes::C1 * 0.5,
-            );
-            let offset = self.flycam.camera.rotation.rotate(local);
-            let translation = core::array::from_fn(|a| self.flycam.camera.position[a] + offset[a]);
-            let basis = [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]]
-                .map(|v| self.flycam.camera.rotation.rotate(world_cube::orient(v)));
-            let seed = RetainedTransformSeed {
-                translation,
-                scale: [scale; 3],
-                rotation: quaternion_from_rotation_columns(basis[0], basis[1], basis[2]).0,
-                local_radius: grid::CUBE_LOCAL_RADIUS,
-                previous_translation: translation,
-                draw_group: 0,
-                flags: ((scene_opaque_count as u32) << 16) | orchard::CUSTOM_RGB555 | 0x7fff,
-            };
-            encode_seed(
-                seed,
-                &mut seed_bytes[scene_opaque_count * 64..(scene_opaque_count + 1) * 64],
-            );
-            expanded_count += 1;
-        }
         for i in 0..ghost_count {
             let cube = self.asset_brush.ghost[i * self.asset_brush.ghost.len() / ghost_count];
             let depth = -(camera.view[2] * cube.center[0]
@@ -1209,7 +1203,7 @@ impl CubeScene {
                 + camera.view[10] * cube.center[2]
                 + camera.view[14]);
             let scale = asset_brush::marker_scale(cube.scale, depth, camera.projection[5], height);
-            let row = scene_opaque_count + preview_count + i;
+            let row = scene_opaque_count + i;
             let seed = RetainedTransformSeed {
                 translation: cube.center,
                 previous_translation: cube.center,
@@ -1235,7 +1229,7 @@ impl CubeScene {
                 let translation =
                     core::array::from_fn(|a| self.flycam.camera.position[a] + offset[a]);
                 let basis = basis.map(|axis| self.flycam.camera.rotation.rotate(axis));
-                let row = scene_opaque_count + preview_count + ghost_count + id;
+                let row = scene_opaque_count + ghost_count + id;
                 let seed = RetainedTransformSeed {
                     translation,
                     previous_translation: translation,
@@ -1250,10 +1244,26 @@ impl CubeScene {
                 expanded_count += 1;
             }
         }
-        if self.mode == SceneMode::StaticCube || companion {
+        let landing_seed = flight_target_seed(flight_cube, placeholder);
+        if flight_cube.is_some() { expanded_count += 1; }
+        expanded_count += path_cubes.len();
+        if self.mode == SceneMode::StaticCube || companion || !path_cubes.is_empty() {
             let all_faces = self.mode == SceneMode::StaticCube;
             let mut faces = Vec::with_capacity(seed_count - opaque_count);
-            for id in 0..27 {
+            if flight_slot != 0 {
+                let p = landing_seed.translation;
+                let depth = -(camera.view[2] * p[0] + camera.view[6] * p[1]
+                    + camera.view[10] * p[2] + camera.view[14]);
+                faces.push((depth, landing_seed));
+            }
+            for cube in &path_cubes {
+                let seed = flight_target_seed(Some(*cube), placeholder);
+                let p = seed.translation;
+                let depth = -(camera.view[2] * p[0] + camera.view[6] * p[1]
+                    + camera.view[10] * p[2] + camera.view[14]);
+                faces.push((depth, seed));
+            }
+            for id in 0..if self.mode == SceneMode::StaticCube || companion { 27 } else { 0 } {
                 let seed = opaque_seeds[id];
                 let basis = [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]]
                     .map(|a| Quaternion(seed.rotation).rotate(a));
@@ -1267,17 +1277,23 @@ impl CubeScene {
                         + camera.view[6] * p[1]
                         + camera.view[10] * p[2]
                         + camera.view[14]);
-                    faces.push((depth, id, face as u32));
+                    let mut seed = seed;
+                    seed.draw_group = 1;
+                    seed.flags = (seed.flags & 0xffff) | 512 | ((face as u32) << 10);
+                    faces.push((depth, seed));
                 }
             }
             faces.sort_by(|a, b| b.0.total_cmp(&a.0));
-            for (slot, (_, id, face)) in faces.iter().enumerate() {
-                let mut seed = opaque_seeds[*id];
-                seed.draw_group = 1;
-                seed.flags = ((slot as u32) << 16) | (seed.flags & 0xffff) | 512 | (*face << 10);
+            for (slot, (_, seed)) in faces.iter().enumerate() {
+                let mut seed = *seed;
+                seed.flags = ((slot as u32) << 16) | (seed.flags & 0xffff);
                 let row = opaque_count + slot;
                 encode_seed(seed, &mut seed_bytes[row * 64..(row + 1) * 64]);
             }
+        } else if flight_slot != 0 {
+            // Preserve both draw groups after landing/loss of target. The empty
+            // slot is behind the eye and produces no geometry, including dots.
+            encode_seed(landing_seed, &mut seed_bytes[opaque_count * 64..seed_count * 64]);
         } else if self.mode == SceneMode::InteractiveGrid {
             // Keep both draw groups stable across the scene transition. This
             // origin seed has clip.w=0 and HS emits no primitives.
@@ -1303,45 +1319,7 @@ impl CubeScene {
             &seed_bytes[..seed_count * 64],
         )
         .map_err(|code| CubeError::Vgpu("grid-seed-upload", code))?;
-        let outline = if matches!(self.mode, SceneMode::World | SceneMode::Plateau | SceneMode::MaterialShowcase) {
-            self.walker_camera
-                .as_ref()
-                .filter(|c| !self.mode.is_world() || c.is_flying())
-                .and_then(|c| c.snap_outline())
-        } else { None };
-        let (floor_bytes, line_color) = if self.mode == SceneMode::MaterialShowcase {
-            let target = self.mining.target_details(
-                self.flycam.camera.position,
-                self.flycam.camera.rotation.rotate([0., 0., -1.]),
-            );
-            let mut overlay = floor::Overlay::new();
-            if let Some(snap) = outline.as_ref() {
-                overlay.cube(&camera.view_projection, snap.lo, snap.hi);
-            }
-            if let Some(target) = target {
-                overlay.mining_grid(&camera.view_projection, target);
-            }
-            (overlay.bytes, [255, 255, 255, 191]) // 75% straight alpha.
-        } else if let Some(target) = outline.as_ref() {
-            (
-                floor::cube_outline(&camera.view_projection, target.lo, target.hi),
-                if target.reachable { [255, 255, 255, 255] } else { [0, 0, 0, 255] },
-            )
-        } else {
-            (
-                floor::vertices(&camera.view_projection, self.mode == SceneMode::StaticCube),
-                [100, 100, 100, 255],
-            )
-        };
-        let interaction_mode = matches!(self.mode, SceneMode::World | SceneMode::Plateau | SceneMode::MaterialShowcase);
-        let guide_quads = if interaction_mode {
-            interaction_overlay::strokes(&floor_bytes, width, height, line_color)
-        } else { Vec::new() };
-        // Keep the retained static-buffer contract stable across mode changes.
-        // Interaction guides now use UI4's post-render overlay, not LINE_LIST.
-        let floor_bytes = if interaction_mode {
-            floor::vertices(&camera.view_projection, false)
-        } else { floor_bytes };
+        let floor_bytes = floor::vertices(&camera.view_projection, self.mode == SceneMode::StaticCube);
         write_exact(self.device, self.floor_vertices, &floor_bytes)
             .map_err(|code| CubeError::Vgpu("floor-upload", code))?;
         self.floor_revision = self.floor_revision.wrapping_add(1);
@@ -1375,7 +1353,7 @@ impl CubeScene {
                                 trueos::vgpu::IndexedBatchDrawV2 {
                                     index_count: floor::VERTICES as u32,
                                     topology: trueos::vgpu::PRIMITIVE_TOPOLOGY_LINE_LIST,
-                                    rgba8_srgb: u32::from_le_bytes(line_color),
+                                    rgba8_srgb: u32::from_le_bytes([100, 100, 100, 255]),
                                     ..trueos::vgpu::IndexedBatchDrawV2::default()
                                 },
                                 trueos::vgpu::IndexedBatchDrawV2::default(),
@@ -1388,7 +1366,7 @@ impl CubeScene {
                     },
                     seed_buffer: self.seed_buffer.raw(),
                     seed_count: seed_count as u32,
-                    draw_count: if !companion
+                    draw_count: if flight_slot == 0 && !companion
                         && matches!(
                             self.mode,
                             SceneMode::Sphere
@@ -1406,7 +1384,7 @@ impl CubeScene {
                             first_index: 0,
                             index_count: 44,
                         },
-                        if !companion
+                        if flight_slot == 0 && !companion
                             && matches!(
                                 self.mode,
                                 SceneMode::Sphere
@@ -1456,8 +1434,6 @@ impl CubeScene {
                 ),
             );
         }
-        interaction_overlay::draw(&mut self.frame, &guide_quads)
-            .map_err(|error| CubeError::Ui4("interaction-overlay", error))?;
         self.frame
             .publish(Damage::full(width, height))
             .map_err(|error| CubeError::Ui4("frame-publish", error))?;
@@ -1484,14 +1460,6 @@ impl CubeScene {
             }),
         ) {
             logl::log(level::INFO, format_args!("Cubes: {report}"));
-            if interaction_mode {
-                logl::log(level::INFO, format_args!(
-                    "Cubes: guides mode={} tool={} landing={} quads={} path=ui4-after-retained",
-                    self.mode.number(),
-                    if self.mode == SceneMode::MaterialShowcase { self.mining.tool_name() } else { "space" },
-                    outline.is_some(), guide_quads.len()
-                ));
-            }
             if self.mode.is_world() {
                 if let Some((platforms, detailed)) = self.platform_view.counts() {
                     let source = &self.active_world.as_ref().unwrap().scene;
@@ -1727,6 +1695,7 @@ impl CubeScene {
     }
 
     fn show_plateau_menu(&mut self, page: usize) -> Result<(), CubeError> {
+        self.flight_target.clear();
         self.plateau_menu = true;
         self.interface.select(page);
         self.interface_cursor = None;
@@ -1846,6 +1815,7 @@ impl CubeScene {
     }
 
     fn open_asset_picker(&mut self) -> Result<(), CubeError> {
+        if let Some(camera) = self.walker_camera.as_mut() { camera.close_path(); }
         self.carousel.select_item(self.carousel.group, self.carousel.selected).map_err(|_| CubeError::Contract)?;
         self.picker_camera = Some(self.flycam);
         self.picker_mode = self.mode;
@@ -2053,6 +2023,8 @@ impl CubeScene {
         selection: modes::Selection,
         arrival: Option<usize>,
     ) -> Result<(), CubeError> {
+        self.flight_target.clear();
+        if let Some(camera) = self.walker_camera.as_mut() { camera.close_path(); }
         // Number-key navigation can abandon the picker. Restore the world
         // context first, so the usual mode-exit cleanup remains correct.
         if self.picker_camera.is_some() { self.restore_picker_world()?; }
@@ -2273,8 +2245,8 @@ impl CubeScene {
                         "1 sphere=1024 camera=center WASD=look cursor-expand=10%-area Key1=interactive-grid",
                     SceneMode::Orchard => "asset-picker wheel/AD=slide/loop W/S=next/previous-group mouse=orbit LMB=confirm five-row-assets alpha=.25/.5/1/.5/.25 group-previews=above/below alpha=.5",
                     SceneMode::World =>
-                        "5 lvl27-world first-person mouse-look WASD=surface-walk Shift=walk/flight-boost Space=edge-push/approach Home=align Key5=next-world R=display-cube MMB=picker/tool-off wheel=group-assets LMB=place",
-                    SceneMode::Plateau => "4 custom-plateau username=t4ce MMB=picker/tool-off LMB=place Key0=delete-profile",
+                        "5 lvl27-world first-person mouse-look WASD=surface-walk Shift=walk/flight-boost Tab=surface-path Space=confirm-path/edge-push/approach Home=align Key5=next-world R=display-cube MMB=picker/tool-off wheel=group-assets LMB=place",
+                    SceneMode::Plateau => "4 custom-plateau username=t4ce Tab=surface-path Space=confirm-path WASD/Tab=cancel-travel MMB=picker/tool-off LMB=place Key0=delete-profile",
                     SceneMode::Interface => "3 custom-menu Key3=confirm/info/slider pointer=hover/press actions=preview-only",
                     SceneMode::RenderLimits => "9 render limits upper=full-geometry lower=retained-seeds click/drag=16-steps Key5=world",
                     SceneMode::MaterialShowcase =>
@@ -2301,6 +2273,7 @@ impl CubeScene {
         )
     }
     fn refresh_mining(&mut self) {
+        self.flight_target.clear();
         self.mining_asset.cubes = self
             .mining
             .blocks
@@ -2405,6 +2378,21 @@ fn write_exact(device: Device, buffer: Buffer, bytes: &[u8]) -> Result<(), i32> 
     (device.write_buffer(buffer, 0, bytes)? == bytes.len())
         .then_some(())
         .ok_or(trueos::vgpu::ERR_IO)
+}
+
+fn flight_target_seed(cube: Option<orchard::Cube>, placeholder: [f32; 3]) -> RetainedTransformSeed {
+    let cube = cube.unwrap_or(orchard::Cube {
+        center: placeholder, scale: 0.0001, flags: flight_target::FLAGS,
+    });
+    RetainedTransformSeed {
+        translation: cube.center,
+        previous_translation: cube.center,
+        scale: [cube.scale; 3],
+        rotation: orchard::WORLD_ROTATION,
+        local_radius: grid::CUBE_LOCAL_RADIUS,
+        draw_group: 1,
+        flags: cube.flags,
+    }
 }
 
 fn carousel_anchor_seed(placeholder: [f32; 3]) -> RetainedTransformSeed {

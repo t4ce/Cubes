@@ -100,13 +100,17 @@ excluded. Picking intersects the reference bevel's 26 convex planes and retains
 the clicked local sticker face through subsequent layer turns.
 Routed N-Mouse primary presses select at most one piece.
 
-Shader contract 10 gives all 27 cubies all six local-direction palette faces:
+Shader contract 11 retains all 27 cubies all six local-direction palette faces:
 +X red, -X orange, +Y yellow, -Y green, +Z blue, -Z violet. Inner square faces and
 the core use the same imported materials as outward faces, at alpha 0.35. The
 27 opaque bevel seeds are followed by 162 square-face seeds sorted back-to-front,
 with depth writes disabled for the transparent group. Bevels remain neutral and
 opaque. Picking and portal routing still use the original outward stickers.
 The world companion retains its 54 outer-face submissions with the new palette.
+Flight targeting uses one half-size whole cube in the transparent group. Opacity
+class 3 now means 35%; classes 0/1/2 retain 100%/50%/25%. Its material is the aimed
+cube's closest shared theme. Rebuild TRUEOS and Cubes together for this shader
+change; `WALKER_CAMERA.md` describes the appearance animation and lifecycle.
 
 A correct click eases the entire puzzle to the existing 2.2-unit spacing over
 one second. The camera first eases toward the selected piece's radial direction,

@@ -37,6 +37,31 @@ mod plateau_tests {
             assert_eq!(cam.crossed_portal(first), None);
         }
     }
+    #[test]
+    fn terrace_tab_path_can_preview_and_travel_to_an_aimed_cube() {
+        let bytes = plateau::generate(3).unwrap();
+        let mut cam = walker_camera::CubesWalkerCam::plateau(&bytes, &[]).unwrap();
+        cam.look(-180., 150.);
+        for frame in 0..120 {
+            cam.update(walker_camera::Input { path_tab: frame == 0, ..Default::default() }, 0.016);
+            if cam.path_status() == "ready-Space-to-travel" { break; }
+        }
+        assert_eq!(cam.path_status(), "ready-Space-to-travel");
+        assert!(cam.path_target().is_some());
+        let cubes = cam.path_cubes(0x7e02, 512);
+        assert!(!cubes.is_empty());
+        assert!(cubes.iter().all(|c| c.scale >= 0.001));
+        let first = cam.pose().0;
+        cam.update(walker_camera::Input { space: true, ..Default::default() }, 0.016);
+        assert_eq!(cam.path_status(), "travelling");
+        for _ in 0..300 {
+            cam.update(walker_camera::Input::default(), 0.016);
+            assert!(!cam.is_flying());
+            if cam.path_status() != "travelling" { break; }
+        }
+        assert_ne!(cam.pose().0, first);
+        assert_ne!(cam.path_status(), "travelling");
+    }
     #[tokio::test]
     async fn two_users_create_save_reopen_delete_and_recreate_in_one_database() {
         let path = path();

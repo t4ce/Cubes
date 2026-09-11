@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the Cubes-owned walker, tier collision, and bundled geometry pages."""
 from pathlib import Path
+import json
 import subprocess
 import tempfile
 
@@ -26,12 +27,33 @@ source += f'#[path="{APP}/src/cube_format.rs"] mod cube_format;\n'
 source += f'#[path="{APP}/src/SubCubes.rs"] mod subcubes;\n'
 source += f'#[path="{APP.parent}/TRUEOS-Picasso/src/cam.rs"] pub mod cam;\n'
 source += f'#[path="{APP}/src/CubesWalkerCam.rs"] mod walker_camera;\n'
+source += f'#[path="{APP}/src/cubepathfind.rs"] mod cubepathfind;\n'
+source += f'#[path="{APP}/src/flight_target.rs"] mod flight_target;\n'
 source += f'#[path="{APP}/src/floor.rs"] mod floor;\n'
 source += 'const WORLD_PAGES: &[&[u8]] = &[\n'
 for path in sorted((APP/'Cube/lvl27').glob('*.cubes')):
     source += f'include_bytes!("{path}"),\n'
 source += '];\n'
+materials = json.loads((APP/'Cube/subcubes-materials.json').read_text())['materials']
+palette = []
+for name in ['red', 'orange', 'yellow', 'green', 'blue', 'violet']:
+    rgb = next(m['rgb'] for m in materials if m['id'] == name)
+    palette.append(0xff000000 | sum(int(rgb[axis]*255+0.5) << (8*i) for i, axis in enumerate('rgb')))
+source += f'const MATERIAL_PALETTE: [u32; 6] = {palette};\n'
 source += r'''
+#[test]
+fn authored_world_colors_select_the_six_imported_theme_materials() {
+    for (world, expected) in [4, 1, 5, 2, 3, 0].into_iter().enumerate() {
+        let bytes = WORLD_PAGES[world];
+        let rgb = (0..3).map(|a| ((bytes[16+a] as u32*31+127)/255) << (a*5)).sum::<u32>();
+        let cubes = [orchard::Cube {center:[0.;3],scale:1.,flags:orchard::CUSTOM_RGB555 | rgb}];
+        let target = walker_camera::LandingTarget {center:[0.;3],scale:1.,normal:[0.,1.,0.]};
+        let mut indicator = flight_target::Indicator::default();
+        indicator.update(Some(target), 0, &cubes, &MATERIAL_PALETTE);
+        let shown = indicator.update(Some(target), 700, &cubes, &MATERIAL_PALETTE).unwrap();
+        assert_eq!(shown.flags & 7, expected);
+    }
+}
 #[test]
 fn distant_world_cubes_reach_detail_or_marker_selection() {
     let camera = walker_camera::CubesWalkerCam::from_world(WORLD_PAGES[0], false);

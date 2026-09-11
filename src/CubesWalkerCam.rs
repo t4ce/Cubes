@@ -8,6 +8,7 @@ extern crate alloc;
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use trueos_picasso::cam::Quaternion as Q;
+use crate::cubepathfind::{self, Edge, Face, Leg, Sample, Search, Status};
 
 type V = [f32; 3];
 const UP: V = [0., 1., 0.];
@@ -18,6 +19,9 @@ const EPS: f32 = 1e-4;
 // Slightly higher surface viewpoint; shared with landing/headroom checks.
 const EYE: f32 = 0.825;
 const EDGE_TRAVEL: f32 = 1.8;
+const WALK_SPEED: f32 = 2.9 * 5.;
+const SHIFT_SPEED: f32 = WALK_SPEED * 2.;
+const PATH_SPEED: f32 = SHIFT_SPEED * 2.;
 // 7.5% narrower than the original 45-degree walker view.
 pub const FOV: f32 = core::f32::consts::FRAC_PI_4 * 0.925;
 pub const NEAR: f32 = 0.01;
@@ -327,6 +331,29 @@ pub struct Input {
     pub fast_walk: bool,
     pub space: bool,
     pub align: bool,
+    pub path_tab: bool,
+}
+
+#[derive(Default)]
+struct Navigation {
+    enabled: bool,
+    tab_held: bool,
+    pair: Option<(Face, Face)>,
+    search: Option<Search>,
+    target: Option<LandingTarget>,
+    route: Vec<Leg>,
+    samples: Vec<Sample>,
+    origin: Option<V>,
+    travelling: bool,
+    leg: usize,
+    remaining: f32,
+}
+
+// Only contact state is copied for route probes, never world occupancy.
+#[derive(Clone, Copy)]
+struct WalkPose {
+    foot: V, up: V, forward: V, view: Q,
+    turn: Option<Turn>, elevation: Option<ElevationStep>,
 }
 
 #[derive(Clone, Copy)]
@@ -336,11 +363,12 @@ struct CubeBounds {
     gap: f32,
 }
 
-/// Renderer-space bounds of the packed cube selected by the Space approach probe.
-pub struct SnapOutline {
-    pub lo: V,
-    pub hi: V,
-    pub reachable: bool,
+/// Visible constituent cube and aimed face, in renderer coordinates.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LandingTarget {
+    pub center: V,
+    pub scale: f32,
+    pub normal: V,
 }
 
 #[derive(Clone, Copy)]
@@ -390,6 +418,7 @@ pub struct CubesWalkerCam {
     push_off: Option<PushOff>,
     approach: Option<Hit>,
     align_held: bool,
+    navigation: Navigation,
     /// Full camera assistance and a soft 45-degree edge catch.
     pub camera_assist: f32,
     pub edge_perch: bool,
@@ -536,6 +565,7 @@ impl CubesWalkerCam {
             push_off: None,
             approach: None,
             align_held: false,
+            navigation: Navigation::default(),
             camera_assist: 1.,
             edge_perch: true,
         };
@@ -629,6 +659,7 @@ impl CubesWalkerCam {
         cam
     }
     pub fn server_spawn(&mut self, position: V) {
+        self.navigation = Navigation::default();
         self.position = mul(position, 1. / self.unit);
         self.foot = self.position;
         self.up = UP;
@@ -661,6 +692,7 @@ impl CubesWalkerCam {
         cam
     }
     pub fn replace_mining_blocks(&mut self, blocks: &[crate::subcubes::Block]) {
+        self.navigation = Navigation::default();
         self.solid = Solid::new([-32; 3], [32; 3]);
         self.cubes.clear();
         self.portals = [None; 7];
@@ -729,6 +761,7 @@ impl CubesWalkerCam {
         (2. * self.drift_half_extent * self.unit * libm::sqrtf(3.) + self.unit).max(100.)
     }
     pub fn look(&mut self, dx: f32, dy: f32) {
+        if self.navigation.travelling { return; }
         if !dx.is_finite() || !dy.is_finite() {
             return;
         }
@@ -785,7 +818,7 @@ impl CubesWalkerCam {
         let height = hit.map_or(EYE, |h| (h.distance - 0.065).max(0.12));
         add(self.foot, mul(self.up, height))
     }
-    // The rendered pose drives the probe, so the outline and Space agree with
+    // The rendered pose drives the probe, so the indicator and Space agree with
     // the center of the screen even during camera smoothing.
     fn snap_target(&self) -> Option<Hit> {
         self.solid.ray(
@@ -877,25 +910,211 @@ impl CubesWalkerCam {
             }
         }
         self.cubes.extend(bounds);
+        self.invalidate_path();
         true
     }
-    pub fn snap_outline(&self) -> Option<SnapOutline> {
+    pub fn landing_target(&self) -> Option<LandingTarget> {
+        if !self.is_flying() {
+            return None;
+        }
         let hit = self.snap_target()?;
+        self.highlight_hit(hit)
+    }
+    fn highlight_hit(&self, hit: Hit) -> Option<LandingTarget> {
         let inside = sub(hit.point, mul(hit.normal, EPS));
         let cube = self
             .cubes
             .iter()
             .find(|c| (0..3).all(|a| inside[a] >= c.lo[a] && inside[a] < c.lo[a] + c.size))?;
-        // Follow the visible packed cube, including its tiny decorative gap.
-        let inset = cube.gap * 0.5 - 0.005;
-        Some(SnapOutline {
-            lo: mul(add(cube.lo, [inset; 3]), self.unit),
-            hi: mul(add(cube.lo, [cube.size - inset; 3]), self.unit),
-            reachable: true,
+        Some(LandingTarget {
+            center: mul(add(cube.lo, [cube.size * 0.5; 3]), self.unit),
+            scale: (cube.size - cube.gap) * self.unit * 0.5,
+            normal: hit.normal,
         })
+    }
+    fn walk_pose(&self) -> WalkPose {
+        WalkPose { foot: self.foot, up: self.up, forward: self.forward, view: self.view,
+            turn: self.turn, elevation: self.elevation }
+    }
+    fn restore_walk(&mut self, pose: WalkPose) {
+        self.foot = pose.foot;
+        self.up = pose.up;
+        self.forward = pose.forward;
+        self.view = pose.view;
+        self.turn = pose.turn;
+        self.elevation = pose.elevation;
+    }
+    fn face_at(&self, point: V, normal: V) -> Option<Face> {
+        let axis = (0..3).find(|&a| normal[a].abs() > 0.999999)?;
+        let grid = self.solid.grid_step();
+        let cell = cell(mul(sub(point, mul(normal, EPS)), 1. / grid));
+        let face = Face { cell, side: (axis * 2 + usize::from(normal[axis] > 0.)) as u8 };
+        let center = face.center(grid);
+        (self.solid.has(sub(center, mul(normal, grid * 0.5)))
+            && !self.solid.has(add(center, mul(normal, grid * 0.5)))).then_some(face)
+    }
+    fn standing_face(&self) -> Option<Face> {
+        if self.fly || self.turn.is_some() || self.elevation.is_some() { return None; }
+        self.face_at(sub(self.foot, mul(self.up, SKIN)), self.up)
+    }
+    fn face_foot(&self, face: Face) -> V {
+        add(face.center(self.solid.grid_step()), mul(face.normal(), SKIN))
+    }
+    /// Probe each outgoing edge with the actual walker. Steps, headroom,
+    /// directed drops and corner costs therefore cannot drift from locomotion.
+    fn path_neighbors(&mut self, face: Face) -> Vec<Edge> {
+        let saved = self.walk_pose();
+        let grid = self.solid.grid_step();
+        let mut edges = Vec::with_capacity(4);
+        for axis in 0..3 {
+            if axis == face.side as usize / 2 { continue; }
+            for sign in [-1., 1.] {
+                let mut direction = [0.; 3];
+                direction[axis] = sign;
+                self.foot = self.face_foot(face);
+                self.up = face.normal();
+                self.forward = direction;
+                self.turn = None;
+                self.elevation = None;
+                let mut distance = grid * 0.5 + EPS * 2.;
+                self.spider_step(direction, distance);
+                let crossing = if let Some(t) = self.turn {
+                    EDGE_TRAVEL * (1. - t.progress) + EPS * 2.
+                } else if let Some(s) = self.elevation {
+                    1. - s.progress + EPS * 2.
+                } else { 0. };
+                if crossing > 0. {
+                    self.spider_step(self.forward, crossing);
+                    distance += crossing;
+                }
+                let Some(to) = self.standing_face() else { continue; };
+                if to == face { continue; }
+                let center = self.face_foot(to);
+                let remaining = dot(sub(center, self.foot), self.forward);
+                if remaining < 0. { continue; }
+                self.spider_step(self.forward, remaining);
+                distance += remaining;
+                if self.standing_face() != Some(to)
+                    || dot(sub(self.foot, center), sub(self.foot, center)) > 0.000004 {
+                    continue;
+                }
+                edges.push(Edge { to, leg: Leg { direction, distance } });
+            }
+        }
+        self.restore_walk(saved);
+        edges
+    }
+    pub fn path_enabled(&self) -> bool { self.navigation.enabled }
+    pub fn close_path(&mut self) { self.navigation = Navigation::default(); }
+    pub fn path_status(&self) -> &'static str {
+        if !self.navigation.enabled { return "off"; }
+        if self.navigation.travelling { return "travelling"; }
+        match self.navigation.search.as_ref().map(|s| s.status) {
+            None => "aim-at-surface",
+            Some(Status::Searching) => "searching",
+            Some(Status::Ready) => "ready-Space-to-travel",
+            Some(Status::Unreachable) => "no-surface-route",
+            Some(Status::Limit) => "search-limit",
+        }
+    }
+    pub fn path_target(&self) -> Option<LandingTarget> { self.navigation.target }
+    pub fn path_cubes(&self, flags: u32, budget: usize) -> Vec<crate::orchard::Cube> {
+        let Some(target) = self.navigation.target else { return Vec::new(); };
+        // Stay above the shader's marker-size encoding, even for fine cells.
+        let scale = (target.scale * 0.16).min(self.solid.grid_step() * self.unit * 0.18).max(0.002);
+        cubepathfind::dashes(&self.navigation.samples, scale, flags, budget)
+    }
+    fn invalidate_path(&mut self) {
+        self.navigation = Navigation { enabled: self.navigation.enabled,
+            tab_held: self.navigation.tab_held, ..Navigation::default() };
+    }
+    fn preview_path(&mut self) {
+        let Some(start) = self.standing_face() else { self.invalidate_path(); return; };
+        let Some(hit) = self.snap_target() else { self.invalidate_path(); return; };
+        let Some(goal) = self.face_at(hit.point, hit.normal) else { self.invalidate_path(); return; };
+        let mut nav = core::mem::take(&mut self.navigation);
+        nav.target = self.highlight_hit(hit);
+        if nav.pair != Some((start, goal)) {
+            nav.pair = Some((start, goal));
+            nav.search = Some(Search::new(start, goal, self.solid.grid_step()));
+            nav.route.clear();
+            nav.samples.clear();
+            nav.origin = None;
+        }
+        let search = nav.search.as_mut().unwrap();
+        search.advance(128, |face| self.path_neighbors(face));
+        if search.status == Status::Ready && nav.origin != Some(self.foot) {
+            let mut route = search.route().unwrap();
+            let offset = sub(self.face_foot(start), self.foot);
+            let distance = libm::sqrtf(dot(offset, offset));
+            if distance > EPS { route.insert(0, Leg { direction: norm(offset), distance }); }
+            let saved = self.walk_pose();
+            let sample = |cam: &Self| Sample { point: mul(cam.foot, cam.unit), normal: cam.up };
+            let mut samples = alloc::vec![sample(self)];
+            for leg in &route {
+                self.forward = leg.direction;
+                let steps = libm::ceilf(leg.distance / 0.055).max(1.) as usize;
+                for _ in 0..steps {
+                    self.spider_step(self.forward, leg.distance / steps as f32);
+                    samples.push(sample(self));
+                }
+            }
+            let error = sub(self.foot, self.face_foot(goal));
+            let valid = self.standing_face() == Some(goal) && dot(error, error) < 0.0004;
+            self.restore_walk(saved);
+            nav.origin = Some(self.foot);
+            if valid { nav.route = route; nav.samples = samples; }
+            else { nav.route.clear(); nav.samples.clear(); search.status = Status::Unreachable; }
+        }
+        self.navigation = nav;
+    }
+    fn advance_path(&mut self, mut distance: f32) {
+        while distance > EPS && self.navigation.travelling {
+            if self.navigation.leg >= self.navigation.route.len() {
+                self.invalidate_path();
+                break;
+            }
+            if self.navigation.remaining <= EPS {
+                let leg = self.navigation.route[self.navigation.leg];
+                self.navigation.remaining = leg.distance;
+                self.forward = leg.direction;
+                self.pitch = -0.25;
+                self.reset_view();
+            }
+            let step = distance.min(self.navigation.remaining).min(0.055);
+            let before = self.foot;
+            let up = self.up;
+            self.spider_step(self.forward, step);
+            // A changed/blocked surface must stop travel, never skip to a waypoint.
+            if dot(sub(before, self.foot), sub(before, self.foot)) < 1e-12
+                && dot(sub(up, self.up), sub(up, self.up)) < 1e-12 {
+                self.invalidate_path();
+                break;
+            }
+            self.navigation.remaining -= step;
+            distance -= step;
+            if self.navigation.remaining <= EPS { self.navigation.leg += 1; }
+        }
     }
     pub fn update(&mut self, input: Input, dt: f32) {
         let space_pressed = input.space && !self.space_held;
+        if input.path_tab && !self.navigation.tab_held && !self.fly {
+            self.navigation = Navigation { enabled: !self.navigation.enabled, ..Navigation::default() };
+        }
+        self.navigation.tab_held = input.path_tab;
+        if self.fly && self.navigation.enabled { self.navigation = Navigation::default(); }
+        if self.navigation.travelling && (input.forward != 0. || input.right != 0.) {
+            self.invalidate_path();
+        }
+        if self.navigation.enabled && !self.navigation.travelling {
+            self.preview_path();
+            if space_pressed && self.navigation.search.as_ref().is_some_and(|s| s.status == Status::Ready)
+                && input.forward == 0. && input.right == 0. && !self.navigation.route.is_empty() {
+                self.navigation.travelling = true;
+                self.navigation.leg = 0;
+                self.navigation.remaining = 0.;
+            }
+        }
         if space_pressed && self.fly {
             if let Some(hit) = self.snap_target() {
                 self.push_off = None;
@@ -915,10 +1134,12 @@ impl CubesWalkerCam {
         if let Some(t) = self.turn.as_mut() {
             t.cross_input = 0.;
         }
-        if input.space && !self.fly {
+        if input.space && !self.fly && !self.navigation.enabled {
             self.begin_push_off(input.fast_walk);
         }
-        if self.push_off.is_some() || self.approach.is_some() {
+        if self.navigation.travelling {
+            self.advance_path(PATH_SPEED * dt);
+        } else if self.push_off.is_some() || self.approach.is_some() {
             self.advance_space_flight(dt);
         } else if self.fly {
             let screen = (self.view * Q::from_axis_angle([0., 0., 1.], self.roll)).normalized();
@@ -940,7 +1161,7 @@ impl CubesWalkerCam {
                 }
             }
         } else if input.forward != 0. || input.right != 0. {
-            let total = 2.9 * if input.fast_walk { 10. } else { 5. } * dt;
+            let total = if input.fast_walk { SHIFT_SPEED } else { WALK_SPEED } * dt;
             let steps = (libm::ceilf(total / 0.055) as usize).max(1);
             for _ in 0..steps {
                 let direction = norm(add(
@@ -948,7 +1169,7 @@ impl CubesWalkerCam {
                     mul(norm(cross(self.forward, self.up)), input.right),
                 ));
                 self.spider_step(direction, total / steps as f32);
-                if input.space && self.begin_push_off(input.fast_walk) {
+                if input.space && !self.navigation.enabled && self.begin_push_off(input.fast_walk) {
                     break;
                 }
             }
@@ -1366,6 +1587,146 @@ mod tests {
         c.rotation = c.view;
         c
     }
+    fn solve(cam: &mut CubesWalkerCam, goal: Face) -> Vec<Leg> {
+        let start = cam.standing_face().unwrap();
+        let mut search = Search::new(start, goal, cam.solid.grid_step());
+        while search.status == Status::Searching { search.advance(128, |f| cam.path_neighbors(f)); }
+        assert_eq!(search.status, Status::Ready, "{start:?} -> {goal:?}");
+        search.route().unwrap()
+    }
+    fn follow(cam: &mut CubesWalkerCam, route: Vec<Leg>, goal: Face) {
+        cam.navigation = Navigation { enabled: true, travelling: true, route, ..Navigation::default() };
+        for _ in 0..2000 {
+            cam.update(Input::default(), 0.016);
+            assert!(!cam.fly);
+            assert!(!cam.solid.has(cam.foot), "foot {:?}", cam.foot);
+            assert!(!cam.solid.has(cam.position), "eye {:?}", cam.position);
+            if !cam.navigation.travelling { break; }
+        }
+        assert!(!cam.navigation.travelling, "route did not finish");
+        close(cam.foot, cam.face_foot(goal));
+        assert_eq!(cam.standing_face(), Some(goal));
+    }
+    #[test]
+    fn path_walks_around_all_six_faces_with_the_existing_corner_motion() {
+        for side in 0..6 {
+            let mut c = fixture(&[[0, 0, 0, 4]], [0.5, 4. + SKIN, 0.5], [1., 0., 0.]);
+            let mut goal = Face { cell: [1, 1, 1], side };
+            goal.cell[side as usize / 2] = if side % 2 == 0 { 0 } else { 3 };
+            let before = c.walk_pose();
+            let route = solve(&mut c, goal);
+            close(c.foot, before.foot);
+            assert_eq!(c.view, before.view);
+            follow(&mut c, route, goal);
+        }
+    }
+    #[test]
+    fn paths_use_steps_inner_corners_and_fine_placed_collision() {
+        for height in [2, 3] {
+            let mut c = fixture(&[[0, 0, 0, 1], [1, 0, 0, 1], [1, 1, 0, 1], [1, 2, 0, 1]],
+                [0.5, 1. + SKIN, 0.5], [1., 0., 0.]);
+            if height == 2 { c.solid = Solid::new([0; 3], [3; 3]);
+                for p in [[0,0,0], [1,0,0], [1,1,0]] { c.solid.insert(p); } }
+            let goal = Face { cell: [1, height-1, 0], side: 3 };
+            let route = solve(&mut c, goal);
+            follow(&mut c, route, goal);
+        }
+        let mut c = fixture(&[[0, 0, 0, 4]], [0.125, 4. + SKIN, 0.125], [1., 0., 0.]);
+        // A quarter-grid extension joins the coarse solid's face.
+        for x in 0..4 { for y in 0..4 { for z in 0..4 {
+            c.solid.insert_fine([4. + x as f32 * 0.25, 3. + y as f32 * 0.25, z as f32 * 0.25]);
+        } } }
+        let goal = Face { cell: [19, 15, 0], side: 3 };
+        let route = solve(&mut c, goal);
+        follow(&mut c, route, goal);
+    }
+    #[test]
+    fn disconnected_cubes_have_no_surface_path() {
+        let mut c = fixture(&[[0,0,0,1], [4,0,0,1]], [0.5,1.+SKIN,0.5], [1.,0.,0.]);
+        let mut search = Search::new(c.standing_face().unwrap(), Face { cell: [4,0,0], side: 3 }, 1.);
+        for _ in 0..10 { search.advance(128, |f| c.path_neighbors(f)); }
+        assert_eq!(search.status, Status::Unreachable);
+    }
+    #[test]
+    fn long_diagonal_fine_grid_route_is_incremental_and_arrives_without_drift() {
+        let mut c = fixture(&[[0,0,0,64]], [0.125,64.+SKIN,0.125], [1.,0.,0.]);
+        c.solid.insert_fine([0.125; 3]);
+        let goal = Face { cell: [240,255,240], side: 3 };
+        let mut search = Search::new(c.standing_face().unwrap(), goal, 0.25);
+        let mut frames = 0;
+        while search.status == Status::Searching && frames < 16 {
+            search.advance(128, |f| c.path_neighbors(f));
+            frames += 1;
+        }
+        assert_eq!(search.status, Status::Ready, "long flat path exceeded 16 search frames");
+        let route = search.route().unwrap();
+        assert_eq!(route.len(), 480);
+        follow(&mut c, route, goal);
+    }
+    #[test]
+    fn world_portal_surface_preview_uses_the_full_authored_collision_grid() {
+        for (world, bytes) in crate::WORLD_PAGES.iter().enumerate() {
+            let mut c = CubesWalkerCam::from_world(bytes, world == 26);
+            if c.is_flying() { continue; }
+            // Aim at the nearby connector while retaining the rendered pose.
+            c.rotation = look(norm(add(c.forward, mul(c.up, -1.))), c.up);
+            c.view = c.rotation;
+            let hit = c.snap_target().unwrap();
+            let goal = c.face_at(hit.point, hit.normal).unwrap();
+            for frame in 0..60 {
+                c.update(Input { path_tab: frame == 0, ..Input::default() }, 0.016);
+                if c.path_status() != "searching" { break; }
+            }
+            assert_eq!(c.path_status(), "ready-Space-to-travel", "world {}", world+1);
+            let route = c.navigation.route.clone();
+            follow(&mut c, route, goal);
+        }
+    }
+    #[test]
+    fn retargeting_and_edits_discard_the_old_preview_and_confirmed_route() {
+        let mut c = fixture(&[[0,0,0,16]], [1.5,16.+SKIN,1.5], [1.,0.,0.]);
+        c.view = look(norm([8., -EYE, 0.]), UP);
+        c.rotation = c.view;
+        c.update(Input { path_tab: true, ..Input::default() }, 0.016);
+        let old_goal = c.navigation.pair.unwrap().1;
+        c.view = look(norm([0., -EYE, 8.]), UP);
+        c.rotation = c.view;
+        c.update(Input::default(), 0.016);
+        assert_ne!(c.navigation.pair.unwrap().1, old_goal);
+        assert_eq!(c.navigation.search.as_ref().unwrap().status, Status::Ready);
+        c.update(Input { space: true, ..Input::default() }, 0.016);
+        assert!(c.navigation.travelling);
+        assert!(c.add_placed(&[([16.8, 0.8, 0.8], 0.799)]));
+        assert!(c.path_enabled());
+        assert!(c.navigation.route.is_empty());
+        assert!(!c.navigation.travelling);
+        assert!(c.path_target().is_none());
+    }
+    #[test]
+    fn tab_previews_space_locks_twice_shift_speed_and_manual_input_cancels() {
+        let mut c = fixture(&[[0,0,0,16]], [1.5,16.+SKIN,1.5], [1.,0.,0.]);
+        c.rotation = look(norm([8., -EYE, 0.]), UP);
+        c.view = c.rotation;
+        c.update(Input { path_tab: true, ..Input::default() }, 0.016);
+        assert!(c.path_enabled());
+        assert!(c.path_target().is_some());
+        assert_eq!(c.navigation.search.as_ref().unwrap().status, Status::Ready);
+        assert!(!c.navigation.samples.is_empty());
+        let target = c.path_target();
+        let start = c.foot;
+        c.update(Input { space: true, path_tab: true, ..Input::default() }, 0.016);
+        assert!(c.navigation.travelling);
+        assert_eq!(c.path_target(), target);
+        assert!((c.foot[0] - start[0] - SHIFT_SPEED * 2. * 0.016).abs() < 0.002);
+        c.update(Input { right: 1., ..Input::default() }, 0.016);
+        assert!(!c.navigation.travelling);
+        c.update(Input { path_tab: true, ..Input::default() }, 0.016);
+        assert!(!c.path_enabled());
+        c.fly = true;
+        c.update(Input::default(), 0.016);
+        c.update(Input { path_tab: true, ..Input::default() }, 0.016);
+        assert!(!c.path_enabled());
+    }
     #[test]
     fn tiny_render_gaps_are_continuous_support() {
         let mut c = fixture(
@@ -1492,7 +1853,7 @@ mod tests {
         c.foot = c.position;
         c.view = look([0., -1., 0.], [0., 0., 1.]);
         c.rotation = c.view;
-        assert!(c.snap_outline().unwrap().reachable);
+        assert!(c.landing_target().is_some());
         c.update(Input::default(), 0.02);
         c.update(
             Input {
@@ -1509,7 +1870,7 @@ mod tests {
         }
         assert!(!c.fly);
         close(c.up, UP);
-        assert!(c.snap_outline().is_none());
+        assert!(c.landing_target().is_none());
     }
     #[test]
     fn space_can_interrupt_an_existing_outside_turn_without_cooldown() {
@@ -1891,6 +2252,27 @@ mod tests {
                 index + 1,
                 c.foot
             );
+        }
+    }
+    #[test]
+    fn flight_target_tracks_all_six_faces_and_is_absent_while_attached() {
+        let block = crate::subcubes::Block {min: [-4; 3], side: 8, material: 4};
+        let mut cam = CubesWalkerCam::mining_demo(&[block]);
+        for axis in 0..3 {
+            for sign in [-1., 1.] {
+                let mut normal = [0.; 3];
+                normal[axis] = sign;
+                cam.position = mul(normal, 20.);
+                cam.rotation = look(mul(normal, -1.), tangent(UP, normal));
+                cam.fly = true;
+                let target = cam.landing_target().unwrap();
+                close(target.center, [0.; 3]);
+                close(target.normal, normal);
+                assert!((target.scale - block.pose().1).abs() < 1e-6);
+                assert_eq!(cam.snap_target().unwrap().normal, target.normal);
+                cam.fly = false;
+                assert!(cam.landing_target().is_none());
+            }
         }
     }
     #[test]
