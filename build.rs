@@ -120,6 +120,7 @@ fn main() {
     assert_eq!(worlds.len(), 27, "expected all 27 lvl27 world assets");
     registry.push_str(&platform_registry(&worlds));
     registry.push_str(&write_registry("WORLD_ASSETS", worlds));
+    registry.push_str(&material_palette_registry());
     fs::write(
         std::path::Path::new(&std::env::var_os("OUT_DIR").unwrap()).join("orchard_assets.rs"),
         registry,
@@ -150,6 +151,26 @@ fn main() {
     // The sidecar validates the exported source, not the currently booted
     // kernel. Driver integration still requires rebuilding/booting TRUEOS.
     // No vertex/index mesh expansion at build time. Runtime uploads one seed.
+}
+
+fn material_palette_registry() -> String {
+    let palette: serde_json::Value = serde_json::from_slice(
+        &fs::read("Cube/subcubes-materials.json").expect("read shared material palette"),
+    ).expect("valid material palette JSON");
+    let materials = palette["materials"].as_array().expect("palette materials");
+    let colors: Vec<u32> = ["red", "orange", "yellow", "green", "blue", "violet"]
+        .into_iter().map(|id| {
+            let matches: Vec<_> = materials.iter().filter(|m| m["id"] == id).collect();
+            assert_eq!(matches.len(), 1, "expected one palette material {id}");
+            let mut rgba = [255; 4];
+            for (axis, channel) in ["r", "g", "b"].into_iter().enumerate() {
+                let value = matches[0]["rgb"][channel].as_f64().expect("palette RGB number");
+                assert!(value.is_finite() && (0. ..=1.).contains(&value));
+                rgba[axis] = (value * 255.).round() as u8;
+            }
+            u32::from_le_bytes(rgba)
+        }).collect();
+    format!("const MATERIAL_PALETTE_RGBA: [u32; 6] = {colors:?};\n")
 }
 
 // Geometry-only sidecar: validate against the exact asset and compile ownership

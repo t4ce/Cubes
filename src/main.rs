@@ -8,6 +8,7 @@ mod counters;
 mod cube_format;
 mod environment;
 mod floor;
+mod interaction_overlay;
 mod carousel;
 mod baked_materials { include!("../Cube/cube_driver_manifest.rs"); }
 mod grid;
@@ -1244,14 +1245,14 @@ impl CubeScene {
                 self.flycam.camera.rotation.rotate([0., 0., -1.]),
             );
             let mut overlay = floor::Overlay::new();
-            if let Some(snap) = outline {
+            if let Some(snap) = outline.as_ref() {
                 overlay.cube(&camera.view_projection, snap.lo, snap.hi);
             }
             if let Some(target) = target {
                 overlay.mining_grid(&camera.view_projection, target);
             }
             (overlay.bytes, [255, 255, 255, 191]) // 75% straight alpha.
-        } else if let Some(target) = outline {
+        } else if let Some(target) = outline.as_ref() {
             (
                 floor::cube_outline(&camera.view_projection, target.lo, target.hi),
                 if target.reachable { [255, 255, 255, 255] } else { [0, 0, 0, 255] },
@@ -1262,6 +1263,15 @@ impl CubeScene {
                 [100, 100, 100, 255],
             )
         };
+        let interaction_mode = matches!(self.mode, SceneMode::World | SceneMode::MaterialShowcase);
+        let guide_quads = if interaction_mode {
+            interaction_overlay::strokes(&floor_bytes, width, height, line_color)
+        } else { Vec::new() };
+        // Keep the retained static-buffer contract stable across mode changes.
+        // Interaction guides now use UI4's post-render overlay, not LINE_LIST.
+        let floor_bytes = if interaction_mode {
+            floor::vertices(&camera.view_projection, false)
+        } else { floor_bytes };
         write_exact(self.device, self.floor_vertices, &floor_bytes)
             .map_err(|code| CubeError::Vgpu("floor-upload", code))?;
         self.floor_revision = self.floor_revision.wrapping_add(1);
@@ -1374,6 +1384,8 @@ impl CubeScene {
                 ),
             );
         }
+        interaction_overlay::draw(&mut self.frame, &guide_quads)
+            .map_err(|error| CubeError::Ui4("interaction-overlay", error))?;
         self.frame
             .publish(Damage::full(width, height))
             .map_err(|error| CubeError::Ui4("frame-publish", error))?;
@@ -1400,6 +1412,14 @@ impl CubeScene {
             }),
         ) {
             logl::log(level::INFO, format_args!("Cubes: {report}"));
+            if interaction_mode {
+                logl::log(level::INFO, format_args!(
+                    "Cubes: guides mode={} tool={} landing={} quads={} path=ui4-after-retained",
+                    self.mode.number(),
+                    if self.mode == SceneMode::MaterialShowcase { self.mining.tool_name() } else { "space" },
+                    outline.is_some(), guide_quads.len()
+                ));
+            }
             if self.mode == SceneMode::World {
                 if let Some((platforms, detailed)) = self.platform_view.counts() {
                     let source = &self.active_world.as_ref().unwrap().scene;

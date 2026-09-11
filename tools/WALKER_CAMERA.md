@@ -51,8 +51,10 @@ and bevels do not split the walking surface. The occupancy includes the full
 page, independent of streamed/culled seeds, and retains the authored portal
 footprint during portal recoloring/scatter. No world population is changed.
 
-The outline reuses the existing static line-list pass and outlines the complete
-visible walkable constituent cube. Space uses the rendered view's first surface hit, matching
+The outline marks the complete visible walkable constituent cube using UI4
+screen-space strokes after the retained render retires. Its three-pixel white
+stroke and dark border retain their width after resize; scene depth cannot hide
+them. Space uses the rendered view's first surface hit, matching
 the center of the screen during smoothing. Approaches stop safely if another
 surface obstructs travel; no instant long-distance snap is used.
 

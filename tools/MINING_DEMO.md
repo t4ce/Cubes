@@ -22,8 +22,15 @@ and a c1 grid extends two cells beyond its footprint in each tangent direction.
 The grid and cut share the mining ray hit on all six faces and move in c1
 increments for every tool. The Space approach target retains its own outline,
 including when no mining tool is selected. Guides are clipped to the viewport
-before drawing over the scene, so geometry cannot bury them. Key5 also uses this
-overlay-depth fix for its Space outline; mining and the regional grid stay in Key7. Mine any of the six faces,
+before drawing over the scene, so geometry cannot bury them. Both Key7 guides
+and the Key5 Space outline use `src/interaction_overlay.rs`: three-pixel white
+UI4 strokes with a one-pixel dark border, composited after the retained render
+retires and before publication. They no longer depend on the static LINE_LIST
+pass. Long strokes are segmented with a total budget of 256 quads (one hardware
+worklist) to bound the overlay's dispatch rectangles and submission count;
+empty guides skip the overlay entirely. `Cubes: guides` logs report tool, landing
+target presence and submitted quad count once per reporting interval.
+Mining and the regional grid stay in Key7. Mine any of the six faces,
 including edges, corners, existing cavities, and fragments. Each cut removes only
 its intersection with existing geometry. `src/SubCubes.rs` packs each affected
 block's remaining c1 cells in descending tier order, preserving its material.

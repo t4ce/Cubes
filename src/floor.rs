@@ -1,4 +1,5 @@
-//! Orientation and interaction guides as one indexed line-list.
+//! Clipped orientation and interaction guide segments in normalized device coordinates.
+//! The floor uses LINE_LIST; interaction_overlay expands tool guides into UI4 strokes.
 // 12 snap edges + 12 tool edges + 26 local grid lines at the largest tool.
 pub const VERTICES: usize = 128;
 pub const GRID_MARGIN: i32 = 2;
@@ -89,8 +90,7 @@ mod tests {
 }
 
 /// Local interaction guides are an overlay. Clip in world space first, then
-/// use near depth so the retained scene cannot bury the highlighted selection.
-/// Static draws already run after opaque geometry and use straight-alpha blending.
+/// mark visible segments at depth zero for the post-render UI4 stroke overlay.
 pub struct Overlay {
     pub bytes: [u8; VERTICES * 12],
     lines: usize,

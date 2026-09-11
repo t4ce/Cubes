@@ -4,7 +4,15 @@ use alloc::vec::Vec;
 use trueos::ui4_scene::{BackgroundLayer, Damage, Error};
 use trueos::vgpu::*;
 
-pub const MAX_POINTS: usize = 256;
+// Inner -> outer. Two radii lie inside the old 0.58 minimum and one beyond
+// its 0.86 maximum; the remaining rings are redistributed into six slots.
+pub const RING_RADII: [f32; 6] = [0.38, 0.48, 0.58, 0.70, 0.82, 0.94];
+pub const RING_WIDTHS: [u8; 6] = [12, 12, 12, 16, 20, 24];
+// Keep distinct dots at the default 784x441 size despite the wider strokes.
+pub const RING_POINTS: [usize; 6] = [32, 40, 48, 48, 48, 48];
+pub const MAX_POINTS: usize = 264;
+const _: () = assert!(MAX_POINTS == RING_POINTS[0] + RING_POINTS[1] + RING_POINTS[2]
+    + RING_POINTS[3] + RING_POINTS[4] + RING_POINTS[5]);
 #[derive(Clone, Copy, Debug)]
 pub struct Point {
     pub position: [f32; 3],
@@ -13,19 +21,15 @@ pub struct Point {
 }
 
 pub fn circles() -> Vec<Point> {
-    use potato_stamps::scene::*;
-    let colors = decode_palette_rgba(COLOR_TEXTURE_BYTES).unwrap();
-    let rings = quad_strip_ring_positions();
-    (0..RING_CIRCLE_COUNT)
+    (0..RING_RADII.len())
         .flat_map(|circle| {
-            let rings = &rings;
-            (0..RING_CIRCLE_VERTEX_COUNT).map(move |step| {
-                let p =
-                    rings[(circle / 2) * QUAD_STRIP_RING_VERTICES_PER_RING + step * 2 + circle % 2];
+            (0..RING_POINTS[circle]).map(move |step| {
+                let angle = core::f32::consts::TAU * step as f32 / RING_POINTS[circle] as f32;
+                let radius = RING_RADII[circle];
                 Point {
-                    position: [p.x, p.y, p.z],
-                    color: colors[circle],
-                    width: POINT_RING_POINT_WIDTHS_PX[circle],
+                    position: [libm::cosf(angle) * radius * (9. / 16.), libm::sinf(angle) * radius, 0.],
+                    color: crate::MATERIAL_PALETTE_RGBA[circle],
+                    width: RING_WIDTHS[circle],
                 }
             })
         })

@@ -126,7 +126,7 @@ impl Background {
                         if command[0] == 0 || reported != (command[0], command[14]) {
                             trueos::logl::log(trueos::logl::level::INFO, format_args!(
                                 "Cubes: background native=POINT_LIST source={} points={} draws={} resize_generation={} extent={}x{}",
-                                "PotatoStamps-Key1-rings",
+                                "Cubes-six-palette-rings",
                                 points.len(), batch.draws.len(), command[14], command[12], command[13]));
                             reported = (command[0], command[14]);
                         }

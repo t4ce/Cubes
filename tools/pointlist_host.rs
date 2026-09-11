@@ -86,16 +86,34 @@ fn await_publications(n:usize){
         std::thread::sleep(std::time::Duration::from_millis(2));
     }
 }
-#[test] fn key1_circles_use_exact_potato_geometry_colors_and_widths(){
+#[test] fn six_circles_use_shared_palette_and_red_size_as_minimum(){
     use potato_stamps::scene::*;
-    let circles=pointlist::circles();let colors=decode_palette_rgba(COLOR_TEXTURE_BYTES).unwrap();
-    let rings=quad_strip_ring_positions();assert_eq!(circles.len(),256);
-    for circle in 0..4 {for step in 0..64 {
-        let p=circles[circle*64+step];
-        let r=rings[(circle/2)*QUAD_STRIP_RING_VERTICES_PER_RING+step*2+circle%2];
-        assert_eq!(p.position,[r.x,r.y,r.z]);assert_eq!(p.color,colors[circle]);
-        assert_eq!(p.width,POINT_RING_POINT_WIDTHS_PX[circle]);
-    }}
+    let mut circles=pointlist::circles();assert_eq!(circles.len(),264);
+    assert_eq!(MATERIAL_PALETTE_RGBA,EXPECTED_PALETTE_RGBA);
+    let red=POINT_RING_POINT_WIDTHS_PX[0];
+    let mut offset=0;
+    for circle in 0..6 {
+        let count=pointlist::RING_POINTS[circle];
+        for step in 0..count {
+            let p=circles[offset+step];
+            let radius=((p.position[0]*16./9.).powi(2)+p.position[1].powi(2)).sqrt();
+            assert!((radius-pointlist::RING_RADII[circle]).abs()<1e-6);
+            assert_eq!(p.position[2],0.);
+            assert_eq!(p.color,EXPECTED_PALETTE_RGBA[circle]);
+            assert_eq!(p.width,red+[0,0,0,4,8,12][circle]);
+            let next=circles[offset+(step+1)%count];
+            let distance=(((p.position[0]-next.position[0])*392.).powi(2)
+                +((p.position[1]-next.position[1])*220.5).powi(2)).sqrt();
+            assert!(distance>p.width as f32,"dots must stay separate at default size");
+        }
+        offset+=count;
+    }
+    assert_eq!(pointlist::RING_RADII.iter().filter(|&&r|r<0.58).count(),2);
+    assert_eq!(pointlist::RING_RADII.iter().filter(|&&r|r>0.86).count(),1);
+    let batch=pointlist::Batch::new(&mut circles);
+    assert_eq!(batch.draws.len(),6);
+    assert_eq!(batch.vertices.len(),264*12);
+    assert_eq!(batch.draws.iter().map(|d|d.index_count).sum::<u32>(),264);
 }
 #[test] fn real_background_worker_releases_resize_during_idle_world_and_aba(){
     reset();let mut bg=background::Background::start(ui4_scene::BackgroundLayer).unwrap();
@@ -111,12 +129,12 @@ fn await_publications(n:usize){
     assert_eq!(STATE.lock().unwrap().commits,1);
     {let mut s=STATE.lock().unwrap();s.pending=true;}
     bg.resized();bg.update(background::Mode::World,q,0.,1.,(2560,1440)).unwrap();await_publications(3);
-    {let s=STATE.lock().unwrap();assert_eq!(s.commits,2);assert_eq!(s.batches.last().unwrap().iter().map(|d|d.index_count).sum::<u32>(),256);assert!(s.shaders.is_empty());}
+    {let s=STATE.lock().unwrap();assert_eq!(s.commits,2);assert_eq!(s.batches.last().unwrap().iter().map(|d|d.index_count).sum::<u32>(),264);assert!(s.shaders.is_empty());}
     bg.update(background::Mode::Cube,q,0.016,1.,(2560,1440)).unwrap();await_publications(4);
     assert_eq!(STATE.lock().unwrap().shaders,vec![4]);
     NOW.store(5000,Ordering::Relaxed);
     bg.update(background::Mode::Neutral,q,0.,1.,(2560,1440)).unwrap();await_publications(5);
-    assert_eq!(STATE.lock().unwrap().batches.last().unwrap().iter().map(|d|d.index_count).sum::<u32>(),256);
+    assert_eq!(STATE.lock().unwrap().batches.last().unwrap().iter().map(|d|d.index_count).sum::<u32>(),264);
     drop(bg);
 }
 #[test] fn point_batch_offsets_avoid_duplicate_vertex_prefixes_and_bound_colors(){
