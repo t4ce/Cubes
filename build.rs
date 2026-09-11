@@ -16,7 +16,15 @@ mod exported {
     include!("Cube/cube_driver_manifest.rs");
 }
 
+#[path = "tools/build_interface.rs"]
+mod build_interface;
+
 fn main() {
+    build_interface::generate(
+        std::path::Path::new("Cube/CubeInterface"),
+        &std::path::PathBuf::from(std::env::var_os("OUT_DIR").unwrap())
+            .join("interface_examples.rs"),
+    );
     let background_package = fs::read("Cube/mandelbox/mandelbox.stpkg").expect("Mandelbox package");
     let expected =
         fs::read_to_string("Cube/mandelbox/package.sha256").expect("Mandelbox package hash");

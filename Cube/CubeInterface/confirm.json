@@ -1,0 +1,41 @@
+{
+  "format": "subcubes-interface",
+  "version": 2,
+  "preset": "custom",
+  "tierId": "c1",
+  "themeId": "fern",
+  "menu": {
+    "title": "CONFIRM",
+    "text": "Apply these changes?\nThis is a preview.",
+    "buttonCount": 2,
+    "buttons": [
+      {
+        "mode": "both",
+        "text": "CONFIRM",
+        "icon": "check"
+      },
+      {
+        "mode": "both",
+        "text": "CANCEL",
+        "icon": "close"
+      },
+      {
+        "mode": "icon",
+        "text": "OK",
+        "icon": "check"
+      }
+    ],
+    "controls": {
+      "slider": false,
+      "checkbox": false,
+      "toggle": false,
+      "counter": false
+    }
+  },
+  "state": {
+    "progress": 38,
+    "enabled": true,
+    "checked": false,
+    "count": 0
+  }
+}

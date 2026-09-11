@@ -1,0 +1,41 @@
+{
+  "format": "subcubes-interface",
+  "version": 2,
+  "preset": "custom",
+  "tierId": "c1",
+  "themeId": "glacier",
+  "menu": {
+    "title": "INFORMATION",
+    "text": "One menu. Your words.\nChanges in the preview.\nNo actions are executed.",
+    "buttonCount": 1,
+    "buttons": [
+      {
+        "mode": "both",
+        "text": "GOT IT",
+        "icon": "check"
+      },
+      {
+        "mode": "text",
+        "text": "BACK",
+        "icon": "left"
+      },
+      {
+        "mode": "icon",
+        "text": "OK",
+        "icon": "check"
+      }
+    ],
+    "controls": {
+      "slider": false,
+      "checkbox": false,
+      "toggle": false,
+      "counter": false
+    }
+  },
+  "state": {
+    "progress": 38,
+    "enabled": true,
+    "checked": false,
+    "count": 0
+  }
+}

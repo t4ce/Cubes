@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Cube Nature · SubCubes Showcase + Placement + Materials</title>
+<title>Cube Nature · SubCubes + Birds + Morphlings + Cube UI</title>
 <style>
   html,body{height:100%;margin:0;background:#f1eee1;font-family:Inter,system-ui,Arial,sans-serif;color:#222}
   #app{height:100%;display:grid;grid-template-rows:auto auto minmax(0,1fr)}
@@ -152,6 +152,121 @@
     body[data-view-mode="materials"] #materialLayoutBadge{font-size:11px;padding:5px 7px}
     body[data-view-mode="materials"] #tierNote{font-size:10px;line-height:1.45}
   }
+
+  /* The Morphlings preview is independent of birds, placement and material edit. */
+  #morphlingToggle{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  #morphlingToggle[aria-pressed="true"]{color:#fff;background:#496245;border-color:#496245}
+  .morphlingIcon{font-size:18px;line-height:1}
+  #morphlingControls{order:10;flex-basis:100%;display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding-top:9px;border-top:1px solid #ded9ca}
+  #morphlingControls select,#morphlingControls button{font-size:12px;padding:6px 9px}
+  #morphlingControls label{display:inline-flex;align-items:center;gap:5px;font-size:12px;cursor:pointer}
+  #morphlingControls input{accent-color:#496245}
+  .morphlingControlLabel{font-size:12px;font-weight:650;color:#3f5a3b;margin-right:3px}
+  .morphlingControlLabel span{font-size:10px;font-weight:400;color:#7b806f;margin-left:5px}
+  #morphlingBuild{color:#3f5a3b;border-color:#9eac8e;background:#f1f5e9}
+  #morphlingHelp{position:absolute;left:16px;bottom:16px;right:16px;display:flex;align-items:center;justify-content:space-between;gap:20px;max-width:670px;padding:14px 16px;box-sizing:border-box;border:1px solid #d0cbbb;border-radius:11px;background:#fbf9eff0;box-shadow:0 3px 16px #393d2310;pointer-events:none}
+  .morphlingEyebrow{display:block;font-size:9px;font-weight:650;letter-spacing:.12em;color:#7c856d;margin-bottom:5px}
+  #morphlingHelp strong{display:block;font-size:13px;font-weight:650;color:#3f5a3b}
+  #morphlingHelp p{font-size:11px;line-height:1.7;color:#606957;margin:5px 0 0}
+  #clearMorphlingBuilds{pointer-events:auto;white-space:nowrap;font-size:11px;padding:7px 10px}
+  body[data-view-mode="morphling"] #paletteControls{display:none}
+  body[data-view-mode="morphling"] #tierButtons button[data-morph-allowed="true"]{border-color:#839776;color:#365731;background:#edf1e6}
+  body[data-view-mode="morphling"] #tierButtons button[aria-pressed="true"]{background:#496245;color:white}
+  body[data-view-mode="placement"] #morphlingToggle,
+  body[data-view-mode="placement"] #morphlingControls,
+  body[data-view-mode="materials"] #morphlingToggle,
+  body[data-view-mode="materials"] #morphlingControls{display:none!important}
+  @media(max-width:640px){
+    #morphlingControls{gap:7px;padding-top:7px}
+    .morphlingControlLabel{display:none}
+    #morphlingHelp{left:9px;right:9px;bottom:9px;padding:10px 12px;gap:9px}
+    #morphlingHelp p{font-size:10px}#morphlingHelp strong{font-size:12px}
+    #clearMorphlingBuilds{font-size:10px;padding:6px 7px}
+    .morphlingEyebrow{font-size:8px}
+  }
+  /* Cube UI is another isolated preview, not HTML pretending to be its geometry. */
+  body[data-view-mode="ui"] #uiPreset{border-color:#7d8d73;box-shadow:0 0 0 2px #84957922}
+  body[data-view-mode="placement"] #uiPreset,body[data-view-mode="materials"] #uiPreset{display:none!important}
+  body[data-view-mode="ui"] #paletteControls{display:none!important}
+  #uiControls{flex-basis:100%;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid #dfdbcd}
+  #uiControls button,#uiControls select{font-size:12px;padding:6px 9px}
+  #uiControls label{display:flex;align-items:center;gap:6px;font-size:12px;color:#50634b}
+  #uiControls input{accent-color:#496245}
+  #uiDemo[aria-pressed="true"]{background:#496245;border-color:#496245;color:#fff}
+  #uiTextWrap{flex:1;min-width:230px}
+  #uiText{box-sizing:border-box;resize:vertical;min-height:41px;max-height:85px;flex:1;min-width:100px;border:1px solid #bcb6a7;border-radius:6px;background:#fffef9;padding:5px 8px;font:12px/1.35 ui-monospace,monospace;color:#354533}
+  #uiText:focus-visible{outline:2px solid #6c8468;outline-offset:2px}
+  #uiHelp{position:absolute;left:15px;right:15px;bottom:12px;pointer-events:none;display:flex;align-items:flex-end;gap:20px;justify-content:space-between;color:#57624f}
+  #uiHelp .uiHelpCopy{background:#fbf9efe8;border:1px solid #d8d3c3;border-radius:9px;padding:10px 13px;max-width:550px}
+  #uiHelp strong{font-size:11px;letter-spacing:.05em}
+  #uiDescription{font-size:11px;margin:5px 0 0;line-height:1.5}
+  #uiHint{font-size:10px;margin:5px 0 0;line-height:1.5;color:#707865;min-height:15px}
+  #uiFontNote{font-size:10px;line-height:1.6;text-align:right;color:#7a806f;background:#f1eee1cc;padding:3px 5px;border-radius:5px}
+  #uiAccessible{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  @media(max-width:640px){
+    #uiControls{gap:6px;padding-top:6px}#uiControls button,#uiControls select{font-size:11px;padding:6px 8px}
+    #uiControls label{font-size:11px}#uiTextWrap{flex-basis:100%;min-width:0}
+    #uiHelp{left:8px;right:8px;bottom:8px}#uiHelp .uiHelpCopy{padding:7px 9px}
+    #uiDescription{font-size:10px}#uiFontNote{display:none}
+    body[data-view-mode="ui"] #tierNote{font-size:10px;margin-left:0}
+  }
+
+  body[data-view-mode="ui"][data-ui-editor="true"] #view{display:grid;grid-template-columns:minmax(0,1fr) 334px;grid-template-rows:minmax(0,1fr)}
+  #uiEditor{box-sizing:border-box;min-width:0;overflow:auto;overscroll-behavior:contain;padding:22px 19px;background:#fbf9ef;border-left:1px solid #d8d3c3;color:#354b3a}
+  .uiEditorHeading h2{font-size:20px;line-height:1.25;letter-spacing:-.025em;font-weight:650;margin:8px 0}
+  .uiEditorHeading p{font-size:12px;line-height:1.55;color:#78816d;margin:0 0 19px}
+  .uiEditorSection{border-top:1px solid #dfdbcd;padding:16px 0}
+  .uiEditorSection h3{font-size:12px;font-weight:650;margin:0 0 12px}
+  .uiEditorField{display:flex;flex-direction:column;gap:7px;font-size:12px;font-weight:600;margin-bottom:13px}
+  .uiEditorField>span{display:flex;justify-content:space-between;align-items:baseline;gap:7px}
+  .uiEditorField small{font-size:10px;color:#858b7b;font-weight:400}
+  #uiEditor input[type="text"],#uiEditor textarea,#uiEditor select{box-sizing:border-box;width:100%;min-width:0;background:#fffef9;border:1px solid #ccc8b9;border-radius:7px;color:#354b3a;padding:8px 9px;font:inherit;font-size:12px;line-height:1.5}
+  #uiEditor textarea{font:12px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;resize:vertical;min-height:80px;max-height:220px}
+  #uiEditor input:focus-visible,#uiEditor textarea:focus-visible,#uiEditor select:focus-visible{outline:2px solid #6c8468;outline-offset:2px}
+  .uiEditorSectionTitle{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:12px}
+  .uiEditorSectionTitle h3{margin:0}#uiEditor .uiEditorSectionTitle select{width:98px;padding:5px 7px;font-size:11px}
+  .uiMenuButtonCard{border:1px solid #dedbcc;border-radius:8px;background:#f4f2e7;padding:11px;margin-bottom:9px;min-width:0}
+  .uiMenuButtonTop{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:11px;font-weight:600}
+  .uiMenuButtonTop span{flex:none}.uiMenuButtonTop select{flex:1;font-size:11px!important;padding:5px 7px!important}
+  .uiMenuButtonFields{display:grid;grid-template-columns:minmax(0,1fr) 95px;gap:8px}
+  .uiMenuButtonFields .uiEditorField{margin:0;font-size:10px;gap:4px}
+  .uiMenuButtonFields input,.uiMenuButtonFields select{padding:5px 7px!important;font-size:11px!important}
+  .uiMenuButtonFields:has([hidden]){grid-template-columns:minmax(0,1fr)}
+  .uiEditorNote{font-size:10px;line-height:1.65;color:#7b8371;margin:6px 0 0}
+  .uiEditorChecks{display:grid;grid-template-columns:1fr 1fr;gap:12px 8px;margin-bottom:10px}
+  .uiEditorChecks label{display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer}
+  #uiEditor input[type="checkbox"]{accent-color:#496245;margin:0;width:14px;height:14px}
+  .uiEditorFooter{border-top:1px solid #dfdbcd;padding-top:13px;display:flex;align-items:flex-start;gap:8px}
+  .uiEditorFooter p{font-size:10px;line-height:1.65;color:#7b8371;margin:0}
+  .uiEditorLiveDot{background:#819976;box-shadow:0 0 0 3px #81997615;width:6px;height:6px;border-radius:50%;margin-top:5px;flex:none}
+  body[data-ui-editor="true"] #uiFontNote{display:none}
+  body[data-ui-editor="true"] #uiHelp .uiHelpCopy{padding:7px 10px}
+  body[data-ui-editor="true"] #uiDescription{display:none}
+  body[data-ui-editor="true"] #uiHelp strong{font-size:9px}
+  body[data-ui-editor="true"] #uiHint{font-size:10px;margin-top:4px}
+  @media(max-width:820px){
+    body[data-view-mode="ui"][data-ui-editor="true"] #view{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(300px,52vh) auto;overflow:auto;align-content:start}
+    #uiEditor{padding:16px;border-left:0;border-top:1px solid #d8d3c3;overflow:visible}
+    .uiEditorHeading h2{font-size:18px}.uiEditorHeading p{margin-bottom:12px}
+    #uiMenuButtons{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px}
+    .uiMenuButtonCard{margin-bottom:0}
+  }
+  @media(max-width:640px){
+    /* Keep authoring space usable on a phone; the regular UI presets retain the full toolbar. */
+    body[data-view-mode="ui"][data-ui-editor="true"] #bar{gap:6px;padding:8px 10px}
+    body[data-view-mode="ui"][data-ui-editor="true"] #preset,
+    body[data-view-mode="ui"][data-ui-editor="true"] #animalPreset{box-sizing:border-box;width:calc(50% - 3px);min-width:0;padding:6px 7px;font-size:12px}
+    body[data-view-mode="ui"][data-ui-editor="true"] #uiPreset{flex:1;min-width:0;width:120px;padding:6px 7px;font-size:12px}
+    body[data-view-mode="ui"][data-ui-editor="true"] #morphlingToggle,
+    body[data-view-mode="ui"][data-ui-editor="true"] #exportCubes{padding:6px 7px;font-size:11px}
+    body[data-view-mode="ui"][data-ui-editor="true"] #placementToggle,
+    body[data-view-mode="ui"][data-ui-editor="true"] #materialToggle,
+    body[data-view-mode="ui"][data-ui-editor="true"] #regen,
+    body[data-view-mode="ui"][data-ui-editor="true"] #uiDemo{display:none!important}
+    body[data-view-mode="ui"][data-ui-editor="true"] #uiHelp{display:none!important}
+    body[data-view-mode="ui"][data-ui-editor="true"] #uiControls{padding-top:6px}
+  }
+
 </style>
 <script type="importmap">
 {
@@ -231,13 +346,23 @@
       </optgroup>
     </select>
     <select id="animalPreset" aria-label="Animals" title="Standalone animated bird preview">
-      <option value="">Animals · choose bird</option>
+      <option value="">Birds · choose bird</option>
       <optgroup label="Birds">
         <option value="robin">Robin</option>
         <option value="bluebird">Bluebird</option>
         <option value="crow">Crow</option>
       </optgroup>
     </select>
+    <select id="uiPreset" aria-label="User interface elements" title="Showcase complete UI elements built entirely from cubes" disabled>
+      <option value="">UI · choose element</option>
+      <option value="custom">UI · Custom menu editor</option>
+      <option value="dashboard">UI · full interface</option>
+      <option value="panel">UI · modal panel</option>
+      <option value="buttons">UI · buttons & states</option>
+      <option value="text">UI · microfont text</option>
+      <option value="icons">UI · icon controls</option>
+    </select>
+    <button id="morphlingToggle" type="button" aria-pressed="false" aria-controls="morphlingControls morphlingHelp" title="Grounded, grid-inhabiting creatures" disabled><span class="morphlingIcon" aria-hidden="true">▦</span> Morphlings</button>
     <span id="animalControls" hidden>
       <button id="pauseBird" type="button" aria-pressed="false" title="Pause or resume the shared flight / sit loop">Pause</button>
       <label title="Follow the bird close up; uncheck to frame the whole preview grid"><input id="followBird" type="checkbox" checked>Follow bird</label>
@@ -247,6 +372,24 @@
     <button id="regen">New variant</button>
     <button id="exportCubes">Export CUBES</button>
     <span id="status">loading cube…</span>
+    <div id="uiControls" hidden>
+      <select id="uiTheme" aria-label="Cube UI color theme"></select>
+      <button id="uiDemo" type="button" aria-pressed="false">Demo hover</button>
+      <button id="uiReset" type="button">Reset demo</button>
+      <button id="uiFront" type="button" aria-pressed="false">Front view</button>
+      <label id="uiTextWrap" hidden>Preview text <textarea id="uiText" rows="2" maxlength="80" spellcheck="false" aria-label="Text rendered as cubes" aria-describedby="uiHint"></textarea></label>
+    </div>
+    <div id="morphlingControls" hidden>
+      <select id="morphlingSpecies" aria-label="Morphling creature" title="One creature at a time. Changing creature starts a fresh habitat; Moss is kept unchanged.">
+        <option value="moss">Moss · little builder</option>
+        <option value="loam">Loam · segmented worm</option>
+      </select>
+      <select id="morphlingTier" aria-label="Morphling size tier" title="Each tier uses exactly three adjacent cube sizes. Changing tier starts a fresh habitat."></select>
+      <select id="morphlingBehaviour" aria-label="Morphling behaviour"><option value="auto">Auto · walk &amp; build</option><option value="rest">Rest pose</option><option value="walk">Walk</option></select>
+      <button id="morphlingBuild" type="button" title="Reach for eight target cells and place a small, two-layer wall">Place small cubes</button>
+      <button id="pauseMorphling" type="button" aria-pressed="false">Pause</button>
+      <label><input id="followMorphling" type="checkbox" checked> Follow</label>
+    </div>
   </div>
   <div id="tierBar" aria-label="SubCubes grid system">
     <span id="tierHeading" class="tierHeading">Grid tier</span>
@@ -257,6 +400,11 @@
   </div>
   <div id="view">
     <div id="sceneViewport">
+    <div id="uiHelp" hidden>
+      <div class="uiHelpCopy"><strong>INTERFACE / BUILT FROM CUBES</strong><p id="uiDescription"></p><p id="uiHint" role="status" aria-live="polite">Hover or click a cube control.</p></div>
+      <div id="uiFontNote">MicroFont 6 × 11 · embedded pixels<br>Drag background to orbit · scroll to zoom<br>Tab + Enter / Space also activate controls</div>
+    </div>
+    <div id="uiAccessible" hidden aria-label="Cube interface keyboard controls"></div>
     <div id="placementHelp" hidden>
       <div><strong>Cube placement · kept for this tab</strong>
         <p>Click / tap to place · Drag to orbit · Scroll / pinch to zoom<br><span class="desktopHint">Right-drag to pan · Shift-click to remove · </span>Toggle off to return to your asset</p>
@@ -266,7 +414,37 @@
     </div>
     <div id="materialStageInfo" hidden><strong>Six colors. Six small materials.</strong><p>Select a cube or swatch to edit · Drag to orbit · Scroll / pinch to zoom</p></div>
     <div id="materialLabels" hidden aria-label="Select a preview material"></div>
+    <div id="morphlingHelp" hidden>
+      <div><span id="morphlingEyebrow" class="morphlingEyebrow">GRID INHABITANT · PROTOTYPE 01</span><strong id="morphlingName">Moss, the little builder</strong>
+        <p>150 ms cell transitions · old cells linger 90 ms, then dissolve.<br><span id="morphlingNote">Click the ground to walk there and build.</span></p>
+      </div>
+      <button id="clearMorphlingBuilds" type="button" disabled>Clear creations</button>
     </div>
+    </div>
+    <aside id="uiEditor" hidden aria-label="Custom cube menu editor">
+      <div class="uiEditorHeading"><div class="materialEyebrow">CUBE UI / CUSTOM</div><h2>One menu. Your words.</h2><p>Changes appear directly in the cube preview.</p></div>
+      <section class="uiEditorSection">
+        <label class="uiEditorField" for="uiMenuTitle"><span>Window title <small>Red X stays in place</small></span><input id="uiMenuTitle" type="text" maxlength="30" spellcheck="false" autocomplete="off"></label>
+        <label class="uiEditorField" for="uiMenuText"><span>Text rows <small>Enter starts a new row</small></span><textarea id="uiMenuText" rows="4" maxlength="2048" spellcheck="false" aria-describedby="uiMenuTextNote"></textarea></label>
+        <p id="uiMenuTextNote" class="uiEditorNote">40 columns · up to 12 rows · MicroFont pixels</p>
+      </section>
+      <section class="uiEditorSection">
+        <div class="uiEditorSectionTitle"><h3>Bottom buttons</h3><select id="uiMenuButtonCount" aria-label="Number of menu buttons"><option value="1">1 button</option><option value="2">2 buttons</option><option value="3">3 buttons</option></select></div>
+        <div id="uiMenuButtons"></div>
+        <p class="uiEditorNote">Preview actions are no-op. Buttons and the X animate without closing or changing the menu.</p>
+      </section>
+      <section class="uiEditorSection">
+        <h3>Optional controls</h3>
+        <div class="uiEditorChecks">
+          <label><input id="uiMenuSlider" type="checkbox" data-menu-control="slider"> Slider</label>
+          <label><input id="uiMenuCheckbox" type="checkbox" data-menu-control="checkbox"> Checkbox</label>
+          <label><input id="uiMenuToggle" type="checkbox" data-menu-control="toggle"> Toggle</label>
+          <label><input id="uiMenuCounter" type="checkbox" data-menu-control="counter"> − 0 + counter</label>
+        </div>
+        <p class="uiEditorNote">Click or drag the slider. Click a counter's left or right side to subtract or add one.</p>
+      </section>
+      <div class="uiEditorFooter"><span class="uiEditorLiveDot" aria-hidden="true"></span><p id="uiMenuSaveNote" role="status">One menu kept in this tab. Export UI saves the definition and cube records.</p></div>
+    </aside>
     <aside id="materialPanel" hidden aria-label="Color and surface editor">
       <div id="materialPanelHeader">
         <div><div class="materialEyebrow">Six-slot palette</div><div id="materialSelection"><span id="materialSelectedSwatch" aria-hidden="true"></span><div><h2 id="materialSelectedName">Red</h2><span id="materialHex">#D96559 · 01 / 06</span></div></div></div>
@@ -478,7 +656,7 @@ for(const tier of SubCubes.tiers){
   button.innerHTML=`<strong>${tier.id}</strong><span class="tierSide">${tier.side} c1</span>`;
   button.addEventListener('click',()=>setGridTier(tier.id)); tierButtons.appendChild(button);
 }
-function setGridTier(value){
+function setGridTier(value,source='guide'){
   const tier=SubCubes.requireTier(value);
   if(gridEmphasis){grid.remove(gridEmphasis);gridEmphasis.geometry.dispose();gridEmphasis.material.dispose();gridEmphasis=null;}
   c1Grid.material.opacity=tier.side===1 ? 1 : .38;
@@ -497,7 +675,7 @@ function setGridTier(value){
   grid.userData={displayOnly:true,tierId:tier.id,sideC1:tier.side,gridUnit:GRID_UNIT,cubeSystem:SubCubes.metadata};
   for(const button of tierButtons.children) button.setAttribute('aria-pressed',String(button.dataset.tier===tier.id));
   document.getElementById('gridCaption').textContent=`${tier.id} grid: ${tier.side} c1 per side · c1 = ${GRID_UNIT.toFixed(2)} world units`;
-  window.dispatchEvent(new CustomEvent('cube-nature-grid-tier',{detail:{tierId:tier.id}}));
+  window.dispatchEvent(new CustomEvent('cube-nature-grid-tier',{detail:{tierId:tier.id,source}}));
 }
 setGridTier('c1');
 
@@ -558,20 +736,25 @@ window.CUBE_NATURE_THEME_HOST = {
 };
 window.addEventListener('cube-nature-view-mode',event=>{
   const mode=event.detail?.mode;
-  if(!['asset','animal','placement','materials'].includes(mode)) return;
+  if(!['asset','animal','morphling','ui','placement','materials'].includes(mode)) return;
   window.CUBE_NATURE_THEME_HOST.viewMode=mode;
   document.body.dataset.viewMode=mode;
   treeGroup.visible=mode==='asset';
-  grid.visible=mode!=='materials';
+  grid.visible=!['materials','morphling','ui'].includes(mode);
   grid.position.y=0;
   document.getElementById('animalControls').hidden=mode!=='animal';
+  document.getElementById('morphlingControls').hidden=mode!=='morphling';
+  document.getElementById('uiControls').hidden=mode!=='ui';
+  document.getElementById('uiPreset').disabled=['placement','materials'].includes(mode)||!cubeGeometry;
+  document.getElementById('morphlingToggle').disabled=['placement','materials'].includes(mode)||!cubeGeometry;
   document.getElementById('preset').disabled=['placement','materials'].includes(mode);
   document.getElementById('animalPreset').disabled=['placement','materials'].includes(mode);
   document.getElementById('regen').disabled=['placement','materials'].includes(mode);
-  document.getElementById('regen').title=mode==='animal'?'New bird color variant and flight route':'New asset color / shape variant';
+  document.getElementById('regen').title=mode==='ui'?'Cycle cube UI color theme':mode==='morphling'?'Respawn one morphling with new colors and a fresh habitat':mode==='animal'?'New bird color variant and flight route':'New asset color / shape variant';
   const exportButton=document.getElementById('exportCubes');
   exportButton.disabled=['placement','materials'].includes(mode);
-  exportButton.title=mode==='animal'?'Export bird’s static, grid-aligned bind pose; animation remains in the preview':'Export the selected single asset as CUBES';
+  exportButton.textContent=mode==='ui'?'Export UI':mode==='morphling'?'Export morphling':'Export CUBES';
+  exportButton.title=mode==='ui'?'Export the UI’s logical cube cells, widget bounds, font metadata and timing as JSON':mode==='morphling'?'Export morphling rest/walk poses, current grid cells, creations and timing as JSON':mode==='animal'?'Export bird’s static, grid-aligned bind pose; animation remains in the preview':'Export the selected single asset as CUBES';
 });
 window.dispatchEvent(new Event('cube-nature-theme-host-ready'));
 
@@ -1257,6 +1440,8 @@ function downloadCubes(){
   const mode=window.CUBE_NATURE_THEME_HOST.viewMode;
   if(['placement','materials'].includes(mode)) return; // Editors are separate from asset exports.
   if(mode==='animal'){window.CUBE_NATURE_THEME_HOST.exportAnimalCubes?.();return;}
+  if(mode==='morphling'){window.CUBE_NATURE_THEME_HOST.exportMorphlingJSON?.();return;}
+  if(mode==='ui'){window.CUBE_NATURE_THEME_HOST.exportUIJSON?.();return;}
   const data=makeCubesBinary(); if(!data) return;
   downloadBlob(new Blob([data],{type:'application/octet-stream'}),`cube_nature_${document.getElementById('preset').value}.cubes`);
 }
@@ -1264,6 +1449,8 @@ function downloadCubes(){
 document.getElementById('regen').addEventListener('click',()=>{
   const host=window.CUBE_NATURE_THEME_HOST;
   if(host.viewMode==='animal') host.regenerateAnimal?.();
+  else if(host.viewMode==='morphling') host.regenerateMorphling?.();
+  else if(host.viewMode==='ui') host.regenerateUI?.();
   else if(host.viewMode==='asset') build();
 });
 const presetSelect=document.getElementById('preset');
@@ -1646,13 +1833,18 @@ window.CUBE_NATURE_ANIMALS={species:BIRD_SPECIES,timing:BIRD_TIMING,makeBirdCell
   get controller(){return controller;},get rig(){return rig;}};
 </script>
 
-<script src="material-palette.js"></script>
 <!-- Six stable material slots shared by the editor and placement, never by assets. -->
 <script type="module" id="cube-material-palette">
 import * as THREE from 'three';
 
 window.CUBE_NATURE_MATERIALS_READY=(async()=>{
-const shared=await window.SubCubesPalette.ready;
+// Temporary inline defaults: no material-palette.js or materials JSON request.
+// Same-tab edits and optional JSON export still use the existing editor below.
+const shared={fingerprint:'builtin-six-materials-2026-09-v1',materials:[
+  ['red','Red','#d96559'],['orange','Orange','#dfa05e'],['yellow','Yellow','#e6c86a'],
+  ['green','Green','#88a878'],['blue','Blue','#7cabc6'],['purple','Purple','#aa8db5']
+].map(([id,name,hex])=>{const n=parseInt(hex.slice(1),16);return {id,name,hex,
+  rgb:{r:((n>>16)&255)/255,g:((n>>8)&255)/255,b:(n&255)/255},roughness:.82,metallic:.02};})};
 const host=window.CUBE_NATURE_THEME_HOST;
 const BASE=Object.freeze(shared.materials.map(m=>Object.freeze({id:m.id,name:m.name,hex:parseInt(m.hex.slice(1),16)})));
 const defaults=shared.materials.map(m=>({rgb:{...m.rgb},roughness:m.roughness,metallic:m.metallic}));
@@ -1901,7 +2093,7 @@ function enter(){
   if(active || !ready()) return false;
   paletteStore.ensureEnvironment();
   settleCamera();
-  preview={mode:host.viewMode==='animal'?'animal':'asset',camera:captureCamera(),gridTier:host.grid.userData.tierId,
+  preview={mode:['animal','morphling','ui'].includes(host.viewMode)?host.viewMode:'asset',camera:captureCamera(),gridTier:host.grid.userData.tierId,
     status:status.textContent,minPolarAngle:host.controls.minPolarAngle,maxPolarAngle:host.controls.maxPolarAngle,
     minDistance:host.controls.minDistance,maxDistance:host.controls.maxDistance,screenSpacePanning:host.controls.screenSpacePanning};
   active=true;resetPointer();root.visible=true;
@@ -1930,6 +2122,8 @@ function leave({resume=true}={}){
     // Do not regenerate the static asset: show exactly the selected variant.
     window.dispatchEvent(new CustomEvent('cube-nature-view-mode',{detail:{mode:saved?.mode || 'asset'}}));
     if(saved?.mode==='animal') window.CUBE_NATURE_ANIMALS?.select(document.getElementById('animalPreset').value);
+    else if(saved?.mode==='morphling') window.CUBE_NATURE_MORPHLINGS?.select();
+    else if(saved?.mode==='ui') window.CUBE_NATURE_UI?.select();
     else if(!host.getAssetRecords().length) host.showAssetPreview();
     if(saved){status.textContent=saved.status;restoreCamera(saved.camera);}
   }
@@ -2241,6 +2435,8 @@ function leave({destination=null}={}){
   window.dispatchEvent(new CustomEvent('cube-nature-view-mode',{detail:{mode:saved?.previewMode || 'asset'}}));
   if(saved){host.setGridTier(saved.gridTier);tierContext.innerHTML=saved.tierContext;}
   if(saved?.previewMode==='animal')window.CUBE_NATURE_ANIMALS?.select(document.getElementById('animalPreset').value);
+  else if(saved?.previewMode==='morphling')window.CUBE_NATURE_MORPHLINGS?.select();
+  else if(saved?.previewMode==='ui')window.CUBE_NATURE_UI?.select();
   if(saved){restoreCamera(saved.camera);status.textContent=saved.status;}
   if(destination==='placement' || (!destination && saved?.returnMode==='placement'))placement.setEnabled(true);
   store.refreshSwatches();return true;
@@ -2278,5 +2474,1350 @@ window.CUBE_NATURE_MATERIAL_EDITOR=Object.freeze({get active(){return active;},s
     samples:samples.children.map(m=>({id:m.userData.materialId,position:m.position.toArray(),renderSide:m.scale.x})),materials:store.getData().materials})});
 </script>
 
+<!-- Two morphling species, one preview inhabitant, five legal size windows. -->
+<script type="module" id="cube-morphlings">
+import * as THREE from 'three';
+const SubCubes=window.Cubes.SubCubes;
+// A logical position is {x,y} on the ground; height is gy. Three.js maps
+// logical (x,y,height) to (X,Z,Y). Cube minimum corners remain integer c1 cells.
+const MORPHLING_TIMING=Object.freeze({beat:.150,appear:.150,linger:.090,vanish:.150,spawnWave:.240});
+const MORPHLING_WINDOWS=Object.freeze(SubCubes.tiers.slice(0,-2).map((_,i)=>Object.freeze(SubCubes.tiers.slice(i,i+3))));
+const MORPHLING_SPECIES=Object.freeze({
+  moss:Object.freeze({id:'moss',name:'Moss',heading:'Moss, the little builder',eyebrow:'GRID INHABITANT · PROTOTYPE 01',
+    auto:'Auto · walk & build',idle:'Rest pose',move:'Walk',resting:'Resting',moving:'Walking'}),
+  loam:Object.freeze({id:'loam',name:'Loam',heading:'Loam, the segmented builder',eyebrow:'GRID INHABITANT · 06 BODY SEGMENTS · 186 CUBES',
+    auto:'Auto · crawl & build',idle:'Idle · ripple & blink',move:'Move · crawl',resting:'Idling',moving:'Crawling'})
+});
+const morphClamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+const morphEase=t=>{t=morphClamp(t,0,1);return t*t*(3-2*t);};
+const morphKey=q=>`${q.gx},${q.gy},${q.gz},${q.tier}`;
+const morphOverlap=(a,b)=>a.gx<b.gx+b.tier&&a.gx+a.tier>b.gx&&a.gy<b.gy+b.tier&&a.gy+a.tier>b.gy&&a.gz<b.gz+b.tier&&a.gz+a.tier>b.gz;
+function morphRandom(seed){return ()=>{let t=seed+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return ((t^t>>>14)>>>0)/4294967296;};}
+function morphWorld(q,position,direction=0){
+  const {gx:x,gy,gz:z,tier:t}=q;let gx,gz;
+  if(direction===1){gx=z;gz=-x-t;}
+  else if(direction===2){gx=-x-t;gz=-z-t;}
+  else if(direction===3){gx=-z-t;gz=x;}
+  else{gx=x;gz=z;}
+  return {...q,gx:gx+position.x,gy,gz:gz+position.y};
+}
+function morphLocalPoint(x,y,position,direction){
+  x-=position.x;y-=position.y;
+  return direction===1?{x:-y,y:x}:direction===2?{x:-x,y:-y}:direction===3?{x:y,y:-x}:{x,y};
+}
+function validateMorphling(records,tierIndex,{checkGround=true}={}){
+  const allowed=MORPHLING_WINDOWS[tierIndex];
+  if(!allowed)throw new RangeError('Morphling tier must be 1–5.');
+  const keys=new Set();
+  for(let i=0;i<records.length;i++){
+    const q=records[i];
+    if(!allowed.some(t=>t.side===q.tier)||!SubCubes.isGridStart(q.gx,q.gy,q.gz,q.tier)||q.gy<0)throw new Error('Illegal morphling grid record.');
+    if(q.tierId!==SubCubes.get(q.tier).id)throw new Error('Morphling tier ID mismatch.');
+    if(keys.has(morphKey(q)))throw new Error('Duplicate morphling cube.');keys.add(morphKey(q));
+    for(let j=0;j<i;j++)if(morphOverlap(q,records[j]))throw new Error(`Morphling overlap: ${q.part} / ${records[j].part}`);
+  }
+  if(checkGround&&!records.some(q=>(q.part?.startsWith('foot')||Number.isInteger(q.segment))&&q.gy===0))throw new Error('Morphling has lost ground contact.');
+  return {cubeCount:records.length,tierIds:[...new Set(records.map(q=>q.tierId))],grounded:records.some(q=>(q.part?.startsWith('foot')||Number.isInteger(q.segment))&&q.gy===0)};
+}
+function makeMorphlingBlueprint(tierIndex=0,seed=1){
+  if(!Number.isInteger(tierIndex)||!MORPHLING_WINDOWS[tierIndex])throw new RangeError('Morphling tier must be 1–5.');
+  const [small,medium,large]=MORPHLING_WINDOWS[tierIndex],s=small.side,m=medium.side,l=large.side;
+  const random=morphRandom(seed),records=[];
+  const palettes=[
+    {body:[0x6c806e,0x839480,0x95a18b],head:[0x9cae91,0xabba9b,0x8fa486],dark:[0x526354,0x63735d],trim:[0xb18b54,0xc4a268,0xd4b47b]},
+    {body:[0x727d89,0x8b96a0,0x9ea6aa],head:[0xa6b4bb,0xb8c3c5,0x94a8b0],dark:[0x515f6e,0x617281],trim:[0xb98b5b,0xd2a16e,0xe0ba88]},
+    {body:[0x8a7466,0xa08a77,0xb09c87],head:[0xb4ac8d,0xc5bda0,0xa69e82],dark:[0x645e50,0x786d59],trim:[0x76928e,0x91ada1,0xa5bbae]}
+  ];
+  const palette=palettes[(seed-1+palettes.length)%palettes.length];
+  const add=(x,y,z,t,part,colors)=>{const a=Array.isArray(colors)?colors:[colors];records.push({gx:x,gy:y,gz:z,tier:t,tierId:SubCubes.get(t).id,color:a[Math.floor(random()*a.length)]>>>0,part,kind:part});};
+  const box=(x,y,z,nx,ny,nz,t,part,colors,keep=()=>true)=>{
+    for(let iy=0;iy<ny;iy++)for(let ix=0;ix<nx;ix++)for(let iz=0;iz<nz;iz++)if(keep(ix,iy,iz))add(x+ix*t,y+iy*t,z+iz*t,t,part,colors);
+  };
+  const bodyY=2*s+2*m,headY=bodyY+3*l,handX=2*l+m+s,handY=2*m;
+  box(-2*l,bodyY,-2*l,4,3,4,l,'body',palette.body,(x,y,z)=>y===1||!((x===0||x===3)&&(z===0||z===3)));
+  box(-3*m,headY,-2*m,6,4,4,m,'head',palette.head,(x,y,z)=>y===1||y===2||!((x===0||x===5)&&(z===0||z===3)));
+  for(const side of [-1,1]){
+    const suffix=side<0?'L':'R',cx=side*(l+s);
+    box(cx-2*s,0,-3*s,4,2,6,s,`foot${suffix}`,palette.dark,(x,y,z)=>y===0||!((x===0||x===3)&&(z===0||z===5)));
+    box(cx-m,2*s,-m,2,2,2,m,`leg${suffix}`,palette.dark);
+    box(side<0?-2*l-2*m:2*l,bodyY,-m,2,3,2,m,`arm${suffix}`,palette.body);
+    box(side*handX-Math.floor(1.5*s),handY,-s,3,2,3,s,`hand${suffix}`,palette.head);
+    box(side<0?-4*m:3*m,headY+m,-m,1,2,1,m,'ear',palette.dark);
+    const eyeX=side<0?-2*m:2*m-2*s;
+    for(let ix=0;ix<2;ix++)for(let iy=0;iy<2;iy++)add(eyeX+ix*s,headY+2*m+iy*s,2*m,s,'eye',ix===0&&iy===1?0xe3ead8:0x273b34);
+  }
+  for(let i=0;i<4;i++)add((i-2)*s,headY+m-s,2*m,s,'mouth',0x526653);
+  // Chest plate and backpack are attached to faces, never buried in body cells.
+  box(-4*s,bodyY+l,2*l,8,4,1,s,'chest',palette.trim);
+  box(-Math.floor(1.5*m),bodyY+s,-2*l-2*m,3,2,2,m,'pack',palette.dark);
+  box(-2*s,bodyY+s+2*m,-2*l-2*m,4,1,2,s,'cargo',palette.trim);
+  for(const x of [-2*s,0,2*s])box(x,headY+4*m,-s,1,2,2,s,'crest',palette.body);
+  const model={tierIndex,seed,s,m,l,records,palette,bodyY,headY,handX,handY,
+    height:headY+4*m+2*s,radius:Math.max(2*l+2*m+3*s,4*m+s),
+    halfCells:Math.max(32,8*l+8*s),name:'Moss · the little builder'};
+  model.report=validateMorphling(records,tierIndex);
+  return model;
+}
+function makeMorphlingPose(model,{position={x:0,y:0},direction=0,state='rest',phase=0,reach=null}={}){
+  const {s,m,l}=model,records=[],local=[];
+  const swings=[-1,0,1,1,1,0,-1,-1],swing=state==='walk'?swings[phase%8]*s:0;
+  for(const base of model.records){
+    if(reach&&(base.part==='armR'||base.part==='handR'))continue;
+    let dz=0;
+    if(base.part==='footL'||base.part==='legL')dz=swing;
+    if(base.part==='footR'||base.part==='legR')dz=-swing;
+    if(base.part==='armL'||base.part==='handL')dz=-swing;
+    if(base.part==='armR'||base.part==='handR')dz=swing;
+    local.push({...base,gz:base.gz+dz});
+  }
+  if(reach){
+    const handX=model.handX-Math.floor(1.5*s),handZ=Math.round(reach.z),handY=Math.max(0,Math.round(reach.y));
+    const color=model.palette.head[1];
+    for(let y=0;y<2;y++)for(let x=0;x<3;x++)for(let z=0;z<3;z++)local.push({gx:handX+x*s,gy:handY+y*s,gz:handZ+z*s,tier:s,tierId:SubCubes.get(s).id,color,part:'handR',kind:'handR'});
+    // Re-author a stair-stepped arm toward the live target. No bone transforms.
+    const shoulderTop=model.bodyY+3*m,lowest=handY+2*s;
+    const rows=Math.max(1,Math.floor((shoulderTop-lowest)/m));
+    for(let row=0;row<rows;row++){
+      const t=rows===1?1:row/(rows-1),gy=shoulderTop-(row+1)*m;
+      const gz=Math.round(-m+(handZ+s)*t);
+      for(let x=0;x<2;x++)for(let z=0;z<2;z++){
+        const q={gx:2*l+x*m,gy,gz:gz+z*m,tier:m,tierId:SubCubes.get(m).id,color:model.palette.body[row%3],part:'armR',kind:'armR'};
+        if(gy>=0&&!local.some(p=>morphOverlap(p,q)))local.push(q);
+      }
+    }
+  }
+  for(const q of local)records.push(morphWorld(q,position,direction));
+  return records;
+}
+
+// Clock-driven simulation. Logical occupancy is only the latest pose + creations;
+// retiring render cells are visual echoes, never obstacles or exported content.
+class MorphlingController{
+  constructor(model,field){
+    this.model=model;this.field=field;this.random=morphRandom(model.seed+907);
+    this.position={x:0,y:0};this.direction=0;this.time=0;this.nextBeat=MORPHLING_TIMING.beat;
+    this.phase=0;this.state='rest';this.stateTicks=0;this.behaviour='auto';this.paused=false;
+    this.route=[];this.creations=[];this.plan=[];this.buildIndex=0;this.buildPhase=0;
+    this.commandBuild=false;this.message='One inhabitant. Click the ground to walk there and build.';
+    this.cycles=0;this.poseRecords=[];this.commitPose(true);
+  }
+  free(position,direction){
+    const {s,l,radius,halfCells}=this.model;
+    if(Math.abs(position.x)+radius>halfCells||Math.abs(position.y)+radius>halfCells)return false;
+    // Every creation is at most two small cubes tall. Only the two feet enter
+    // this height band; use their full stride envelopes when planning a route.
+    for(const side of [-1,1]){
+      const cx=side*(l+s),points=[[cx-2*s,-4*s],[cx+2*s,4*s]].map(([x,z])=>{
+        if(direction===1)return [z,-x];if(direction===2)return [-x,-z];if(direction===3)return [-z,x];return [x,z];
+      });
+      const x0=Math.min(points[0][0],points[1][0])+position.x,x1=Math.max(points[0][0],points[1][0])+position.x;
+      const z0=Math.min(points[0][1],points[1][1])+position.y,z1=Math.max(points[0][1],points[1][1])+position.y;
+      if(this.creations.some(q=>q.gy<2*s&&q.gx<x1&&q.gx+q.tier>x0&&q.gz<z1&&q.gz+q.tier>z0))return false;
+    }
+    return true;
+  }
+  findRoute(goal){
+    const s=this.model.s,limit=Math.floor((this.model.halfCells-this.model.radius)/s)*s;
+    const target={x:morphClamp(Math.round(goal.x/s)*s,-limit,limit),y:morphClamp(Math.round(goal.y/s)*s,-limit,limit)};
+    const key=p=>`${p.x},${p.y},${p.direction}`,start={...this.position,direction:this.direction,parent:-1};
+    const nodes=[start],seen=new Set([key(start)]),vectors=[[0,s],[s,0],[0,-s],[-s,0]];
+    for(let head=0;head<nodes.length&&head<10000;head++){
+      const current=nodes[head];
+      if(current.x===target.x&&current.y===target.y){
+        const route=[];for(let i=head;nodes[i].parent>=0;i=nodes[i].parent){const n=nodes[i];route.push({x:n.x,y:n.y,direction:n.direction});}
+        return route.reverse();
+      }
+      const order=[0,1,2,3].sort((a,b)=>{
+        const va=vectors[a],vb=vectors[b];return Math.abs(current.x+va[0]-target.x)+Math.abs(current.y+va[1]-target.y)-Math.abs(current.x+vb[0]-target.x)-Math.abs(current.y+vb[1]-target.y);
+      });
+      for(const d of order){
+        const [dx,dy]=vectors[d],next={x:current.x+dx,y:current.y+dy,direction:d,parent:head},k=key(next);
+        if(seen.has(k))continue;seen.add(k);
+        if(!this.free(current,d)||!this.free(next,d))continue;
+        nodes.push(next);
+      }
+    }
+    return null;
+  }
+  goTo(goal,{build=true}={}){
+    if(!Number.isFinite(goal.x)||!Number.isFinite(goal.y))return false;
+    const route=this.findRoute(goal);
+    if(!route){this.message='No clear route. Try another ground cell or clear the creations.';return false;}
+    this.route=route;this.commandBuild=build;this.plan=[];this.state='walk';this.stateTicks=0;
+    this.message=build?'Walking to your ground cell, then placing small cubes.':'Walking on the ground grid.';
+    if(!route.length)this.arrive();
+    return true;
+  }
+  wander(){
+    const limit=this.model.halfCells-this.model.radius-2*this.model.s;
+    for(let i=0;i<18;i++){
+      const goal={x:(this.random()*2-1)*limit,y:(this.random()*2-1)*limit};
+      if(Math.hypot(goal.x-this.position.x,goal.y-this.position.y)<4*this.model.s)continue;
+      if(this.goTo(goal,{build:this.behaviour==='auto'}))return true;
+    }
+    this.state='rest';this.stateTicks=0;this.message='Resting — clear creations to open more walking space.';return false;
+  }
+  arrive(){
+    if(this.commandBuild){this.commandBuild=false;this.startBuild();}
+    else{this.state='rest';this.stateTicks=0;}
+  }
+  makePlan(){
+    const {s,l,handX,halfCells}=this.model,plan=[];
+    const currentPose=makeMorphlingPose(this.model,{position:this.position,direction:this.direction});
+    // A two-layer, four-cube little wall. Build from the far end toward the palm.
+    // The hand follows these actual records, so the reach varies per block/site.
+    for(let layer=0;layer<2;layer++)for(let i=3;i>=0;i--){
+      const q=morphWorld({gx:handX-Math.floor(1.5*s)+s,gy:layer*s,gz:2*l+(3+i)*s,tier:s,tierId:SubCubes.get(s).id,
+        color:this.model.palette.trim[(i+layer)%3],part:'creation',kind:'cube'},this.position,this.direction);
+      if(q.gx<-halfCells+2*s||q.gz<-halfCells+2*s||q.gx+s>halfCells-2*s||q.gz+s>halfCells-2*s)return [];
+      if(this.creations.some(p=>morphOverlap(p,q))||currentPose.some(p=>morphOverlap(p,q)))return [];
+      plan.push(q);
+    }
+    return plan;
+  }
+  startBuild(){
+    if(this.creations.length>=96){this.state='rest';this.message='96 created cubes. Clear creations to keep building.';this.stateTicks=0;return false;}
+    this.route=[];this.commandBuild=false;
+    let plan=[];
+    const oldDirection=this.direction;
+    for(let i=0;i<4;i++){
+      this.direction=(oldDirection+i)%4;
+      if(!this.free(this.position,this.direction))continue;
+      plan=this.makePlan();if(plan.length)break;
+    }
+    if(!plan.length){this.direction=oldDirection;this.state='rest';this.stateTicks=0;this.message='This work area is occupied. Click an open ground cell or clear creations.';return false;}
+    this.plan=plan;this.buildIndex=0;this.buildPhase=0;this.state='build';this.stateTicks=0;
+    this.message='Reaching, placing, releasing — each little cube stays in the grid.';
+    this.commitPose();return true;
+  }
+  setBehaviour(value){
+    if(!['auto','rest','walk'].includes(value))return false;
+    this.behaviour=value;this.state='rest';this.stateTicks=0;this.route=[];this.plan=[];this.commandBuild=false;
+    this.message=value==='rest'?'Rest pose. Every cube stays in its occupied cell.':'One grounded inhabitant; no flight or mesh sliding.';
+    if(value==='walk')this.wander();this.commitPose();return true;
+  }
+  clearCreations(){this.creations=[];this.plan=[];this.route=[];this.commandBuild=false;this.state='rest';this.stateTicks=0;this.message='Creations cleared. The morphling stays where it is.';this.commitPose();}
+  beat(){
+    this.phase=(this.phase+1)%8;this.stateTicks++;
+    if(this.state==='rest'){
+      if(this.behaviour==='walk'&&this.stateTicks>=3)this.wander();
+      else if(this.behaviour==='auto'&&this.stateTicks>=12)this.wander();
+    }else if(this.state==='walk'){
+      const next=this.route[0];
+      if(!next)this.arrive();
+      else if(this.direction!==next.direction)this.direction=next.direction;
+      else if(this.stateTicks%2===0){
+        this.position={x:next.x,y:next.y};this.route.shift();
+        if(!this.route.length)this.arrive();
+      }
+    }else if(this.state==='build'){
+      this.buildPhase++;
+      if(this.buildPhase===5){
+        const q=this.plan[this.buildIndex];
+        if(q&&!this.creations.some(p=>morphOverlap(p,q)))this.creations.push({...q});
+      }
+      if(this.buildPhase>=10){
+        this.buildPhase=0;this.buildIndex++;
+        if(this.buildIndex>=this.plan.length){this.state='rest';this.stateTicks=0;this.plan=[];this.cycles++;this.message='A little wall left behind. Resting before the next walk.';}
+      }
+    }
+    this.commitPose();
+  }
+  commitPose(initial=false){
+    let reach=null,carry=null;
+    if(this.state==='build'&&this.plan[this.buildIndex]){
+      const target=this.plan[this.buildIndex];
+      // Rotate a cube minimum corner back, not its center (avoids half-cell drift).
+      const unrotate=(q,d)=>morphWorld({...q,gx:q.gx-this.position.x,gz:q.gz-this.position.y},{x:0,y:0},(4-d)%4);
+      const q=unrotate(target,this.direction),p=this.buildPhase;
+      const amount=p<=4?morphEase(p/4):p<=6?1:1-morphEase((p-6)/3);
+      // Palm has three small-cube rows; its central row sits over q.gz.
+      reach={y:Math.round(this.model.handY+(q.gy+this.model.s-this.model.handY)*amount),z:Math.round(-this.model.s+q.gz*amount)};
+      if(p<5){
+        carry=morphWorld({gx:this.model.handX-Math.floor(1.5*this.model.s)+this.model.s,gy:reach.y-this.model.s,gz:reach.z+this.model.s,
+          tier:this.model.s,tierId:SubCubes.get(this.model.s).id,color:target.color,part:'heldCube',kind:'cube'},this.position,this.direction);
+      }
+    }
+    this.poseRecords=makeMorphlingPose(this.model,{position:this.position,direction:this.direction,state:this.state,phase:this.phase,reach});
+    if(carry&&!this.poseRecords.some(q=>morphOverlap(q,carry))&&!this.creations.some(q=>morphOverlap(q,carry)))this.poseRecords.push(carry);
+    this.field.setPose([...this.poseRecords,...this.creations],this.time,{initial,height:this.model.height});
+  }
+  update(dt){
+    if(this.paused||!Number.isFinite(dt)||dt<=0)return;
+    const end=this.time+dt;
+    // Use exact simulation beat times; pause and hidden tabs never age echoes.
+    while(this.nextBeat<=end+1e-9){this.time=this.nextBeat;this.beat();this.nextBeat+=MORPHLING_TIMING.beat;}
+    this.time=end;this.field.update(this.time);
+  }
+  snapshot(){return {name:this.model.name,tier:this.model.tierIndex+1,tierIds:MORPHLING_WINDOWS[this.model.tierIndex].map(t=>t.id),
+    cubeCount:this.poseRecords.filter(q=>q.part!=='heldCube').length,restCubeCount:this.model.records.length,createdCubes:this.creations.length,
+    state:this.state,behaviour:this.behaviour,paused:this.paused,groundPosition:{...this.position},groundHeight:0,
+    rendererAxes:'ground X/Z, height Y',direction:this.direction,phase:this.phase,time:this.time,cycles:this.cycles,
+    cadenceMs:150,appearMs:150,lingerMs:90,vanishMs:150,routeRemaining:this.route.length,buildIndex:this.buildIndex,message:this.message};}
+}
+
+// Loam is a second creature, not a modified Moss rig. All shape changes author
+// new integer-grid records and reuse the exact same fixed-cell renderer.
+function makeWormBlueprint(tierIndex=0,seed=1){
+  if(!Number.isInteger(tierIndex)||!MORPHLING_WINDOWS[tierIndex])throw new RangeError('Morphling tier must be 1–5.');
+  const [small,medium,large]=MORPHLING_WINDOWS[tierIndex],s=small.side,m=medium.side,l=large.side;
+  const random=morphRandom(seed),records=[],pitch=l+s,headZ=3*pitch+m-l;
+  const palettes=[
+    {body:[0xb96c50,0xc8815e,0xd5936a],head:[0xdba47e,0xe3b18b,0xcf9472],dark:[0x84513f,0x976047,0xa8704d],trim:[0xd7aa56,0xe2bf74,0xebd195]},
+    {body:[0xad7770,0xbe8b80,0xcc9c8d],head:[0xdfb7a1,0xeac6ac,0xd3a890],dark:[0x795951,0x8c665a,0x9b7563],trim:[0xbda66d,0xd0bc82,0xe2d39e]},
+    {body:[0x7f8862,0x92976c,0xa5a77a],head:[0xb8b894,0xc7c5a2,0xabaf85],dark:[0x59664b,0x6a7451,0x7b8058],trim:[0xc8a26b,0xdab67e,0xe6ca99]}
+  ];
+  const palette=palettes[((seed-1)%palettes.length+palettes.length)%palettes.length];
+  const add=(x,y,z,t,segment,part,colors)=>{
+    const a=Array.isArray(colors)?colors:[colors];
+    records.push({gx:x,gy:y,gz:z,tier:t,tierId:SubCubes.get(t).id,color:a[Math.floor(random()*a.length)]>>>0,segment,part,kind:part});
+  };
+  // Six 24-cube barrels: large cores, medium shoulder caps and small ring cells.
+  // The narrow collars meet the next segment without intersecting its volume.
+  for(let segment=1;segment<=6;segment++){
+    const z=headZ-segment*pitch;
+    for(const x of [-l,0])add(x,0,z,l,segment,'wormCore',palette.body);
+    for(const x of [-m,0])add(x,l,z,m,segment,'wormCap',palette.head);
+    for(const x of [-l-m,l])add(x,0,z,m,segment,'wormFlank',palette.body);
+    for(let y=0;y<4;y++)for(let x=0;x<4;x++){
+      if(x===0||x===3||y===0||y===3)add((x-2)*s,y*s,z+l,s,segment,'wormRing',palette.dark);
+    }
+    for(const x of [-s,0])for(const dz of [0,s])add(x,l+m,z+dz,s,segment,'wormRidge',palette.trim);
+    for(const x of [-l-m-s,l+m])add(x,s,z,s,segment,'wormFlank',palette.trim);
+  }
+  // A broad 36-cube head with a little face, brows and two short sensory nubs.
+  for(const x of [-l,0])for(const z of [0,l])add(x,0,headZ+z,l,0,'wormHead',palette.head);
+  for(const x of [-m,0])for(const z of [0,m])add(x,l,headZ+z,m,0,'wormBrow',palette.body);
+  for(const x of [-l-m,l])for(const z of [0,m])add(x,0,headZ+z,m,0,'wormCheek',palette.head);
+  for(let y=0;y<4;y++)for(let x=0;x<4;x++){
+    const eye=y===2&&(x===0||x===3),mouth=y===0&&(x===1||x===2);
+    add((x-2)*s,y*s,headZ+2*l,s,0,eye?'wormEye':mouth?'wormMouth':'wormFace',eye?0x302a23:mouth?palette.dark:palette.head);
+  }
+  for(const x of [-2*s,-s,0,s])add(x,l+m,headZ+m,s,0,'wormCrown',palette.trim);
+  for(const x of [-2*s,s])for(let y=0;y<2;y++)add(x,l+m+s+y*s,headZ+m,s,0,'wormFeelers',y?palette.trim:palette.body);
+  // A six-cube taper, not a seventh full-sized barrel.
+  const tailFront=headZ-6*pitch;
+  for(const x of [-m,0])for(const z of [-2*m,-m])add(x,0,tailFront+z,m,7,'wormTail',palette.dark);
+  for(const x of [-s,0])add(x,0,tailFront-2*m-s,s,7,'wormTailTip',palette.trim);
+  const headFront=headZ+2*l+s,radius=headFront+4*s;
+  const model={species:'loam',name:'Loam · the segmented builder',tierIndex,seed,s,m,l,pitch,headZ,headFront,
+    records,palette,bodySegments:6,segmentCount:8,height:l+m+5*s,radius,halfCells:Math.max(40,radius+18*s)};
+  // Broad-phase ground envelopes include the full side-to-side ripple. They are
+  // cheap enough for route searches and cover all low cubes, not just feet.
+  model.groundEnvelopes=Array.from({length:8},(_,segment)=>{
+    const low=records.filter(q=>q.segment===segment&&q.gy<2*s);
+    return {x0:Math.min(...low.map(q=>q.gx))-s,x1:Math.max(...low.map(q=>q.gx+q.tier))+s,
+      z0:Math.min(...low.map(q=>q.gz)),z1:Math.max(...low.map(q=>q.gz+q.tier))};
+  });
+  model.report=validateMorphling(records,tierIndex);
+  if(records.length!==186)throw new Error('Loam must have 186 cubes in its neutral pose.');
+  return model;
+}
+function makeWormPose(model,{position={x:0,y:0},direction=0,state='rest',phase=0,reach=null,blink=false}={}){
+  const {s,m}=model,local=[],wave=phase*Math.PI/4;
+  const amplitude=state==='build'?0:state==='walk'?s:.6*s;
+  for(const base of model.records){
+    // Every barrel gets the same travelling wave with its own phase delay.
+    // Longitudinal intervals remain disjoint, including when the worm bends.
+    let dx=Math.round(Math.sin(wave-base.segment*.85)*amplitude),dy=0,dz=0;
+    if(base.segment===0){
+      if(reach){dx=reach.x;dy=reach.y;dz=reach.z;}
+      else dy=Math.max(0,Math.round(Math.sin(wave*.5)*s*.55));
+    }
+    local.push({...base,gx:base.gx+dx,gy:base.gy+dy,gz:base.gz+dz,
+      color:blink&&base.part==='wormEye'?model.palette.dark[1]:base.color});
+  }
+  if(reach&&reach.z>0){
+    // Re-author a short neck as the head reaches. Its small cubes are born and
+    // retired just like the rest of the creature; none are stretched or slid.
+    const rows=Math.floor(reach.z/s),remainder=reach.z-rows*s;
+    for(let row=0;row<rows;row++){
+      const dx=Math.round(reach.x*(row+.5)/Math.max(1,rows));
+      for(const x of [-s,0])for(const y of [0,s]){
+        const q={gx:dx+x,gy:reach.y+y,gz:model.headZ+remainder+row*s,tier:s,tierId:SubCubes.get(s).id,
+          color:model.palette.dark[row%3],segment:0,part:'wormNeck',kind:'wormNeck'};
+        if(!local.some(p=>morphOverlap(p,q)))local.push(q);
+      }
+    }
+  }
+  return local.map(q=>morphWorld(q,position,direction));
+}
+function wormBuildFrame(model,target,phase){
+  const s=model.s,p=morphClamp(phase,0,9);
+  const amount=p<=4?morphEase(p/4):p<=6?1:1-morphEase((p-6)/3);
+  const reach={x:Math.round((target.gx+s)*amount),y:Math.round(2*s+(target.gy+s-2*s)*amount),
+    z:Math.round((target.gz-model.headZ-2*model.l)*amount)};
+  const carry=p<5?{gx:-s+reach.x,gy:reach.y-s,gz:model.headZ+2*model.l+reach.z,tier:s,tierId:SubCubes.get(s).id,
+    color:target.color,part:'heldCube',kind:'cube'}:null;
+  return {reach,carry};
+}
+class WormMorphlingController extends MorphlingController{
+  constructor(model,field){
+    super(model,field);
+    this.message='Loam · six rippling body segments. Click the ground to crawl there and build.';
+  }
+  free(position,direction){
+    const {s,radius,halfCells,groundEnvelopes}=this.model;
+    if(Math.abs(position.x)+radius>halfCells||Math.abs(position.y)+radius>halfCells)return false;
+    if(!this.creations.length)return true;
+    for(const e of groundEnvelopes){
+      const points=[[e.x0,e.z0],[e.x1,e.z1]].map(([x,z])=>direction===1?[z,-x]:direction===2?[-x,-z]:direction===3?[-z,x]:[x,z]);
+      const x0=Math.min(points[0][0],points[1][0])+position.x,x1=Math.max(points[0][0],points[1][0])+position.x;
+      const z0=Math.min(points[0][1],points[1][1])+position.y,z1=Math.max(points[0][1],points[1][1])+position.y;
+      if(this.creations.some(q=>q.gy<2*s&&q.gx<x1&&q.gx+q.tier>x0&&q.gz<z1&&q.gz+q.tier>z0))return false;
+    }
+    return true;
+  }
+  makePlan(){
+    const {s,headZ,l,halfCells}=this.model,plan=[];
+    const neutral=makeWormPose(this.model,{position:this.position,direction:this.direction,state:'build'});
+    // A four-wide, two-high wall in front of the mouth. Each target drives the
+    // head's lateral reach, extension and height rather than a canned hand pose.
+    for(let layer=0;layer<2;layer++)for(let i=0;i<4;i++){
+      const q=morphWorld({gx:(i-2)*s,gy:layer*s,gz:headZ+2*l+3*s,tier:s,tierId:SubCubes.get(s).id,
+        color:this.model.palette.trim[(i+layer)%3],part:'creation',kind:'cube'},this.position,this.direction);
+      if(q.gx<-halfCells+2*s||q.gz<-halfCells+2*s||q.gx+s>halfCells-2*s||q.gz+s>halfCells-2*s)return [];
+      if(this.creations.some(p=>morphOverlap(p,q))||neutral.some(p=>morphOverlap(p,q)))return [];
+      plan.push(q);
+    }
+    // The head and held cube must also clear earlier creations throughout the
+    // reach, not merely at the target. A blocked work envelope tries another
+    // heading through the shared startBuild controller.
+    if(this.creations.length)for(const target of plan){
+      const local=morphWorld({...target,gx:target.gx-this.position.x,gz:target.gz-this.position.y},{x:0,y:0},(4-this.direction)%4);
+      for(let phase=0;phase<10;phase++){
+        const frame=wormBuildFrame(this.model,local,phase);
+        const pose=makeWormPose(this.model,{position:this.position,direction:this.direction,state:'build',reach:frame.reach});
+        if(frame.carry)pose.push(morphWorld(frame.carry,this.position,this.direction));
+        if(pose.some(q=>this.creations.some(p=>morphOverlap(q,p))))return [];
+      }
+    }
+    return plan;
+  }
+  goTo(goal,options={}){
+    const ok=super.goTo(goal,options);
+    if(ok&&this.state==='walk')this.message=options.build===false?'Crawling · a head-to-tail ripple, one grid step at a time.':'Crawling to your ground cell, then placing small cubes with the mouth.';
+    return ok;
+  }
+  startBuild(){
+    const ok=super.startBuild();
+    if(ok)this.message='Brace, extend, place, retract · the body stays on the ground.';
+    return ok;
+  }
+  setBehaviour(value){
+    const ok=super.setBehaviour(value);
+    if(ok&&value==='rest')this.message='Idle · a slow segment ripple, a small head nod and an occasional blink.';
+    return ok;
+  }
+  commitPose(initial=false){
+    let reach=null,carry=null;
+    if(this.state==='build'&&this.plan[this.buildIndex]){
+      const target=this.plan[this.buildIndex];
+      const local=morphWorld({...target,gx:target.gx-this.position.x,gz:target.gz-this.position.y},{x:0,y:0},(4-this.direction)%4);
+      const frame=wormBuildFrame(this.model,local,this.buildPhase);
+      reach=frame.reach;if(frame.carry)carry=morphWorld(frame.carry,this.position,this.direction);
+    }
+    this.poseRecords=makeWormPose(this.model,{position:this.position,direction:this.direction,state:this.state,
+      phase:this.state==='rest'?this.time*.7:this.phase,reach,blink:this.state==='rest'&&this.time%5.4>5.1});
+    if(carry&&!this.poseRecords.some(q=>morphOverlap(q,carry))&&!this.creations.some(q=>morphOverlap(q,carry)))this.poseRecords.push(carry);
+    this.field.setPose([...this.poseRecords,...this.creations],this.time,{initial,height:this.model.height});
+  }
+  snapshot(){return {...super.snapshot(),species:'loam',bodySegments:6,segmentCount:8,locomotion:'segmented-grid-crawl'};}
+}
+function makeMorphlingSpecies(tierIndex=0,seed=1,species='moss'){
+  if(species==='loam')return makeWormBlueprint(tierIndex,seed);
+  if(species!=='moss')throw new RangeError(`Unknown morphling species: ${species}`);
+  return makeMorphlingBlueprint(tierIndex,seed);
+}
+function poseMorphlingSpecies(model,options={}){return model.species==='loam'?makeWormPose(model,options):makeMorphlingPose(model,options);}
+
+// A single instanced draw call. Per-cell alpha hashing avoids transparent-sort
+// artifacts where incoming grid cells overlap the deliberately lingering echoes.
+// The original beveled cube geometry and each cube's legal, uniform size stay fixed.
+class MorphlingGridField{
+  constructor(host,parent,{capacity=4096,assetType='morphling'}={}){
+    if(!Number.isInteger(capacity)||capacity<1||capacity>262144)throw new RangeError('Invalid grid-field capacity.');
+    this.host=host;this.capacity=capacity;this.entries=new Map();this.dirty=true;this.animating=false;
+    this.geometry=host.getCubeGeometry().clone();
+    this.fade=new THREE.InstancedBufferAttribute(new Float32Array(this.capacity),1).setUsage(THREE.DynamicDrawUsage);
+    this.geometry.setAttribute('morphFade',this.fade);
+    this.material=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.86,metalness:.015,flatShading:true,alphaHash:true});
+    this.material.onBeforeCompile=shader=>{
+      shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nattribute float morphFade;\nvarying float vMorphFade;')
+        .replace('#include <begin_vertex>','#include <begin_vertex>\nvMorphFade = morphFade;');
+      shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying float vMorphFade;')
+        .replace('#include <alphahash_fragment>','if (vMorphFade <= 0.0001) discard;\ndiffuseColor.a *= vMorphFade;\n#include <alphahash_fragment>');
+    };
+    this.material.customProgramCacheKey=()=> 'morphling-cell-fade-r180-v1';
+    this.mesh=new THREE.InstancedMesh(this.geometry,this.material,this.capacity);this.mesh.count=0;
+    this.mesh.name=assetType==='interface'?'UI_FixedGridCells':'Morphling_FixedGridCells';this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);this.mesh.frustumCulled=false;
+    this.mesh.userData={assetType,strictGrid:true,animatedTransforms:false};parent.add(this.mesh);
+    this.matrix=new THREE.Matrix4();this.center=new THREE.Vector3();this.scale=new THREE.Vector3();this.rotation=new THREE.Quaternion();this.color=new THREE.Color();
+  }
+  opacity(entry,time){
+    const bornAt=t=>entry.fromAlpha+(1-entry.fromAlpha)*morphEase((t-entry.born)/MORPHLING_TIMING.appear);
+    if(entry.retired===null||time<entry.retired+MORPHLING_TIMING.linger)return bornAt(time);
+    return bornAt(entry.retired+MORPHLING_TIMING.linger)*(1-morphEase((time-entry.retired-MORPHLING_TIMING.linger)/MORPHLING_TIMING.vanish));
+  }
+  setPose(records,time,{initial=false,height=1}={}){
+    const desired=new Set();
+    for(const q of records){
+      const key=morphKey(q);if(desired.has(key))throw new Error('Duplicate logical morphling cell.');desired.add(key);
+      const entry=this.entries.get(key);
+      if(entry){
+        if(entry.retired!==null){entry.fromAlpha=this.opacity(entry,time);entry.born=time;entry.retired=null;this.dirty=true;}
+        if(entry.record.color!==q.color)this.dirty=true;entry.record=q;
+      }else{
+        const wave=initial?(q.gy/Math.max(1,height))*MORPHLING_TIMING.spawnWave:((Math.abs(q.gx+q.gy+q.gz)%3)*.009);
+        this.entries.set(key,{record:q,born:time+wave,fromAlpha:0,retired:null});this.dirty=true;
+      }
+    }
+    for(const [key,entry] of this.entries)if(!desired.has(key)&&entry.retired===null){entry.retired=time;this.dirty=true;}
+    this.update(time);
+  }
+  update(time){
+    if(!this.dirty&&!this.animating)return;
+    let i=0,animating=false;
+    for(const [key,entry] of this.entries){
+      if(entry.retired!==null&&time>=entry.retired+MORPHLING_TIMING.linger+MORPHLING_TIMING.vanish){this.entries.delete(key);continue;}
+      if(i>=this.capacity)throw new RangeError('Morphling render capacity exceeded.');
+      const q=entry.record,alpha=this.opacity(entry,time);
+      if(entry.retired!==null||alpha<1)animating=true;
+      this.center.set((q.gx+q.tier/2)*this.host.gridUnit,(q.gy+q.tier/2)*this.host.gridUnit,(q.gz+q.tier/2)*this.host.gridUnit);
+      this.scale.setScalar(SubCubes.renderSide(q.tier,this.host.gridUnit));
+      // A matrix always represents one occupied cell. There is no lerp, rotation,
+      // grow/shrink tween, or root translation between old and new cube centers.
+      this.matrix.compose(this.center,this.rotation,this.scale);this.mesh.setMatrixAt(i,this.matrix);
+      this.color.setHex(q.color);this.mesh.setColorAt(i,this.color);this.fade.setX(i,alpha);i++;
+    }
+    this.mesh.count=i;this.mesh.boundingSphere=null;this.mesh.boundingBox=null;this.mesh.instanceMatrix.needsUpdate=true;if(this.mesh.instanceColor)this.mesh.instanceColor.needsUpdate=true;this.fade.needsUpdate=true;
+    this.animating=animating;this.dirty=false;
+  }
+  settle(time){
+    for(const [key,entry] of this.entries){if(entry.retired!==null)this.entries.delete(key);else{entry.born=time-1;entry.fromAlpha=1;}}
+    this.dirty=true;this.update(time);
+  }
+  snapshot(time){return [...this.entries.values()].map(e=>({gx:e.record.gx,gy:e.record.gy,gz:e.record.gz,tier:e.record.tier,opacity:this.opacity(e,time),retiring:e.retired!==null}));}
+  dispose(){this.mesh.removeFromParent();this.mesh.dispose();this.geometry.dispose();this.material.dispose();this.entries.clear();}
+}
+
+const host=window.CUBE_NATURE_THEME_HOST;
+const toggle=document.getElementById('morphlingToggle'),controlsPanel=document.getElementById('morphlingControls');
+const speciesSelect=document.getElementById('morphlingSpecies');
+const tierSelect=document.getElementById('morphlingTier'),behaviourSelect=document.getElementById('morphlingBehaviour');
+const pauseButton=document.getElementById('pauseMorphling'),followInput=document.getElementById('followMorphling');
+const help=document.getElementById('morphlingHelp'),note=document.getElementById('morphlingNote'),clearButton=document.getElementById('clearMorphlingBuilds');
+const root=new THREE.Group();root.name='Morphlings_OneGridInhabitant';root.visible=false;host.scene.add(root);
+const stage=new THREE.Group();stage.name='MorphlingGround_DisplayOnly';root.add(stage);
+const originalContext=document.getElementById('tierContext').innerHTML;
+const limitKeys=['minPolarAngle','maxPolarAngle','minDistance','maxDistance','screenSpacePanning'];
+let active=false,model=null,field=null,controller=null,seed=1,savedLimits=null,stageTier=null,statusTime=0,shadow=null;
+const cameraTarget=new THREE.Vector3(),cameraShift=new THREE.Vector3();
+for(const [index,windowTiers] of MORPHLING_WINDOWS.entries()){
+  const option=document.createElement('option');option.value=index;option.textContent=`Tier ${index+1} · ${windowTiers.map(t=>t.id).join(' / ')}`;tierSelect.appendChild(option);
+}
+function settleCamera(){const damping=host.controls.enableDamping;host.controls.enableDamping=false;host.controls.update();host.controls.enableDamping=damping;}
+function setCameraLimits(){if(!model)return;host.controls.minPolarAngle=.08;host.controls.maxPolarAngle=Math.PI/2-.035;host.controls.minDistance=model.s*host.gridUnit*3;host.controls.maxDistance=model.halfCells*host.gridUnit*12;host.controls.screenSpacePanning=false;}
+function disposeStage(){
+  stage.traverse(o=>{o.geometry?.dispose();if(o.material){o.material.map?.dispose();o.material.dispose();}});stage.clear();shadow=null;stageTier=null;
+}
+function buildStage(){
+  disposeStage();
+  const size=2*model.halfCells*host.gridUnit;
+  const ground=new THREE.Mesh(new THREE.PlaneGeometry(size,size),new THREE.MeshStandardMaterial({color:0xe7e3d4,roughness:1}));
+  ground.rotation.x=-Math.PI/2;ground.position.y=-.012;ground.name='MorphlingGround';stage.add(ground);
+  const fine=new THREE.GridHelper(size,2*model.halfCells,0xa4ad99,0xc6c7b8);fine.material.transparent=true;fine.material.opacity=.40;fine.material.depthWrite=false;stage.add(fine);
+  const canvas=document.createElement('canvas');canvas.width=canvas.height=96;
+  const ctx=canvas.getContext('2d'),g=ctx.createRadialGradient(48,48,3,48,48,47);g.addColorStop(0,'rgba(34,48,31,.27)');g.addColorStop(1,'rgba(34,48,31,0)');ctx.fillStyle=g;ctx.fillRect(0,0,96,96);
+  shadow=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(canvas),transparent:true,depthWrite:false,opacity:.75}));
+  shadow.rotation.x=-Math.PI/2;shadow.position.y=.003;shadow.scale.setScalar((4*model.l+5*model.s)*host.gridUnit);shadow.renderOrder=1;stage.add(shadow);
+  if(model.species==='loam')shadow.scale.set((2*model.l+2*model.m+2*model.s)*host.gridUnit,2*model.headFront*host.gridUnit,1);
+  updateStageGuide(host.grid.userData.tierId);
+}
+function updateStageGuide(value){
+  if(!model)return;
+  if(stageTier){stage.remove(stageTier);stageTier.geometry.dispose();stageTier.material.dispose();stageTier=null;}
+  const step=SubCubes.requireTier(value).side;if(step===1)return;
+  const h=model.halfCells*host.gridUnit,n=Math.floor(model.halfCells/step),vertices=[];
+  for(let i=-n;i<=n;i++){const p=i*step*host.gridUnit;vertices.push(-h,.002,p,h,.002,p,p,.002,-h,p,.002,h);}
+  const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
+  stageTier=new THREE.LineSegments(geometry,new THREE.LineBasicMaterial({color:0x8d9e7d,transparent:true,opacity:.5,depthWrite:false}));stage.add(stageTier);
+}
+function frameMorphling(){
+  if(!model||!controller||!active)return;
+  const view=document.getElementById('sceneViewport'),w=view.clientWidth,h=view.clientHeight;if(!w||!h)return;
+  host.renderer.setSize(w,h,false);host.camera.aspect=w/h;host.camera.zoom=1;
+  const unit=host.gridUnit,close=followInput.checked,r=(close?model.radius+2*model.s:model.halfCells)*unit,height=model.height*unit;
+  const center=new THREE.Vector3(close?controller.position.x*unit:0,height*(close?.44:.20),close?controller.position.y*unit:0);
+  const dir=new THREE.Vector3(.95,.72,1.2).normalize(),right=new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),dir).normalize(),up=new THREE.Vector3().crossVectors(dir,right).normalize();
+  const tanV=Math.tan(host.camera.fov*Math.PI/360),tanH=tanV*host.camera.aspect;let distance=0;
+  for(const x of [-r,r])for(const y of [-center.y,height-center.y])for(const z of [-r,r]){
+    const offset=new THREE.Vector3(x,y,z);distance=Math.max(distance,offset.dot(dir)+Math.abs(offset.dot(right))/tanH,offset.dot(dir)+Math.abs(offset.dot(up))/tanV);
+  }
+  settleCamera();host.controls.target.copy(center);host.camera.position.copy(center).addScaledVector(dir,distance*1.13);
+  host.camera.near=.02;host.camera.far=Math.max(200,distance*20);host.camera.updateProjectionMatrix();host.controls.update();
+}
+function syncMorphlingUI(){
+  toggle.setAttribute('aria-pressed',String(active));controlsPanel.hidden=!active;help.hidden=!active;
+  if(!controller||!active)return;
+  const spec=MORPHLING_SPECIES[model.species||'moss'];
+  speciesSelect.value=spec.id;
+  const state=controller.snapshot(),labels={rest:spec.resting,walk:spec.moving,build:`Placing ${Math.min(8,state.buildIndex+1)} / 8`};
+  for(const option of behaviourSelect.options)option.textContent=option.value==='auto'?spec.auto:option.value==='rest'?spec.idle:spec.move;
+  document.getElementById('morphlingName').textContent=spec.heading;
+  document.getElementById('morphlingEyebrow').textContent=spec.eyebrow;
+  document.getElementById('morphlingBuild').title=spec.id==='loam'?'Brace, extend the head, place eight small cubes with the mouth, then retract':'Reach for eight target cells and place a small, two-layer wall';
+  pauseButton.textContent=controller.paused?'Resume':'Pause';pauseButton.setAttribute('aria-pressed',String(controller.paused));
+  behaviourSelect.value=controller.behaviour;clearButton.disabled=controller.creations.length===0;
+  document.getElementById('status').textContent=`${spec.name} · tier ${state.tier} · ${state.cubeCount} cubes · ${controller.paused?'Paused · ':''}${labels[state.state]} · ${state.createdCubes} placed`;
+  document.getElementById('tierContext').textContent=`Morphling ${state.tier}: ${state.tierIds.join(' · ')} only`;
+  document.getElementById('tierHeading').textContent='Grid guide';
+  note.textContent=controller.message;
+  for(const button of document.getElementById('tierButtons').children)button.dataset.morphAllowed=String(state.tierIds.includes(button.dataset.tier));
+}
+function rebuild(){
+  field?.dispose();model=makeMorphlingSpecies(Number(tierSelect.value),seed,speciesSelect.value);field=new MorphlingGridField(host,root);
+  controller=model.species==='loam'?new WormMorphlingController(model,field):new MorphlingController(model,field);controller.behaviour=behaviourSelect.value||'auto';
+  if(controller.behaviour==='walk'||(model.species==='loam'&&controller.behaviour==='rest'))controller.setBehaviour(controller.behaviour);
+  buildStage();setCameraLimits();host.setGridTier(MORPHLING_WINDOWS[model.tierIndex][1].id,'morphling');frameMorphling();syncMorphlingUI();
+}
+function selectMorphling(options={}){
+  if(typeof options==='string')options={species:options};
+  const {rebuild:replace=false,species=speciesSelect.value}=options;
+  if(!Object.hasOwn(MORPHLING_SPECIES,species))return false;
+  if(!host.getCubeGeometry()||['placement','materials'].includes(host.viewMode))return false;
+  if(!active&&host.viewMode!=='morphling')savedLimits=Object.fromEntries(limitKeys.map(k=>[k,host.controls[k]]));
+  speciesSelect.value=species;
+  if(!controller||replace||model.tierIndex!==Number(tierSelect.value)||(model.species||'moss')!==species)rebuild();
+  window.dispatchEvent(new CustomEvent('cube-nature-view-mode',{detail:{mode:'morphling'}}));
+  active=true;root.visible=true;setCameraLimits();updateStageGuide(host.grid.userData.tierId);syncMorphlingUI();frameMorphling();return true;
+}
+function exportMorphling(){
+  if(!model||!controller)return;
+  const spec=MORPHLING_SPECIES[model.species||'moss'];
+  const record=q=>({gx:q.gx,gy:q.gy,gz:q.gz,tier:q.tier,tierId:q.tierId,color:q.color,part:q.part,...(Number.isInteger(q.segment)?{segment:q.segment}:{})});
+  const data={format:'subcubes-morphling',version:1,name:spec.name,species:spec.id,seed,tier:model.tierIndex+1,cubeSystem:SubCubes.metadata,
+    axes:{logicalGround:['x','y'],rendererGround:['x','z'],rendererHeight:'y'},timingMs:{beat:150,appear:150,linger:90,vanish:150},
+    restPose:model.records.map(record),walkPoses:Array.from({length:8},(_,phase)=>poseMorphlingSpecies(model,{state:'walk',phase}).map(record)),
+    ...(model.species==='loam'?{bodySegments:6,segmentCount:8,locomotion:'segmented-grid-crawl',
+      idlePoses:Array.from({length:8},(_,phase)=>makeWormPose(model,{state:'rest',phase}).map(record)),
+      placementStyle:'Mouth-led reach, place and retract; grounded body; temporary small-cube neck.'}:{}),
+    state:controller.snapshot(),currentPose:controller.poseRecords.map(record),creations:controller.creations.map(record)};
+  const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)+'\n'],{type:'application/json'})),a=document.createElement('a');
+  a.href=url;a.download=`${spec.id}_morphling_tier_${model.tierIndex+1}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+function ready(){if(!host.getCubeGeometry())return false;toggle.disabled=false;return true;}
+window.addEventListener('cube-nature-geometry-ready',ready);ready();
+toggle.addEventListener('click',()=>selectMorphling());
+speciesSelect.addEventListener('change',()=>{if(active)selectMorphling({species:speciesSelect.value});});
+tierSelect.addEventListener('change',()=>{if(active)rebuild();});
+behaviourSelect.addEventListener('change',()=>{if(controller){controller.setBehaviour(behaviourSelect.value);syncMorphlingUI();}});
+pauseButton.addEventListener('click',()=>{if(controller){controller.paused=!controller.paused;syncMorphlingUI();}});
+document.getElementById('morphlingBuild').addEventListener('click',()=>{if(!controller)return;controller.paused=false;controller.startBuild();syncMorphlingUI();});
+clearButton.addEventListener('click',()=>{controller?.clearCreations();syncMorphlingUI();});
+followInput.addEventListener('change',frameMorphling);
+window.addEventListener('cube-nature-grid-tier',event=>{if(active)updateStageGuide(event.detail.tierId);});
+window.addEventListener('cube-nature-material-changed',()=>{if(active)syncMorphlingUI();});
+window.addEventListener('cube-nature-view-mode',event=>{
+  const next=event.detail?.mode;
+  if(next==='morphling'){
+    active=true;root.visible=true;setCameraLimits();syncMorphlingUI();
+  }else{
+    if(active&&savedLimits)for(const k of limitKeys)host.controls[k]=savedLimits[k];
+    active=false;root.visible=false;controlsPanel.hidden=true;help.hidden=true;toggle.setAttribute('aria-pressed','false');
+    for(const b of document.getElementById('tierButtons').children)delete b.dataset.morphAllowed;
+    if(next==='asset'||next==='animal'){document.getElementById('tierContext').innerHTML=originalContext;document.getElementById('tierHeading').textContent='Grid tier';}
+  }
+});
+// Tap selects a ground destination. Orbit drags, two-finger gestures, modified
+// clicks and cancelled touches never issue a walk/build command.
+const canvas=host.renderer.domElement,raycaster=new THREE.Raycaster(),ndc=new THREE.Vector2(),groundPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0),hitPoint=new THREE.Vector3();
+const pointers=new Set();let gesture=null;
+const resetGesture=()=>{pointers.clear();gesture=null;};
+canvas.addEventListener('pointerdown',e=>{
+  if(!active)return;pointers.add(e.pointerId);if(pointers.size>1){if(gesture)gesture.dragged=true;return;}
+  gesture=e.button===0&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey?{id:e.pointerId,x:e.clientX,y:e.clientY,dragged:false,threshold:e.pointerType==='touch'?9:5}:null;
+});
+canvas.addEventListener('pointermove',e=>{if(active&&gesture&&gesture.id===e.pointerId&&Math.hypot(e.clientX-gesture.x,e.clientY-gesture.y)>gesture.threshold)gesture.dragged=true;});
+canvas.addEventListener('pointerup',e=>{
+  const g=gesture,click=active&&g&&g.id===e.pointerId&&!g.dragged&&pointers.size===1&&e.button===0&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&Math.hypot(e.clientX-g.x,e.clientY-g.y)<=g.threshold;
+  pointers.delete(e.pointerId);gesture=null;if(!click||!controller)return;
+  const rect=canvas.getBoundingClientRect();if(!rect.width||!rect.height)return;
+  ndc.set((e.clientX-rect.left)/rect.width*2-1,1-(e.clientY-rect.top)/rect.height*2);
+  host.camera.updateMatrixWorld(true);raycaster.setFromCamera(ndc,host.camera);
+  if(!raycaster.ray.intersectPlane(groundPlane,hitPoint))return;
+  const goal={x:hitPoint.x/host.gridUnit,y:hitPoint.z/host.gridUnit};
+  if(Math.abs(goal.x)>model.halfCells||Math.abs(goal.y)>model.halfCells)return;
+  // Do not turn clicks on the creature into an unrelated point behind its body.
+  if(raycaster.intersectObject(field.mesh,false).some(hit=>hit.distance<raycaster.ray.origin.distanceTo(hitPoint)-.05))return;
+  if(controller.goTo(goal)){controller.paused=false;syncMorphlingUI();}
+});
+canvas.addEventListener('pointercancel',resetGesture);
+canvas.addEventListener('lostpointercapture',e=>{pointers.delete(e.pointerId);if(gesture?.id===e.pointerId)gesture=null;});
+window.addEventListener('blur',resetGesture);document.addEventListener('visibilitychange',()=>{if(document.hidden)resetGesture();});
+window.addEventListener('cube-nature-view-mode',resetGesture);
+window.addEventListener('resize',()=>{if(active)frameMorphling();});
+host.regenerateMorphling=()=>{seed++;selectMorphling({rebuild:true});};
+host.exportMorphlingJSON=exportMorphling;
+host.onFrame.add(dt=>{
+  if(!active||!controller)return;controller.update(dt);
+  if(shadow){shadow.position.x=controller.position.x*host.gridUnit;shadow.position.z=controller.position.y*host.gridUnit;if(model.species==='loam')shadow.rotation.z=-controller.direction*Math.PI/2;}
+  if(followInput.checked){
+    cameraTarget.set(controller.position.x*host.gridUnit,model.height*host.gridUnit*.44,controller.position.y*host.gridUnit);
+    cameraShift.subVectors(cameraTarget,host.controls.target).multiplyScalar(1-Math.exp(-5*dt));host.camera.position.add(cameraShift);host.controls.target.add(cameraShift);
+  }
+  statusTime+=dt;if(statusTime>=.1){statusTime=0;syncMorphlingUI();}
+});
+window.CUBE_NATURE_MORPHLINGS=Object.freeze({timing:MORPHLING_TIMING,tiers:MORPHLING_WINDOWS,species:MORPHLING_SPECIES,makeBlueprint:makeMorphlingSpecies,makePose:poseMorphlingSpecies,makeWormBlueprint,makeWormPose,validate:validateMorphling,
+  select:selectMorphling,setSpecies:value=>selectMorphling({species:value}),setPaused:value=>{if(controller){controller.paused=!!value;syncMorphlingUI();}},
+  setTier:value=>{if(!Number.isInteger(value)||value<1||value>5)return false;tierSelect.value=value-1;if(active)rebuild();return true;},
+  setBehaviour:value=>controller?.setBehaviour(value)||false,placeCubes:()=>controller?.startBuild()||false,clearCreations:()=>controller?.clearCreations(),
+  goTo:(x,y)=>controller?.goTo({x,y})||false,getState:()=>controller?.snapshot()||null,
+  getRecords:()=>controller?{pose:controller.poseRecords.map(q=>({...q})),creations:controller.creations.map(q=>({...q}))}:null,
+  getRenderCells:()=>field?.snapshot(controller?.time||0)||[],get controller(){return controller;},get field(){return field;},get root(){return root;}});
+window.CUBE_NATURE_GRID_TRANSITIONS=Object.freeze({timing:MORPHLING_TIMING,createField:(parent,options={})=>new MorphlingGridField(host,parent,options)});
+
+</script>
+
+<!-- MicroFont cube authoring and the isolated interface preview. -->
+<script id="cube-ui-core">
+/*
+ * MicroFont 3.7.8 — printable ASCII subset, ported from src/lib.rs.
+ * https://crates.io/crates/microfont
+ * https://docs.rs/crate/microfont/3.7.8/source/src/lib.rs
+ * Packed glyphs and MSB-first stamping, including the original q x-bias.
+ * No system fonts, font files, canvas text, or textures are used for UI geometry.
+ *
+ * MIT License — Copyright (c) 2026 t4ce
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+(() => {
+'use strict';
+const z=(bits,shift)=>bits<<BigInt(shift);
+// Exactly the upstream entries for byte values 32–126. Keep u64 precision.
+const GLYPHS=Object.freeze([
+  0n, 0x2082082080082000n, z(0x5145n,48), 0x514F94514F945000n,
+  0x21CAA870AA9C2000n, 0x4AA50421052A9000n, 0x2145085628A27400n, z(0x1041n,49),
+  0x0842082082040800n, 0x4081041041084000n, z(0x54E395n,41), z(0x1047C41n,25),
+  z(0x821n,7), z(0x1Fn,35), z(0xC3n,12), 0x0821042104208000n,
+  0x7228A28A28A27000n, 0x0862928820820800n, 0x722882108420F800n, 0x7228823028A27000n,
+  0x10C51493E1041000n, 0xFA083C082082F000n, 0x722820F228A27000n, 0xF821042084104000n,
+  0x7228A27228A27000n, 0x7228A27820A27000n, z(0xC30000C3n,18), 0x00030C00030C1080n,
+  0x0021084081020000n, z(0x1F01Fn,29), 0x0204081084200000n, 0x7228842080082000n,
+  0x7A1B75D75D6E81E0n, 0x20851453E8A28800n, 0xF228A2F228A2F000n, 0x7228208208227000n,
+  0xF228A28A28A2F000n, 0xFA0820F20820F800n, 0xFA0820F208208000n, 0x722820B228A27000n,
+  0x8A28A2FA28A28800n, 0xF88208208208F800n, 0xF820820820A27000n, 0x8A4928C289248800n,
+  0x820820820820F800n, 0x8B6DAAAA28A28800n, 0x8B2CAAAAA9A68800n, 0xFA28A28A28A2F800n,
+  0xF228A2F208208000n, 0x7228A28A28A46800n, 0xF228A2F289228800n, 0x7228207020A27000n,
+  0xF882082082082000n, 0x8A28A28A28A27000n, 0x8A28A25145082000n, 0x8A28A28AAA945000n,
+  0x8A25142145228800n, 0x8A25142082082000n, 0xF82104210420F800n, 0x3882082082083800n,
+  0x8204102041020800n, 0xE08208208208E000n, z(0x4291n,47), z(0x1Fn,11),
+  z(0x81n,54), z(0x7027A27n,12), 0x820820F228A2F000n, z(0xF41040Fn,11),
+  0x0820827A28A27800n, z(0x722FA07n,12), 0x1882087082082000n, 0x0000007A28A27827n,
+  0x820820F228A28800n, 0x0002002082082000n, 0x0002002082082284n, 0x4104104946144800n,
+  0x4104104104103000n, z(0x1E555555n,11), z(0x1E451451n,11), z(0x7228A27n,12),
+  0x0000007124927104n, 0x0000007249247041n, z(0x1C49041n,14), z(0x3907827n,12),
+  0x2082087082081800n, z(0x1145144Fn,11), z(0x45128A1n,13), z(0x8AA7145n,12),
+  z(0x11284291n,11), 0x0000008A25142084n, z(0x1F08421Fn,11), 0x0841042041040800n,
+  0x2082082082082000n, 0x8104102104108000n, z(0x42A1n,30)
+]);
+const fontInfo=Object.freeze({name:'MicroFont',version:'3.7.8',width:6,height:11,coverage:'Printable ASCII 32–126',source:'https://crates.io/crates/microfont',license:'MIT',copyright:'Copyright (c) 2026 t4ce'});
+const glyphCache=new Map();
+function glyph(character){
+  const code=typeof character==='number'?character:String(character).codePointAt(0);
+  const byte=code>=32&&code<=126?code:code<32?32:63;
+  if(!glyphCache.has(byte)){
+    const bits=GLYPHS[byte-32],pixels=[];
+    for(let bit=0;bit<64;bit++)if((bits>>BigInt(63-bit))&1n)pixels.push(Object.freeze([bit%6+(byte===113?1:0),Math.floor(bit/6)]));
+    glyphCache.set(byte,Object.freeze(pixels));
+  }
+  return glyphCache.get(byte);
+}
+function textLayout(value,{columns=22,lines=3}={}){
+  const input=String(value??'').slice(0,4096).replace(/\r\n?/g,'\n').replace(/\t/g,'  ');
+  const rows=[''];let substituted=false,truncated=false;
+  for(const raw of input){
+    if(raw==='\n'){
+      if(rows.length>=lines){truncated=true;break;}rows.push('');continue;
+    }
+    if(rows.at(-1).length>=columns){if(rows.length>=lines){truncated=true;break;}rows.push('');}
+    const c=raw.codePointAt(0),out=c>=32&&c<=126?raw:'?';
+    substituted ||= out!==raw;rows[rows.length-1]+=out;
+  }
+  return {rows,substituted,truncated,width:Math.max(0,...rows.map(r=>r.length*6)),height:(rows.length-1)*15+11};
+}
+const THEMES=Object.freeze({
+  fern:Object.freeze({name:'Fern & cream',edge:0x566658,panel:0xe1e5d5,header:0x374f47,ink:0x2c4139,muted:0x637466,accent:0x6b8d64,light:0xf4efdc,button:0xc0ceb5,track:0xabb8a1,gold:0xcba25d,danger:0xae6458,disabled:0xc4c6b8}),
+  glacier:Object.freeze({name:'Glacier & ink',edge:0x597583,panel:0xdce7e9,header:0x334f66,ink:0x304a60,muted:0x607988,accent:0x5b88a2,light:0xeff3e7,button:0xb1cbd4,track:0xa3bac6,gold:0xbfae77,danger:0xad6c71,disabled:0xc3ccd0}),
+  ember:Object.freeze({name:'Ember & sand',edge:0x8b6c58,panel:0xeadecc,header:0x704b3e,ink:0x624537,muted:0x947358,accent:0xaf7558,light:0xf7edda,button:0xdbc2a4,track:0xc5af96,gold:0xd3a052,danger:0xb85c52,disabled:0xd2c6b4})
+});
+// Original seven-pixel icons. One set bit becomes one shared beveled cube.
+const ICONS=Object.freeze({
+  close:['1000001','0100010','0010100','0001000','0010100','0100010','1000001'],
+  check:['0000001','0000011','0000110','1001100','1111000','0110000','0000000'],
+  plus:['0001000','0001000','0001000','1111111','0001000','0001000','0001000'],
+  minus:['0000000','0000000','0000000','1111111','0000000','0000000','0000000'],
+  left:['0001000','0011000','0110000','1111111','0110000','0011000','0001000'],
+  right:['0001000','0001100','0000110','1111111','0000110','0001100','0001000'],
+  heart:['0110110','1111111','1111111','1111111','0111110','0011100','0001000'],
+  menu:['1111111','1111111','0000000','1111111','0000000','1111111','1111111'],
+  play:['0100000','0110000','0111000','0111100','0111000','0110000','0100000'],
+  gear:['0011100','0111110','1100011','1101011','1100011','0111110','0011100']
+});
+const PRESETS=Object.freeze({
+  custom:{name:'Custom menu editor',description:'One live menu. Edit its title, text rows, buttons, and optional controls.'},
+  dashboard:{name:'Field station',width:144,height:94,description:'A field-station panel with a clickable, draggable slider and a tool rail.'},
+  panel:{name:'Confirmation panel',width:108,height:76,description:'A persistent panel. Its X and action buttons provide motion only.'},
+  buttons:{name:'Button states',width:118,height:98,description:'Primary, secondary, toggle, checkbox, disabled, and a two-sided counter.'},
+  text:{name:'MicroFont text',width:144,height:88,description:'6 × 11 glyphs. Each lit font pixel is a real, grid-aligned cube.'},
+  icons:{name:'Icon controls',width:136,height:88,description:'Close, check, plus, minus, arrows, heart, menu, play, and settings.'}
+});
+const DEFAULT_TEXT='Hello, cubes!\nAa Bb 0123456789\nEvery pixel is a cube.';
+const MENU_LIMITS=Object.freeze({title:30,buttonText:14,columns:40,rows:12,text:2048,counterMin:-999,counterMax:999});
+const printable=(value,limit)=>[...String(value??'')].slice(0,limit).map(c=>c.codePointAt(0)>=32&&c.codePointAt(0)<=126?c:'?').join('');
+const clamp=(value,min,max,fallback=min)=>Number.isFinite(Number(value))?Math.min(max,Math.max(min,Math.round(Number(value)))):fallback;
+function defaultState(){return {progress:38,enabled:true,checked:false,count:0};}
+function defaultMenu(){return {title:'FIELD STATION',text:'Moss + Loam\nReady to build',buttonCount:2,
+  buttons:[{mode:'both',text:'BUILD',icon:'play'},{mode:'both',text:'RESET',icon:'left'},{mode:'icon',text:'OK',icon:'check'}],
+  controls:{slider:true,checkbox:true,toggle:true,counter:true}};}
+function normalizeMenu(value={}){
+  const d=defaultMenu(),source=value&&typeof value==='object'?value:{};
+  return {title:printable(source.title??d.title,MENU_LIMITS.title),text:String(source.text??d.text).replace(/\r\n?/g,'\n').slice(0,MENU_LIMITS.text),
+    buttonCount:clamp(source.buttonCount??d.buttonCount,1,3,2),
+    buttons:d.buttons.map((b,i)=>{const q=Array.isArray(source.buttons)?source.buttons[i]:null;return {
+      mode:['text','icon','both'].includes(q?.mode)?q.mode:b.mode,
+      text:printable(q?.text??b.text,MENU_LIMITS.buttonText),icon:Object.hasOwn(ICONS,q?.icon)?q.icon:b.icon};}),
+    controls:Object.fromEntries(Object.entries(d.controls).map(([k,v])=>[k,typeof source.controls?.[k]==='boolean'?source.controls[k]:v]))};
+}
+function buttonContent(b){const text=b.mode==='icon'?'':b.text,icon=b.mode==='text'?null:b.icon;return {text,icon,width:text.length*6+(icon?7:0)+(text&&icon?4:0)};}
+function menuLayout(menu){
+  const text=textLayout(menu.text,{columns:MENU_LIMITS.columns,lines:MENU_LIMITS.rows});
+  if(menu.text===''){text.rows=[];text.width=0;text.height=0;}
+  const buttonWidths=menu.buttons.slice(0,menu.buttonCount).map(b=>Math.max(26,buttonContent(b).width+12));
+  const width=Math.max(126,menu.title.length*6+28,text.width+14,buttonWidths.reduce((a,b)=>a+b,0)+6*(menu.buttonCount-1)+14);
+  let y=text.height?24+text.height+9:24;
+  const positions={};
+  if(menu.controls.slider){positions.slider=y;y+=23;}
+  if(menu.controls.checkbox||menu.controls.toggle){positions.options=y;y+=24;}
+  if(menu.controls.counter){positions.counter=y;y+=24;}
+  positions.buttons=y+2;
+  return {width,height:y+29,text,buttonWidths,positions};
+}
+function build(preset='dashboard',{tierId='c1',themeId='fern',text=DEFAULT_TEXT,state=defaultState(),menu:menuValue=defaultMenu()}={}){
+  const spec=PRESETS[preset],theme=THEMES[themeId],system=window.Cubes.SubCubes;
+  if(!spec||!theme)throw new RangeError('Unknown cube UI preset or theme.');
+  const menu=preset==='custom'?normalizeMenu(menuValue):null,layout=menu?menuLayout(menu):null;
+  const tier=system.requireTier(tierId),side=tier.side,{width,height}=layout||spec;
+  state={...defaultState(),...state,progress:clamp(state.progress,0,100,38),count:clamp(state.count,MENU_LIMITS.counterMin,MENU_LIMITS.counterMax,0)};
+  const cells=new Map(),widgets=[];
+  const put=(x,y,z,color,kind='uiPanel',element='')=>{
+    if(![x,y,z].every(Number.isInteger))throw new Error('UI pixels must occupy integer cells.');
+    if(x<0||x>=width||y<0||y>=height)throw new RangeError(`UI content outside ${preset} bounds: ${x},${y}`);
+    const gx=(x-Math.floor(width/2))*side,gy=(height-1-y)*side,gz=z*side;
+    cells.set(`${x},${y},${z}`,{gx,gy,gz,tier:side,tierId:tier.id,color:color>>>0,kind,part:kind,element});
+  };
+  const rect=(x,y,w,h,z,color,kind='uiPanel',element='',clip=0)=>{
+    for(let dy=0;dy<h;dy++)for(let dx=0;dx<w;dx++){
+      if(clip&&Math.min(dx,w-1-dx)+Math.min(dy,h-1-dy)<clip)continue;
+      put(x+dx,y+dy,z,color,kind,element);
+    }
+  };
+  const label=(value,x,y,z=1,color=theme.ink,element='')=>{
+    let offset=0;
+    for(const char of String(value)){for(const [dx,dy] of glyph(char))put(x+offset+dx,y+dy,z,color,'uiText',element);offset+=6;}
+  };
+  const icon=(name,x,y,z=3,color=theme.light,element='')=>{
+    if(!ICONS[name])throw new RangeError('Unknown UI icon.');
+    ICONS[name].forEach((row,dy)=>[...row].forEach((bit,dx)=>{if(bit==='1')put(x+dx,y+dy,z,color,'uiIcon',element);}));
+  };
+  const panel=(x,y,w,h,title)=>{
+    rect(x,y,w,h,0,theme.edge,'uiFrame','',2);
+    rect(x+1,y+1,w-2,h-2,0,theme.panel,'uiPanel','',1);
+    rect(x+1,y+1,w-2,16,1,theme.header,'uiHeader','',1);
+    if(title)label(title,x+6,y+4,2,theme.light);
+  };
+  const button=(id,x,y,w,h,{text='',icon:mark=null,action='noop',style='secondary',disabled=false,selected=false,aria=text||mark||id,motionGroup=id}={})=>{
+    const fill=disabled?theme.disabled:style==='primary'||selected?theme.accent:style==='danger'?theme.danger:theme.button;
+    const ink=disabled?theme.muted:style==='primary'||selected||style==='danger'?theme.light:theme.ink;
+    rect(x,y,w,h,1,theme.edge,'uiButtonBase','',1);
+    rect(x,y,w,h,2,fill,'uiButton',motionGroup,1);
+    const contentWidth=text.length*6+(mark?7:0)+(mark&&text?4:0);
+    if(contentWidth>w-4)throw new RangeError(`Button ${id} is too narrow for its content.`);
+    const left=x+Math.floor((w-contentWidth)/2);
+    if(mark)icon(mark,left,y+Math.floor((h-7)/2),3,ink,motionGroup);
+    if(text)label(text,left+(mark?11:0),y+Math.floor((h-11)/2),3,ink,motionGroup);
+    const widget={id,x,y,width:w,height:h,depth:2,label:aria,action,disabled,selected,style,text,icon:mark,motionGroup};widgets.push(widget);return widget;
+  };
+  const slider=(id,x,y,w,h=14)=>{
+    const trackWidth=w-6,thumbWidth=3,travel=trackWidth-thumbWidth;
+    rect(x+3,y+5,trackWidth,4,1,theme.track,'uiSliderBase');
+    rect(x+3,y+5,trackWidth,4,2,theme.track,'uiSliderTrack',id);
+    const offset=Math.round(travel*state.progress/100);
+    rect(x+3,y+5,offset+thumbWidth,4,2,theme.accent,'uiSliderFill',id);
+    rect(x+3+offset,y+2,thumbWidth,10,3,theme.light,'uiSliderThumb',id);
+    widgets.push({id,x,y,width:w,height:h,depth:2,label:'Level',action:'slider',disabled:false,selected:false,motionGroup:id,
+      value:state.progress,min:0,max:100,step:1,trackStart:x+3+thumbWidth/2,trackEnd:x+3+travel+thumbWidth/2});
+  };
+  const checkbox=(id,x,y,w=54)=>{
+    button(id,x,y,w,18,{aria:'Sound',selected:state.checked,action:'checkbox'});
+    rect(x+5,y+5,9,9,3,theme.ink,'uiCheckBox',id);rect(x+6,y+6,7,7,3,theme.panel,'uiCheckBox',id);
+    if(state.checked)icon('check',x+6,y+6,4,theme.accent,id);
+    label('SOUND',x+18,y+4,3,state.checked?theme.light:theme.ink,id);
+  };
+  const toggle=(id,x,y,w=48)=>{
+    button(id,x,y,w,18,{aria:'Enabled',selected:state.enabled,action:'toggle'});
+    label(state.enabled?'ON':'OFF',x+5,y+3,3,state.enabled?theme.light:theme.ink,id);
+    rect(x+w-19,y+6,14,5,3,theme.track,'uiToggleTrack',id);
+    rect(x+w-(state.enabled?10:19),y+5,5,7,4,theme.light,'uiToggleKnob',id);
+  };
+  const counter=(x,y,w=80)=>{
+    const group='counter',h=18;
+    // One continuous face, with distinct hit regions for minus, value, and plus.
+    rect(x,y,w,h,1,theme.edge,'uiButtonBase','',1);
+    rect(x,y,w,h,2,theme.accent,'uiButton',group,1);
+    icon('minus',x+5,y+5,3,theme.light,group);icon('plus',x+w-12,y+5,3,theme.light,group);
+    const value=String(state.count);label(value,x+Math.floor((w-value.length*6)/2),y+3,3,theme.light,group);
+    const zone=18;
+    for(const [id,left,ww,action,name,disabled] of [
+      ['decrement',x,zone,'decrement','Decrease count',state.count<=MENU_LIMITS.counterMin],
+      ['counter-value',x+zone,w-2*zone,'noop',`Count ${state.count}`,false],
+      ['increment',x+w-zone,zone,'increment','Increase count',state.count>=MENU_LIMITS.counterMax]
+    ])widgets.push({id,x:left,y,width:ww,height:h,depth:2,label:name,action,disabled,selected:false,style:'primary',motionGroup:group,value:state.count});
+  };
+  if(preset==='custom'){
+    panel(0,0,width,height,menu.title);
+    button('close',width-16,3,12,12,{icon:'close',style:'danger',aria:'Close (preview only)'});
+    layout.text.rows.forEach((row,i)=>label(row,7,24+i*15,1,i===0?theme.ink:theme.muted));
+    if(menu.controls.slider){const y=layout.positions.slider;slider('level',7,y,width-48);label(`${state.progress}%`,width-33,y+1);}
+    if(menu.controls.checkbox||menu.controls.toggle){
+      const y=layout.positions.options,half=Math.floor((width-20)/2);
+      if(menu.controls.checkbox)checkbox('checkbox',7,y,half);
+      if(menu.controls.toggle)toggle('toggle',width-7-half,y,half);
+    }
+    if(menu.controls.counter)counter(Math.floor((width-80)/2),layout.positions.counter,80);
+    const y=layout.positions.buttons,n=menu.buttonCount,available=width-14-6*(n-1),minimum=layout.buttonWidths.reduce((a,b)=>a+b,0),extra=available-minimum;
+    let x=7;
+    menu.buttons.slice(0,n).forEach((b,i)=>{
+      const {text,icon}=buttonContent(b),w=layout.buttonWidths[i]+Math.floor(extra/n)+(i<extra%n?1:0);
+      button(`custom-button-${i+1}`,x,y,w,20,{text,icon,style:i===0?'primary':'secondary',aria:text||`${b.icon} button ${i+1}`});x+=w+6;
+    });
+  }else if(preset==='dashboard'){
+    panel(0,0,104,94,'FIELD STATION');
+    button('close',88,3,12,12,{icon:'close',style:'danger',aria:'Close field station (preview only)'});
+    label('Moss + Loam',7,23);label('Ready to build',7,39,1,theme.muted);
+    button('build',7,57,42,17,{text:'BUILD',style:'primary',aria:'Build (preview only)'});
+    button('reset',55,57,42,17,{text:'RESET',aria:'Reset (preview only)'});
+    slider('level',4,77,69,14);label(`${state.progress}%`,76,78);
+    panel(112,0,32,94,'');label('TOOLS',113,4,2,theme.light);
+    ['plus','minus','heart','check','menu','gear'].forEach((name,i)=>button(`tool-${name}`,115+(i%2)*15,24+Math.floor(i/2)*22,11,13,{icon:name,aria:`${name} tool`}));
+  }else if(preset==='panel'){
+    panel(0,0,width,height,'NEW HABITAT');
+    button('close',92,3,12,12,{icon:'close',style:'danger',aria:'Close confirmation (preview only)'});
+    label('Place 8 cubes?',10,24);label('On the grid.',7,40,1,theme.muted);
+    button('cancel',7,57,44,16,{text:'CANCEL',aria:'Cancel (preview only)'});
+    button('place',57,57,44,16,{text:'PLACE',style:'primary',aria:'Place (preview only)'});
+  }else if(preset==='buttons'){
+    panel(0,0,width,height,'BUTTON STATES');
+    button('primary',5,24,48,18,{text:'PRIMARY',style:'primary',aria:'Primary action'});
+    button('secondary',59,24,54,18,{text:'SECOND',aria:'Secondary action'});
+    toggle('toggle',5,49);checkbox('checkbox',59,49);
+    button('disabled',5,75,30,18,{text:'LOCK',disabled:true,aria:'Locked action, disabled'});
+    counter(39,75,74);
+  }else if(preset==='text'){
+    panel(0,0,width,height,'MICROFONT');
+    textLayout(text).rows.forEach((row,i)=>label(row,6,28+i*15));
+    rect(6,77,width-12,1,1,theme.track,'uiRule');
+  }else if(preset==='icons'){
+    panel(0,0,width,height,'CUBE ICONS');
+    Object.keys(ICONS).forEach((name,i)=>button(`icon-${name}`,7+(i%5)*26,26+Math.floor(i/5)*28,18,18,{icon:name,aria:`${name} icon`}));
+  }
+  return {preset,spec,themeId,tierId,side,width,height,widgets,menu,records:[...cells.values()],textLayout:layout?.text||(preset==='text'?textLayout(text):null)};
+}
+function pose(model,lifts=new Map()){
+  // Only destination cells change. Hover raises a group, never a continuous transform.
+  return model.records.map(q=>{const lift=q.element?(lifts.get(q.element)||0):0;return lift?{...q,gz:q.gz+lift*model.side}:{...q};});
+}
+function validate(records,system=window.Cubes.SubCubes){
+  const keys=new Set();let side=null;
+  for(const q of records){
+    const t=system.requireTier(q.tier);
+    if(!system.isGridStart(q.gx,q.gy,q.gz,t.id)||q.gy<0||q.tierId!==t.id)throw new Error('Invalid cube UI record.');
+    if(side===null)side=t.side;if(side!==t.side)throw new Error('A UI pixel layer must use a single selected cube size.');
+    if([q.gx,q.gy,q.gz].some(n=>n%side!==0))throw new Error('UI cube not aligned to its pixel lattice.');
+    const key=`${q.gx},${q.gy},${q.gz}`;if(keys.has(key))throw new Error(`Overlapping UI cube at ${key}`);keys.add(key);
+  }
+  return {cubeCount:records.length,tierId:side===null?null:system.get(side).id,overlap:false};
+}
+window.CUBE_UI_CORE=Object.freeze({fontInfo,glyph,glyphBits:code=>GLYPHS[code-32]??0n,textLayout,themes:THEMES,icons:ICONS,presets:PRESETS,
+  defaultText:DEFAULT_TEXT,defaultState,defaultMenu,normalizeMenu,menuLimits:MENU_LIMITS,menuLayout,build,pose,validate});
+})();
+
+</script>
+<script type="module" id="cube-ui">
+import * as THREE from 'three';
+const host=window.CUBE_NATURE_THEME_HOST,core=window.CUBE_UI_CORE;
+const system=host.subCubes,transition=window.CUBE_NATURE_GRID_TRANSITIONS;
+const select=document.getElementById('uiPreset'),controlsPanel=document.getElementById('uiControls');
+const themeSelect=document.getElementById('uiTheme'),textInput=document.getElementById('uiText');
+const help=document.getElementById('uiHelp'),hint=document.getElementById('uiHint'),description=document.getElementById('uiDescription');
+const demoButton=document.getElementById('uiDemo'),frontButton=document.getElementById('uiFront');
+const accessible=document.getElementById('uiAccessible'),canvas=host.renderer.domElement;
+const editor=document.getElementById('uiEditor'),menuTitle=document.getElementById('uiMenuTitle'),menuText=document.getElementById('uiMenuText');
+const buttonCount=document.getElementById('uiMenuButtonCount'),buttonCards=document.getElementById('uiMenuButtons');
+const editorNote=document.getElementById('uiMenuTextNote'),saveNote=document.getElementById('uiMenuSaveNote');
+const root=new THREE.Group();root.name='CubeUI_GridInterface';root.visible=false;host.scene.add(root);
+let active=false,model=null,field=null,state=core.defaultState(),tierId='c1',themeId='fern',preset='dashboard';
+let menu=core.defaultMenu(),customState=core.defaultState(),editRequest=0,storageAvailable=true;
+let currentRecords=[],time=0,nextBeat=transition.timing.beat,dirty=true,front=false,demo=false,demoClock=0;
+let hovered='',focused='',pressed='',pressedUntil=0,pressedLift=0,gesture=null,pointer=null,savedControlsEnabled=null,statusClock=0;
+const lifts=new Map(),pointers=new Set(),raycaster=new THREE.Raycaster(),ndc=new THREE.Vector2(),hit=new THREE.Vector3();
+const plane=new THREE.Plane(new THREE.Vector3(0,0,1),0);
+let lastMessage='Hover or click a control. All actions are preview-only; motion is always on.';
+const oldTierContext=document.getElementById('tierContext').innerHTML;
+const storageKey=`CubeNature.CubeUI.CustomMenu.v1:${location.pathname}`;
+const stateCopy=value=>({progress:Math.max(0,Math.min(100,Math.round(Number(value?.progress)||0))),enabled:value?.enabled!==false,checked:!!value?.checked,
+  count:Math.max(core.menuLimits.counterMin,Math.min(core.menuLimits.counterMax,Math.round(Number(value?.count)||0)))});
+try{
+  const saved=JSON.parse(sessionStorage.getItem(storageKey)||'null');
+  if(saved?.version===1){menu=core.normalizeMenu(saved.menu);customState=stateCopy(saved.state);if(core.themes[saved.themeId])themeId=saved.themeId;if(system.get(saved.tierId))tierId=saved.tierId;}
+}catch{storageAvailable=false;}
+textInput.value=core.defaultText;
+for(const [id,t] of Object.entries(core.themes)){const option=document.createElement('option');option.value=id;option.textContent=t.name;themeSelect.appendChild(option);}
+function announce(message){lastMessage=message;hint.textContent=message;}
+function remember(){
+  if(preset==='custom')customState={...state};
+  try{sessionStorage.setItem(storageKey,JSON.stringify({version:1,menu,state:customState,themeId,tierId}));storageAvailable=true;}catch{storageAvailable=false;}
+  saveNote.textContent=storageAvailable?'One menu kept in this tab. Export UI saves the editable definition and cube records.':'Kept in memory. Export UI to save the definition and cube records.';
+}
+function restoreControls(){if(savedControlsEnabled!==null){host.controls.enabled=savedControlsEnabled;savedControlsEnabled=null;}}
+function resetGesture(){
+  const id=gesture?.id;gesture=null;pointers.clear();pointer=null;hovered='';pressed='';pressedUntil=0;restoreControls();
+  if(id!==undefined&&canvas.hasPointerCapture?.(id))canvas.releasePointerCapture(id);dirty=true;
+}
+function settleCamera(){const d=host.controls.enableDamping;host.controls.enableDamping=false;host.controls.update();host.controls.enableDamping=d;}
+function frameUI(){
+  if(!active||!model)return;
+  const view=document.getElementById('sceneViewport'),w=view.clientWidth,h=view.clientHeight;if(!w||!h)return;
+  host.renderer.setSize(w,h,false);host.camera.aspect=w/h;host.camera.zoom=1;
+  const u=model.side*host.gridUnit,width=model.width*u,height=model.height*u;
+  const target=new THREE.Vector3(0,height/2,1.5*u);
+  const direction=front?new THREE.Vector3(0,0,1):new THREE.Vector3(.16,.10,1).normalize();
+  const right=new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),direction).normalize();
+  const up=new THREE.Vector3().crossVectors(direction,right).normalize();
+  const tanV=Math.tan(host.camera.fov*Math.PI/360),tanH=tanV*host.camera.aspect;let distance=0;
+  for(const x of [-width/2,width/2])for(const y of [-height/2,height/2])for(const z of [-2*u,5*u]){
+    const offset=new THREE.Vector3(x,y,z);distance=Math.max(distance,offset.dot(direction)+Math.abs(offset.dot(right))/tanH,offset.dot(direction)+Math.abs(offset.dot(up))/tanV);
+  }
+  const fitMargin=h<450?1.29:1.22;
+  settleCamera();host.controls.target.copy(target);host.camera.position.copy(target).addScaledVector(direction,distance*fitMargin);
+  host.camera.near=Math.max(.01,u/30);host.camera.far=Math.max(200,distance*20);host.camera.updateProjectionMatrix();host.controls.update();
+}
+function syncUI(){
+  controlsPanel.hidden=!active;help.hidden=!active;accessible.hidden=!active;
+  editor.hidden=!(active&&preset==='custom');document.body.dataset.uiEditor=String(!editor.hidden);
+  if(!active||!model)return;
+  select.value=preset;themeSelect.value=themeId;
+  document.getElementById('uiTextWrap').hidden=preset!=='text';
+  document.getElementById('uiReset').textContent=preset==='custom'?'Reset controls':'Reset demo';
+  demoButton.disabled=!model.widgets.some(w=>!w.disabled);
+  demoButton.textContent=demo?'Stop hover demo':'Demo hover';demoButton.setAttribute('aria-pressed',String(demo));
+  frontButton.textContent=front?'3D view':'Front view';frontButton.setAttribute('aria-pressed',String(front));
+  document.getElementById('tierHeading').textContent='Pixel cube';
+  document.getElementById('tierContext').textContent=`UI: ${tierId} · ${model.side} c1 per pixel · all 7 sizes`;
+  document.getElementById('gridCaption').textContent='150 ms steps · 90 ms lingering cells · motion always on';
+  description.textContent=model.spec.description;
+  if(model.textLayout){
+    const result=model.textLayout,columns=preset==='custom'?core.menuLimits.columns:22,rows=preset==='custom'?core.menuLimits.rows:3;
+    const note=`${columns} columns · up to ${rows} rows.${result.substituted?' Unsupported characters become ?.':''}${result.truncated?' Extra text is clipped in the preview.':''}`;
+    if(preset==='custom')editorNote.textContent=`${result.rows.length} rendered row${result.rows.length===1?'':'s'} · ${note}`;
+    else if(hint.textContent!==note)hint.textContent=note;
+  }
+  document.getElementById('status').textContent=`UI · ${preset==='custom'?'Custom menu':model.spec.name} · ${model.records.length.toLocaleString()} ${tierId} cubes`;
+}
+function syncAccessible(){
+  const desired=new Set(model.widgets.map(w=>w.id));
+  for(const control of [...accessible.children])if(!desired.has(control.dataset.widget))control.remove();
+  for(const w of model.widgets){
+    let control=[...accessible.children].find(b=>b.dataset.widget===w.id);
+    if(!control){
+      control=document.createElement(w.action==='slider'?'input':'button');control.type=w.action==='slider'?'range':'button';control.dataset.widget=w.id;
+      control.addEventListener('focus',()=>{if(!active)return;focused=w.id;dirty=true;announce(w.action==='slider'?'Level slider · arrow keys adjust, Home / End reach the limits.':`${control.textContent} · Enter or Space to activate`);});
+      control.addEventListener('blur',()=>{if(focused===w.id){focused='';dirty=true;}});
+      if(w.action==='slider')control.addEventListener('input',()=>setSlider(w.id,Number(control.value)));
+      else control.addEventListener('click',()=>activate(w.id));
+      accessible.appendChild(control);
+    }
+    control.disabled=!!w.disabled;control.setAttribute('aria-label',w.label);
+    if(w.action==='slider'){
+      control.min=w.min;control.max=w.max;control.step=w.step;control.value=w.value;
+      control.setAttribute('aria-valuetext',`${w.value} percent`);
+    }else{
+      control.textContent=w.label;
+      if(['checkbox','toggle'].includes(w.action)){control.setAttribute('role',w.action==='toggle'?'switch':'checkbox');control.setAttribute('aria-checked',String(w.selected));}
+      else{control.removeAttribute('role');control.removeAttribute('aria-checked');}
+    }
+  }
+}
+function rebuildLayout({fresh=false}={}){
+  const oldWidth=model?.width,oldHeight=model?.height;
+  model=core.build(preset,{tierId,themeId,text:textInput.value,state,menu});core.validate(model.records);
+  const ids=new Set(model.widgets.map(w=>w.id)),groups=new Set(model.widgets.map(w=>w.motionGroup));
+  for(const id of lifts.keys())if(!groups.has(id))lifts.delete(id);
+  if(!ids.has(hovered))hovered='';if(!ids.has(focused))focused='';if(!ids.has(pressed))pressed='';
+  // The bounded editor fits within the renderer's existing maximum capacity.
+  const needed=Math.min(262144,2**Math.ceil(Math.log2(Math.max(8192,model.records.length*3))));
+  if(!field||field.capacity<needed||fresh){
+    field?.dispose();field=transition.createField(root,{capacity:needed,assetType:'interface'});
+    if(fresh){time=0;nextBeat=transition.timing.beat;lifts.clear();}
+    currentRecords=core.pose(model,lifts);field.setPose(currentRecords,time,{initial:true,height:model.height*model.side});
+  }
+  dirty=true;syncAccessible();syncUI();
+  if(oldWidth!==model.width||oldHeight!==model.height)frameUI();
+}
+function commitPose(beatTime){
+  if(!model)return;
+  let changed=dirty;
+  if(pressed&&pressedUntil<=beatTime&&!gesture){pressed='';changed=true;}
+  const groupOf=id=>model.widgets.find(w=>w.id===id&&!w.disabled)?.motionGroup;
+  const hoverGroup=groupOf(hovered),focusGroup=groupOf(focused),pressGroup=groupOf(pressed);
+  const groups=new Set(model.widgets.map(w=>w.motionGroup));
+  for(const group of groups){
+    const target=group===pressGroup?pressedLift:(group===hoverGroup||group===focusGroup)?2:0;
+    const old=lifts.get(group)||0,next=old+Math.sign(target-old);
+    if(next!==old){lifts.set(group,next);changed=true;}
+  }
+  if(changed){
+    currentRecords=core.pose(model,lifts);
+    const focusWidget=model.widgets.find(w=>w.id===focused&&!w.disabled);
+    if(focusWidget&&focusWidget.motionGroup!=='counter')for(const q of currentRecords){
+      if(q.element!==focusWidget.motionGroup||q.kind!=='uiButton')continue;
+      const x=q.gx/model.side+Math.floor(model.width/2)-focusWidget.x,y=model.height-1-q.gy/model.side-focusWidget.y;
+      if(x<1||y<1||x>=focusWidget.width-1||y>=focusWidget.height-1)q.color=core.themes[themeId].gold;
+    }
+    field.setPose(currentRecords,beatTime);dirty=false;
+  }
+}
+function selectUI(value=select.value||preset,{reset=false}={}){
+  if(!Object.hasOwn(core.presets,value)||!host.getCubeGeometry()||['placement','materials'].includes(host.viewMode))return false;
+  flushMenuEdit();
+  const changed=preset!==value;
+  if(preset==='custom')remember();
+  if(changed||reset){state=value==='custom'&&!reset?{...customState}:core.defaultState();resetGesture();focused='';lifts.clear();demo=false;}
+  if(changed&&value==='custom')front=true;
+  if(changed||reset||!field)announce('Hover / press for motion. Slider, checkbox, toggle, and counter change only their preview values.');
+  preset=value;select.value=value;
+  window.dispatchEvent(new CustomEvent('cube-nature-view-mode',{detail:{mode:'ui'}}));
+  active=true;root.visible=true;
+  rebuildLayout({fresh:changed||!field||reset});host.setGridTier(tierId);frameUI();syncUI();
+  return true;
+}
+function setSlider(id,value){
+  if(!active||!model?.widgets.some(w=>w.id===id&&w.action==='slider'))return false;
+  if(!Number.isFinite(Number(value)))return false;
+  const next=Math.max(0,Math.min(100,Math.round(Number(value))));
+  if(next!==state.progress){state.progress=next;rebuildLayout();remember();}
+  dirty=true;announce(`Level: ${next}%.`);return true;
+}
+function activate(id,value){
+  if(!active||!model)return false;
+  const w=model.widgets.find(q=>q.id===id);if(!w||w.disabled)return false;
+  demo=false;pressed=id;pressedLift=(lifts.get(w.motionGroup)||0)>0?0:1;pressedUntil=time+.32;dirty=true;
+  let changed=false;
+  switch(w.action){
+    case 'slider':return value===undefined?true:setSlider(id,value);
+    case 'toggle':state.enabled=!state.enabled;changed=true;announce(`Toggle ${state.enabled?'on':'off'}.`);break;
+    case 'checkbox':state.checked=!state.checked;changed=true;announce(`Sound ${state.checked?'checked':'unchecked'}.`);break;
+    case 'decrement':state.count=Math.max(core.menuLimits.counterMin,state.count-1);changed=true;announce(`Count: ${state.count}.`);break;
+    case 'increment':state.count=Math.min(core.menuLimits.counterMax,state.count+1);changed=true;announce(`Count: ${state.count}.`);break;
+    default:announce(`${w.label} · preview only; no action.`);
+  }
+  if(changed){rebuildLayout();remember();}
+  return true;
+}
+function update(dt){
+  if(!active||!field)return;
+  const elapsed=Math.min(.25,Math.max(0,dt)),end=time+elapsed;
+  if(demo){
+    demoClock+=elapsed;const targets=model.widgets.filter(w=>!w.disabled);
+    const target=targets.length?targets[Math.floor(demoClock/1.2)%targets.length].id:'';
+    if(target!==hovered){hovered=target;dirty=true;announce(`Hover demo · ${model.widgets.find(w=>w.id===target)?.label||''}`);}
+  }
+  while(nextBeat<=end+1e-9){commitPose(nextBeat);nextBeat+=transition.timing.beat;}
+  time=end;field.update(time);
+  statusClock+=elapsed;if(statusClock>.4){statusClock=0;syncUI();}
+}
+function surfacePoint(clientX,clientY,allowOutside=false){
+  if(!active||!model)return null;
+  const r=canvas.getBoundingClientRect();if(!r.width||!r.height)return null;
+  if(!allowOutside&&(clientX<r.left||clientX>r.right||clientY<r.top||clientY>r.bottom))return null;
+  ndc.set((clientX-r.left)/r.width*2-1,1-(clientY-r.top)/r.height*2);
+  host.camera.updateMatrixWorld(true);raycaster.setFromCamera(ndc,host.camera);
+  const u=model.side*host.gridUnit;
+  // Keep picking on the rest-face plane while cells lift, preventing hover chatter.
+  plane.constant=-3*u;if(!raycaster.ray.intersectPlane(plane,hit))return null;
+  return {x:hit.x/u+Math.floor(model.width/2),y:model.height-hit.y/u};
+}
+function pick(clientX,clientY){
+  const p=surfacePoint(clientX,clientY);if(!p)return null;
+  const w=[...model.widgets].reverse().find(w=>p.x>=w.x&&p.x<w.x+w.width&&p.y>=w.y&&p.y<w.y+w.height);
+  return w?{...w,hitX:p.x,hitY:p.y}:null;
+}
+function sliderAt(id,x,y){
+  const w=model.widgets.find(w=>w.id===id&&w.action==='slider'),p=surfacePoint(x,y,true);
+  if(!w||!p)return false;
+  return setSlider(id,(p.x-w.trackStart)/(w.trackEnd-w.trackStart)*100);
+}
+function hoverAt(x,y){
+  const w=pick(x,y),id=w&&!w.disabled?w.id:'';
+  if(hovered!==id){hovered=id;dirty=true;}
+  canvas.style.cursor=w?(w.disabled?'not-allowed':w.action==='slider'?'ew-resize':'pointer'):'grab';
+  if(w)hint.textContent=`${w.label}${w.disabled?' · unavailable':w.action==='slider'?' · click or drag':w.action==='decrement'?' · subtract one':w.action==='increment'?' · add one':' · hover / press'}`;
+  else if(preset!=='text')hint.textContent=lastMessage;
+}
+// Widget pointer capture is isolated from background orbit/pan. Sliders keep their
+// drag through the entire gesture, including when the pointer leaves the track.
+canvas.addEventListener('pointerdown',event=>{
+  if(!active)return;pointers.add(event.pointerId);
+  if(pointers.size>1){resetGesture();return;}
+  if(event.button!==0||event.ctrlKey||event.metaKey||event.altKey||event.shiftKey)return;
+  demo=false;const w=pick(event.clientX,event.clientY);
+  gesture={id:event.pointerId,x:event.clientX,y:event.clientY,widget:w&&!w.disabled?w.id:'',slider:w?.action==='slider',dragged:false,threshold:event.pointerType==='touch'?9:5};
+  if(w){
+    event.preventDefault();event.stopImmediatePropagation();
+    savedControlsEnabled=host.controls.enabled;host.controls.enabled=false;canvas.setPointerCapture?.(event.pointerId);
+    if(!w.disabled){hovered=w.id;pressed=w.id;pressedLift=(lifts.get(w.motionGroup)||0)>0?0:1;pressedUntil=Infinity;dirty=true;announce(w.label);if(gesture.slider)sliderAt(w.id,event.clientX,event.clientY);}
+  }
+},true);
+canvas.addEventListener('pointermove',event=>{
+  if(!active)return;demo=false;pointer={x:event.clientX,y:event.clientY};
+  if(gesture?.slider&&gesture.id===event.pointerId){event.preventDefault();sliderAt(gesture.widget,event.clientX,event.clientY);return;}
+  if(gesture&&Math.hypot(event.clientX-gesture.x,event.clientY-gesture.y)>gesture.threshold){gesture.dragged=true;if(pressed){pressed='';pressedUntil=0;dirty=true;}}
+  if(gesture?.dragged){hovered='';dirty=true;return;}
+  hoverAt(event.clientX,event.clientY);
+});
+canvas.addEventListener('pointerup',event=>{
+  if(!active)return;
+  const g=gesture,picked=pick(event.clientX,event.clientY);
+  if(g&&g.id!==event.pointerId){pointers.delete(event.pointerId);return;}
+  const clicked=g&&!g.dragged&&pointers.size===1&&event.button===0&&g.widget&&picked?.id===g.widget&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!event.shiftKey;
+  gesture=null;pointers.delete(event.pointerId);restoreControls();pressed='';pressedUntil=0;dirty=true;
+  if(g?.slider){event.preventDefault();event.stopImmediatePropagation();sliderAt(g.widget,event.clientX,event.clientY);pressed=g.widget;pressedUntil=time+.18;}
+  else if(clicked){event.preventDefault();event.stopImmediatePropagation();activate(g.widget);}
+  if(canvas.hasPointerCapture?.(event.pointerId))canvas.releasePointerCapture(event.pointerId);
+  if(event.pointerType==='touch'){pointer=null;hovered='';dirty=true;}else hoverAt(event.clientX,event.clientY);
+},true);
+canvas.addEventListener('pointercancel',()=>{if(active)resetGesture();});
+canvas.addEventListener('lostpointercapture',event=>{if(active&&gesture?.id===event.pointerId)resetGesture();});
+canvas.addEventListener('pointerleave',()=>{if(active&&!gesture){pointer=null;hovered='';dirty=true;canvas.style.cursor='grab';}});
+window.addEventListener('blur',()=>{if(active)resetGesture();});
+document.addEventListener('visibilitychange',()=>{if(active&&document.hidden)resetGesture();});
+host.controls.addEventListener('change',()=>{if(active&&pointer&&!gesture&&!demo)hoverAt(pointer.x,pointer.y);});
+
+// Build the HTML authoring form once. Its fields are controls, never the preview:
+// the preview, text, icons, panel, and widget faces are all SubCubes records.
+for(let i=0;i<3;i++){
+  const card=document.createElement('div');card.className='uiMenuButtonCard';card.dataset.buttonIndex=i;
+  card.innerHTML=`<div class="uiMenuButtonTop"><span>Button ${i+1}</span><select id="uiMenuButtonMode${i}" aria-label="Button ${i+1} content"><option value="both">Icon + text</option><option value="text">Text only</option><option value="icon">Icon only</option></select></div><div class="uiMenuButtonFields"><label class="uiEditorField" id="uiMenuButtonTextWrap${i}" for="uiMenuButtonText${i}">Label<input id="uiMenuButtonText${i}" type="text" maxlength="${core.menuLimits.buttonText}" spellcheck="false" autocomplete="off"></label><label class="uiEditorField" id="uiMenuButtonIconWrap${i}" for="uiMenuButtonIcon${i}">Icon<select id="uiMenuButtonIcon${i}" aria-label="Button ${i+1} icon"></select></label></div>`;
+  const icons=card.querySelector(`#uiMenuButtonIcon${i}`);
+  for(const name of Object.keys(core.icons)){const option=document.createElement('option');option.value=name;option.textContent=name==='close'?'X / close':name[0].toUpperCase()+name.slice(1);icons.appendChild(option);}
+  buttonCards.appendChild(card);
+}
+function syncEditorVisibility(){
+  for(let i=0;i<3;i++){
+    buttonCards.children[i].hidden=i>=Number(buttonCount.value);
+    const mode=document.getElementById(`uiMenuButtonMode${i}`).value;
+    document.getElementById(`uiMenuButtonTextWrap${i}`).hidden=mode==='icon';
+    document.getElementById(`uiMenuButtonIconWrap${i}`).hidden=mode==='text';
+  }
+}
+function syncEditorForm(){
+  menuTitle.value=menu.title;menuText.value=menu.text;buttonCount.value=String(menu.buttonCount);
+  menu.buttons.forEach((b,i)=>{document.getElementById(`uiMenuButtonMode${i}`).value=b.mode;document.getElementById(`uiMenuButtonText${i}`).value=b.text;document.getElementById(`uiMenuButtonIcon${i}`).value=b.icon;});
+  for(const input of editor.querySelectorAll('[data-menu-control]'))input.checked=menu.controls[input.dataset.menuControl];
+  syncEditorVisibility();
+}
+function flushMenuEdit(){
+  if(!editRequest)return;cancelAnimationFrame(editRequest);editRequest=0;
+  if(active&&preset==='custom')rebuildLayout();
+}
+function queueMenuEdit(){
+  menu=core.normalizeMenu({title:menuTitle.value,text:menuText.value,buttonCount:Number(buttonCount.value),
+    buttons:[0,1,2].map(i=>({mode:document.getElementById(`uiMenuButtonMode${i}`).value,text:document.getElementById(`uiMenuButtonText${i}`).value,icon:document.getElementById(`uiMenuButtonIcon${i}`).value})),
+    controls:Object.fromEntries([...editor.querySelectorAll('[data-menu-control]')].map(input=>[input.dataset.menuControl,input.checked]))});
+  syncEditorVisibility();remember();demo=false;
+  if(!editRequest)editRequest=requestAnimationFrame(()=>{editRequest=0;if(active&&preset==='custom')rebuildLayout();});
+}
+editor.addEventListener('input',queueMenuEdit);editor.addEventListener('change',queueMenuEdit);
+syncEditorForm();remember();
+select.addEventListener('change',()=>select.value?selectUI(select.value):host.showAssetPreview());
+for(const event of ['pointerdown','focus'])select.addEventListener(event,()=>{if(select.value&&!active)selectUI(select.value);});
+themeSelect.addEventListener('change',()=>{themeId=themeSelect.value;rebuildLayout();remember();});
+textInput.addEventListener('input',()=>{if(active&&preset==='text')rebuildLayout();});
+demoButton.addEventListener('click',()=>{if(demoButton.disabled)return;demo=!demo;demoClock=0;hovered='';dirty=true;syncUI();});
+frontButton.addEventListener('click',()=>{front=!front;frameUI();syncUI();});
+document.getElementById('uiReset').addEventListener('click',()=>{state=core.defaultState();resetGesture();demo=false;focused='';rebuildLayout();remember();announce('Preview values reset. Your menu definition is unchanged.');});
+window.addEventListener('cube-nature-grid-tier',event=>{
+  if(!active||!model||event.detail.source==='morphling')return;
+  const value=event.detail.tierId;if(tierId!==value){tierId=value;lifts.clear();resetGesture();rebuildLayout({fresh:true});frameUI();remember();}
+  syncUI();
+});
+window.addEventListener('cube-nature-view-mode',event=>{
+  const next=event.detail?.mode;
+  if(next==='ui'){
+    active=true;root.visible=true;host.grid.visible=false;syncUI();
+  }else{
+    if(active){flushMenuEdit();remember();resetGesture();focused='';demo=false;canvas.style.cursor='';}
+    active=false;root.visible=false;syncUI();
+    if(next==='asset'||next==='animal'){document.getElementById('tierHeading').textContent='Grid tier';document.getElementById('tierContext').innerHTML=oldTierContext;}
+  }
+});
+window.addEventListener('cube-nature-material-changed',()=>{if(active)syncUI();});
+function ready(){select.disabled=!host.getCubeGeometry()||['placement','materials'].includes(host.viewMode);}
+window.addEventListener('cube-nature-geometry-ready',ready);ready();
+if(typeof ResizeObserver!=='undefined')new ResizeObserver(()=>{if(active)frameUI();}).observe(document.getElementById('sceneViewport'));
+else window.addEventListener('resize',frameUI);
+function data(){
+  flushMenuEdit();if(!model)return null;
+  // Save the current menu values at rest, not incidental hover depth or retiring cells.
+  const records=core.pose(model);core.validate(records);
+  return {format:'subcubes-interface',version:2,preset,tierId,themeId,cubeSystem:system.metadata,
+    axes:{plane:['x','y'],depth:'z',minimumCorner:'integer c1'},font:core.fontInfo,motionAlwaysOn:true,
+    timingMs:Object.fromEntries(Object.entries(transition.timing).map(([k,v])=>[k,Math.round(v*1000)])),
+    state:{...state},menu:preset==='custom'?core.normalizeMenu(menu):null,text:preset==='text'?textInput.value:preset==='custom'?menu.text:null,
+    widthPixels:model.width,heightPixels:model.height,widgets:model.widgets.map(w=>({...w})),records};
+}
+function exportUI(){
+  const value=data();if(!value)return;
+  const a=document.createElement('a'),url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)+'\n'],{type:'application/json'}));
+  a.href=url;a.download=`cube_ui_${preset}_${tierId}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);return value;
+}
+host.exportUIJSON=exportUI;
+host.regenerateUI=()=>{const keys=Object.keys(core.themes);themeId=keys[(keys.indexOf(themeId)+1)%keys.length];rebuildLayout();remember();};
+host.onFrame.add(update);
+window.CUBE_NATURE_UI=Object.freeze({select:selectUI,activate,setSlider,exportJSON:exportUI,getData:data,
+  setTier:value=>{system.requireTier(value);tierId=value;if(active){host.setGridTier(value);lifts.clear();resetGesture();rebuildLayout({fresh:true});frameUI();}remember();return true;},
+  setText:value=>{textInput.value=String(value).slice(0,256);if(active&&preset==='text')rebuildLayout();return true;},
+  setMenu:value=>{menu=core.normalizeMenu({...menu,...value,controls:{...menu.controls,...value?.controls}});syncEditorForm();remember();if(active&&preset==='custom')rebuildLayout();return core.normalizeMenu(menu);},
+  getMenu:()=>core.normalizeMenu(menu),
+  setHover:id=>{const w=model?.widgets.find(w=>w.id===id);hovered=w&&!w.disabled?id:'';dirty=true;return !!hovered;},
+  getState:()=>({active,preset,tierId,themeId,time,motion:true,demo,front,hovered,pressed,state:{...state},cubeCount:currentRecords.length,lifts:Object.fromEntries(lifts)}),
+  getRecords:()=>currentRecords.map(q=>({...q})),getRenderCells:()=>field?.snapshot(time)||[],
+  get model(){return model;},get field(){return field;},get root(){return root;},frame:frameUI,update,pick});
+
+</script>
 </body>
 </html>

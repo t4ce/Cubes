@@ -1,0 +1,41 @@
+{
+  "format": "subcubes-interface",
+  "version": 2,
+  "preset": "custom",
+  "tierId": "c1",
+  "themeId": "ember",
+  "menu": {
+    "title": "QUICK SETTINGS",
+    "text": "Try the controls.\nPreview values only.",
+    "buttonCount": 3,
+    "buttons": [
+      {
+        "mode": "both",
+        "text": "APPLY",
+        "icon": "check"
+      },
+      {
+        "mode": "text",
+        "text": "RESET",
+        "icon": "left"
+      },
+      {
+        "mode": "icon",
+        "text": "HELP",
+        "icon": "heart"
+      }
+    ],
+    "controls": {
+      "slider": true,
+      "checkbox": true,
+      "toggle": true,
+      "counter": true
+    }
+  },
+  "state": {
+    "progress": 38,
+    "enabled": true,
+    "checked": false,
+    "count": 0
+  }
+}

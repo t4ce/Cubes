@@ -1,8 +1,9 @@
-//! Number-key routing. Key 1 toggles room/sphere; Key 5 owns the world sequence.
+//! Number-key routing. Key 1 toggles room/sphere; keys 3 and 5 cycle menus/worlds.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SceneMode {
     InteractiveGrid,
     StaticCube,
+    Interface,
     Sphere,
     Orchard,
     World,
@@ -20,6 +21,7 @@ pub struct Selection {
 pub struct ModeKeys {
     held: u16,
     next_world: usize,
+    next_interface: usize,
 }
 
 impl ModeKeys {
@@ -41,6 +43,8 @@ impl ModeKeys {
             }
         } else if pressed & 2 != 0 {
             SceneMode::StaticCube
+        } else if pressed & 4 != 0 {
+            SceneMode::Interface
         } else if pressed & 16 != 0 && worlds > 0 {
             SceneMode::World
         } else if pressed & 256 != 0 {
@@ -51,6 +55,11 @@ impl ModeKeys {
             return None;
         };
         let page = match mode {
+            SceneMode::Interface => {
+                let page = self.next_interface;
+                self.next_interface = (page + 1) % 3;
+                Some(page)
+            }
             SceneMode::World => {
                 let page = self.next_world % worlds;
                 self.next_world = (page + 1) % worlds;
@@ -123,17 +132,12 @@ mod tests {
             (1, SceneMode::InteractiveGrid, Some(None)),
             (1, SceneMode::Sphere, Some(None)),
             (2, SceneMode::StaticCube, Some(None)),
-            (4, SceneMode::Sphere, None),
             (8, SceneMode::Orchard, None),
         ] {
             assert_eq!(keys.update(held, mode, 0, 2, 27).map(|s| s.page), page);
             keys.update(0, mode, 0, 2, 27);
         }
         assert_eq!(keys.update(16, SceneMode::StaticCube, 0, 0, 0), None);
-        for mode in [SceneMode::InteractiveGrid, SceneMode::Sphere, SceneMode::StaticCube] {
-            assert_eq!(keys.update(4, mode, 0, 2, 27), None);
-            keys.update(0, mode, 0, 2, 27);
-        }
     }
 
     #[test]
@@ -152,15 +156,51 @@ mod limit_keys_tests {
     use super::*;
     #[test]
     fn key6_is_unused_and_key9_does_not_consume_world_pages() {
-        let mut keys=ModeKeys::default();
-        assert_eq!(keys.update(8,SceneMode::World,0,10,27),None);
-        keys.update(0,SceneMode::World,0,10,27);
-        assert_eq!(keys.update(32,SceneMode::World,0,10,27),None);
-        keys.update(0,SceneMode::World,0,10,27);
-        let selected=keys.update(256,SceneMode::World,0,10,27).unwrap();
-        assert_eq!(selected,Selection{mode:SceneMode::RenderLimits,page:None});
-        assert_eq!(keys.update(256,selected.mode,0,10,27),None);
-        keys.update(0,selected.mode,0,10,27);
-        assert_eq!(keys.update(16,selected.mode,0,10,27).unwrap().page,Some(0));
+        let mut keys = ModeKeys::default();
+        assert_eq!(keys.update(8, SceneMode::World, 0, 10, 27), None);
+        keys.update(0, SceneMode::World, 0, 10, 27);
+        assert_eq!(keys.update(32, SceneMode::World, 0, 10, 27), None);
+        keys.update(0, SceneMode::World, 0, 10, 27);
+        let selected = keys.update(256, SceneMode::World, 0, 10, 27).unwrap();
+        assert_eq!(
+            selected,
+            Selection {
+                mode: SceneMode::RenderLimits,
+                page: None
+            }
+        );
+        assert_eq!(keys.update(256, selected.mode, 0, 10, 27), None);
+        keys.update(0, selected.mode, 0, 10, 27);
+        assert_eq!(
+            keys.update(16, selected.mode, 0, 10, 27).unwrap().page,
+            Some(0)
+        );
+    }
+}
+
+#[cfg(test)]
+mod interface_keys_tests {
+    use super::*;
+    #[test]
+    fn key3_cycles_three_examples_and_does_not_advance_worlds() {
+        let mut keys = ModeKeys::default();
+        for n in 0..7 {
+            let selected = keys.update(4, SceneMode::Interface, 0, 0, 27).unwrap();
+            assert_eq!(
+                selected,
+                Selection {
+                    mode: SceneMode::Interface,
+                    page: Some(n % 3)
+                }
+            );
+            assert_eq!(keys.update(4, selected.mode, 0, 0, 27), None);
+            keys.update(0, selected.mode, 0, 0, 27);
+        }
+        assert_eq!(
+            keys.update(16, SceneMode::Interface, 0, 0, 27)
+                .unwrap()
+                .page,
+            Some(0)
+        );
     }
 }

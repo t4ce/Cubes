@@ -13,6 +13,8 @@ mod carousel;
 mod baked_materials { include!("../Cube/cube_driver_manifest.rs"); }
 mod grid;
 mod modes;
+mod cube_interface;
+mod interface_gpu;
 mod marker_lod;
 mod platform_lod;
 mod render_limits;
@@ -84,6 +86,7 @@ impl SceneMode {
         match self {
             Self::InteractiveGrid => grid::COUNT,
             Self::StaticCube => grid::CUBE_GRID_COUNT,
+            Self::Interface => 0,
             Self::Sphere => grid::SPHERE_COUNT,
             Self::Orchard => 0, // Asset-specific count is selected at runtime.
             Self::World => 0,   // Nearest visible world seeds are selected at runtime.
@@ -96,6 +99,7 @@ impl SceneMode {
         match self {
             Self::InteractiveGrid => 1,
             Self::StaticCube => 2,
+            Self::Interface => 3,
             Self::Sphere => 1,
             Self::Orchard => 4,
             Self::World => 5,
@@ -128,6 +132,9 @@ struct CubeScene {
     floor_revision: u32,
     cursors: Vec<GridCursor>,
     mode: SceneMode,
+    interface: cube_interface::Demo,
+    interface_renderer: Option<interface_gpu::Renderer>,
+    interface_cursor: Option<GridCursor>,
     carousel: carousel::Carousel,
     orchard_index: usize,
     worlds: orchard::Pages,
@@ -383,6 +390,9 @@ impl CubeScene {
             arrival_fade: None,
             window_opacity: 255,
             number_keys: ModeKeys::default(),
+            interface: cube_interface::Demo::new(),
+            interface_renderer: None,
+            interface_cursor: None,
             network: network::Client::new(device),
             image_wall: None,
             network_world: None,
@@ -404,6 +414,9 @@ impl CubeScene {
         self.previous_elapsed_millis = elapsed_millis;
         self.service_mode_hotkeys()?;
         self.service_network_world()?;
+        if self.mode == SceneMode::Interface {
+            return self.render_interface(elapsed_millis, delta_seconds);
+        }
         if self.mode == SceneMode::RenderLimits {
             self.flycam.camera.position = [0., 0., -render_limits::camera_distance(self.frame.width(), self.frame.height(), PUZZLE_YFOV)];
             self.flycam.camera.rotation = look_at_camera_rotation(self.flycam.camera.position, [0.;3], [0.,-1.,0.]);
@@ -1006,6 +1019,7 @@ impl CubeScene {
         for i in 0..scene_opaque_count {
             let (cell, basis) = self.puzzle.pose(i.min(26), turn_sin, turn_cos);
             let (translation, mut scale) = match self.mode {
+                SceneMode::Interface => (placeholder, 0.0001),
                 SceneMode::RenderLimits => {
                     let cube = self.limits.cubes[i]; (cube.center, cube.scale)
                 }
@@ -1462,6 +1476,74 @@ impl CubeScene {
         Ok(())
     }
 
+    fn render_interface(&mut self, now: u64, delta: f32) -> Result<(), CubeError> {
+        let (width, height) = (self.frame.width(), self.frame.height());
+        let def = &cube_interface::EXAMPLES[self.interface.page];
+        let camera = interface_gpu::camera(
+            width, height, self.interface.layout.width, self.interface.layout.height, def.tier,
+        );
+        self.flycam.camera = camera;
+        let retained = camera.retained(width, height, self.previous_view_projection);
+        let routes = self.frame.input_routes()
+            .map_err(|e| CubeError::Ui4("interface-routes", e))?;
+        let routed = |cursor: &GridCursor| routes.iter().any(|r| {
+            r.cursor == cursor.source && r.combo_id == cursor.combo
+                && r.vcursor == cursor.virtual_cursor && r.selected_for_window && r.application_focus
+        });
+        if self.interface_cursor.as_ref().is_some_and(|cursor| !routed(cursor)) {
+            self.interface.cancel();
+            self.interface_cursor = None;
+        }
+        let ready = self.interface_renderer.as_ref().is_some_and(|r| r.ready(self.interface.page));
+        while let Some(event) = self.frame.take_pointer_event()
+            .map_err(|e| CubeError::Ui4("interface-pointer", e))?
+        {
+            let cursor = GridCursor {
+                source: event.source, combo: event.combo_id, virtual_cursor: event.vcursor,
+                local: [event.local_x, event.local_y],
+            };
+            if !routed(&cursor) || !ready { continue; }
+            // Capture one routed pointer for a complete press/drag/release.
+            let owner = !self.interface.captured() || self.interface_cursor.as_ref().is_none_or(|c| {
+                c.source == cursor.source && c.combo == cursor.combo
+                    && c.virtual_cursor == cursor.virtual_cursor
+            });
+            if !owner { continue; }
+            // Remember the hovering pointer too, so losing its focus clears feedback.
+            self.interface_cursor = Some(cursor);
+            let point = picking::ray(
+                &retained.inverse_view_projection, event.local_x, event.local_y, width, height,
+            ).and_then(|(o, d)| interface_gpu::hit(
+                o, d, self.interface.layout.width, self.interface.layout.height, def.tier,
+            ));
+            self.interface.pointer(point, event.buttons_pressed & 1 != 0, event.buttons_down & 1 != 0, now);
+        }
+        self.interface.tick(now);
+        let renderer = self.interface_renderer.as_mut().ok_or(CubeError::Contract)?;
+        if let Err(code) = renderer.update(&self.interface) {
+            logl::log(level::WARN, format_args!("Cubes: interface texture error={code}"));
+        }
+        self.background.update(
+            background::Mode::Neutral, camera.rotation.0, delta,
+            libm::tanf(core::f32::consts::FRAC_PI_6), (width, height),
+        ).map_err(|e| CubeError::Ui4("interface-background", e))?;
+        if !renderer.ready(self.interface.page) { return Ok(()); }
+        match self.frame.begin_gpu_frame() {
+            Ok(()) => {},
+            Err(Ui4Error::Busy) => return Ok(()),
+            Err(e) => return Err(CubeError::Ui4("interface-frame", e)),
+        }
+        let surface = self.device.acquire_ui4_surface(self.frame.window_id())
+            .map_err(|c| CubeError::Vgpu("interface-surface", c))?;
+        renderer.render(self.queue, surface, &self.interface, retained)
+            .map_err(|c| CubeError::Vgpu("interface-render", c))?;
+        self.frame.publish(Damage::full(width, height))
+            .map_err(|e| CubeError::Ui4("interface-publish", e))?;
+        self.previous_view_projection = retained.view_projection;
+        self.first_frame = false;
+        Ok(())
+    }
+
     fn service_mode_hotkeys(&mut self) -> Result<(), CubeError> {
         let state = self
             .frame
@@ -1490,6 +1572,7 @@ impl CubeScene {
         let current = state.map_or(0, |keyboard| {
             (keyboard.is_down(0x1e) as u16)
                 | ((keyboard.is_down(0x1f) as u16) << 1)
+                | ((keyboard.is_down(0x20) as u16) << 2)
                 | (((keyboard.is_down(0x22) || keyboard.is_down(0x3e)) as u16) << 4)
                 | ((keyboard.is_down(0x24) as u16) << 6)
                 | ((keyboard.is_down(0x26) as u16) << 8)
@@ -1798,6 +1881,20 @@ impl CubeScene {
         self.portal_trip = None;
         self.limits.cancel_drag(); self.limits_cursor = None;
         let mode = selection.mode;
+        self.interface.cancel();
+        self.interface_cursor = None;
+        if mode == SceneMode::Interface {
+            self.interface.select(selection.page.unwrap_or(0));
+            logl::log(level::INFO, format_args!(
+                "Cubes: interface example={}", cube_interface::EXAMPLES[self.interface.page].name,
+            ));
+            if self.interface_renderer.is_none() {
+                self.interface_renderer = Some(
+                    interface_gpu::Renderer::new(self.device)
+                        .map_err(|code| CubeError::Vgpu("interface-open", code))?,
+                );
+            }
+        }
         if mode == SceneMode::World {
             self.placed_reveal.reset();
             self.portal_ready_at = self.previous_elapsed_millis + transition::PORTAL_COOLDOWN_MS;
@@ -1966,6 +2063,12 @@ impl CubeScene {
             self.flycam.camera.position = [0.0; 3];
         }
         self.set_mode_projection(mode);
+        if mode == SceneMode::Interface {
+            self.flycam.camera = interface_gpu::camera(
+                self.frame.width(), self.frame.height(), self.interface.layout.width,
+                self.interface.layout.height, cube_interface::EXAMPLES[self.interface.page].tier,
+            );
+        }
         self.previous_view_projection = self
             .flycam
             .camera
@@ -1985,6 +2088,7 @@ impl CubeScene {
                     SceneMode::Orchard => "asset-picker wheel/AD=slide/loop W/S=next/previous-group mouse=orbit LMB=confirm five-row-assets alpha=.25/.5/1/.5/.25 group-previews=above/below alpha=.5",
                     SceneMode::World =>
                         "5 lvl27-world first-person mouse-look WASD=surface-walk Shift=walk/flight-boost Space=edge-push/approach Home=align Key5=next-world R=display-cube MMB=picker/tool-off wheel=group-assets LMB=place",
+                    SceneMode::Interface => "3 custom-menu Key3=confirm/info/slider pointer=hover/press actions=preview-only",
                     SceneMode::RenderLimits => "9 render limits upper=full-geometry lower=retained-seeds click/drag=16-steps Key5=world",
                     SceneMode::MaterialShowcase =>
                         "7 mining 7 tiers x 6 materials mouse-look WASD=walk/fly Shift=boost Space=push/approach Home=align wheel=none/c1/c2/c3/c4 LMB=mine RMB=reset grid=c1",
@@ -2059,7 +2163,7 @@ impl CubeScene {
                 SceneMode::Orchard => PUZZLE_YFOV,
                 SceneMode::World => walker_camera::FOV,
                 SceneMode::MaterialShowcase => walker_camera::FOV,
-                SceneMode::RenderLimits => PUZZLE_YFOV,
+                SceneMode::RenderLimits | SceneMode::Interface => PUZZLE_YFOV,
             },
             znear: if matches!(mode, SceneMode::World | SceneMode::MaterialShowcase) {
                 walker_camera::NEAR
