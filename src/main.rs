@@ -917,7 +917,7 @@ impl CubeScene {
         let flight_cube = self.flight_target.update(target, elapsed_millis, target_cubes, &MATERIAL_PALETTE_RGBA);
         let path_cubes = if self.mode.is_world() && self.portal_trip.is_none() {
             self.flight_target.flags().and_then(|flags| self.walker_camera.as_ref()
-                .map(|c| c.path_cubes(flags, 512))).unwrap_or_default()
+                .map(|c| c.path_cubes(flags, 128))).unwrap_or_default()
         } else { Vec::new() };
         let ghost_target = if self.mode.is_world() && self.portal_trip.is_none()
             && !self.walker_camera.as_ref().is_some_and(|c| c.path_enabled()) {

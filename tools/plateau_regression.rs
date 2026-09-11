@@ -48,7 +48,7 @@ mod plateau_tests {
         }
         assert_eq!(cam.path_status(), "ready-Space-to-travel");
         assert!(cam.path_target().is_some());
-        let cubes = cam.path_cubes(0x7e02, 512);
+        let cubes = cam.path_cubes(0x7e02, 128);
         assert!(!cubes.is_empty());
         assert!(cubes.iter().all(|c| c.scale >= 0.001));
         let first = cam.pose().0;

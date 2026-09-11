@@ -89,8 +89,9 @@ The `surface-path` log reports searching, ready, travelling, unreachable or
 limited states. Retargeting, geometry edits and mode changes discard stale paths.
 Standing partway through a step/turn requires finishing it before previewing.
 
-The preview samples the actual walking trajectory, then places at most 512
-separated beveled cubes along its full length. Their material and opacity match
+The preview samples the actual walking trajectory, then places at most 128
+separated beveled cubes along its full length, with four times the original
+spacing for one quarter the cube density. Their material and opacity match
 the destination indicator. They stay above the marker-size encoding and reserve
 full geometry before world LOD admission; long routes widen their dash spacing.
 They share depth-sorted transparency with the target and world companion, and

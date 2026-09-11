@@ -154,7 +154,7 @@ pub fn dashes(
     if budget == 0 || total < 0.0001 {
         return Vec::new();
     }
-    let spacing = (scale * 5.).max(total / budget as f32);
+    let spacing = (scale * 20.).max(total / budget as f32);
     let mut next = spacing * 0.5;
     let mut walked = 0.;
     let mut cubes = Vec::new();
