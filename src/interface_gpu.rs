@@ -1,5 +1,5 @@
 //! Small tilted material panel. Texture work runs off the scene/input thread.
-use crate::cube_interface::{self, Demo, EXAMPLES};
+use crate::cube_interface::{self, Demo};
 use alloc::{sync::Arc, vec::Vec};
 use std::sync::Mutex;
 use trueos::{vgpu::*, vmedia};
@@ -233,7 +233,7 @@ impl Renderer {
         let Some(textures) = self.textures.as_ref().filter(|t| t.page == demo.page) else {
             return Ok(false);
         };
-        let tier = EXAMPLES[demo.page].tier as f32;
+        let tier = cube_interface::definition(demo.page).tier as f32;
         let scale = [
             demo.layout.width as f32 * 0.02 * tier,
             demo.layout.height as f32 * 0.02 * tier,

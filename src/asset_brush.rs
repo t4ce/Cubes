@@ -22,7 +22,7 @@ impl Brush {
             tool_active: false,
             ghost_key: None,
             ghost: Vec::new(),
-            worlds: (0..27).map(|_| Vec::new()).collect(),
+            worlds: (0..28).map(|_| Vec::new()).collect(), // 27 demo worlds + the personal plateau.
         }
     }
     pub fn confirm(&mut self, selected: usize) {

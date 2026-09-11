@@ -4,11 +4,15 @@ pub enum SceneMode {
     InteractiveGrid,
     StaticCube,
     Interface,
+    Plateau,
     Sphere,
     Orchard,
     World,
     MaterialShowcase,
     RenderLimits,
+}
+impl SceneMode {
+    pub fn is_world(self) -> bool { matches!(self, Self::World | Self::Plateau) }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -45,6 +49,8 @@ impl ModeKeys {
             SceneMode::StaticCube
         } else if pressed & 4 != 0 {
             SceneMode::Interface
+        } else if pressed & 8 != 0 {
+            SceneMode::Plateau
         } else if pressed & 16 != 0 && worlds > 0 {
             SceneMode::World
         } else if pressed & 256 != 0 {
@@ -70,7 +76,7 @@ impl ModeKeys {
             } else {
                 orchard % orchards
             }),
-            SceneMode::StaticCube => None,
+            SceneMode::StaticCube | SceneMode::Plateau => None,
             _ if current == mode => return None,
             _ => None,
         };

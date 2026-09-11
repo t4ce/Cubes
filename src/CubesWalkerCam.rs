@@ -705,6 +705,24 @@ impl CubesWalkerCam {
     pub fn pose(&self) -> (V, Q) {
         (mul(self.position, self.unit), self.rotation)
     }
+    pub fn is_flying(&self) -> bool {
+        self.fly
+    }
+    /// One chunk, no portals. Hydrate saved collision before finding the center surface.
+    pub fn plateau(bytes: &[u8], placed: &[(V, f32)]) -> Option<Self> {
+        let mut cam = Self::from_world(bytes, false);
+        cam.portals = [None; 7];
+        cam.drift_half_extent = 64.; // 512 c1 / four c1 per walker unit / two.
+        cam.position = [64.; 3];
+        if !placed.is_empty() && !cam.add_placed(placed) { return None; }
+        let hit = cam.solid.ray([0., 63., 0.], [0., -1., 0.], 128.)?;
+        cam.attach(hit);
+        cam.forward = FORWARD;
+        cam.reset_view();
+        cam.position = cam.camera_target();
+        cam.rotation = cam.view;
+        Some(cam)
+    }
     /// Cover the world from anywhere in the drift envelope, in renderer units.
     /// Its diagonal bounds eye-to-geometry distance in every view direction.
     pub fn far_plane(&self) -> f32 {

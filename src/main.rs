@@ -20,6 +20,9 @@ mod platform_lod;
 mod render_limits;
 mod pointlist;
 mod network;
+#[path = "../../TRUEOS-Blueprints/apps/cubesrv/plateau.rs"]
+mod plateau;
+mod plateau_client;
 mod slideshow;
 mod slideshow_gpu;
 mod orchard;
@@ -89,7 +92,7 @@ impl SceneMode {
             Self::Interface => 0,
             Self::Sphere => grid::SPHERE_COUNT,
             Self::Orchard => 0, // Asset-specific count is selected at runtime.
-            Self::World => 0,   // Nearest visible world seeds are selected at runtime.
+            Self::World | Self::Plateau => 0,   // Nearest visible world seeds are selected at runtime.
             Self::MaterialShowcase => grid::MATERIAL_SHOWCASE_COUNT,
             Self::RenderLimits => 0,
         }
@@ -100,6 +103,7 @@ impl SceneMode {
             Self::InteractiveGrid => 1,
             Self::StaticCube => 2,
             Self::Interface => 3,
+            Self::Plateau => 4,
             Self::Sphere => 1,
             Self::Orchard => 4,
             Self::World => 5,
@@ -164,6 +168,14 @@ struct CubeScene {
     window_opacity: u8,
     number_keys: ModeKeys,
     network: network::Client,
+    plateau_client: plateau_client::Client,
+    plateau_profile: Option<plateau::Profile>,
+    plateau_menu: bool,
+    plateau_dirty: bool,
+    plateau_save_failed: bool,
+    plateau_pending_delete: bool,
+    plateau_reset_held: bool,
+    picker_mode: SceneMode,
     image_wall: Option<slideshow_gpu::Wall>,
     network_world: Option<NetworkWorld>,
     network_singleton: bool,
@@ -394,6 +406,14 @@ impl CubeScene {
             interface_renderer: None,
             interface_cursor: None,
             network: network::Client::new(device),
+            plateau_client: plateau_client::Client::new(plateau::USERNAME),
+            plateau_profile: None,
+            plateau_menu: false,
+            plateau_dirty: false,
+            plateau_save_failed: false,
+            plateau_pending_delete: false,
+            plateau_reset_held: false,
+            picker_mode: SceneMode::World,
             image_wall: None,
             network_world: None,
             network_singleton: false,
@@ -421,7 +441,8 @@ impl CubeScene {
         self.previous_elapsed_millis = elapsed_millis;
         self.service_mode_hotkeys()?;
         self.service_network_world()?;
-        if self.mode == SceneMode::Interface {
+        self.service_plateau()?;
+        if self.mode == SceneMode::Interface || (self.mode == SceneMode::Plateau && self.plateau_menu) {
             return self.render_interface(elapsed_millis, delta_seconds);
         }
         if self.mode == SceneMode::RenderLimits {
@@ -431,7 +452,7 @@ impl CubeScene {
         // A selected Key-2 action continues after entering a world. Only its
         // exact committed quarter-turns change the portal topology.
         self.puzzle.update(elapsed_millis);
-        if self.mode == SceneMode::World {
+        if self.mode.is_world() {
             self.active_world
                 .as_mut()
                 .unwrap()
@@ -496,7 +517,7 @@ impl CubeScene {
                 }
                 self.carousel.orbit.look(event.dx as f32, event.dy as f32);
             }
-            if self.mode == SceneMode::World && self.portal_trip.is_none() {
+            if self.mode.is_world() && self.portal_trip.is_none() {
                 if event.buttons_pressed & 4 != 0 && !self.network_singleton {
                     self.toggle_asset_picker()?;
                     continue;
@@ -597,11 +618,11 @@ impl CubeScene {
             let dt = delta_seconds.clamp(0.0, 0.1);
             let ease = 1.0 - libm::expf(-10.0 * dt);
             let wasd_held = held(0x04) || held(0x07) || held(0x16) || held(0x1a);
-            if wasd_held && self.mode != SceneMode::World {
+            if wasd_held && !self.mode.is_world() {
                 self.last_camera_activity_millis = elapsed_millis;
             }
             let mut target = [0.0; 3];
-            if matches!(self.mode, SceneMode::World | SceneMode::MaterialShowcase) {
+            if matches!(self.mode, SceneMode::World | SceneMode::Plateau | SceneMode::MaterialShowcase) {
                 if let Some(camera) = self.walker_camera.as_mut() {
                     let before = camera.pose().0;
                     camera.update(
@@ -669,7 +690,7 @@ impl CubeScene {
                     libm::cosf(elevation - self.orbit[1]),
                 ) * ease;
                 target = cell.map(|x| x * self.puzzle_spacing(elapsed_millis));
-            } else if !matches!(self.mode, SceneMode::World | SceneMode::MaterialShowcase | SceneMode::Orchard | SceneMode::RenderLimits)
+            } else if !matches!(self.mode, SceneMode::World | SceneMode::Plateau | SceneMode::MaterialShowcase | SceneMode::Orchard | SceneMode::RenderLimits)
                 && self.flight.is_none()
             {
                 // The room uses a screen-down world Y convention, so reverse
@@ -713,7 +734,7 @@ impl CubeScene {
             ) {
                 self.look_target = radial.map(|v| -v);
             }
-            if !matches!(self.mode, SceneMode::World | SceneMode::MaterialShowcase | SceneMode::Orchard | SceneMode::RenderLimits)
+            if !matches!(self.mode, SceneMode::World | SceneMode::Plateau | SceneMode::MaterialShowcase | SceneMode::Orchard | SceneMode::RenderLimits)
                 && self.flight.is_none()
             {
                 self.flycam.camera.rotation =
@@ -851,7 +872,7 @@ impl CubeScene {
                 (width, height),
             )
             .map_err(|error| CubeError::Ui4("background-update", error))?;
-        if self.network_singleton && self.mode == SceneMode::World {
+        if self.network_singleton && self.mode.is_world() {
             match self.frame.begin_gpu_frame() {
                 Ok(()) => {},
                 Err(Ui4Error::Busy) => return Ok(()),
@@ -880,7 +901,7 @@ impl CubeScene {
         } else {
             0
         };
-        let ghost_target = if self.mode == SceneMode::World && self.portal_trip.is_none() {
+        let ghost_target = if self.mode.is_world() && self.portal_trip.is_none() {
             self.walker_camera
                 .as_ref()
                 .and_then(|c| c.placement_target())
@@ -889,13 +910,13 @@ impl CubeScene {
         };
         self.asset_brush.update_preview_with(ghost_target, |point, normal|
             self.carousel.placement(point, normal, rubik::MATERIAL_SHOWCASE_FLAG));
-        let ghost_count = if self.mode == SceneMode::World { self.asset_brush.ghost.len().min(asset_brush::GHOST_SEEDS) } else { 0 };
+        let ghost_count = if self.mode.is_world() { self.asset_brush.ghost.len().min(asset_brush::GHOST_SEEDS) } else { 0 };
         let (detail_budget, solid_capacity) = self.limits.scene_budget(
             preview_count + if companion { 27 } else { 0 },
             preview_count + ghost_count + if companion { world_cube::SEEDS } else { 0 },
         );
-        if self.mode == SceneMode::World {
-            let metadata = if platform_lod::ENABLED && !self.network_singleton {
+        if self.mode.is_world() {
+            let metadata = if platform_lod::ENABLED && self.mode == SceneMode::World && !self.network_singleton {
                 Some(&WORLD_PLATFORM_HULLS[self.world_index])
             } else { None };
             self.platform_view.prepare(&self.active_world.as_ref().unwrap().scene, metadata, self.flycam.camera.position);
@@ -913,9 +934,11 @@ impl CubeScene {
                 (ids, Some(stats))
             }
             SceneMode::Orchard => (&[][..], None),
-            SceneMode::World => {
+            SceneMode::World | SceneMode::Plateau => {
                 let asset = self.platform_view.asset(&self.active_world.as_ref().unwrap().scene);
-                let base = if self.network_singleton {
+                let base = if self.mode == SceneMode::Plateau {
+                    self.plateau_base_count()
+                } else if self.network_singleton {
                     self.network_world
                         .as_ref()
                         .map_or(0, |world| world.asset.cubes.len())
@@ -949,7 +972,7 @@ impl CubeScene {
             }
             _ => (&[][..], None),
         };
-        if self.mode == SceneMode::World {
+        if self.mode.is_world() {
             let source = &self.platform_view.asset(&self.active_world.as_ref().unwrap().scene).cubes;
             let base = self.active_world.as_ref().unwrap().scene.cubes.len() - self.asset_brush.worlds[self.world_index].len();
             self.world_markers.prepare_with_solids(
@@ -977,11 +1000,11 @@ impl CubeScene {
             .map_err(|code| CubeError::Vgpu("surface-acquire", code))?;
         let scene_opaque_count = if matches!(
             self.mode,
-            SceneMode::Orchard | SceneMode::World | SceneMode::MaterialShowcase | SceneMode::RenderLimits
+            SceneMode::Orchard | SceneMode::World | SceneMode::Plateau | SceneMode::MaterialShowcase | SceneMode::RenderLimits
         ) {
             // The asset preview already keeps the retained group nonempty in
             // World mode. Do not add a black placeholder to an empty view.
-            let count = if self.mode == SceneMode::World {
+            let count = if self.mode.is_world() {
                 self.world_markers.cubes.len()
             } else if self.mode == SceneMode::Orchard {
                 self.carousel.drawn.len()
@@ -1032,7 +1055,7 @@ impl CubeScene {
                 }
                 SceneMode::Orchard => self.carousel.drawn.get(i)
                     .map_or((placeholder, 0.0001), |draw| (draw.cube.center, draw.cube.scale)),
-                SceneMode::World => {
+                SceneMode::World | SceneMode::Plateau => {
                     self.world_markers.cubes.get(i)
                         .map_or((placeholder, 0.0001), |cube| (cube.center, cube.scale))
                 }
@@ -1108,9 +1131,9 @@ impl CubeScene {
                 scale: [scale; 3],
                 rotation: if self.mode == SceneMode::StaticCube {
                     quaternion_from_rotation_columns(basis[0], basis[1], basis[2]).0
-                } else if self.mode == SceneMode::World && scale < 0.001 {
+                } else if self.mode.is_world() && scale < 0.001 {
                     self.flycam.camera.rotation.0
-                } else if matches!(self.mode, SceneMode::World | SceneMode::MaterialShowcase) {
+                } else if matches!(self.mode, SceneMode::World | SceneMode::Plateau | SceneMode::MaterialShowcase) {
                     orchard::WORLD_ROTATION
                 } else {
                     [0.0, 0.0, 0.0, 1.0]
@@ -1134,7 +1157,7 @@ impl CubeScene {
                             let index=baked_materials::CAROUSEL_COLORS.binary_search(&rgb).unwrap();
                             carousel::FLAGS | index as u32 | (draw.opacity << 10)
                         })
-                    } else if self.mode == SceneMode::World {
+                    } else if self.mode.is_world() {
                         self.world_markers.cubes.get(i)
                             .map_or(orchard::CUSTOM_RGB555, |cube| cube.flags)
                     } else if self.mode == SceneMode::Sphere {
@@ -1280,8 +1303,11 @@ impl CubeScene {
             &seed_bytes[..seed_count * 64],
         )
         .map_err(|code| CubeError::Vgpu("grid-seed-upload", code))?;
-        let outline = if matches!(self.mode, SceneMode::World | SceneMode::MaterialShowcase) {
-            self.walker_camera.as_ref().and_then(|c| c.snap_outline())
+        let outline = if matches!(self.mode, SceneMode::World | SceneMode::Plateau | SceneMode::MaterialShowcase) {
+            self.walker_camera
+                .as_ref()
+                .filter(|c| !self.mode.is_world() || c.is_flying())
+                .and_then(|c| c.snap_outline())
         } else { None };
         let (floor_bytes, line_color) = if self.mode == SceneMode::MaterialShowcase {
             let target = self.mining.target_details(
@@ -1307,7 +1333,7 @@ impl CubeScene {
                 [100, 100, 100, 255],
             )
         };
-        let interaction_mode = matches!(self.mode, SceneMode::World | SceneMode::MaterialShowcase);
+        let interaction_mode = matches!(self.mode, SceneMode::World | SceneMode::Plateau | SceneMode::MaterialShowcase);
         let guide_quads = if interaction_mode {
             interaction_overlay::strokes(&floor_bytes, width, height, line_color)
         } else { Vec::new() };
@@ -1464,7 +1490,7 @@ impl CubeScene {
                     outline.is_some(), guide_quads.len()
                 ));
             }
-            if self.mode == SceneMode::World {
+            if self.mode.is_world() {
                 if let Some((platforms, detailed)) = self.platform_view.counts() {
                     let source = &self.active_world.as_ref().unwrap().scene;
                     logl::log(level::INFO, format_args!(
@@ -1485,7 +1511,7 @@ impl CubeScene {
 
     fn render_interface(&mut self, now: u64, delta: f32) -> Result<(), CubeError> {
         let (width, height) = (self.frame.width(), self.frame.height());
-        let def = &cube_interface::EXAMPLES[self.interface.page];
+        let def = cube_interface::definition(self.interface.page);
         let camera = interface_gpu::camera(
             width, height, self.interface.layout.width, self.interface.layout.height, def.tier,
         );
@@ -1524,6 +1550,14 @@ impl CubeScene {
                 o, d, self.interface.layout.width, self.interface.layout.height, def.tier,
             ));
             self.interface.pointer(point, event.buttons_pressed & 1 != 0, event.buttons_down & 1 != 0, now);
+        }
+        if let Some(widget) = self.interface.take_activation() {
+            if self.mode == SceneMode::Plateau && self.interface.page == cube_interface::PLATEAU_THEME
+                && (1..=6).contains(&widget)
+                && self.plateau_client.request(plateau_client::Command::Create(widget as u8))
+            {
+                self.show_plateau_menu(cube_interface::PLATEAU_LOADING)?;
+            }
         }
         self.interface.tick(now);
         let renderer = self.interface_renderer.as_mut().ok_or(CubeError::Contract)?;
@@ -1579,10 +1613,20 @@ impl CubeScene {
             self.flycam.camera.position,
             self.flycam.camera.rotation.rotate([0.0, 0.0, -1.0]),
         );
+        let reset = state.as_ref().is_some_and(|k| k.is_down(0x27));
+        if reset && !self.plateau_reset_held
+            && (self.mode == SceneMode::Plateau || (self.picker_camera.is_some() && self.picker_mode == SceneMode::Plateau))
+        {
+            self.restore_picker_world()?;
+            self.plateau_pending_delete = true;
+            self.show_plateau_menu(cube_interface::PLATEAU_LOADING)?;
+        }
+        self.plateau_reset_held = reset;
         let current = state.map_or(0, |keyboard| {
             (keyboard.is_down(0x1e) as u16)
                 | ((keyboard.is_down(0x1f) as u16) << 1)
                 | ((keyboard.is_down(0x20) as u16) << 2)
+                | ((keyboard.is_down(0x21) as u16) << 3)
                 | (((keyboard.is_down(0x22) || keyboard.is_down(0x3e)) as u16) << 4)
                 | ((keyboard.is_down(0x24) as u16) << 6)
                 | ((keyboard.is_down(0x26) as u16) << 8)
@@ -1682,6 +1726,7 @@ impl CubeScene {
     fn open_asset_picker(&mut self) -> Result<(), CubeError> {
         self.carousel.select_item(self.carousel.group, self.carousel.selected).map_err(|_| CubeError::Contract)?;
         self.picker_camera = Some(self.flycam);
+        self.picker_mode = self.mode;
         self.mode = SceneMode::Orchard;
         self.set_mode_projection(self.mode);
         self.cursors.clear();
@@ -1694,7 +1739,7 @@ impl CubeScene {
     fn restore_picker_world(&mut self) -> Result<(), CubeError> {
         let Some(camera) = self.picker_camera.take() else { return Ok(()); };
         self.flycam = camera;
-        self.mode = SceneMode::World;
+        self.mode = self.picker_mode;
         self.set_mode_projection(self.mode);
         self.previous_view_projection = self.flycam.camera.retained(self.frame.width(), self.frame.height(), [0.;16]).view_projection;
         self.cursors.clear();
@@ -1731,6 +1776,7 @@ impl CubeScene {
             .cubes
             .extend_from_slice(&placed);
         stored.extend(placed);
+        if self.mode == SceneMode::Plateau { self.plateau_dirty = true; }
         self.placed_reveal.append(stored.len());
         self.world_markers.set_bounds(&self.active_world.as_ref().unwrap().scene.cubes);
         Ok(())
@@ -1912,6 +1958,7 @@ impl CubeScene {
         match mode {
             SceneMode::Orchard => self.orchard_index = selection.page.unwrap(),
             SceneMode::World => self.world_index = selection.page.unwrap(),
+            SceneMode::Plateau => self.world_index = 27,
             _ => {}
         }
         if mode == SceneMode::Orchard {
@@ -1920,12 +1967,12 @@ impl CubeScene {
         if mode == SceneMode::World {
             self.worlds.load_world(self.world_index).map_err(|_| CubeError::Contract)?;
         }
-        if mode != SceneMode::World && self.mode != SceneMode::World {
+        if !mode.is_world() && !self.mode.is_world() {
             self.demo_camera = None;
         }
-        if mode == SceneMode::World && self.mode != SceneMode::World && self.demo_camera.is_none() {
+        if mode.is_world() && !self.mode.is_world() && self.demo_camera.is_none() {
             self.demo_camera = Some(self.flycam);
-        } else if mode != SceneMode::World && self.mode == SceneMode::World {
+        } else if !mode.is_world() && self.mode.is_world() {
             self.walker_camera = None;
             if let Some(camera) = self.demo_camera.take() {
                 self.flycam = camera;
@@ -1941,7 +1988,7 @@ impl CubeScene {
         self.frame
             .set_center_snapped_mouse(matches!(
                 mode,
-                SceneMode::World | SceneMode::MaterialShowcase | SceneMode::Orchard
+                SceneMode::World | SceneMode::Plateau | SceneMode::MaterialShowcase | SceneMode::Orchard
             ))
             .map_err(|error| CubeError::Ui4("center-snapped-mouse", error))?;
         if mode == SceneMode::StaticCube {
@@ -2069,6 +2116,13 @@ impl CubeScene {
                     }
                 ),
             );
+        } else if mode == SceneMode::Plateau {
+            self.asset_brush.disable();
+            self.show_plateau_menu(cube_interface::PLATEAU_LOADING)?;
+            self.plateau_save_failed = false;
+            if !self.plateau_dirty && !self.plateau_pending_delete {
+                self.plateau_client.request(plateau_client::Command::Load);
+            }
         } else if mode != SceneMode::StaticCube {
             self.flycam.camera.position = [0.0; 3];
         }
@@ -2076,7 +2130,7 @@ impl CubeScene {
         if mode == SceneMode::Interface {
             self.flycam.camera = interface_gpu::camera(
                 self.frame.width(), self.frame.height(), self.interface.layout.width,
-                self.interface.layout.height, cube_interface::EXAMPLES[self.interface.page].tier,
+                self.interface.layout.height, cube_interface::definition(self.interface.page).tier,
             );
         }
         self.previous_view_projection = self
@@ -2098,6 +2152,7 @@ impl CubeScene {
                     SceneMode::Orchard => "asset-picker wheel/AD=slide/loop W/S=next/previous-group mouse=orbit LMB=confirm five-row-assets alpha=.25/.5/1/.5/.25 group-previews=above/below alpha=.5",
                     SceneMode::World =>
                         "5 lvl27-world first-person mouse-look WASD=surface-walk Shift=walk/flight-boost Space=edge-push/approach Home=align Key5=next-world R=display-cube MMB=picker/tool-off wheel=group-assets LMB=place",
+                    SceneMode::Plateau => "4 custom-plateau username=t4ce MMB=picker/tool-off LMB=place Key0=delete-profile",
                     SceneMode::Interface => "3 custom-menu Key3=confirm/info/slider pointer=hover/press actions=preview-only",
                     SceneMode::RenderLimits => "9 render limits upper=full-geometry lower=retained-seeds click/drag=16-steps Key5=world",
                     SceneMode::MaterialShowcase =>
@@ -2105,7 +2160,7 @@ impl CubeScene {
                 },
                 if mode == SceneMode::Orchard {
                     self.carousel.drawn.len()
-                } else if mode == SceneMode::World {
+                } else if mode.is_world() {
                     self.active_world
                         .as_ref()
                         .map_or(0, |world| world.scene.cubes.len())
@@ -2149,7 +2204,7 @@ impl CubeScene {
 
     fn set_mode_projection(&mut self, mode: SceneMode) {
         let zfar = match mode {
-            SceneMode::World | SceneMode::MaterialShowcase => self
+            SceneMode::World | SceneMode::Plateau | SceneMode::MaterialShowcase => self
                 .walker_camera
                 .as_ref()
                 .map_or(100., walker_camera::CubesWalkerCam::far_plane),
@@ -2171,11 +2226,11 @@ impl CubeScene {
                 SceneMode::StaticCube => PUZZLE_YFOV,
                 SceneMode::Sphere => ROOM_YFOV,
                 SceneMode::Orchard => PUZZLE_YFOV,
-                SceneMode::World => walker_camera::FOV,
+                SceneMode::World | SceneMode::Plateau => walker_camera::FOV,
                 SceneMode::MaterialShowcase => walker_camera::FOV,
                 SceneMode::RenderLimits | SceneMode::Interface => PUZZLE_YFOV,
             },
-            znear: if matches!(mode, SceneMode::World | SceneMode::MaterialShowcase) {
+            znear: if matches!(mode, SceneMode::World | SceneMode::Plateau | SceneMode::MaterialShowcase) {
                 walker_camera::NEAR
             } else {
                 0.1

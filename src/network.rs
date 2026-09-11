@@ -253,6 +253,9 @@ async fn stream(
             }
             (s.position, s.orientation)
         };
+        let mut hello = vec![27];
+        hello.extend_from_slice(b"t4ce");
+        socket.send(&packet(1, &hello)).await.map_err(|_| "cubesrv username")?;
         sequence = sequence.wrapping_add(1);
         let mut body = sequence.to_le_bytes().to_vec();
         body.push(27); // Single shared session; the server chooses the slide.

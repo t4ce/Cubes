@@ -27,6 +27,25 @@ pub struct Definition {
     pub initial: State,
 }
 include!(concat!(env!("OUT_DIR"), "/interface_examples.rs"));
+pub const PLATEAU_LOADING: usize = 3;
+pub const PLATEAU_THEME: usize = 4;
+pub const PLATEAU_ERROR: usize = 5;
+const PAGE_COUNT: usize = 6;
+const PLATEAU_PAGES: [Definition; 3] = [
+    Definition { name: "plateau-loading", title: "CUSTOM PLATEAU", text: "Loading your profile...", theme: 0, tier: 1,
+        buttons: &[], controls: [false; 4], initial: State { progress: 0, count: 0, enabled: false, checked: false } },
+    Definition { name: "plateau-theme", title: "CUSTOM PLATEAU", text: "Choose your terrace colour once.\nOne personal plateau. Your space.", theme: 0, tier: 1,
+        buttons: &[
+            Button { mode: 0, icon: 0, text: "SKY" }, Button { mode: 0, icon: 0, text: "GROUND" },
+            Button { mode: 0, icon: 0, text: "BLACK" }, Button { mode: 0, icon: 0, text: "WHITE" },
+            Button { mode: 0, icon: 0, text: "ISLAND" }, Button { mode: 0, icon: 0, text: "CITY" },
+        ], controls: [false; 4], initial: State { progress: 0, count: 0, enabled: false, checked: false } },
+    Definition { name: "plateau-error", title: "CUSTOM PLATEAU", text: "Profile request did not complete.\nKey4: retry. Key5: leave.\nDetails are in the Cubes log.", theme: 0, tier: 1,
+        buttons: &[], controls: [false; 4], initial: State { progress: 0, count: 0, enabled: false, checked: false } },
+];
+pub fn definition(page: usize) -> &'static Definition {
+    if page < EXAMPLES.len() { &EXAMPLES[page] } else { &PLATEAU_PAGES[page - EXAMPLES.len()] }
+}
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Action {
     Noop,
@@ -199,17 +218,18 @@ pub fn layout(def: &Definition, state: State) -> Layout {
 }
 pub struct Demo {
     pub page: usize,
-    pub states: [State; 3],
+    pub states: [State; PAGE_COUNT],
     pub layout: Layout,
     pub revision: u64,
     pub hover: Option<usize>,
     pub pressed: Option<usize>,
     capture: Option<usize>,
     pulse_until: u64,
+    activated: Option<usize>,
 }
 impl Demo {
     pub fn new() -> Self {
-        let states = core::array::from_fn(|i| EXAMPLES[i].initial);
+        let states = core::array::from_fn(|i| definition(i).initial);
         Self {
             page: 0,
             layout: layout(&EXAMPLES[0], states[0]),
@@ -219,10 +239,11 @@ impl Demo {
             pressed: None,
             capture: None,
             pulse_until: 0,
+            activated: None,
         }
     }
     pub fn select(&mut self, page: usize) {
-        self.page = page % EXAMPLES.len();
+        self.page = page % PAGE_COUNT;
         self.cancel();
         self.rebuild();
     }
@@ -231,13 +252,15 @@ impl Demo {
         self.pressed = None;
         self.capture = None;
         self.pulse_until = 0;
+        self.activated = None;
         self.revision += 1;
     }
     pub fn captured(&self) -> bool {
         self.capture.is_some()
     }
+    pub fn take_activation(&mut self) -> Option<usize> { self.activated.take() }
     fn rebuild(&mut self) {
-        self.layout = layout(&EXAMPLES[self.page], self.states[self.page]);
+        self.layout = layout(definition(self.page), self.states[self.page]);
         self.revision += 1;
     }
     pub fn tick(&mut self, now: u64) {
@@ -282,6 +305,7 @@ impl Demo {
             }
             if !down {
                 if hit == Some(id) {
+                    self.activated = Some(id);
                     let state = &mut self.states[self.page];
                     match self.layout.widgets[id].action {
                         Action::Checkbox => state.checked = !state.checked,
@@ -299,7 +323,7 @@ impl Demo {
     }
     pub fn raster(&self) -> Canvas {
         raster(
-            &EXAMPLES[self.page],
+            definition(self.page),
             self.states[self.page],
             &self.layout,
             self.hover,
