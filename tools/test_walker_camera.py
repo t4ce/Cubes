@@ -19,6 +19,7 @@ pub fn floorf(x:f32)->f32 {x.floor()}
 pub fn roundf(x:f32)->f32 {x.round()}
 pub fn ceilf(x:f32)->f32 {x.ceil()}
 '''
+source += f'#[path="{APP}/src/slideshow.rs"] mod slideshow;\n'
 source += f'#[path="{APP}/src/orchard.rs"] mod orchard;\n'
 source += f'#[path="{APP}/src/asset_brush.rs"] mod asset_brush;\n'
 source += f'#[path="{APP}/src/cube_format.rs"] mod cube_format;\n'

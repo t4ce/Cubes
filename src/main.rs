@@ -18,6 +18,7 @@ mod platform_lod;
 mod render_limits;
 mod pointlist;
 mod network;
+mod slideshow;
 mod orchard;
 #[path = "SubCubes.rs"]
 mod subcubes;
@@ -166,6 +167,7 @@ struct CubeScene {
 }
 
 struct NetworkWorld {
+    session: u64,
     bytes: Vec<u8>,
     asset: orchard::Asset,
 }
@@ -897,7 +899,7 @@ impl CubeScene {
                             return None;
                         }
                         let distance_squared = asset_brush::lod_distance_squared(cube.center, eye, &camera.view);
-                        Some(rank < detail_budget && (self.platform_view.solid(id) || (placed.is_none_or(|id| self.placed_reveal.settled(id))
+                        Some(rank < detail_budget && ((self.network_singleton || self.platform_view.solid(id)) || (placed.is_none_or(|id| self.placed_reveal.settled(id))
                             && asset_brush::detailed_with_budget(rank, cube, distance_squared, projection_y, height, detail_budget))))
                     },
                 );
@@ -921,7 +923,7 @@ impl CubeScene {
                     self.platform_view.source_id(id).filter(|&source| source >= base)
                         .map_or(1., |source| self.placed_reveal.growth_scale(source - base))
                 },
-                |id| self.platform_view.solid(id),
+                |id| self.network_singleton || self.platform_view.solid(id),
             );
 
         }
@@ -1478,6 +1480,7 @@ impl CubeScene {
             self.carousel.group_count(),
             self.worlds.len(),
         ) {
+            self.network.disconnect();
             self.network_singleton = false;
             self.network_world = None;
             if self.portal_trip.is_some() {
@@ -1506,41 +1509,41 @@ impl CubeScene {
         let Some(result) = self.network.take_ready() else {
             return Ok(());
         };
-        let bytes = match result {
-            Ok(bytes) => bytes,
+        let slide = match result {
+            Ok(slide) => slide,
             Err(error) => {
                 logl::log(level::INFO, format_args!("Cubes: Key8 cubesrv {error}"));
                 return Ok(());
             }
         };
-        let mut asset =
-            orchard::decode(WORLD_ASSETS[world_topology::VOID].0, &bytes).map_err(|error| {
-                logl::log(
-                    level::WARN,
-                    format_args!("Cubes: Key8 cubesrv world rejected={error}"),
-                );
-                CubeError::Contract
-            })?;
-        for cube in &mut asset.cubes {
-            cube.center = orchard::world_from_demo(cube.center);
-        }
-        logl::log(
-            level::INFO,
-            format_args!(
-                "Cubes: Key8 cubesrv connected world=27 bytes={} cubes={}",
-                bytes.len(),
-                asset.cubes.len()
-            ),
-        );
-        self.network_world = Some(NetworkWorld { bytes, asset });
+        let first = self.network_world.as_ref().is_none_or(|world| world.session != slide.session);
+        let asset = slideshow::asset(&slide.rgb, WORLD_ASSETS[world_topology::VOID].0)
+            .map_err(|_| CubeError::Contract)?;
+        logl::log(level::INFO, format_args!("Cubes: slideshow revision={} cubes={}", slide.revision, asset.cubes.len()));
+        // An empty record stream gives the existing world scene no portal pieces.
+        let mut bytes = vec![0u8; 16];
+        bytes[12..16].copy_from_slice(&subcubes::C1.to_le_bytes());
+        self.network_world = Some(NetworkWorld { session: slide.session, bytes, asset });
         self.network_singleton = true;
-        self.select_mode(
-            modes::Selection {
-                mode: SceneMode::World,
-                page: Some(world_topology::VOID),
-            },
-            None,
-        )
+        if first {
+            self.select_mode(modes::Selection {
+                mode: SceneMode::World, page: Some(world_topology::VOID),
+            }, None)?;
+            let camera = self.walker_camera.as_mut().unwrap();
+            camera.server_spawn(slide.spawn);
+            let (position, rotation) = camera.pose();
+            self.flycam.camera.position = position;
+            self.flycam.camera.rotation = rotation;
+            self.previous_view_projection = self.flycam.camera.retained(
+                self.frame.width(), self.frame.height(), [0.; 16]).view_projection;
+        } else {
+            let network = self.network_world.as_ref().unwrap();
+            let mut scene = world_portals::World::new(self.world_index, &network.asset, &network.bytes, &self.puzzle);
+            scene.scene.cubes.extend_from_slice(&self.asset_brush.worlds[self.world_index]);
+            self.active_world = Some(scene);
+            self.world_markers.set_bounds(&self.active_world.as_ref().unwrap().scene.cubes);
+        }
+        Ok(())
     }
 
     fn toggle_asset_picker(&mut self) -> Result<(), CubeError> {
@@ -1864,10 +1867,7 @@ impl CubeScene {
                 )
             };
             let mut camera = if self.network_singleton {
-                walker_camera::CubesWalkerCam::from_world(
-                    world_bytes,
-                    self.world_index == world_topology::VOID,
-                )
+                walker_camera::CubesWalkerCam::slideshow(&asset.cubes)
             } else {
                 walker_camera::CubesWalkerCam::from_portal(
                     world_bytes,

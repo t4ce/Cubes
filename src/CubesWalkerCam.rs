@@ -595,6 +595,45 @@ impl CubesWalkerCam {
             }
         }
     }
+    /// A stationary image wall uses the normal flight/walking controls.
+    pub fn slideshow(cubes: &[crate::orchard::Cube]) -> Self {
+        let mut cam = Self::mining_demo(&[]);
+        cam.unit = 0.8;
+        cam.drift_half_extent = 512.;
+        let mut lo = [i32::MAX; 3];
+        let mut hi = [i32::MIN; 3];
+        for cube in cubes {
+            for a in 0..3 {
+                lo[a] = lo[a].min(libm::floorf((cube.center[a] - cube.scale) / cam.unit) as i32);
+                hi[a] = hi[a].max(libm::ceilf((cube.center[a] + cube.scale) / cam.unit) as i32);
+            }
+        }
+        cam.solid = Solid::new(lo, hi);
+        cam.cubes.clear();
+        for cube in cubes {
+            let size = libm::roundf(cube.scale * 2. / cam.unit);
+            let lo = cube.center.map(|v| v / cam.unit - size * 0.5);
+            Self::insert_bounds(&mut cam.solid, lo, size);
+            cam.cubes.push(CubeBounds { lo, size, gap: size - cube.scale * 2. / cam.unit });
+        }
+        cam.server_spawn([0.; 3]);
+        cam
+    }
+    pub fn server_spawn(&mut self, position: V) {
+        self.position = mul(position, 1. / self.unit);
+        self.foot = self.position;
+        self.up = UP;
+        self.forward = FORWARD;
+        self.pitch = 0.;
+        self.roll = 0.;
+        self.fly = true;
+        self.view = Q::IDENTITY;
+        self.rotation = self.view;
+        self.turn = None;
+        self.elevation = None;
+        self.push_off = None;
+        self.approach = None;
+    }
     pub fn mining_demo(blocks: &[crate::subcubes::Block]) -> Self {
         let mut bytes = [0u8; 28];
         bytes[10] = 1;
