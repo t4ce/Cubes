@@ -15,9 +15,11 @@ const FORWARD: V = [0., 0., -1.];
 const SKIN: f32 = 0.025;
 // Leave enough tolerance for f32 operations across the full world lattice.
 const EPS: f32 = 1e-4;
-const EYE: f32 = 0.75;
+// Slightly higher surface viewpoint; shared with landing/headroom checks.
+const EYE: f32 = 0.825;
 const EDGE_TRAVEL: f32 = 1.8;
-pub const FOV: f32 = core::f32::consts::FRAC_PI_4;
+// 7.5% narrower than the original 45-degree walker view.
+pub const FOV: f32 = core::f32::consts::FRAC_PI_4 * 0.925;
 pub const NEAR: f32 = 0.01;
 
 fn add(a: V, b: V) -> V {

@@ -36,8 +36,8 @@ The trigger tests a crossing of the opening, not contact with its decorative rin
 - Home: align the view to the current surface. R retains the world-cube control.
 
 Camera behavior is owned by Cubes; world imports contain only `.cubes` geometry
-and material records. Settings: 45-degree FOV, 0.003 rad/pixel look,
-0.75-voxel eye height, 14.5/29 voxels per second walking (normal/Shift), 1.8-voxel quarter-turn
+and material records. Settings: 41.625-degree FOV (7.5% narrower), 0.003 rad/pixel look,
+0.825-voxel eye height (10% higher), 14.5/29 voxels per second walking (normal/Shift), 1.8-voxel quarter-turn
 travel, 100% camera assist, 45-degree soft perch, and exponential camera smoothing.
 Stop to hold an edge, reverse to return, or move sideways along it. A one-cell
 step is traversed automatically; larger walls become walkable faces. At a

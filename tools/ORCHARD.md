@@ -1,6 +1,6 @@
-> Key4 now runs the [five-slot asset carousel](CAROUSEL.md). The grid/orbit
+> World middle-click opens the [asset picker](CAROUSEL.md); Key4 is unassigned. The grid/orbit
 > descriptions below document the retained visibility helpers and their regression
-> fixtures, not the active Key4 presentation.
+> fixtures, not the active picker presentation.
 
 # Key 4: compact opaque cube assets
 

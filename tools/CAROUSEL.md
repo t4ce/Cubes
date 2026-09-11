@@ -1,14 +1,16 @@
-# Key4 asset carousel
+# World asset picker
 
-Key5 remains the world view. Key4 selects the next generator group; the wheel
-slides through that group's circular list. A/D step backward/forward through assets;
+Middle-click in Key5 with the placement tool off opens this picker. Left-click
+confirms the centred asset and returns to the same live world and camera.
+Key4 is unassigned. The wheel slides through the current group's circular list.
+A/D step backward/forward through assets;
 W/S step to the next/previous group, wrapping once per press. Seven asset instances are kept live. The five horizontal slots keep:
 centre opacity 1, immediate neighbours .5, outer neighbours .25. Short groups
 repeat assets to fill all five horizontal slots. Two fixed previews sit above
 and below the centre, each at 50% opacity: above shows the first asset of the W
 (next) group, below the first asset of the S (previous) group, including wraparound
 and the Key7 cube group. A/D and the wheel leave their selection, position and
-reveal state unchanged. W/S or Key4 refresh them for the newly selected group. Mouse movement orbits the centred selection
+reveal state unchanged. W/S refresh them for the newly selected group. Mouse movement orbits the centred selection
 with pitch limited to avoid the poles. The camera radius is two-thirds of the
 previous distance, with a minimum distance that fits the vertical previews, and adapts to viewport aspect ratio; the closer view can crop
 the outer slots. Group changes preserve the orbit. Slides take 333 ms.
@@ -23,7 +25,7 @@ No generator camera or animation controller is imported into Cubes.
 One additional runtime group, `Key7 cubes: 7 sizes x 6 materials`, follows the
 exported groups. Its 42 entries come directly from `SubCubes::Demo`, each once
 per loop. These single cubes retain their Key7 scale and palette material finish;
-they do not use the asset fit-to-box normalization. Key4 and W/S include this
+they do not use the asset fit-to-box normalization. W/S includes this
 group; wheel and A/D browse its cubes with the same five-slot opacity and frame.
 
 Each asset is centered in its slot and uniformly fitted to a 2.4-unit box.
@@ -57,11 +59,17 @@ shader now needs a 40 KiB state slot including its descriptor page.
 Within the carousel path, bit 12 selects the shared Key7 material instead of
 an RGB555 palette entry; bits 0–2 then carry the material index.
 
+The picker remembers the last group and asset, including changes made with the
+world wheel. Middle-click with the tool active disables placement; the following
+middle-click reopens the picker. Entering and leaving the picker preserves the
+world, walker, placed cubes and placement reveal progress.
+
 Checks:
 
 ```sh
 node tools/export_asset_groups.cjs --check
 python3 tools/test_carousel.py
+python3 tools/test_asset_picker.py
 python3 tools/test_bake_patch_cube.py
 python3 tools/test_camera_sun.py
 python3 tools/test_patch_overlay.py

@@ -17,7 +17,7 @@ before admitting world cubes. Full-cube allocation is also constrained by the
 available seed slots. Platform hull/detail requests cannot bypass the geometry
 cap; excess world cubes use the existing marker reduction. The frustum,
 occlusion and distance rules remain active. Key1 expansion obeys the geometry
-cap; Key7 limits visible geometry. Key4 keeps the closest geometry within both
+cap; Key7 limits visible geometry. The asset picker keeps the closest geometry within both
 caps and preserves its existing growth state for later restoration.
 
 Both caps apply to the Cubes foreground retained scene. The circle background,
