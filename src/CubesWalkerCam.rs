@@ -595,6 +595,15 @@ impl CubesWalkerCam {
             }
         }
     }
+    pub fn image_wall() -> Self {
+        // Coarse collision-only c12 tiles. The PBR renderer uses one flat panel.
+        let mut cubes = Vec::with_capacity(3600);
+        for y in 0..60 { for x in 0..60 {
+            cubes.push(crate::orchard::Cube { center: [(x as f32+0.5)*2.4-72.,
+                72.-(y as f32+0.5)*2.4, -241.2], scale: 1.2, flags: 0 });
+        } }
+        Self::slideshow(&cubes)
+    }
     /// A stationary image wall uses the normal flight/walking controls.
     pub fn slideshow(cubes: &[crate::orchard::Cube]) -> Self {
         let mut cam = Self::mining_demo(&[]);
@@ -612,7 +621,7 @@ impl CubesWalkerCam {
         cam.cubes.clear();
         for cube in cubes {
             let size = libm::roundf(cube.scale * 2. / cam.unit);
-            let lo = cube.center.map(|v| v / cam.unit - size * 0.5);
+            let lo = cube.center.map(|v| libm::roundf(v / cam.unit - size * 0.5));
             Self::insert_bounds(&mut cam.solid, lo, size);
             cam.cubes.push(CubeBounds { lo, size, gap: size - cube.scale * 2. / cam.unit });
         }
@@ -1901,5 +1910,20 @@ mod tests {
                 crate::subcubes::walkable(side)
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod image_wall_tests {
+    use super::*;
+    #[test]
+    fn wall_collision_matches_the_visible_plane_and_spawn() {
+        let camera = CubesWalkerCam::image_wall();
+        assert_eq!(camera.pose().0, [0.; 3]);
+        assert_eq!(camera.pose().1.rotate(FORWARD), FORWARD);
+        assert!(camera.far_plane() > 240.);
+        assert!(camera.cubes.iter().all(|c| ((c.lo[2]+c.size)*camera.unit+240.).abs()<0.001));
+        assert_eq!(camera.solid.fine.len(), 0);
+        assert!(camera.portals.iter().all(Option::is_none));
     }
 }

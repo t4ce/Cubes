@@ -14,28 +14,40 @@ const CHUNK_BYTES: usize = 1024;
 const MAX_ENCODED_BYTES: usize = 4 * 1024 * 1024;
 const WINDOW: usize = 32;
 
+pub struct BevelMaps {
+    pub normal: vmedia::RetainedTexture,
+    pub occlusion: vmedia::RetainedTexture,
+}
+
 pub struct Slide {
     pub session: u64,
-    pub rgb: Vec<u8>,
+    pub texture: vmedia::RetainedTexture,
+    pub bevel: Arc<BevelMaps>,
     pub revision: u32,
     pub spawn: [f32; 3],
 }
 struct Shared {
     session: u64,
+    bevel: Option<Arc<BevelMaps>>,
+    bevel_loading: bool,
     running: bool,
     ready: Option<Result<Slide, &'static str>>,
     position: [f32; 3],
     orientation: [f32; 3],
 }
 pub struct Client {
+    device: trueos::vgpu::Device,
     shared: Arc<Mutex<Shared>>,
     held: bool,
 }
 impl Client {
-    pub fn new() -> Self {
+    pub fn new(device: trueos::vgpu::Device) -> Self {
         Self {
+            device,
             shared: Arc::new(Mutex::new(Shared {
                 session: 0,
+                bevel: None,
+                bevel_loading: false,
                 running: false,
                 ready: None,
                 position: [0.; 3],
@@ -66,11 +78,12 @@ impl Client {
             s.session
         };
         let shared = self.shared.clone();
+        let device = self.device;
         if trueos::worker::spawn(move || {
             let result = runtime::current_thread_net()
                 .build()
                 .map_err(|_| "network runtime")
-                .and_then(|rt| rt.block_on(stream(&shared, session)));
+                .and_then(|rt| rt.block_on(stream(&shared, session, device)));
             let mut s = shared.lock().unwrap();
             if s.session == session {
                 s.running = false;
@@ -127,7 +140,7 @@ fn info(bytes: &[u8]) -> Option<(u32, [f32; 3], usize)> {
     }
     Some((u32::from_le_bytes(p[4..8].try_into().unwrap()), spawn, size))
 }
-fn accept_chunk(bytes: &[u8], revision: u32, rgb: &mut [u8], received: &mut [bool]) -> bool {
+fn accept_chunk(bytes: &[u8], revision: u32, encoded: &mut [u8], received: &mut [bool]) -> bool {
     let Some(p) = payload(bytes, CHUNK) else {
         return false;
     };
@@ -139,14 +152,14 @@ fn accept_chunk(bytes: &[u8], revision: u32, rgb: &mut [u8], received: &mut [boo
         return false;
     }
     let start = index * CHUNK_BYTES;
-    if start >= rgb.len() {
+    if start >= encoded.len() {
         return false;
     }
-    let end = (start + CHUNK_BYTES).min(rgb.len());
+    let end = (start + CHUNK_BYTES).min(encoded.len());
     if p.len() != 6 + end - start {
         return false;
     }
-    rgb[start..end].copy_from_slice(&p[6..]);
+    encoded[start..end].copy_from_slice(&p[6..]);
     received[index] = true;
     true
 }
@@ -159,39 +172,67 @@ fn image_format(bytes: &[u8]) -> Option<vmedia::ImageFormat> {
         None
     }
 }
-async fn decode_image(encoded: &[u8]) -> Result<Vec<u8>, &'static str> {
+fn valid_image_extent(width: u32, height: u32) -> bool {
+    width == 512 && height == 512
+}
+async fn decode_texture(
+    device: trueos::vgpu::Device,
+    encoded: &[u8],
+) -> Result<vmedia::RetainedTexture, &'static str> {
     let format = image_format(encoded).ok_or("slide image format")?;
-    let decoded = time::timeout(
-        time::Duration::from_secs(5),
-        vmedia::decode(format, encoded),
+    time::timeout(
+        time::Duration::from_secs(10),
+        vmedia::decode_retained(device, format, encoded),
     )
     .await
-    .map_err(|_| "slide decode timeout")?
-    .map_err(|_| "slide decode failed")?;
-    image_rgb(
-        decoded.info.width,
-        decoded.info.height,
-        decoded.info.stride_bytes,
-        &decoded.rgba,
-    )
+    .map_err(|_| "slide texture timeout")?
+    .map_err(|_| "slide texture decode failed")
 }
-fn image_rgb(width: u32, height: u32, stride: u32, rgba: &[u8]) -> Result<Vec<u8>, &'static str> {
-    if width != 512
-        || height != 512
-        || stride < width * 4
-        || rgba.len() != stride as usize * height as usize
-    {
-        return Err("slide image dimensions");
-    }
-    let mut rgb = Vec::with_capacity(512 * 512 * 3);
-    for row in rgba.chunks_exact(stride as usize) {
-        for pixel in row[..512 * 4].chunks_exact(4) {
-            rgb.extend_from_slice(&pixel[..3]);
+async fn bevel_maps(device: trueos::vgpu::Device) -> Result<Arc<BevelMaps>, &'static str> {
+    let normal = decode_texture(device, include_bytes!("../assets/slideshow/normal.png")).await?;
+    let occlusion =
+        decode_texture(device, include_bytes!("../assets/slideshow/occlusion.png")).await?;
+    Ok(Arc::new(BevelMaps { normal, occlusion }))
+}
+/// One shared pair of data maps per device, including across reconnects.
+async fn shared_bevel_maps(
+    shared: &Mutex<Shared>,
+    session: u64,
+    device: trueos::vgpu::Device,
+) -> Result<Arc<BevelMaps>, &'static str> {
+    loop {
+        let load = {
+            let mut state = shared.lock().unwrap();
+            if state.session != session {
+                return Err("slide session cancelled");
+            }
+            if let Some(maps) = &state.bevel {
+                return Ok(maps.clone());
+            }
+            if state.bevel_loading {
+                false
+            } else {
+                state.bevel_loading = true;
+                true
+            }
+        };
+        if load {
+            let result = bevel_maps(device).await;
+            let mut state = shared.lock().unwrap();
+            state.bevel_loading = false;
+            if let Ok(maps) = &result {
+                state.bevel = Some(maps.clone());
+            }
+            return result;
         }
+        time::sleep(time::Duration::from_millis(10)).await;
     }
-    Ok(rgb)
 }
-async fn stream(shared: &Mutex<Shared>, session: u64) -> Result<(), &'static str> {
+async fn stream(
+    shared: &Mutex<Shared>,
+    session: u64,
+    device: trueos::vgpu::Device,
+) -> Result<(), &'static str> {
     let socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))
         .await
         .map_err(|_| "udp bind")?;
@@ -201,6 +242,7 @@ async fn stream(shared: &Mutex<Shared>, session: u64) -> Result<(), &'static str
         .map_err(|_| "cubesrv connect")?;
     let mut buffer = [0u8; 1200];
     let mut shown = None;
+    let mut bevel = None;
     let mut sequence = 0u32;
     let mut missed = 0;
     loop {
@@ -301,14 +343,21 @@ async fn stream(shared: &Mutex<Shared>, session: u64) -> Result<(), &'static str
                 if shared.lock().unwrap().session != session {
                     return Ok(());
                 }
-                let rgb = decode_image(&encoded).await?;
+                let texture = decode_texture(device, &encoded).await?;
+                if !valid_image_extent(texture.info().width, texture.info().height) {
+                    return Err("slide image dimensions");
+                }
+                if bevel.is_none() {
+                    bevel = Some(shared_bevel_maps(shared, session, device).await?);
+                }
                 let mut s = shared.lock().unwrap();
                 if s.session != session {
                     return Ok(());
                 }
                 s.ready = Some(Ok(Slide {
                     session,
-                    rgb,
+                    texture,
+                    bevel: bevel.as_ref().unwrap().clone(),
                     revision,
                     spawn,
                 }));
@@ -347,27 +396,10 @@ mod tests {
         assert!(accept_chunk(&valid, 1, &mut output, &mut received));
     }
     #[test]
-    fn native_decode_output_respects_stride_and_dimensions() {
-        let stride = 512 * 4 + 16;
-        let mut rgba = vec![99; stride * 512];
-        for row in rgba.chunks_exact_mut(stride) {
-            for p in row[..2048].chunks_exact_mut(4) {
-                p.copy_from_slice(&[1, 2, 3, 255]);
-            }
-        }
-        let rgb = image_rgb(512, 512, stride as u32, &rgba).unwrap();
-        assert_eq!(rgb.len(), 512 * 512 * 3);
-        assert!(rgb.chunks_exact(3).all(|p| p == [1, 2, 3]));
-        assert!(image_rgb(511, 512, stride as u32, &rgba).is_err());
-        assert!(image_rgb(512, 512, stride as u32, &rgba[..100]).is_err());
-        assert_eq!(
-            image_format(b"\x89PNG\r\n\x1a\n"),
-            Some(vmedia::ImageFormat::Png)
-        );
-        assert_eq!(
-            image_format(&[0xff, 0xd8, 0xff]),
-            Some(vmedia::ImageFormat::Jpeg)
-        );
+    fn native_texture_extent_and_image_format_are_checked() {
+        assert!(valid_image_extent(512, 512));
+        assert!(!valid_image_extent(511, 512));
+        assert!(!valid_image_extent(512, 0));
         assert_eq!(image_format(b"raw-rgb"), None);
     }
     #[test]

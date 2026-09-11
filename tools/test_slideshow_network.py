@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Host-check the real client against the server packet encoders."""
+"""Host-check image-wall geometry, material submission and network framing."""
 from pathlib import Path
 import subprocess
 import tempfile
@@ -11,12 +11,15 @@ name = "cubes-network-test"
 version = "0.0.0"
 edition = "2024"
 [dependencies]
+libm = "0.2"
 trueos = {{ path = "{APP.parent}/TRUEOS-Blueprints/api", features = ["tokio-net-probe"] }}
 [lib]
 path = "lib.rs"
 ''')
     (root / 'lib.rs').write_text(f'''extern crate alloc;
 #[path="{APP}/src/network.rs"] mod network;
+#[path="{APP}/src/slideshow.rs"] mod slideshow;
+#[path="{APP}/src/slideshow_gpu.rs"] mod slideshow_gpu;
 // The packet tests do not call the Blueprint lifecycle/console ABI.
 #[unsafe(no_mangle)] pub extern "C" fn trueos_cabi_write(_: u32, _: *const u8, _: usize) {{}}
 #[unsafe(no_mangle)] pub extern "C" fn trueos_cabi_blueprint_shutdown(_: *const u8, _: usize) -> i32 {{ 0 }}
