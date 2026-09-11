@@ -68,10 +68,10 @@ impl Indicator {
             return None;
         }
         Some(Cube {
-            // Grow out of the face, keeping the whole indicator outside the
-            // opaque target even during overshoot. One cube, on any of six faces.
+            // Center the smaller marker where a full-size neighboring cube
+            // would attach. Grow around that fixed center on any of six faces.
             center: core::array::from_fn(|a| {
-                target.center[a] + target.normal[a] * (target.scale + scale + 0.002)
+                target.center[a] + target.normal[a] * (target.scale * 2. + 0.002)
             }),
             scale,
             flags: FLAGS | material,

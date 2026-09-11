@@ -61,7 +61,8 @@ footprint during portal recoloring/scatter. No world population is changed.
 The flight indicator is one actual beveled cube at half the visible constituent
 cube's side length and 35% opacity. Its color uses the target's shared material;
 RGB555 world shades and placed assets map to the nearest of the six theme colors.
-It grows out of the aimed face over 700 ms with a damped physical spring (four
+Its center sits where a full-size neighboring cube would attach to the aimed
+face. It grows around that fixed center over 700 ms with a damped physical spring (four
 oscillations, decay five), then holds until the target changes, disappears, or the
 camera lands. It never creates collision or persistent geometry. Key7 uses it only
 for Space flight targeting, without mining guides.
