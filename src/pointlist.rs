@@ -5,7 +5,6 @@ use trueos::ui4_scene::{BackgroundLayer, Damage, Error};
 use trueos::vgpu::*;
 
 pub const MAX_POINTS: usize = 32768;
-pub const PATTERN_MS: u64 = 5000;
 #[derive(Clone, Copy, Debug)]
 pub struct Point {
     pub position: [f32; 3],
@@ -13,36 +12,24 @@ pub struct Point {
     pub width: u8,
 }
 
-pub fn pattern(now: u64) -> Vec<Point> {
+pub fn circles() -> Vec<Point> {
     use potato_stamps::scene::*;
     let colors = decode_palette_rgba(COLOR_TEXTURE_BYTES).unwrap();
-    if (now / PATTERN_MS) % 2 == 0 {
-        line_grid_positions()
-            .iter()
-            .enumerate()
-            .map(|(i, p)| Point {
-                position: [p.x, p.y, p.z],
-                color: colors[usize::from(i % 3 == 0)],
-                width: 0,
+    let rings = quad_strip_ring_positions();
+    (0..RING_CIRCLE_COUNT)
+        .flat_map(|circle| {
+            let rings = &rings;
+            (0..RING_CIRCLE_VERTEX_COUNT).map(move |step| {
+                let p =
+                    rings[(circle / 2) * QUAD_STRIP_RING_VERTICES_PER_RING + step * 2 + circle % 2];
+                Point {
+                    position: [p.x, p.y, p.z],
+                    color: colors[circle],
+                    width: POINT_RING_POINT_WIDTHS_PX[circle],
+                }
             })
-            .collect()
-    } else {
-        let rings = quad_strip_ring_positions();
-        (0..RING_CIRCLE_COUNT)
-            .flat_map(|circle| {
-                let rings = &rings;
-                (0..RING_CIRCLE_VERTEX_COUNT).map(move |step| {
-                    let p = rings
-                        [(circle / 2) * QUAD_STRIP_RING_VERTICES_PER_RING + step * 2 + circle % 2];
-                    Point {
-                        position: [p.x, p.y, p.z],
-                        color: colors[circle],
-                        width: POINT_RING_POINT_WIDTHS_PX[circle],
-                    }
-                })
-            })
-            .collect()
-    }
+        })
+        .collect()
 }
 
 /// Project only forward, in-viewport marker centres. Source cubes were already

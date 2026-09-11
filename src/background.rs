@@ -1,4 +1,4 @@
-//! Independent background producer: Key2's shader, PotatoStamps Key1 patterns,
+//! Independent background producer: Key2's shader, PotatoStamps Key1 circles,
 //! or Key6's native world points, all inside the owning Cubes VM.
 use crate::environment::{Palette, RotationFollower};
 use crate::pointlist;
@@ -114,7 +114,7 @@ impl Background {
                             }
                         }
                         if command[0] == 0 {
-                            points = pointlist::pattern(command[1] as u64 * pointlist::PATTERN_MS);
+                            points = pointlist::circles();
                         }
                         let batch = pointlist::Batch::new(&mut points);
                         let result = points_renderer.as_ref().unwrap().render(
@@ -138,7 +138,7 @@ impl Background {
                         if command[0] == 0 || reported != (command[0], command[14]) {
                             trueos::logl::log(trueos::logl::level::INFO, format_args!(
                                 "Cubes: background native=POINT_LIST source={} points={} draws={} resize_generation={} extent={}x{}",
-                                if command[0] == 3 { "Key6-world" } else if command[1] % 2 == 0 { "PotatoStamps-Key1-grid" } else { "PotatoStamps-Key1-rings" },
+                                if command[0] == 3 { "Key6-world" } else { "PotatoStamps-Key1-rings" },
                                 points.len(), batch.draws.len(), command[14], command[12], command[13]));
                             reported = (command[0], command[14]);
                         }
@@ -250,9 +250,6 @@ impl Background {
             command[0] = 2;
             command[1] = (self.palette_time * 60.) as u32;
             command[2] = (self.palette_time as f32).to_bits();
-        }
-        if command[0] == 0 {
-            command[1] = (trueos::clock::monotonic_millis() / pointlist::PATTERN_MS) as u32;
         }
         command[12] = extent.0;
         command[13] = extent.1;

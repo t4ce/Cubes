@@ -86,23 +86,23 @@ fn await_publications(n:usize){
         std::thread::sleep(std::time::Duration::from_millis(2));
     }
 }
-#[test] fn key1_patterns_use_exact_potato_geometry_and_partition_colors(){
+#[test] fn key1_circles_use_exact_potato_geometry_colors_and_widths(){
     use potato_stamps::scene::*;
-    let grid=pointlist::pattern(0);let colors=decode_palette_rgba(COLOR_TEXTURE_BYTES).unwrap();
-    assert_eq!(grid.len(),1024);
-    for (i,(p,r)) in grid.iter().zip(line_grid_positions()).enumerate(){
-        assert_eq!(p.position,[r.x,r.y,r.z]);assert_eq!(p.color,colors[usize::from(i%3==0)]);
-    }
-    assert_eq!(pointlist::pattern(4999).len(),1024);
-    let rings=pointlist::pattern(5000);assert_eq!(rings.len(),256);
-    for circle in 0..4 {assert!(rings[circle*64..(circle+1)*64].iter().all(|p|p.width==POINT_RING_POINT_WIDTHS_PX[circle]));}
-    assert_eq!(pointlist::pattern(10000).len(),1024);
+    let circles=pointlist::circles();let colors=decode_palette_rgba(COLOR_TEXTURE_BYTES).unwrap();
+    let rings=quad_strip_ring_positions();assert_eq!(circles.len(),256);
+    for circle in 0..4 {for step in 0..64 {
+        let p=circles[circle*64+step];
+        let r=rings[(circle/2)*QUAD_STRIP_RING_VERTICES_PER_RING+step*2+circle%2];
+        assert_eq!(p.position,[r.x,r.y,r.z]);assert_eq!(p.color,colors[circle]);
+        assert_eq!(p.width,POINT_RING_POINT_WIDTHS_PX[circle]);
+    }}
 }
 #[test] fn real_background_worker_releases_resize_during_idle_empty_world_and_aba(){
     reset();let mut bg=background::Background::start(ui4_scene::BackgroundLayer).unwrap();
     let q=[0.,0.,0.,1.];
     bg.update(background::Mode::Neutral,q,0.,1.,(784,441)).unwrap();await_publications(1);
-    bg.update(background::Mode::Neutral,q,0.,1.,(784,441)).unwrap();
+    NOW.store(15000,Ordering::Relaxed);
+    bg.update(background::Mode::Neutral,q,15.,1.,(784,441)).unwrap();
     std::thread::sleep(std::time::Duration::from_millis(25));assert_eq!(STATE.lock().unwrap().publishes,1);
     {let mut s=STATE.lock().unwrap();s.pending=true;s.foreground_ready=true;s.begin_busy=2;s.submit_busy=1;}
     // Two successful stages may return to the original extent before the worker polls.

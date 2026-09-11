@@ -1,15 +1,15 @@
 # Native point background and Key6 world experiment
 
 Cubes links PotatoStamps' library geometry. It does not launch PotatoStamps,
-open another window or add another VM. The existing background worker alternates
-Key1's 1,024-point grid and four 64-point circles every five seconds. Positions,
-colors, grid partitions and circle point widths come from PotatoStamps' scene
+open another window or add another VM. The existing background worker displays
+Key1's four 64-point circles continuously, with no timed swap. Positions,
+colors and circle point widths come from PotatoStamps' scene
 module. Key2 retains its current Palette Grid compute shader. The background
 uses the existing XYZ immediate-color `IndexedDrawBatchV2` POINT_LIST renderer.
 
 Every successful resize increments a producer generation, even for A -> B -> A.
-That forces a background publication immediately instead of waiting for the
-five-second pattern change. An empty world-point scene submits a transparent,
+That forces a background publication immediately even though the circle
+scene is otherwise idle. An empty world-point scene submits a transparent,
 clipped point so its clear/publication still completes UI4's two-layer resize
 barrier. Transient begin/import/submit contention is retried with the appropriate
 lease ownership; tests run the actual worker against a lease/resize mock.

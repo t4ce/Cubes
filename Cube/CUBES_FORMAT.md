@@ -165,6 +165,7 @@ Part ids: `0` terrain; `9/10` boundary portal connector; `11/12` boundary frame;
 Frame cells retain the preview's c2 geometry and balanced destination palettes.
 The center identifier keeps Void's center opening separate from its six returns.
 
-Regenerate all defaults with `node tools/export_lvl27_defaults.cjs`. Terrain keeps
+Regenerate all defaults with `node Cube/export_lvl27_defaults.cjs` from the repository root
+(or `node export_lvl27_defaults.cjs` beside WorldShowcase). Terrain keeps
 the existing deterministic compaction and Void's 4×4×4 c4 color fields; portal
 frames are exported individually from the geometry builder's default presets.

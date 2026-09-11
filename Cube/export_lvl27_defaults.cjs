@@ -1,12 +1,11 @@
 #!/usr/bin/env node
-// Export the default v16 WorldShowcase generation as the runtime's compact
+// Export the current default WorldShowcase generation as the runtime's compact
 // CUBES v2 assets: c1 coordinates, packed c4 terrain, and exact c2 portal frames.
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const root = path.resolve(__dirname, '..');
-const html = fs.readFileSync(path.join(root, 'Cube/WorldShowcase.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, 'WorldShowcase.html'), 'utf8');
 function between(start, end) {
   const a = html.indexOf(start);
   const b = html.indexOf(end, a);
@@ -33,8 +32,8 @@ const model = [
   }));
   `,
 ].join('\n');
-const MATERIAL_PALETTE = require('../Cube/material-palette.js').parse(
-  JSON.parse(fs.readFileSync(path.join(root, 'Cube/subcubes-materials.json'), 'utf8')));
+const MATERIAL_PALETTE = require('./material-palette.js').parse(
+  JSON.parse(fs.readFileSync(path.join(__dirname, 'subcubes-materials.json'), 'utf8')));
 const context = { console, globalThis: {}, MATERIAL_PALETTE };
 vm.createContext(context);
 vm.runInContext(model, context, { filename: 'WorldShowcase-default-model.js' });
@@ -136,7 +135,7 @@ function encode(entry) {
   return { output, records: records.length, palette: palette.length, source: entry.geometry.primary.size };
 }
 
-const outputDir = path.join(root, 'Cube/lvl27');
+const outputDir = path.join(__dirname, 'lvl27');
 const outputs = context.globalThis.__lvl27.map(entry => {
   const encoded = encode(entry);
   const slug = entry.world.kind === 'special'
