@@ -40,8 +40,8 @@ const PLATEAU_PAGES: [Definition; 3] = [
             Button { mode: 0, icon: 0, text: "BLACK" }, Button { mode: 0, icon: 0, text: "WHITE" },
             Button { mode: 0, icon: 0, text: "ISLAND" }, Button { mode: 0, icon: 0, text: "CITY" },
         ], controls: [false; 4], initial: State { progress: 0, count: 0, enabled: false, checked: false } },
-    Definition { name: "plateau-error", title: "CUSTOM PLATEAU", text: "Profile request did not complete.\nKey4: retry. Key5: leave.\nDetails are in the Cubes log.", theme: 0, tier: 1,
-        buttons: &[], controls: [false; 4], initial: State { progress: 0, count: 0, enabled: false, checked: false } },
+    Definition { name: "plateau-error", title: "CUSTOM PLATEAU", text: "Profile request did not complete.\nKey4: retry. Key5: leave.\nReload discards unsaved placements.", theme: 0, tier: 1,
+        buttons: &[Button { mode: 0, icon: 0, text: "RELOAD SAVED" }], controls: [false; 4], initial: State { progress: 0, count: 0, enabled: false, checked: false } },
 ];
 pub fn definition(page: usize) -> &'static Definition {
     if page < EXAMPLES.len() { &EXAMPLES[page] } else { &PLATEAU_PAGES[page - EXAMPLES.len()] }

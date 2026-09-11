@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Real redb, profile HTTP handlers/client, .cubes geometry and walker on the host."""
 from pathlib import Path
-import subprocess, tempfile
+import subprocess, tempfile, json
 APP = Path(__file__).resolve().parents[1]
 SERVER = APP.parent / "TRUEOS-Blueprints/apps/cubesrv"
 with tempfile.TemporaryDirectory(prefix="cubes-plateau-") as directory:
@@ -21,6 +21,8 @@ trueos-redb = {{ path = "{APP.parent}/TRUEOS-Blueprints/crates/trueos-redb", fea
 [lib]
 path = "lib.rs"
 ''')
+    palette = b''.join(p.read_bytes()[16:20] for p in sorted((APP/'Cube/lvl27').glob('*.cubes'))[:6])
+    assert palette == (APP.parent/'TRUEOS-Blueprints/crates/cubes-protocol/palette.rgba').read_bytes()
     source = '''#![allow(dead_code)]
 extern crate alloc;
 extern crate self as trueos;
@@ -39,13 +41,21 @@ pub mod runtime {
 pub mod logl { pub mod level {pub const WARN:u8=1;} pub fn log(_:u8,_:core::fmt::Arguments) {} }
 '''
     source += (APP / 'tools/plateau_fs_host.rs').read_text()
-    for module, path in [('plateau', SERVER/'plateau.rs'), ('profiles', SERVER/'profiles.rs'),
+    for module, path in [('plateau', APP.parent/'TRUEOS-Blueprints/crates/cubes-protocol/src/lib.rs'), ('profiles', SERVER/'profiles.rs'),
                          ('protocol', SERVER/'protocol.rs'), ('plateau_client', APP/'src/plateau_client.rs'),
                          ('cam', APP.parent/'TRUEOS-Picasso/src/cam.rs'),
                          ('walker_camera', APP/'src/CubesWalkerCam.rs'), ('subcubes', APP/'src/SubCubes.rs'),
                          ('cube_format', APP/'src/cube_format.rs'), ('orchard', APP/'src/orchard.rs'),
-                         ('slideshow', APP/'src/slideshow.rs')]:
+                         ('slideshow', APP/'src/slideshow.rs'), ('floor', APP/'src/floor.rs'), ('asset_brush', APP/'src/asset_brush.rs')]:
         source += f'#[path="{path}"] pub mod {module};\n'
+    source += 'const WORLD_PAGES: &[&[u8]] = &[\n' + ''.join(f'include_bytes!("{p}"),\n' for p in sorted((APP/'Cube/lvl27').glob('*.cubes'))) + '];\n'
+    editor = (APP/'Cube/WorldShowcase.html').read_text()
+    start = editor.index('function moduleVoxels(')
+    function = editor[start:editor.index('\nfunction ', start+1)]
+    js = "const SLOT=8; const cellOrigin=()=>({x:0,y:-88,z:0}); const cellKey=()=>''; const platformProfile=()=>({size:16});\n" + function
+    js += "\nconst cells=[]; moduleVoxels({}, {}, {kind:'manual',cell:[0,0,0]}, (x,y,z)=>cells.push([x,y,z])); process.stdout.write(JSON.stringify(cells));"
+    fixture = subprocess.check_output(['node', '-e', js], text=True)
+    source += f'const EDITOR_TERRACE: &str = {json.dumps(fixture)};\n'
     source += (APP / 'tools/plateau_regression.rs').read_text()
     (root / 'lib.rs').write_text(source)
     subprocess.run(['cargo', 'test', '--manifest-path', str(root/'Cargo.toml'),

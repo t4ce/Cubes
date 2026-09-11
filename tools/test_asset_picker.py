@@ -48,9 +48,10 @@ source+='''
 }
 #[test]
 fn world_picker_confirm_disable_reopen_preserves_world_and_choice() {
+    for origin in [SceneMode::World, SceneMode::Plateau] {
     let world_camera=FlyCam{camera:Camera{tag:42}};
     let mut app=Harness {carousel:carousel::Carousel::new(ASSETS,GROUPS),asset_brush:asset_brush::Brush::new(),
-        flycam:world_camera,picker_camera:None,picker_mode:SceneMode::World,mode:SceneMode::World,frame:Frame,previous_view_projection:[0.;16],cursors:vec![1],
+        flycam:world_camera,picker_camera:None,picker_mode:origin,mode:origin,frame:Frame,previous_view_projection:[0.;16],cursors:vec![1],
         world:vec![10,20,30],world_index:11,walker_position:[1.,2.,3.],spawn_progress:57,network_world:true};
     let original_world=app.world.as_ptr();
     assert!(!app.asset_brush.tool_active);
@@ -60,7 +61,7 @@ fn world_picker_confirm_disable_reopen_preserves_world_and_choice() {
     let chosen=app.carousel.selected_id();
     app.flycam.camera.tag=99; // The picker camera moves independently.
     app.confirm_asset_picker().unwrap();
-    assert_eq!(app.mode,SceneMode::World);assert_eq!(app.flycam,world_camera);
+    assert_eq!(app.mode,origin);assert_eq!(app.flycam,world_camera);
     assert!(app.asset_brush.tool_active);assert_eq!(app.asset_brush.selected,chosen);
     assert_eq!(app.world.as_ptr(),original_world);assert_eq!(app.world,vec![10,20,30]);
     assert_eq!((app.world_index,app.walker_position,app.spawn_progress,app.network_world),(11,[1.,2.,3.],57,true));
@@ -68,12 +69,13 @@ fn world_picker_confirm_disable_reopen_preserves_world_and_choice() {
     app.carousel.cycle_selection(-1).unwrap();app.asset_brush.confirm(app.carousel.selected_id());
     let last=(app.carousel.group,app.carousel.selected,app.asset_brush.selected);
     app.toggle_asset_picker().unwrap();
-    assert_eq!(app.mode,SceneMode::World);assert!(!app.asset_brush.tool_active);
+    assert_eq!(app.mode,origin);assert!(!app.asset_brush.tool_active);
     app.toggle_asset_picker().unwrap();
     assert_eq!(app.mode,SceneMode::Orchard);
     assert_eq!((app.carousel.group,app.carousel.selected,app.carousel.selected_id()),last);
     app.restore_picker_world().unwrap(); // Abandon via a mode key; tool stays off.
     assert!(!app.asset_brush.tool_active);assert_eq!(app.flycam,world_camera);
+    }
 }
 '''
 with tempfile.TemporaryDirectory(prefix='cubes-picker-') as tmp:

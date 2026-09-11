@@ -99,6 +99,7 @@ dependencies = [
 name = "cubes"
 version = "0.1.0"
 dependencies = [
+ "cubes-protocol",
  "libm",
  "potato-stamps",
  "reqwest",
@@ -107,6 +108,13 @@ dependencies = [
  "sha2",
  "trueos",
  "trueos-picasso",
+]
+
+[[package]]
+name = "cubes-protocol"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

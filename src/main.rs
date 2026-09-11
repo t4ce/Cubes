@@ -20,8 +20,7 @@ mod platform_lod;
 mod render_limits;
 mod pointlist;
 mod network;
-#[path = "../../TRUEOS-Blueprints/apps/cubesrv/plateau.rs"]
-mod plateau;
+use cubes_protocol as plateau;
 mod plateau_client;
 mod slideshow;
 mod slideshow_gpu;
@@ -405,7 +404,7 @@ impl CubeScene {
             interface: cube_interface::Demo::new(),
             interface_renderer: None,
             interface_cursor: None,
-            network: network::Client::new(device),
+            network: network::Client::new(device, plateau::USERNAME),
             plateau_client: plateau_client::Client::new(plateau::USERNAME),
             plateau_profile: None,
             plateau_menu: false,
@@ -1412,7 +1411,7 @@ impl CubeScene {
                                 self.mode,
                                 SceneMode::Sphere
                                     | SceneMode::World
-                                | SceneMode::Plateau
+                                    | SceneMode::Plateau
                                     | SceneMode::MaterialShowcase
                                     | SceneMode::RenderLimits
                             )
@@ -1555,6 +1554,14 @@ impl CubeScene {
             self.interface.pointer(point, event.buttons_pressed & 1 != 0, event.buttons_down & 1 != 0, now);
         }
         if let Some(widget) = self.interface.take_activation() {
+            if self.mode == SceneMode::Plateau && self.interface.page == cube_interface::PLATEAU_ERROR
+                && widget == 1 && self.plateau_client.request(plateau_client::Command::Load)
+            {
+                self.plateau_dirty = false;
+                self.plateau_save_failed = false;
+                self.asset_brush.disable();
+                self.show_plateau_menu(cube_interface::PLATEAU_LOADING)?;
+            }
             if self.mode == SceneMode::Plateau && self.interface.page == cube_interface::PLATEAU_THEME
                 && (1..=6).contains(&widget)
                 && self.plateau_client.request(plateau_client::Command::Create(widget as u8))

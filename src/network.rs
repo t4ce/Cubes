@@ -37,13 +37,15 @@ struct Shared {
 }
 pub struct Client {
     device: trueos::vgpu::Device,
+    username: &'static str,
     shared: Arc<Mutex<Shared>>,
     held: bool,
 }
 impl Client {
-    pub fn new(device: trueos::vgpu::Device) -> Self {
+    pub fn new(device: trueos::vgpu::Device, username: &'static str) -> Self {
         Self {
             device,
+            username,
             shared: Arc::new(Mutex::new(Shared {
                 session: 0,
                 bevel: None,
@@ -79,11 +81,12 @@ impl Client {
         };
         let shared = self.shared.clone();
         let device = self.device;
+        let username = self.username;
         if trueos::worker::spawn(move || {
             let result = runtime::current_thread_net()
                 .build()
                 .map_err(|_| "network runtime")
-                .and_then(|rt| rt.block_on(stream(&shared, session, device)));
+                .and_then(|rt| rt.block_on(stream(&shared, session, device, username)));
             let mut s = shared.lock().unwrap();
             if s.session == session {
                 s.running = false;
@@ -232,6 +235,7 @@ async fn stream(
     shared: &Mutex<Shared>,
     session: u64,
     device: trueos::vgpu::Device,
+    username: &str,
 ) -> Result<(), &'static str> {
     let socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))
         .await
@@ -254,7 +258,7 @@ async fn stream(
             (s.position, s.orientation)
         };
         let mut hello = vec![27];
-        hello.extend_from_slice(b"t4ce");
+        hello.extend_from_slice(username.as_bytes());
         socket.send(&packet(1, &hello)).await.map_err(|_| "cubesrv username")?;
         sequence = sequence.wrapping_add(1);
         let mut body = sequence.to_le_bytes().to_vec();

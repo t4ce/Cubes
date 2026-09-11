@@ -63,7 +63,7 @@ for page in 0..cube_interface::EXAMPLES.len(){
 #[test] fn screen_pointer_picks_tilted_widgets_at_different_window_sizes(){
  for page in 0..cube_interface::EXAMPLES.len(){
   let mut demo=cube_interface::Demo::new();demo.select(page);
-  let tier=cube_interface::EXAMPLES[page].tier;
+  let tier=cube_interface::definition(page).tier;
   let (columns,rows)=(demo.layout.width,demo.layout.height);
   for (width,height) in [(784,441),(441,784),(1920,1080)] {
    let camera=interface_gpu::camera(width,height,columns,rows,tier).retained(width,height,[0.;16]);

@@ -8,7 +8,8 @@ world and camera; that confirmation click does not place anything.
 While the tool is active, the world wheel wraps within the selected group and
 left-click places on the aimed face. A world-space ghost follows that target.
 Middle-click disables the tool and clears the ghost. The next middle-click
-reopens the picker at the last group and asset. Key4 is unassigned. The separate
+reopens the picker at the last group and asset. [Key4](PLATEAU.md) uses the same
+picker and placement flow for a persisted personal plateau. The separate
 R-toggle Rubik companion is unchanged.
 
 All exported assets retain their authored c1 sizes and colours. The existing

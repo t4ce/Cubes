@@ -1,6 +1,7 @@
 //! Exercise the real vGPU/vmedia wrappers with an injected busy submission.
 //! These host ABI stubs never run on TRUEOS.
 use super::*;
+use crate::cube_interface::EXAMPLES;
 use core::{
     future::Future,
     task::{Context, Poll, Waker},
