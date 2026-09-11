@@ -32,7 +32,7 @@ struct Frame;
 impl Frame {fn width(&self)->u32{784} fn height(&self)->u32{441}}
 struct Harness {
     carousel:carousel::Carousel,asset_brush:asset_brush::Brush,
-    flycam:FlyCam,picker_camera:Option<FlyCam>,mode:SceneMode,
+    flycam:FlyCam,picker_camera:Option<FlyCam>,picker_mode:SceneMode,mode:SceneMode,
     frame:Frame,previous_view_projection:[f32;16],cursors:Vec<u8>,
     world:Vec<u8>,world_index:usize,walker_position:[f32;3],spawn_progress:usize,network_world:bool,
 }
@@ -50,7 +50,7 @@ source+='''
 fn world_picker_confirm_disable_reopen_preserves_world_and_choice() {
     let world_camera=FlyCam{camera:Camera{tag:42}};
     let mut app=Harness {carousel:carousel::Carousel::new(ASSETS,GROUPS),asset_brush:asset_brush::Brush::new(),
-        flycam:world_camera,picker_camera:None,mode:SceneMode::World,frame:Frame,previous_view_projection:[0.;16],cursors:vec![1],
+        flycam:world_camera,picker_camera:None,picker_mode:SceneMode::World,mode:SceneMode::World,frame:Frame,previous_view_projection:[0.;16],cursors:vec![1],
         world:vec![10,20,30],world_index:11,walker_position:[1.,2.,3.],spawn_progress:57,network_world:true};
     let original_world=app.world.as_ptr();
     assert!(!app.asset_brush.tool_active);

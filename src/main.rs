@@ -729,6 +729,7 @@ impl CubeScene {
                 SceneMode::StaticCube
                     | SceneMode::Orchard
                     | SceneMode::World
+                                | SceneMode::Plateau
                     | SceneMode::MaterialShowcase
                     | SceneMode::RenderLimits
             ) {
@@ -1393,6 +1394,7 @@ impl CubeScene {
                             self.mode,
                             SceneMode::Sphere
                                 | SceneMode::World
+                                | SceneMode::Plateau
                                 | SceneMode::MaterialShowcase
                                 | SceneMode::RenderLimits
                         ) {
@@ -1410,6 +1412,7 @@ impl CubeScene {
                                 self.mode,
                                 SceneMode::Sphere
                                     | SceneMode::World
+                                | SceneMode::Plateau
                                     | SceneMode::MaterialShowcase
                                     | SceneMode::RenderLimits
                             )
@@ -1708,6 +1711,118 @@ impl CubeScene {
             self.flycam.camera.rotation = rotation;
             self.previous_view_projection = self.flycam.camera.retained(
                 self.frame.width(), self.frame.height(), [0.; 16]).view_projection;
+        }
+        Ok(())
+    }
+
+    fn plateau_base_count(&self) -> usize {
+        self.plateau_profile.as_ref().map_or(0, |p| cube_format::cubes(&p.terrain).count())
+    }
+
+    fn show_plateau_menu(&mut self, page: usize) -> Result<(), CubeError> {
+        self.plateau_menu = true;
+        self.interface.select(page);
+        self.interface_cursor = None;
+        if self.interface_renderer.is_none() {
+            self.interface_renderer = Some(interface_gpu::Renderer::new(self.device)
+                .map_err(|c| CubeError::Vgpu("plateau-menu", c))?);
+        }
+        self.frame.set_center_snapped_mouse(false).map_err(|e| CubeError::Ui4("plateau-pointer", e))?;
+        Ok(())
+    }
+
+    fn install_plateau(&mut self, profile: plateau::Profile) -> Result<(), CubeError> {
+        let mut asset = orchard::decode("custom plateau", &profile.terrain).map_err(|_| CubeError::Contract)?;
+        for cube in &mut asset.cubes { cube.center = orchard::world_from_demo(cube.center); }
+        let placed: Vec<_> = profile.placed.iter().map(|c| orchard::Cube {
+            center: c.center, scale: c.scale, flags: c.flags,
+        }).collect();
+        let bounds: Vec<_> = placed.iter().map(|c| (c.center, c.scale)).collect();
+        let camera = walker_camera::CubesWalkerCam::plateau(&profile.terrain, &bounds).ok_or(CubeError::Contract)?;
+        self.active_world = Some(world_portals::World::new(world_topology::VOID, &asset, &profile.terrain, &self.puzzle));
+        self.active_world.as_mut().unwrap().scene.cubes.extend_from_slice(&placed);
+        self.world_markers.set_bounds(&self.active_world.as_ref().unwrap().scene.cubes);
+        self.asset_brush.worlds[27] = placed;
+        self.placed_reveal.reset();
+        self.placed_reveal.append(self.asset_brush.worlds[27].len());
+        self.world_index = 27;
+        self.walker_camera = Some(camera);
+        let (position, rotation) = self.walker_camera.as_ref().unwrap().pose();
+        self.flycam.camera.position = position;
+        self.flycam.camera.rotation = rotation;
+        self.mode = SceneMode::Plateau;
+        self.plateau_menu = false;
+        self.plateau_dirty = false;
+        self.plateau_save_failed = false;
+        self.set_mode_projection(self.mode);
+        self.frame.set_center_snapped_mouse(true).map_err(|e| CubeError::Ui4("plateau-walk", e))?;
+        self.previous_view_projection = self.flycam.camera.retained(self.frame.width(), self.frame.height(), [0.; 16]).view_projection;
+        logl::log(level::INFO, format_args!(
+            "Cubes: Key4 user={} theme={} chunk=512c1 terrace={} placed={} revision={} portals=none",
+            profile.username, plateau::THEME_NAMES[profile.theme as usize - 1], asset.cubes.len(), profile.placed.len(), profile.revision,
+        ));
+        self.plateau_profile = Some(profile);
+        Ok(())
+    }
+
+    fn service_plateau(&mut self) -> Result<(), CubeError> {
+        if let Some(reply) = self.plateau_client.take_reply() {
+            match reply.result {
+                Ok(profile) if reply.kind == plateau_client::Kind::Save => {
+                    if let Some(profile) = profile {
+                        self.plateau_dirty = self.asset_brush.worlds[27].len() != profile.placed.len();
+                        logl::log(level::INFO, format_args!("Cubes: Key4 saved user={} revision={} placed={}", profile.username, profile.revision, profile.placed.len()));
+                        if self.mode == SceneMode::Plateau && self.plateau_menu && !self.plateau_pending_delete && !self.plateau_dirty {
+                            self.install_plateau(profile)?;
+                        } else {
+                            self.plateau_profile = Some(profile);
+                        }
+                    }
+                    self.plateau_save_failed = false;
+                }
+                Ok(_) if reply.kind == plateau_client::Kind::Delete => {
+                    self.plateau_pending_delete = false;
+                    self.plateau_profile = None;
+                    self.asset_brush.worlds[27].clear();
+                    self.plateau_dirty = false;
+                    self.plateau_save_failed = false;
+                    logl::log(level::INFO, "Cubes: Key0 deleted user=t4ce from cubesrv/cubeusers.db");
+                    if self.mode == SceneMode::Plateau { self.show_plateau_menu(cube_interface::PLATEAU_THEME)?; }
+                }
+                Ok(Some(profile)) => {
+                    if self.mode == SceneMode::Plateau && !self.plateau_pending_delete {
+                        if self.install_plateau(profile).is_err() {
+                            logl::log(level::WARN, "Cubes: Key4 invalid saved collision geometry");
+                            self.show_plateau_menu(cube_interface::PLATEAU_ERROR)?;
+                        }
+                    }
+                }
+                Ok(None) => {
+                    if self.mode == SceneMode::Plateau && !self.plateau_pending_delete {
+                        self.plateau_profile = None;
+                        self.asset_brush.worlds[27].clear();
+                        self.show_plateau_menu(cube_interface::PLATEAU_THEME)?;
+                    }
+                }
+                Err(error) => {
+                    if reply.kind == plateau_client::Kind::Delete { self.plateau_pending_delete = false; }
+                    self.plateau_save_failed = true;
+                    logl::log(level::WARN, format_args!("Cubes: Key4 {error}"));
+                    if self.mode == SceneMode::Plateau { self.show_plateau_menu(cube_interface::PLATEAU_ERROR)?; }
+                }
+            }
+        }
+        if self.plateau_pending_delete && !self.plateau_client.busy() {
+            self.plateau_client.request(plateau_client::Command::Delete);
+        } else if self.plateau_dirty && !self.plateau_save_failed && !self.plateau_client.busy() {
+            if let Some(profile) = &self.plateau_profile {
+                let placed = self.asset_brush.worlds[27].iter().map(|c| plateau::PlacedCube {
+                    center: c.center, scale: c.scale, flags: c.flags,
+                }).collect();
+                self.plateau_client.request(plateau_client::Command::Save(plateau::Save {
+                    generation: profile.generation, revision: profile.revision, placed,
+                }));
+            }
         }
         Ok(())
     }

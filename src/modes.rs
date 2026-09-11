@@ -138,7 +138,7 @@ mod tests {
             (1, SceneMode::InteractiveGrid, Some(None)),
             (1, SceneMode::Sphere, Some(None)),
             (2, SceneMode::StaticCube, Some(None)),
-            (8, SceneMode::Orchard, None),
+            (8, SceneMode::Plateau, Some(None)),
         ] {
             assert_eq!(keys.update(held, mode, 0, 2, 27).map(|s| s.page), page);
             keys.update(0, mode, 0, 2, 27);
@@ -163,7 +163,7 @@ mod limit_keys_tests {
     #[test]
     fn key6_is_unused_and_key9_does_not_consume_world_pages() {
         let mut keys = ModeKeys::default();
-        assert_eq!(keys.update(8, SceneMode::World, 0, 10, 27), None);
+        assert_eq!(keys.update(8, SceneMode::World, 0, 10, 27).unwrap().mode, SceneMode::Plateau);
         keys.update(0, SceneMode::World, 0, 10, 27);
         assert_eq!(keys.update(32, SceneMode::World, 0, 10, 27), None);
         keys.update(0, SceneMode::World, 0, 10, 27);

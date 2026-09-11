@@ -36,15 +36,18 @@ impl Client {
     }
 }
 async fn exchange(username: &str, command: Command) -> Result<Option<Profile>, &'static str> {
+    let url = format!("http://127.0.0.1:18/plateau/{username}");
+    exchange_at(username, command, &url).await
+}
+pub(crate) async fn exchange_at(username: &str, command: Command, url: &str) -> Result<Option<Profile>, &'static str> {
     if !plateau::valid_username(username) { return Err("invalid username"); }
     let client = reqwest::Client::builder().no_proxy().timeout(core::time::Duration::from_secs(15))
         .build().map_err(|_| "profile HTTP client")?;
-    let url = format!("http://127.0.0.1:18/plateau/{username}");
     let request = match command {
-        Command::Load => client.get(&url),
-        Command::Create(theme) => client.post(&url).json(&Create { theme }),
-        Command::Save(ref save) => client.put(&url).json(save),
-        Command::Delete => client.delete(&url),
+        Command::Load => client.get(url),
+        Command::Create(theme) => client.post(url).json(&Create { theme }),
+        Command::Save(ref save) => client.put(url).json(save),
+        Command::Delete => client.delete(url),
     };
     let mut response = request.send().await.map_err(|_| "cubesrv unavailable; press Key4 to retry")?;
     if response.status() == 404 && matches!(command, Command::Load) { return Ok(None); }
