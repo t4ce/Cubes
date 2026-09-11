@@ -52,6 +52,28 @@ pub fn hit(
         rows as f32 * 0.5 - (o[1] + t * d[1]) / cell,
     ])
 }
+
+/// Adapt the logical picking camera to retained PBR's native position contract.
+/// Its Naga-built VS negates clip Y before the SF viewport's negative Y scale
+/// (TRUEOS src/intel/render/picasso_vue_compare.rs and pipeline.rs). Compensate
+/// here so uploaded UVs, bevel normals and CPU picking all keep their orientation.
+fn render_camera(mut camera: RetainedCamera) -> RetainedCamera {
+    // Left-multiply by the clip-space Y reflection in column-major storage.
+    for matrix in [
+        &mut camera.projection,
+        &mut camera.view_projection,
+        &mut camera.previous_view_projection,
+    ] {
+        for column in 0..4 {
+            matrix[column * 4 + 1] = -matrix[column * 4 + 1];
+        }
+    }
+    // Inverse(VP') = inverse(VP) * reflection: negate its Y column.
+    for value in &mut camera.inverse_view_projection[4..8] {
+        *value = -*value;
+    }
+    camera
+}
 struct Textures {
     page: usize,
     color: vmedia::RetainedTexture,
@@ -83,7 +105,9 @@ impl Renderer {
             .flatten()
             .flat_map(|v| v.to_le_bytes())
             .collect();
-        let ib: Vec<_> = [0u32, 1, 2, 0, 2, 3]
+        // The render-camera reflection reverses winding. Preserve the native
+        // clockwise front face so double-sided PBR keeps front-facing normals.
+        let ib: Vec<_> = [0u32, 2, 1, 0, 3, 2]
             .iter()
             .flat_map(|v| v.to_le_bytes())
             .collect();
@@ -186,15 +210,28 @@ impl Renderer {
     pub fn ready(&self, page: usize) -> bool {
         self.textures.as_ref().is_some_and(|t| t.page == page)
     }
+    /// Retained-image publication and draws share the device's Picasso setup
+    /// lease. Keep the published UI4 front buffer while the worker owns it.
+    pub fn uploading(&self) -> bool {
+        self.work.lock().unwrap().busy
+    }
+    pub fn can_render(&self, page: usize) -> bool {
+        self.ready(page) && !self.uploading()
+    }
+    /// `false` means no frame was submitted: the surface guard discarded its
+    /// write lease, so the caller must skip publish and retry on a later tick.
     pub fn render(
         &self,
         queue: Queue,
         surface: Ui4Surface,
         demo: &Demo,
         camera: RetainedCamera,
-    ) -> Result<(), i32> {
+    ) -> Result<bool, i32> {
+        if !self.can_render(demo.page) {
+            return Ok(false);
+        }
         let Some(textures) = self.textures.as_ref().filter(|t| t.page == demo.page) else {
-            return Err(ERR_BUSY);
+            return Ok(false);
         };
         let tier = EXAMPLES[demo.page].tier as f32;
         let scale = [
@@ -203,7 +240,7 @@ impl Renderer {
             1.,
         ];
         let mut frame = RetainedFrameSubmit {
-            camera,
+            camera: render_camera(camera),
             seed_count: 1,
             clear_rgba8_srgb: 0,
             material: RetainedMaterial {
@@ -224,7 +261,7 @@ impl Renderer {
             local_radius: 1.5,
             ..RetainedTransformSeed::default()
         };
-        let point = self.device.submit_retained_frame_v2(
+        let point = match self.device.submit_retained_frame_v2(
             queue,
             surface,
             self.mesh,
@@ -240,10 +277,21 @@ impl Renderer {
                     ..RetainedMaterialParameters::default()
                 },
             },
-        )?;
-        self.device.wait(queue, point.value)
+        ) {
+            Ok(point) => point,
+            Err(ERR_BUSY) => return Ok(false),
+            Err(error) => return Err(error),
+        };
+        // Submission retires synchronously today. A wait failure after an
+        // accepted submission is not an unsubmitted frame and stays an error.
+        self.device.wait(queue, point.value)?;
+        Ok(true)
     }
 }
+
+#[cfg(test)]
+#[path = "../tools/interface_gpu_regression.rs"]
+mod regression_tests;
 impl Drop for Renderer {
     fn drop(&mut self) {
         let _ = self.device.destroy_retained_mesh(self.mesh);

@@ -44,6 +44,14 @@ heights into a color map and a bevel normal map. One retained PBR quad displays
 the panel. Hit testing intersects that same tilted quad. A worker creates and
 uploads the maps through TRUEOS's standard BMP retained-image API; the previous
 complete texture pair stays visible during interaction updates.
+Texture publication and drawing share the Picasso setup lease. While an upload
+is active, Cubes keeps UI4's last published frame and defers GPU rendering,
+resize, and mode changes. A busy draw submission discards its unsubmitted surface
+and retries on a later tick; it never publishes that frame or exits the app.
+The draw camera compensates for retained PBR's native clip-Y negation; the quad's
+winding preserves front-face lighting. Logical picking coordinates and texture
+rows stay top-to-bottom, so the title appears above the buttons and each control
+stays aligned with its hitbox.
 
 From the Cubes repository root:
 

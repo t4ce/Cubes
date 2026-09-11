@@ -408,6 +408,13 @@ impl CubeScene {
     }
 
     fn render(&mut self, elapsed_millis: u64) -> Result<(), CubeError> {
+        // Hover uploads own the same Picasso setup lease as every scene.
+        // Defer resize/mode changes too, so leaving Key 3 cannot race that
+        // worker through another mode's GPU path. UI4 keeps the last front.
+        if self.interface_renderer.as_ref().is_some_and(|r| r.uploading()) {
+            self.previous_elapsed_millis = elapsed_millis;
+            return Ok(());
+        }
         self.service_resize_events()?;
         let delta_seconds =
             elapsed_millis.saturating_sub(self.previous_elapsed_millis) as f32 * 0.001;
@@ -1527,7 +1534,7 @@ impl CubeScene {
             background::Mode::Neutral, camera.rotation.0, delta,
             libm::tanf(core::f32::consts::FRAC_PI_6), (width, height),
         ).map_err(|e| CubeError::Ui4("interface-background", e))?;
-        if !renderer.ready(self.interface.page) { return Ok(()); }
+        if !renderer.can_render(self.interface.page) { return Ok(()); }
         match self.frame.begin_gpu_frame() {
             Ok(()) => {},
             Err(Ui4Error::Busy) => return Ok(()),
@@ -1535,8 +1542,11 @@ impl CubeScene {
         }
         let surface = self.device.acquire_ui4_surface(self.frame.window_id())
             .map_err(|c| CubeError::Vgpu("interface-surface", c))?;
-        renderer.render(self.queue, surface, &self.interface, retained)
-            .map_err(|c| CubeError::Vgpu("interface-render", c))?;
+        if !renderer.render(self.queue, surface, &self.interface, retained)
+            .map_err(|c| CubeError::Vgpu("interface-render", c))?
+        {
+            return Ok(());
+        }
         self.frame.publish(Damage::full(width, height))
             .map_err(|e| CubeError::Ui4("interface-publish", e))?;
         self.previous_view_projection = retained.view_projection;

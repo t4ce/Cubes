@@ -15,6 +15,7 @@ edition="2024"
 [dependencies]
 libm="0.2"
 trueos={{path="{APP.parent}/TRUEOS-Blueprints/api",features=["tokio-net-probe"]}}
+v={{path="{APP.parent}/TRUEOS-Blueprints/crates/trueos-v"}}
 [features]
 default=["blueprint"]
 host=[]
