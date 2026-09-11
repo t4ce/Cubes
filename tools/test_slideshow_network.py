@@ -12,11 +12,13 @@ version = "0.0.0"
 edition = "2024"
 [dependencies]
 libm = "0.2"
+cubes-protocol = {{ path = "{APP.parent}/TRUEOS-Blueprints/crates/cubes-protocol" }}
 trueos = {{ path = "{APP.parent}/TRUEOS-Blueprints/api", features = ["tokio-net-probe"] }}
 [lib]
 path = "lib.rs"
 ''')
     (root / 'lib.rs').write_text(f'''extern crate alloc;
+use cubes_protocol as plateau;
 #[path="{APP}/src/network.rs"] mod network;
 #[path="{APP}/src/slideshow.rs"] mod slideshow;
 #[path="{APP}/src/slideshow_gpu.rs"] mod slideshow_gpu;

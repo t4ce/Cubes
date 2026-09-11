@@ -61,7 +61,7 @@ for page in 0..cube_interface::EXAMPLES.len(){
  }
 }}
 #[test] fn screen_pointer_picks_tilted_widgets_at_different_window_sizes(){
- for page in 0..cube_interface::EXAMPLES.len(){
+ for page in 0..=cube_interface::PLATEAU_ERROR{
   let mut demo=cube_interface::Demo::new();demo.select(page);
   let tier=cube_interface::definition(page).tier;
   let (columns,rows)=(demo.layout.width,demo.layout.height);
