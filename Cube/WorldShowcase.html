@@ -800,9 +800,14 @@ function pinManualPlatform(d,m){
  const p=platformProfile(d,m);m.platform={rollSize:p.rollSize,growthPercent:p.growthPercent,seed:d.config.seed};return m;
 }
 function makeManualModule(d,cell,theme=d.config.cubeTheme){
- return pinManualPlatform(d,{cell:cell.slice(),kind:'manual',theme,branch:null,variant:hashSeed(d.config.seed+'|manual|'+cellKey(cell))%1000000});
+ return pinManualPlatform(d,{cell:cell.slice(),kind:'manual',theme,platformPlane:manualPlatformPlane,branch:null,variant:hashSeed(d.config.seed+'|manual|'+cellKey(cell))%1000000});
 }
-function manualSupportPoint(d,m){const p=cellOrigin(d,m.cell);return [p.x,p.y-SLOT,p.z];}
+function manualSupportPoint(d,m){
+ const b=platformBounds(d,m),p=platformCenter(d,m);
+ if(m.platformPlane==='xy')return [p.x,p.y,b.lo.z-SLOT];
+ if(m.platformPlane==='yz')return [b.lo.x-SLOT,p.y,p.z];
+ return [p.x,b.lo.y,p.z];
+}
 function platformBounds(d,m,platformSize=null){
  const p=cellOrigin(d,m.cell),count=platformSize??platformProfile(d,m).size;
  const left=-Math.floor(count/2)*SLOT,size=count*SLOT;
@@ -824,7 +829,7 @@ function platformBounds(d,m,platformSize=null){
  return {lo:p.clone().add(new V3(left,-SLOT,left)),hi:p.clone().add(new V3(left+size,0,left+size))};
 }
 function platformPlaneRoll(m){if(m?.kind!=='manual')return null;return m.platformPlane==='xy'?'x':m.platformPlane==='yz'?'z':null;}
-function platformCenter(d,m){const b=platformBounds(d,m);return new V3((b.lo.x+b.hi.x)/2,(b.lo.y+b.hi.y), (b.lo.z+b.hi.z)/2);}
+function platformCenter(d,m){const b=platformBounds(d,m);return new V3((b.lo.x+b.hi.x)/2,(b.lo.y+b.hi.y)/2,(b.lo.z+b.hi.z)/2);}
 function platformAssetBounds(d,m){
  const p=platformCenter(d,m),r=CUBE_TIERS.r3/2,height=Object.values(CUBE_TIERS).reduce((a,b)=>a+b,0);
  return {lo:p.clone().add(new V3(-r,0,-r)),hi:p.clone().add(new V3(r,height,r))};
@@ -1359,7 +1364,7 @@ function validateProject(json){
    on boot. Export and import are explicit, so every fresh opening is empty. */
 const $=id=>document.getElementById(id);
 const canvas=$('canvas');
-let renderEngine,selectedWorldId=1,tool='select',sliceAxis='y',sliceIndex=DEFAULT_SPAN*CHUNK_CELLS/2-1,selectedCell=null,hoverCell=null,hoverValid=false;
+let renderEngine,selectedWorldId=1,tool='select',manualPlatformPlane='xz',sliceAxis='y',sliceIndex=DEFAULT_SPAN*CHUNK_CELLS/2-1,selectedCell=null,hoverCell=null,hoverValid=false;
 let currentGeometry={voxels:new Map(),nodes:[],edges:[]},currentPortals=[],portalElements=[],showGuides=true;
 const camera={pos:new V3(85,62,90),q:new Q4(),fov:45*Math.PI/180};
 const orbit={target:new V3(),yaw:.76,pitch:.48,radius:142};
@@ -1587,6 +1592,12 @@ function updateSelectionGraphics(){
  $('deleteButton').disabled=!selectedCell;updateCubePalette();
 }
 function updateUI(){const w=world(),d=data(),names=w.themes.map(id=>themeFor(id).name),count=d.modules.length;$('worldSelect').value=w.id;$('worldAddress').textContent=`${pad(w.id)} / 27 · [${w.iterator.join(',')}]`;$('themeChips').replaceChildren();for(const id of w.themes){const chip=document.createElement('span');chip.className='theme-chip';const dot=document.createElement('i');dot.className='swatch';dot.style.background=themeFor(id).color;chip.append(dot,document.createTextNode(themeFor(id).name));$('themeChips').append(chip);}for(const b of document.querySelectorAll('[data-world]')){b.classList.toggle('active',+b.dataset.world===w.id);b.classList.toggle('filled',levelData[+b.dataset.world-1].modules.length>0);}for(const b of document.querySelectorAll('[data-tool]')){b.classList.toggle('active',b.dataset.tool===tool);b.setAttribute('aria-pressed',b.dataset.tool===tool);}for(const key of ['count','height','bend','loops']){$(key+'Input').value=d.config[key];$(key+'Value').textContent=d.config[key]+settingSuffix(key);}$('seedInput').value=d.config.seed;$('autoPaths').checked=d.config.autoPaths;$('growthEnabled').checked=d.config.growthEnabled!==false;const span=d.spanChunks*CHUNK;$('dimensionNote').textContent=`${span}³ c1 units · ${d.spanChunks**3} chunks · outer portals only`;const c4n=Math.floor(span/CUBE_TIERS.c4),r3n=Math.floor(span/CUBE_TIERS.r3);$('cubeTierNote').innerHTML=`<strong>Seven cube tiers · side lengths in c1</strong><div class="tier-legend">${[...CUBE_TIER_ORDER].reverse().map(name=>`<span><i style="background:${TIER_COLOURS[name]}"></i>${name} <b>${CUBE_TIERS[name]}</b></span>`).join('')}</div><div class="field-note">Platforms + paths: c4 (8). Portal frame cubes: c2 (2).<br>1 chunk = ${CHUNK} c1 = ${CHUNK_CELLS} c4 per axis.<br>WORLD FIT · c4 ${c4n}³ = ${(c4n**3).toLocaleString()}<br>r3 ${r3n}³ = ${(r3n**3).toLocaleString()} · ${span%CUBE_TIERS.r3} c1 left per axis</div>`;$('sizeChip').textContent=`${span} × ${span} × ${span}`;$('stateChip').textContent=count?`${count} PLATFORMS · ${d.modules.filter(m=>m.kind==='manual').length} CONTROL CUBES`:'EMPTY';$('sceneKicker').textContent=`WORLD ${pad(w.id)} / ${w.kind==='special'?'SPECIAL WORLD':w.kind.toUpperCase()+' THEME'}`;$('sceneTitle').textContent=count?'A small world, taking shape.':'Room to make a world.';$('sceneSubtitle').textContent=count?`${currentGeometry.edges.length} main links + ${currentGeometry.localLinks} local branches · ${d.modules.filter(m=>m.kind==='manual').length} control cubes · ${names.join(' + ')}`:w.kind==='special'?'An empty void. Six returns. A centered leave portal.':'An empty volume. Six possible directions.';$('emptyCard').hidden=count>0||tool==='place'||!!portalFocus||!!towerFocus;$('budgetCount').textContent=`${count} / ${SOFT_CAP}`;$('budgetCount').classList.toggle('over-budget',count>SOFT_CAP);$('budgetWarning').hidden=count<=SOFT_CAP;$('budgetBar').classList.toggle('over',count>SOFT_CAP);[...$('budgetBar').children].forEach((el,i)=>el.classList.toggle('on',i<count));const h=histories[w.id-1];$('undoButton').disabled=!h.undo.length;$('redoButton').disabled=!h.redo.length;$('deleteButton').disabled=!selectedCell;$('sliceInput').max=d.spanChunks*CHUNK_CELLS-1;sliceIndex=clamp(sliceIndex,0,d.spanChunks*CHUNK_CELLS-1);$('sliceInput').value=sliceIndex;$('sliceAxis').value=sliceAxis;const sv=-halfOf(d)+(sliceIndex+.5)*SLOT;$('sliceValue').textContent=(sv<0?'−':'+')+Math.abs(sv);updateGenerationNotes();updateTowerUI();updateCubePalette();updatePortalUI();updateViewHeading();updateHint();}
+function setManualPlatformPlane(plane){
+ if(!['xz','xy','yz'].includes(plane))return;
+ manualPlatformPlane=plane;sliceAxis={xz:'y',xy:'z',yz:'x'}[plane];sliceIndex=Math.floor(DEFAULT_SPAN*CHUNK_CELLS/2)-1;
+ document.querySelectorAll('[data-platform-plane]').forEach(b=>b.classList.toggle('active',b.dataset.platformPlane===plane));
+ hoverCell=null;updateGuides();updateSelectionGraphics();updateUI();
+}
 function updateGenerationNotes(){
  const profiles=data().modules.map(m=>platformProfile(data(),m));
  $('platformSizeNote').textContent=profiles.length?`This world: ${Math.min(...profiles.map(p=>p.size))}–${Math.max(...profiles.map(p=>p.size))} c4 across (${Math.min(...profiles.map(p=>p.worldSize))}–${Math.max(...profiles.map(p=>p.worldSize))} c1)`:'Six seeded portal plateaus · rolls 16 / 17 / 18 / 19 c4';
@@ -1756,6 +1767,7 @@ $('towerSelect').onchange=()=>{if(towerFocus)focusTierTower();};
 $('showPlatformHulls').onchange=()=>updateScene();
 $('showTierTowers').onchange=e=>{showTierTowers=e.target.checked;if(!showTierTowers)towerFocus=null;updateScene();};
 for(const key of PORTAL_PRESET_KEYS){const option=document.createElement('option');option.value=key;option.textContent=portalPresetLabel(key);$('portalPreset').append(option);}
+document.querySelectorAll('[data-platform-plane]').forEach(b=>b.addEventListener('click',()=>setManualPlatformPlane(b.dataset.platformPlane)));
 function setSidebarTab(tab){const portals=tab==='portals';$('portalTabPane').hidden=!portals;$('worldTabPane').hidden=portals;$('portalTabButton').classList.toggle('active',portals);$('worldTabButton').classList.toggle('active',!portals);$('portalTabButton').setAttribute('aria-selected',String(portals));$('worldTabButton').setAttribute('aria-selected',String(!portals));}
 $('worldTabButton').onclick=()=>{setSidebarTab('world');frameWorld();};$('portalTabButton').onclick=()=>setSidebarTab('portals');
 attachPortalControls();
