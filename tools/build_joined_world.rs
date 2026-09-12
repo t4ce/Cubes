@@ -1,7 +1,7 @@
-//! Build-time conversion of one `.cubes` world into one exposed-face PBR mesh.
+//! Build-time conversion of one `.cubes` world into one exposed-face retained mesh.
 //! The authored records remain the source of truth for walking and interaction.
 
-pub const VERTEX_STRIDE: usize = 48;
+pub const VERTEX_STRIDE: usize = 32;
 
 pub struct Mesh {
     pub vertices: Vec<u8>,
@@ -188,10 +188,7 @@ fn push_quad(
     ];
     let mut normal = [0.0; 3];
     normal[axis] = sign as f32;
-    let mut tangent = [0.0; 3];
-    tangent[uv_axes[0]] = 1.0;
     normal[2] = -normal[2];
-    tangent[2] = -tangent[2];
     let fixed = cube.origin[axis] + if sign < 0 { 0 } else { cube.side };
     let corners = [
         [u, v],
@@ -220,8 +217,6 @@ fn push_quad(
             .into_iter()
             .chain(normal)
             .chain(uv)
-            .chain(tangent)
-            .chain([1.0])
         {
             vertices.extend_from_slice(&value.to_le_bytes());
         }
@@ -258,5 +253,45 @@ mod tests {
         let area: usize = rectangles.iter().map(|r| r[2] * r[3]).sum();
         assert_eq!(area, 6);
         assert!(mask.iter().all(|&cell| !cell));
+    }
+
+    #[test]
+    fn every_triangle_winding_matches_its_outward_normal() {
+        let bytes = include_bytes!("../Cube/lvl27/world_01_sky.cubes");
+        let mesh = build(bytes);
+        let float = |vertex: usize, component: usize| {
+            let offset = vertex * VERTEX_STRIDE + component * 4;
+            f32::from_le_bytes(mesh.vertices[offset..offset + 4].try_into().unwrap())
+        };
+        for triangle in mesh.indices.chunks_exact(12) {
+            let indices: [usize; 3] = core::array::from_fn(|corner| {
+                u32::from_le_bytes(
+                    triangle[corner * 4..corner * 4 + 4]
+                        .try_into()
+                        .unwrap(),
+                ) as usize
+            });
+            let position = |vertex| {
+                [
+                    float(vertex, 0),
+                    float(vertex, 1),
+                    float(vertex, 2),
+                ]
+            };
+            let [a, b, c] = indices.map(position);
+            let ab = core::array::from_fn::<_, 3, _>(|axis| b[axis] - a[axis]);
+            let ac = core::array::from_fn::<_, 3, _>(|axis| c[axis] - a[axis]);
+            let cross = [
+                ab[1] * ac[2] - ab[2] * ac[1],
+                ab[2] * ac[0] - ab[0] * ac[2],
+                ab[0] * ac[1] - ab[1] * ac[0],
+            ];
+            let normal = [
+                float(indices[0], 3),
+                float(indices[0], 4),
+                float(indices[0], 5),
+            ];
+            assert!(cross.iter().zip(normal).map(|(a, b)| a * b).sum::<f32>() > 0.0);
+        }
     }
 }

@@ -2095,7 +2095,7 @@ impl CubeScene {
                         logl::log(
                             level::INFO,
                             format_args!(
-                                "Cubes: Key5 world=1 render=joined-indexed quads={} triangles={} mesh_bytes={} texture=opaque-palette hard-edge=7/96",
+                                "Cubes: Key5 world=1 render=joined-indexed quads={} triangles={} mesh_bytes={} shader=unlit-base-color texture=opaque-palette hard-edge=7/96 cull=double-sided",
                                 renderer.quads(),
                                 renderer.quads() * 2,
                                 renderer.bytes(),

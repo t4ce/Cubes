@@ -6,7 +6,7 @@ use trueos::{async_fs, vgpu::*, vmedia};
 const VERTICES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/joined_world_01_vertices.bin"));
 const INDICES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/joined_world_01_indices.bin"));
 const WORLD: &[u8] = include_bytes!("../Cube/lvl27/world_01_sky.cubes");
-const VERTEX_STRIDE: usize = 48;
+const VERTEX_STRIDE: usize = 32;
 const TILE: usize = 96;
 const EDGE: usize = 7; // 7/96 = 7.29%, one third wider than the 5.5% demo seam.
 
@@ -50,7 +50,7 @@ impl Renderer {
                 RetainedMeshDescriptor {
                     vertex_count: (VERTICES.len() / VERTEX_STRIDE) as u32,
                     index_count: (INDICES.len() / 4) as u32,
-                    vertex_layout: RETAINED_VERTEX_LAYOUT_POS_NORMAL_UV_TANGENT,
+                    vertex_layout: RETAINED_VERTEX_LAYOUT_POS_NORMAL_UV,
                     topology: PRIMITIVE_TOPOLOGY_TRIANGLE_LIST | RETAINED_MESH_FLAG_DOUBLE_SIDED,
                     ..RetainedMeshDescriptor::default()
                 },
@@ -116,27 +116,20 @@ impl Renderer {
             local_radius: 512.0,
             ..RetainedTransformSeed::default()
         };
-        let point = self.device.submit_retained_frame_v2(
+        let point = self.device.submit_retained_frame(
             queue,
             surface,
             self.mesh,
             self.vertices,
             self.indices,
-            RetainedFrameSubmitV2 {
-                frame,
-                material_parameters: RetainedMaterialParameters {
-                    metallic_factor: 0.0,
-                    roughness_factor: 0.82,
-                    flags: RETAINED_MATERIAL_FLAG_DOUBLE_SIDED,
-                    ..RetainedMaterialParameters::default()
-                },
-            },
+            frame,
         )?;
         self.device.wait(queue, point.value)
     }
 }
 
-/// PBR and the procedural cube shader use opposite clip-Y conventions. Keep
+/// Retained textured meshes and the procedural cube shader use opposite
+/// clip-Y conventions. Keep
 /// the joined mesh aligned with the walker/picker camera used by Key 5.
 fn render_camera(mut camera: RetainedCamera) -> RetainedCamera {
     for matrix in [
