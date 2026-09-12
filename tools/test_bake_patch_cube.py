@@ -77,7 +77,7 @@ class PatchCubeTests(unittest.TestCase):
             self.assertIn("clip.w > 0.0", vs)
             self.assertEqual(ds.count("alpha=0.35"), 1)
             self.assertIn("if (sticker >= 0 && (flags & 32u) == 0u) alpha=0.35", ds)
-            self.assertIn("if ((flags & 64u) != 0u) { material = int(cubie); sticker = -1; }", ds)
+            self.assertIn("if ((flags & 64u) != 0u && sticker >= 0) material = int(cubie);", ds)
             self.assertIn("bool transparentPass", ds)
             self.assertIn("sticker != int((flags >> 10u) & 7u)", ds)
             self.assertIn("(flags & 8192u) != 0u && id < 600u", ds)

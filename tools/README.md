@@ -218,18 +218,23 @@ per-corner normal bit with the approved reference, but cannot prove GPU output, 
 or bare-metal stability. Compare a rendered frame against the reference
 before claiming verified 1:1 presentation. No rig deployment or reboot was performed.
 
-## Key2 palette stages
+## Key2 palette selection
 
-Key2 cycles from zero to six solid palette cubes, adding one per press and
-wrapping back to zero. They occupy two columns of three beside the puzzle,
+Key2 rolls a random count from zero through six, then a random subset of palette
+colors of that size. Repeats are possible. Entering Key2 from another mode starts
+with no palette cubes. Colors retain fixed slots in two columns of three,
 alternating left/right in local face palette order (+X, -X, +Y, -Y, +Z, -Z).
-Each is twice a cubie's side length and rotates continuously at the idle orbit
-speed, independently of WASD. The camera reserves space for both columns while
-any are visible and restores normal framing at zero.
+Each is twice a cubie's side length, with column centers at camera-local X ±6.9,
+and drifts independently between random quaternion orientations over 12–18 second
+intervals, with smooth easing and no WASD influence. Hidden cubes keep their
+rotation timeline. Their six uniformly colored faces use the same 0.35 alpha
+and opaque baseline bevel material as transparent puzzle cubies. All palette
+and puzzle faces share the depth-sorted transparent draw group.
+The puzzle camera framing does not change when palette cubes appear.
 
-The center starts with opaque square faces. Each visible palette cube switches
-its matching face color to the original 0.35 alpha; stage six therefore restores
-the previous translucent appearance. Bevels remain opaque. The Key5 miniature
-keeps its existing outer stickers and has no additional palette cubes.
-The shader uses palette bits 5 (opaque face) and 6 (solid uniform color);
-rebuild both the Cubes app and the kernel containing the exported shader.
+Every cubie keeps its original one, two, or three theme identities through turns.
+All six of its square faces use the original 0.35 alpha only when every assigned
+theme is visible in the side columns; otherwise all six are opaque. The core
+requires all six colors. Bevels remain opaque. The Key5 miniature keeps its
+existing outer stickers and has no additional palette cubes.
+The shader uses palette bits 5 (opaque face) and 6 (uniform face color).

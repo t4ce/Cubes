@@ -414,7 +414,7 @@ void main() {
             if (normal.z > 0.9999 && (allFaces || cell.z == 2u)) sticker=4;
             if (normal.z < -0.9999 && (allFaces || cell.z == 0u)) sticker=5;
             material = sticker;
-            if ((flags & 64u) != 0u) { material = int(cubie); sticker = -1; }
+            if ((flags & 64u) != 0u && sticker >= 0) material = int(cubie);
         }
         if (material >= 0) paletteMaterial(uint(material), baseColor, roughness, metallic);
         bool transparentPass = (flags & 32768u) == 0u && (flags & 512u) != 0u;

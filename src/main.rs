@@ -156,7 +156,7 @@ struct CubeScene {
     flight_target: flight_target::Indicator,
     asset_brush: asset_brush::Brush,
     puzzle: rubik::Puzzle,
-    palette_stage: usize,
+    palette_selection: rubik::PaletteSelection,
     mining: subcubes::Demo,
     mining_asset: orchard::Asset,
     orbit: [f32; 3], // yaw, elevation, radius
@@ -388,7 +388,7 @@ impl CubeScene {
             cursors: Vec::new(),
             mode: SceneMode::StaticCube,
             puzzle: rubik::Puzzle::new(0),
-            palette_stage: 0,
+            palette_selection: rubik::PaletteSelection::default(),
             mining: subcubes::Demo::new(),
             mining_asset: orchard::Asset {
                 name: "mining",
@@ -591,7 +591,8 @@ impl CubeScene {
                     grid::CUBE_COMPACT_SPACING,
                     grid::CUBE_GRID_SCALE,
                     |id| self.puzzle.pose(id, 0.0, 1.0),
-                ) && self.puzzle.select(hit.cubie, elapsed_millis)
+                ) && rubik::cubie_transparent(hit.cubie, self.palette_selection.visible)
+                    && self.puzzle.select(hit.cubie, elapsed_millis)
                 {
                     self.selected_entry = world_topology::entry(hit.cubie, hit.face_axis);
                     self.selected_face_axis = Some(hit.face_axis);
@@ -723,12 +724,7 @@ impl CubeScene {
             for i in 0..3 {
                 self.look_target[i] += (target[i] - self.look_target[i]) * ease;
             }
-            let [yaw, pitch, mut radius] = self.orbit;
-            if self.mode == SceneMode::StaticCube && self.palette_stage > 0 {
-                let aspect = self.frame.width() as f32 / self.frame.height().max(1) as f32;
-                let fit = (6.0_f32.max(6.8 / aspect)) / libm::tanf(PUZZLE_YFOV * 0.5) + 1.9;
-                radius = radius.max(fit);
-            }
+            let [yaw, pitch, radius] = self.orbit;
             let radial = [
                 radius * libm::cosf(pitch) * libm::sinf(yaw),
                 radius * libm::sinf(pitch),
@@ -914,7 +910,8 @@ impl CubeScene {
             self.carousel.prepare(elapsed_millis).map_err(|_| CubeError::Contract)?;
             self.carousel.limit(self.limits.full().min(self.limits.seeds()-1));
         }
-        let palette_count = if self.mode == SceneMode::StaticCube { self.palette_stage } else { 0 };
+        let palette_visible = if self.mode == SceneMode::StaticCube { self.palette_selection.visible } else { 0 };
+        let palette_count = palette_visible.count_ones() as usize;
         let companion = self.world_cube.visible(self.mode == SceneMode::World);
         let flight_slot = usize::from(self.mode.is_world() || self.mode == SceneMode::MaterialShowcase);
         let target = if flight_slot != 0 && self.portal_trip.is_none() {
@@ -1095,7 +1092,7 @@ impl CubeScene {
             + if companion { 27 } else { 0 };
         let seed_count = opaque_count + flight_slot + path_cubes.len()
             + if self.mode == SceneMode::Orchard { 1 } else if self.mode == SceneMode::StaticCube {
-                rubik::ALL_FACE_COUNT
+                rubik::ALL_FACE_COUNT + palette_count * 6
             } else if companion {
                 rubik::OUTER_FACE_COUNT
             } else if self.mode == SceneMode::InteractiveGrid {
@@ -1106,6 +1103,7 @@ impl CubeScene {
         let turn_angle = self.puzzle.angle(elapsed_millis);
         let (turn_sin, turn_cos) = (libm::sinf(turn_angle), libm::cosf(turn_angle));
         let mut seed_bytes = [0u8; grid::MAX_SEED_COUNT * 64];
+        let mut palette_seeds = [RetainedTransformSeed::default(); 6];
         let mut opaque_seeds = [RetainedTransformSeed::default(); 27];
         let mut expanded_count = 0usize;
         // A tiny seed becomes a visible flat marker in the hull shader. If
@@ -1279,26 +1277,29 @@ impl CubeScene {
             encode_seed(seed, &mut seed_bytes[row * 64..(row + 1) * 64]);
         }
         // Camera-relative columns keep WASD confined to the center puzzle.
-        // Each solid palette cube spins continuously at the idle orbit speed.
-        for color in 0..palette_count {
+        // Each palette cube drifts independently through arbitrary orientations.
+        for (slot, color) in (0..6).filter(|color| palette_visible & (1 << color) != 0).enumerate() {
             let scale = grid::CUBE_GRID_SCALE * 2.0;
             let depth = libm::sqrtf(self.flycam.camera.position.iter().map(|x| x * x).sum::<f32>());
-            let position = [if color % 2 == 0 { -4.7 } else { 4.7 },
+            // Bow the outer rows inward by one third of a cube's full width.
+            let inward = if color / 2 == 1 { 0.0 } else { 2.0 * scale / 3.0 };
+            let side = if color % 2 == 0 { -1.0 } else { 1.0 };
+            let position = [side * (6.9 - inward),
                 (color / 2) as f32 * 3.9 - 3.9, -depth];
             let offset = self.flycam.camera.rotation.rotate(position);
             let translation = core::array::from_fn(|a| self.flycam.camera.position[a] + offset[a]);
-            let angle = -(elapsed_millis as f32 * 0.001) * IDLE_ORBIT_RADIANS_PER_SECOND;
-            let (sn, cs) = (libm::sinf(angle), libm::cosf(angle));
-            let basis = [[cs, 0., -sn], [0., 1., 0.], [sn, 0., cs]]
-                .map(|axis| self.flycam.camera.rotation.rotate(axis));
-            let row = scene_opaque_count + ghost_count + color;
+            let rotation = Quaternion(rubik::palette_rotation(color, elapsed_millis));
+            let basis = [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]]
+                .map(|axis| self.flycam.camera.rotation.rotate(rotation.rotate(axis)));
+            let row = scene_opaque_count + ghost_count + slot;
             let seed = RetainedTransformSeed {
                 translation, previous_translation: translation,
                 scale: [scale; 3],
                 rotation: quaternion_from_rotation_columns(basis[0], basis[1], basis[2]).0,
                 local_radius: grid::CUBE_LOCAL_RADIUS, draw_group: 0,
-                flags: ((row as u32) << 16) | rubik::PALETTE_FLAG | rubik::SOLID_PALETTE_FLAG | color as u32,
+                flags: ((row as u32) << 16) | rubik::PALETTE_FLAG | rubik::UNIFORM_PALETTE_FLAG | rubik::ALL_FACES_FLAG | color as u32,
             };
+            palette_seeds[slot] = seed;
             encode_seed(seed, &mut seed_bytes[row * 64..(row + 1) * 64]);
             expanded_count += 1;
         }
@@ -1350,8 +1351,8 @@ impl CubeScene {
                     + camera.view[10] * p[2] + camera.view[14]);
                 faces.push((depth, seed));
             }
-            for id in 0..if self.mode == SceneMode::StaticCube || companion { 27 } else { 0 } {
-                let seed = opaque_seeds[id];
+            for id in 0..if self.mode == SceneMode::StaticCube || companion { 27 + palette_count } else { 0 } {
+                let seed = if id < 27 { opaque_seeds[id] } else { palette_seeds[id - 27] };
                 let basis = [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]]
                     .map(|a| Quaternion(seed.rotation).rotate(a));
                 for face in rubik::palette_faces(id, all_faces) {
@@ -1367,7 +1368,7 @@ impl CubeScene {
                     let mut seed = seed;
                     seed.draw_group = 1;
                     seed.flags = (seed.flags & 0xffff) | 512 | ((face as u32) << 10);
-                    if all_faces && face >= self.palette_stage {
+                    if all_faces && id < 27 && !rubik::cubie_transparent(id, palette_visible) {
                         seed.flags |= rubik::OPAQUE_FACE_FLAG;
                     }
                     faces.push((depth, seed));
@@ -1721,9 +1722,9 @@ impl CubeScene {
                 self.puzzle.cancel_travel(self.previous_elapsed_millis);
             }
             if selection.mode == SceneMode::StaticCube && self.mode == SceneMode::StaticCube {
-                self.palette_stage = (self.palette_stage + 1) % 7;
+                self.palette_selection.roll(clock::monotonic_millis());
             } else {
-                if selection.mode == SceneMode::StaticCube { self.palette_stage = 0; }
+                if selection.mode == SceneMode::StaticCube { self.palette_selection.visible = 0; }
                 self.select_mode(selection, None)?;
             }
         } else if self.mode == SceneMode::Orchard {
@@ -2370,7 +2371,7 @@ impl CubeScene {
                 match mode {
                     SceneMode::InteractiveGrid => "1 interactive-grid Key1=sphere",
                     SceneMode::StaticCube =>
-                        "2 compact-puzzle Key2=0..6-palette-cubes click=face/edge/corner turns=3x1s camera=WASD-orbit idle=3s-auto-orbit",
+                        "2 compact-puzzle Key2=random-0..6-palette-cubes click=face/edge/corner turns=3x1s camera=WASD-orbit idle=3s-auto-orbit",
                     SceneMode::Sphere =>
                         "1 sphere=1024 camera=center WASD=look cursor-expand=10%-area Key1=interactive-grid",
                     SceneMode::Orchard => "asset-picker wheel/AD=slide/loop W/S=next/previous-group mouse=orbit LMB=confirm five-row-assets alpha=.25/.5/1/.5/.25 group-previews=above/below alpha=.5",

@@ -2,7 +2,7 @@
 pub const PALETTE_FLAG: u32 = 256;
 /// Palette-only low bits: cubie/color identity occupies bits 0..4.
 pub const OPAQUE_FACE_FLAG: u32 = 1 << 5;
-pub const SOLID_PALETTE_FLAG: u32 = 1 << 6;
+pub const UNIFORM_PALETTE_FLAG: u32 = 1 << 6;
 /// Key 2 gives every cubie all six palette faces, including its core.
 pub const ALL_FACES_FLAG: u32 = 128;
 pub const ALL_FACE_COUNT: usize = 27 * 6;
@@ -11,6 +11,73 @@ pub const OUTER_FACE_COUNT: usize = 54;
 pub fn palette_faces(id: usize, all_faces: bool) -> impl Iterator<Item = usize> {
     let cell = [id % 3, (id / 3) % 3, id / 9];
     (0..6).filter(move |&face| all_faces || cell[face / 2] == if face % 2 == 0 { 2 } else { 0 })
+}
+/// Themes belong to the original cubie identity, so they follow puzzle turns.
+/// The otherwise theme-less core requires the complete palette.
+pub fn cubie_themes(id: usize) -> u8 {
+    let mask = palette_faces(id, false).fold(0, |mask, face| mask | (1 << face));
+    if mask == 0 { 0x3f } else { mask }
+}
+pub fn cubie_transparent(id: usize, visible: u8) -> bool {
+    let required = cubie_themes(id);
+    visible & required == required
+}
+
+#[derive(Default)]
+pub struct PaletteSelection {
+    pub visible: u8,
+    rng: u32,
+}
+impl PaletteSelection {
+    /// Pick one of the seven counts, then a random subset of that size.
+    pub fn roll(&mut self, now: u64) {
+        self.rng ^= now as u32 ^ (now >> 32) as u32;
+        if self.rng == 0 { self.rng = 0x6d2b79f5; }
+        let count = self.next() % 7;
+        let mut colors = [0, 1, 2, 3, 4, 5];
+        self.visible = 0;
+        for i in 0..count as usize {
+            let chosen = i + self.next() as usize % (6 - i);
+            colors.swap(i, chosen);
+            self.visible |= 1 << colors[i];
+        }
+    }
+    fn next(&mut self) -> u32 {
+        self.rng ^= self.rng << 13;
+        self.rng ^= self.rng >> 17;
+        self.rng ^= self.rng << 5;
+        self.rng
+    }
+}
+/// Smooth, independent shortest-arc drift between arbitrary unit quaternions.
+/// Absolute time keeps hidden cubes moving and makes motion frame-rate independent.
+pub fn palette_rotation(color: usize, now: u64) -> [f32; 4] {
+    let duration = 12_000 + color as u64 * 1_137;
+    let segment = now / duration;
+    let target = |segment: u64| {
+        let mut rng = (segment as u32).wrapping_mul(0x9e3779b9)
+            ^ (color as u32 + 1).wrapping_mul(0x85ebca6b);
+        if rng == 0 { rng = 0x6d2b79f5; }
+        let mut q = core::array::from_fn::<_, 4, _>(|_| {
+            rng ^= rng << 13;
+            rng ^= rng >> 17;
+            rng ^= rng << 5;
+            (rng as f64 / u32::MAX as f64 * 2.0 - 1.0) as f32
+        });
+        let length = libm::sqrtf(q.iter().map(|x| x * x).sum());
+        for x in &mut q { *x /= length; }
+        q
+    };
+    let a = target(segment);
+    let mut b = target(segment + 1);
+    if a.iter().zip(b).map(|(x, y)| x * y).sum::<f32>() < 0.0 {
+        b = b.map(|x| -x);
+    }
+    let t = (now % duration) as f32 / duration as f32;
+    let t = t * t * (3.0 - 2.0 * t);
+    let q = core::array::from_fn::<_, 4, _>(|i| a[i] + (b[i] - a[i]) * t);
+    let length = libm::sqrtf(q.iter().map(|x| x * x).sum());
+    q.map(|x| x / length)
 }
 /// Shade an entire key-1 room wall with its matching Rubik palette colour.
 pub const ROOM_PALETTE_FLAG: u32 = 1 << 13;
@@ -217,6 +284,66 @@ impl Puzzle {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn palette_drift_is_normalized_independent_and_continuous() {
+        let dot = |a: [f32; 4], b: [f32; 4]| a.iter().zip(b).map(|(x, y)| x * y).sum::<f32>().abs();
+        for color in 0..6 {
+            let duration = 12_000 + color as u64 * 1_137;
+            for segment in 1..40 {
+                let now = segment * duration;
+                let q = palette_rotation(color, now);
+                assert!((dot(q, q) - 1.0).abs() < 0.00001);
+                assert!(dot(palette_rotation(color, now - 1), q) > 0.99999);
+                assert!(dot(palette_rotation(color, now + 1), q) > 0.99999);
+                let halfway = palette_rotation(color, now + duration / 2);
+                assert!((dot(halfway, halfway) - 1.0).abs() < 0.00001);
+            }
+            assert!(dot(palette_rotation(color, 0), palette_rotation(color, duration)) < 0.999);
+            for other in 0..color {
+                assert!(dot(palette_rotation(color, 5000), palette_rotation(other, 5000)) < 0.999);
+            }
+        }
+    }
+    #[test]
+    fn palette_subsets_require_every_cubie_theme() {
+        let mut types = [0; 7];
+        for id in 0..27 { types[cubie_themes(id).count_ones() as usize] += 1; }
+        assert_eq!(types, [0, 6, 12, 8, 0, 0, 1]);
+        for visible in 0u8..64 {
+            for id in 0..27 {
+                let cell = [id % 3, id / 3 % 3, id / 9];
+                let expected = if id == 13 { visible == 63 } else {
+                    cell.iter().enumerate().all(|(axis, &v)| match v {
+                        0 => visible & (1 << (axis * 2 + 1)) != 0,
+                        2 => visible & (1 << (axis * 2)) != 0,
+                        _ => true,
+                    })
+                };
+                assert_eq!(cubie_transparent(id, visible), expected);
+            }
+        }
+        for color in 0..6 {
+            assert_eq!((0..27).filter(|&id| cubie_transparent(id, 1 << color)).count(), 1);
+        }
+        // +X and +Y unlock their pure centers and their shared edge, no corners.
+        assert_eq!((0..27).filter(|&id| cubie_transparent(id, 0b000101)).count(), 3);
+        // Three adjacent colors additionally unlock their three edges and corner.
+        assert_eq!((0..27).filter(|&id| cubie_transparent(id, 0b010101)).count(), 7);
+    }
+    #[test]
+    fn palette_rolls_reach_all_subsets_and_all_seven_counts() {
+        let mut selection = PaletteSelection::default();
+        assert_eq!(selection.visible, 0);
+        let mut subsets = [false; 64];
+        let mut counts = [0; 7];
+        for now in 0..14000 {
+            selection.roll(now);
+            subsets[selection.visible as usize] = true;
+            counts[selection.visible.count_ones() as usize] += 1;
+        }
+        assert!(subsets.into_iter().all(|seen| seen));
+        assert!(counts.into_iter().all(|count| (1500..2500).contains(&count)));
+    }
     #[test]
     fn full_palette_includes_all_six_faces_on_every_cubie_and_core() {
         let mut full = 0;
