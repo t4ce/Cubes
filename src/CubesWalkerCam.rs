@@ -781,17 +781,30 @@ impl CubesWalkerCam {
         }
     }
     pub fn image_gallery(_layout: crate::slideshow::contract::Layout) -> Self {
-        use crate::slideshow::WORLD_HALF;
+        use crate::slideshow::{CENTER_CUBE_SIDE, CENTER_HALF_EXTENT, WORLD_HALF};
+        let side = crate::slideshow::contract::CENTER_CUBES_PER_AXIS;
         let mut cam = Self::mining_demo(&[]);
         cam.unit = 0.8;
-        cam.drift_half_extent = 512.;
-        // c1 cubes are visual detail, as in authored worlds and placed cubes:
-        // no collision, walking surface, or Space-snap target. Keep world bounds.
-        let h = libm::ceilf(WORLD_HALF/cam.unit) as i32;
-        cam.solid = Solid { lo: [-h;3], dims: [(2*h) as usize;3], bits: Vec::new(),
-            fine: BTreeMap::new() };
+        let cube_size = CENTER_CUBE_SIDE/cam.unit;
+        let bound = side*cube_size as i32/2+1;
+        cam.solid = Solid::new([-bound;3],[bound;3]);
         cam.cubes.clear();
-        cam.server_spawn([0.;3]);
+        for x in 0..side { for y in 0..side { for z in 0..side {
+            let center = [x-side/2,y-side/2,z-side/2].map(|v|v as f32*cube_size);
+            let lo = center.map(|v|v-cube_size*0.5);
+            Self::insert_bounds(&mut cam.solid,lo,cube_size);
+            cam.cubes.push(CubeBounds { lo, size: cube_size, gap: 0. });
+        } } }
+        // Movement keeps the normal 4×4×4-chunk world envelope even though the
+        // six gallery slabs now sit nearby and their c1 detail has no collision.
+        cam.drift_half_extent = WORLD_HALF/cam.unit;
+        // Stand on the +Z part of the top face so the upright sparse asset at
+        // z=0 is visible immediately while its bottom edge rests on the landmark.
+        cam.attach(Hit { point: [0.,CENTER_HALF_EXTENT/cam.unit,CENTER_CUBE_SIDE/cam.unit], normal: UP, distance: 0. });
+        cam.forward = FORWARD;
+        cam.reset_view();
+        cam.position = cam.camera_target();
+        cam.rotation = cam.view;
         cam
     }
     pub fn replace_image_gallery(&mut self, layout: crate::slideshow::contract::Layout) {
@@ -2711,16 +2724,19 @@ mod tests {
 mod image_gallery_tests {
     use super::*;
     #[test]
-    fn c1_gallery_preserves_spawn_and_world_bounds_without_collision_or_snap() {
+    fn gallery_starts_on_the_center_c4_landmark_inside_standard_world_bounds() {
         use crate::slideshow::{self, contract::Layout};
         for tier in 1..=3 {
             let layout = Layout {tiers:[tier;6]};
             let camera = CubesWalkerCam::image_gallery(layout);
-            assert_eq!(camera.pose().0, [0.;3]);
+            assert!(!camera.is_flying());
+            assert_eq!(camera.cubes.len(), 27);
+            assert_eq!(camera.up, UP);
             assert_eq!(camera.pose().1.rotate(FORWARD), FORWARD);
+            assert!((camera.foot[1]*camera.unit-slideshow::CENTER_HALF_EXTENT).abs()<0.03);
+            assert!((camera.foot[2]*camera.unit-slideshow::CENTER_CUBE_SIDE).abs()<0.03);
             assert!(camera.far_plane()>slideshow::WORLD_HALF*2.);
-            assert!(camera.cubes.is_empty());
-            assert!(camera.solid.bits.is_empty() && camera.solid.fine.is_empty());
+            assert!(!camera.solid.bits.is_empty());
             assert_eq!(crate::subcubes::C1, slideshow::contract::C1);
             for face in 0..6 {
                 let center = slideshow::center(face);

@@ -1,5 +1,5 @@
-//! Persistent Key-8 slideshow connection. Transfers are pinned to a revision;
-//! incomplete frames never replace the currently displayed image.
+//! Persistent Key-8 gallery and sparse-frame connection. Transfers are pinned
+//! to revisions; incomplete frames never replace the displayed scene.
 use alloc::{sync::Arc, vec, vec::Vec};
 use core::net::Ipv4Addr;
 use std::sync::Mutex;
@@ -10,6 +10,8 @@ const MAGIC: &[u8; 4] = b"CUB1";
 const HEADER: usize = 8;
 const INFO: u8 = 0x85;
 const CHUNK: u8 = 0x86;
+const HOLY_INFO: u8 = 0x87;
+const HOLY_CHUNK: u8 = 0x88;
 const CHUNK_BYTES: usize = 1024;
 const MAX_ENCODED_BYTES: usize = 4 * 1024 * 1024;
 const WINDOW: usize = 32;
@@ -21,10 +23,21 @@ pub struct Slide {
     pub revision: u32,
     pub spawn: [f32; 3],
 }
+#[derive(Debug)]
+pub struct HolyFrame {
+    pub session: u64,
+    pub gallery_revision: u32,
+    pub revision: u32,
+    pub index: u8,
+    pub cubes: Vec<cubes_protocol::holy::Pixel>,
+}
+pub enum Update { Gallery(Slide), Holy(HolyFrame) }
 struct Shared {
     session: u64,
     running: bool,
-    ready: Option<Result<Slide, &'static str>>,
+    gallery_ready: Option<Slide>,
+    holy_ready: Option<HolyFrame>,
+    error: Option<&'static str>,
     position: [f32; 3],
     orientation: [f32; 3],
 }
@@ -42,7 +55,9 @@ impl Client {
             shared: Arc::new(Mutex::new(Shared {
                 session: 0,
                 running: false,
-                ready: None,
+                gallery_ready: None,
+                holy_ready: None,
+                error: None,
                 position: [0.; 3],
                 orientation: [0., 0., -1.],
             })),
@@ -53,7 +68,9 @@ impl Client {
         let mut s = self.shared.lock().unwrap();
         s.session = s.session.wrapping_add(1);
         s.running = false;
-        s.ready = None;
+        s.gallery_ready = None;
+        s.holy_ready = None;
+        s.error = None;
     }
     pub fn key(&mut self, held: bool, position: [f32; 3], orientation: [f32; 3]) {
         let pressed = held && !self.held;
@@ -67,7 +84,9 @@ impl Client {
             }
             s.running = true;
             s.session = s.session.wrapping_add(1);
-            s.ready = None;
+            s.gallery_ready = None;
+            s.holy_ready = None;
+            s.error = None;
             s.session
         };
         let shared = self.shared.clone();
@@ -82,7 +101,7 @@ impl Client {
             if s.session == session {
                 s.running = false;
                 if let Err(error) = result {
-                    s.ready = Some(Err(error));
+                    s.error = Some(error);
                 }
             }
         })
@@ -90,11 +109,14 @@ impl Client {
         {
             let mut s = self.shared.lock().unwrap();
             s.running = false;
-            s.ready = Some(Err("worker unavailable"));
+            s.error = Some("worker unavailable");
         }
     }
-    pub fn take_ready(&mut self) -> Option<Result<Slide, &'static str>> {
-        self.shared.lock().unwrap().ready.take()
+    pub fn take_ready(&mut self) -> Option<Result<Update, &'static str>> {
+        let mut shared = self.shared.lock().unwrap();
+        if let Some(slide) = shared.gallery_ready.take() { return Some(Ok(Update::Gallery(slide))); }
+        if let Some(frame) = shared.holy_ready.take() { return Some(Ok(Update::Holy(frame))); }
+        shared.error.take().map(Err)
     }
 }
 impl Drop for Client {
@@ -157,6 +179,31 @@ fn accept_chunk(bytes: &[u8], revision: u32, encoded: &mut [u8], received: &mut 
     received[index] = true;
     true
 }
+fn holy_info(bytes: &[u8]) -> Option<(u32, u32, u8, usize)> {
+    let p = payload(bytes, HOLY_INFO)?;
+    if p.len() != 15 { return None; }
+    let size = u16::from_le_bytes(p[13..15].try_into().unwrap()) as usize;
+    if size > cubes_protocol::holy::WIDTH as usize * cubes_protocol::holy::HEIGHT as usize * 3
+        || size % 3 != 0 { return None; }
+    Some((u32::from_le_bytes(p[4..8].try_into().unwrap()),
+        u32::from_le_bytes(p[8..12].try_into().unwrap()), p[12], size))
+}
+fn accept_holy_chunk(bytes: &[u8], revision: u32, frame: u8,
+    encoded: &mut [u8], received: &mut [bool]) -> bool
+{
+    let Some(p) = payload(bytes, HOLY_CHUNK) else { return false; };
+    if p.len() < 7 || u32::from_le_bytes(p[..4].try_into().unwrap()) != revision || p[4] != frame {
+        return false;
+    }
+    let index = u16::from_le_bytes(p[5..7].try_into().unwrap()) as usize;
+    if index >= received.len() || received[index] { return false; }
+    let start = index * CHUNK_BYTES;
+    let end = (start + CHUNK_BYTES).min(encoded.len());
+    if p.len() != 7 + end - start { return false; }
+    encoded[start..end].copy_from_slice(&p[7..]);
+    received[index] = true;
+    true
+}
 fn image_format(bytes: &[u8]) -> Option<vmedia::ImageFormat> {
     if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
         Some(vmedia::ImageFormat::Png)
@@ -194,6 +241,8 @@ async fn stream(
         .map_err(|_| "cubesrv connect")?;
     let mut buffer = [0u8; 1200];
     let mut shown = None;
+    let mut shown_holy = None;
+    let mut pending_holy = None;
     let mut sequence = 0u32;
     let mut missed = 0;
     loop {
@@ -227,6 +276,9 @@ async fn stream(
             .await
             {
                 Ok(Ok(n)) => {
+                    if let Some(value) = holy_info(&buffer[..n]) {
+                        pending_holy = Some(value);
+                    }
                     if let Some(value) = info(&buffer[..n]) {
                         break Some(value);
                     }
@@ -276,6 +328,9 @@ async fn stream(
                         .await
                         {
                             Ok(Ok(n)) => {
+                                if let Some(value) = holy_info(&buffer[..n]) {
+                                    pending_holy = Some(value);
+                                }
                                 accept_chunk(&buffer[..n], revision, &mut encoded, &mut received);
                             }
                             _ => break,
@@ -307,14 +362,61 @@ async fn stream(
                 if s.session != session {
                     return Ok(());
                 }
-                s.ready = Some(Ok(Slide {
+                s.gallery_ready = Some(Slide {
                     session,
                     texture,
                     layout,
                     revision,
                     spawn,
-                }));
+                });
                 shown = Some(revision);
+            }
+        }
+        if let Some((gallery_revision, holy_revision, frame, encoded_len)) = pending_holy.take() {
+            if shown != Some(gallery_revision) {
+                pending_holy = Some((gallery_revision, holy_revision, frame, encoded_len));
+            } else if shown_holy != Some((holy_revision, frame)) {
+                let mut encoded = vec![0; encoded_len];
+                let chunks = encoded_len.div_ceil(CHUNK_BYTES);
+                let mut received = vec![false; chunks];
+                let mut failed = false;
+                for _ in 0..8 {
+                    if shared.lock().unwrap().session != session { return Ok(()); }
+                    for chunk in 0..chunks {
+                        if !received[chunk] {
+                            let mut body = holy_revision.to_le_bytes().to_vec();
+                            body.push(frame);
+                            body.extend_from_slice(&(chunk as u16).to_le_bytes());
+                            socket.send(&packet(6, &body)).await.map_err(|_| "cubesrv holy send")?;
+                        }
+                    }
+                    let deadline = time::Instant::now() + time::Duration::from_millis(200);
+                    while !received.iter().all(|value| *value) {
+                        match time::timeout(
+                            deadline.saturating_duration_since(time::Instant::now()),
+                            socket.recv(&mut buffer),
+                        ).await {
+                            Ok(Ok(n)) => {
+                                if let Some(value) = holy_info(&buffer[..n]) { pending_holy = Some(value); }
+                                accept_holy_chunk(&buffer[..n], holy_revision, frame, &mut encoded, &mut received);
+                            }
+                            _ => break,
+                        }
+                        if time::Instant::now() >= deadline { break; }
+                    }
+                    if received.iter().all(|value| *value) { break; }
+                }
+                if !received.iter().all(|value| *value) { failed = true; }
+                if !failed {
+                    let cubes = cubes_protocol::holy::decode_frame(&encoded)
+                        .ok_or("holy frame contract")?.collect();
+                    let mut s = shared.lock().unwrap();
+                    if s.session != session { return Ok(()); }
+                    s.holy_ready = Some(HolyFrame {
+                        session, gallery_revision, revision: holy_revision, index: frame, cubes,
+                    });
+                    shown_holy = Some((holy_revision, frame));
+                }
             }
         }
         // Heartbeats recover lost announcements and keep current telemetry flowing.
@@ -352,8 +454,8 @@ mod tests {
     fn gallery_package_checks_version_tiers_dimensions_and_c1_placement() {
         let source = include_bytes!("../../TRUEOS-Blueprints/apps/cubesrv/slides/gallery.cga");
         let (layout, _) = crate::slideshow::contract::Layout::parse(source).unwrap();
-        assert_eq!(layout.extent(), [layout.tile()*3, layout.tile()*2]);
-        for (offset,value) in [(0,0),(4,1),(4,2),(4,3),(4,4),(4,5),(4,7),(5,5),(6,0),(6,4),(12,0),(12,2),(13,0),(14,1),(15,0),(35,0)] {
+        assert_eq!(layout.extent(), [layout.tile()*3, layout.tile()*2+1]);
+        for (offset,value) in [(0,0),(4,1),(4,2),(4,3),(4,4),(4,5),(4,6),(4,7),(5,5),(6,0),(6,4),(12,0),(12,2),(13,0),(14,1),(15,0),(35,0)] {
             let mut bad = source.to_vec(); bad[offset]=value;
             assert!(crate::slideshow::contract::Layout::parse(&bad).is_none());
         }
@@ -388,5 +490,23 @@ mod tests {
         }
         assert_eq!(output, source);
         assert!(received.iter().all(|v| *v));
+    }
+    #[test]
+    fn sparse_holy_frames_are_revision_and_frame_pinned() {
+        let source = vec![1, 2, 3, 47, 47, 4, 9, 8, 7];
+        assert_eq!(holy_info(&server::holy_info(7, 11, 12, 3, source.len())),
+            Some((11, 12, 3, source.len())));
+        let mut output = vec![0; source.len()];
+        let mut received = vec![false; 1];
+        let packet = server::holy_chunk(12, 3, 0, &source).unwrap();
+        assert!(!accept_holy_chunk(&packet, 11, 3, &mut output, &mut received));
+        assert!(!accept_holy_chunk(&packet, 12, 2, &mut output, &mut received));
+        assert!(accept_holy_chunk(&packet, 12, 3, &mut output, &mut received));
+        assert_eq!(output, source);
+        assert_eq!(cubes_protocol::holy::decode_frame(&output).unwrap().collect::<Vec<_>>(), vec![
+            cubes_protocol::holy::Pixel { x: 1, y: 2, palette: 3 },
+            cubes_protocol::holy::Pixel { x: 47, y: 47, palette: 4 },
+            cubes_protocol::holy::Pixel { x: 9, y: 8, palette: 7 },
+        ]);
     }
 }

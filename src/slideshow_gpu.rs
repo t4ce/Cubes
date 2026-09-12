@@ -1,4 +1,4 @@
-//! Six beveled image slabs, one atlas, one immutable retained PBR draw.
+//! Six image slabs and one dynamic sparse cube asset in one retained PBR draw.
 use crate::{network::Slide, slideshow};
 use trueos::vgpu::*;
 
@@ -8,10 +8,78 @@ pub struct Wall {
     indices: Buffer,
     mesh: RetainedMesh,
     slide: Slide,
+    holy: Option<crate::network::HolyFrame>,
 }
 impl Wall {
     pub fn new(device: Device, slide: Slide) -> Result<Self, i32> {
         let geometry = slideshow::geometry(slide.layout);
+        let (vertices, indices, mesh) = upload(device, &geometry)?;
+        Ok(Self { device, vertices, indices, mesh, slide, holy: None })
+    }
+    fn replace_geometry(&mut self, geometry: &slideshow::Geometry) -> Result<(), i32> {
+        let (vertices, indices, mesh) = upload(self.device, geometry)?;
+        let old = (self.vertices, self.indices, self.mesh);
+        self.vertices = vertices;
+        self.indices = indices;
+        self.mesh = mesh;
+        let _ = self.device.destroy_retained_mesh(old.2);
+        let _ = self.device.destroy_buffer(old.1);
+        let _ = self.device.destroy_buffer(old.0);
+        Ok(())
+    }
+    pub fn replace_holy(&mut self, frame: crate::network::HolyFrame) -> Result<(), i32> {
+        if frame.session != self.slide.session || frame.gallery_revision != self.slide.revision {
+            return Ok(());
+        }
+        let geometry = slideshow::geometry_with_holy(self.slide.layout, &frame.cubes);
+        self.replace_geometry(&geometry)?;
+        self.holy = Some(frame);
+        Ok(())
+    }
+    pub fn gallery_revision(&self) -> u32 { self.slide.revision }
+    /// Called between completed frames. The incoming texture is already resident;
+    /// the old texture remains owned until this atomic scene-thread replacement.
+    pub fn replace(&mut self, slide: Slide) -> Result<(), i32> {
+        if self.slide.layout == slide.layout {
+            let palette_changed = self.slide.revision != slide.revision;
+            self.slide = slide;
+            if palette_changed && self.holy.take().is_some() {
+                self.replace_geometry(&slideshow::geometry(self.slide.layout))?;
+            }
+        } else { *self = Self::new(self.device, slide)?; }
+        Ok(())
+    }
+    pub fn layout(&self) -> slideshow::contract::Layout { self.slide.layout }
+    pub fn render(
+        &self,
+        queue: Queue,
+        surface: Ui4Surface,
+        camera: RetainedCamera,
+        height: u32,
+    ) -> Result<(), i32> {
+        let point = self.device.submit_retained_frame_v2(
+            queue,
+            surface,
+            self.mesh,
+            self.vertices,
+            self.indices,
+            frame(
+                camera,
+                height,
+                [
+                    self.slide.texture.id().raw(),
+                    0,
+                    0,
+                    0,
+                    0,
+                ],
+            ),
+        )?;
+        self.device.wait(queue, point.value)
+    }
+}
+
+fn upload(device: Device, geometry: &slideshow::Geometry) -> Result<(Buffer, Buffer, RetainedMesh), i32> {
         let vertex_bytes = geometry.vertex_bytes();
         let index_bytes = geometry.index_bytes();
         let vertices = device.create_buffer(
@@ -47,55 +115,13 @@ impl Wall {
             )
         })();
         match mesh {
-            Ok(mesh) => Ok(Self {
-                device,
-                vertices,
-                indices,
-                mesh,
-                slide,
-            }),
+            Ok(mesh) => Ok((vertices, indices, mesh)),
             Err(error) => {
                 let _ = device.destroy_buffer(indices);
                 let _ = device.destroy_buffer(vertices);
                 Err(error)
             }
         }
-    }
-    /// Called between completed frames. The incoming texture is already resident;
-    /// the old texture remains owned until this atomic scene-thread replacement.
-    pub fn replace(&mut self, slide: Slide) -> Result<(), i32> {
-        if self.slide.layout == slide.layout { self.slide = slide; }
-        else { *self = Self::new(self.device, slide)?; }
-        Ok(())
-    }
-    pub fn layout(&self) -> slideshow::contract::Layout { self.slide.layout }
-    pub fn render(
-        &self,
-        queue: Queue,
-        surface: Ui4Surface,
-        camera: RetainedCamera,
-        height: u32,
-    ) -> Result<(), i32> {
-        let point = self.device.submit_retained_frame_v2(
-            queue,
-            surface,
-            self.mesh,
-            self.vertices,
-            self.indices,
-            frame(
-                camera,
-                height,
-                [
-                    self.slide.texture.id().raw(),
-                    0,
-                    0,
-                    0,
-                    0,
-                ],
-            ),
-        )?;
-        self.device.wait(queue, point.value)
-    }
 }
 impl Drop for Wall {
     fn drop(&mut self) {

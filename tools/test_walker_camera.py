@@ -23,6 +23,7 @@ pub fn ceilf(x:f32)->f32 {x.ceil()}
 '''
 source += f'#[path="{APP}/src/slideshow.rs"] mod slideshow;\n'
 source += f'#[path="{APP.parent}/TRUEOS-Blueprints/crates/cubes-protocol/src/gallery.rs"] pub mod gallery;\n'
+source += f'#[path="{APP.parent}/TRUEOS-Blueprints/crates/cubes-protocol/src/holy.rs"] pub mod holy;\n'
 source += f'#[path="{APP}/src/orchard.rs"] mod orchard;\n'
 source += f'#[path="{APP}/src/asset_brush.rs"] mod asset_brush;\n'
 source += f'#[path="{APP}/src/cube_format.rs"] mod cube_format;\n'

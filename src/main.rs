@@ -1707,19 +1707,40 @@ impl CubeScene {
         let Some(result) = self.network.take_ready() else {
             return Ok(());
         };
-        let slide = match result {
-            Ok(slide) => slide,
+        let update = match result {
+            Ok(update) => update,
             Err(error) => {
                 logl::log(level::INFO, format_args!("Cubes: Key8 cubesrv {error}"));
                 return Ok(());
             }
         };
+        let slide = match update {
+            network::Update::Gallery(slide) => slide,
+            network::Update::Holy(frame) => {
+                let current_session = self.network_world.as_ref().map(|world| world.session);
+                let Some(wall) = self.image_wall.as_mut().filter(|wall|
+                    current_session == Some(frame.session)
+                        && wall.gallery_revision() == frame.gallery_revision)
+                else { return Ok(()); };
+                let index = frame.index;
+                let revision = frame.revision;
+                let cubes = frame.cubes.len();
+                if let Err(error) = wall.replace_holy(frame) {
+                    logl::log(level::WARN, format_args!("Cubes: Holy frame replacement failed error={error}"));
+                } else {
+                    logl::log(level::DEBUG, format_args!("Cubes: Holy revision={revision} frame={index} cubes={cubes} period_ms=250"));
+                }
+                return Ok(());
+            }
+        };
         let first = self.network_world.as_ref().is_none_or(|world| world.session != slide.session);
         let session = slide.session;
-        let spawn = slide.spawn;
+        // Gallery v8 owns a collision-backed top-face spawn; the wire field is
+        // still decoded and validated to preserve the CUB1 envelope.
+        let _legacy_spawn = slide.spawn;
         let layout = slide.layout;
         let layout_changed = self.image_wall.as_ref().is_some_and(|wall| wall.layout() != layout);
-        logl::log(level::INFO, format_args!("Cubes: gallery revision={} faces=6 tiers={:?} atlas={:?} path=retained-pbr-nearest", slide.revision, layout.tiers, layout.extent()));
+        logl::log(level::INFO, format_args!("Cubes: gallery revision={} faces=6 tiers={:?} atlas={:?} distance={} center=3x3x3-c4 spawn=top-walk path=retained-pbr-nearest", slide.revision, layout.tiers, layout.extent(), slideshow::DISTANCE));
         if let Some(wall) = self.image_wall.as_mut() {
             if let Err(error) = wall.replace(slide) {
                 logl::log(level::WARN, format_args!("Cubes: gallery replacement failed error={error}"));
@@ -1738,7 +1759,7 @@ impl CubeScene {
             if let Some(camera) = self.walker_camera.as_mut() { camera.replace_image_gallery(layout); }
         }
         if first {
-            // The textured c1 grids share a retained mesh; c1 detail has no walking collision.
+            // Image c1 grids and the center c4 landmark share one retained mesh.
             let asset = orchard::Asset { name: WORLD_ASSETS[world_topology::VOID].0, cubes: Vec::new(), radius: slideshow::RADIUS };
             let mut bytes = vec![0u8; 16];
             bytes[12..16].copy_from_slice(&subcubes::C1.to_le_bytes());
@@ -1749,7 +1770,6 @@ impl CubeScene {
                 mode: SceneMode::World, page: Some(world_topology::VOID),
             }, None)?;
             let camera = self.walker_camera.as_mut().unwrap();
-            camera.server_spawn(spawn);
             let (position, rotation) = camera.pose();
             self.flycam.camera.position = position;
             self.flycam.camera.rotation = rotation;
