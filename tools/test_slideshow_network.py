@@ -12,6 +12,7 @@ version = "0.0.0"
 edition = "2024"
 [dependencies]
 libm = "0.2"
+v = {{ path = "{APP.parent}/TRUEOS-Blueprints/crates/trueos-v" }}
 cubes-protocol = {{ path = "{APP.parent}/TRUEOS-Blueprints/crates/cubes-protocol" }}
 trueos = {{ path = "{APP.parent}/TRUEOS-Blueprints/api", features = ["tokio-net-probe"] }}
 [lib]

@@ -25,8 +25,10 @@ Failures preserve the old scene. Another numbered mode disconnects and releases
 the gallery. The v8 package describes integer c1 cube grids, their 10%-radius
 placement and their atlas; each image cube is 0.2 renderer units across. Like
 other c1 detail, the images have no walking collision or Space-snap targets.
-The 27 center c4 cubes use ordinary walking collision, while the standard
-4×4×4-chunk movement envelope remains in effect.
+The 27 center c4 cubes use Key 5's compressed contact scale and complete
+surface walker. Walking across an outside edge carries the camera onto the
+landmark's sides and underside. The standard 4×4×4-chunk movement envelope
+remains in effect.
 
 Validation:
 

@@ -1,4 +1,5 @@
-//! Six image slabs and one dynamic sparse cube asset in one retained PBR draw.
+//! Textured gallery plus baked cube instances sharing one depth-tested frame.
+use alloc::vec::Vec;
 use crate::{network::Slide, slideshow};
 use trueos::vgpu::*;
 
@@ -8,80 +9,178 @@ pub struct Wall {
     indices: Buffer,
     mesh: RetainedMesh,
     slide: Slide,
-    holy: Option<crate::network::HolyFrame>,
+    cubes: CubeInstances,
 }
 impl Wall {
     pub fn new(device: Device, slide: Slide) -> Result<Self, i32> {
+        let cubes = CubeInstances::new(device)?;
         let geometry = slideshow::geometry(slide.layout);
         let (vertices, indices, mesh) = upload(device, &geometry)?;
-        Ok(Self { device, vertices, indices, mesh, slide, holy: None })
-    }
-    fn replace_geometry(&mut self, geometry: &slideshow::Geometry) -> Result<(), i32> {
-        let (vertices, indices, mesh) = upload(self.device, geometry)?;
-        let old = (self.vertices, self.indices, self.mesh);
-        self.vertices = vertices;
-        self.indices = indices;
-        self.mesh = mesh;
-        let _ = self.device.destroy_retained_mesh(old.2);
-        let _ = self.device.destroy_buffer(old.1);
-        let _ = self.device.destroy_buffer(old.0);
-        Ok(())
+        Ok(Self { device, vertices, indices, mesh, slide, cubes })
     }
     pub fn replace_holy(&mut self, frame: crate::network::HolyFrame) -> Result<(), i32> {
         if frame.session != self.slide.session || frame.gallery_revision != self.slide.revision {
             return Ok(());
         }
-        let geometry = slideshow::geometry_with_holy(self.slide.layout, &frame.cubes);
-        self.replace_geometry(&geometry)?;
-        self.holy = Some(frame);
-        Ok(())
+        self.cubes.replace(&frame.cubes, &self.slide.palette)
     }
     pub fn gallery_revision(&self) -> u32 { self.slide.revision }
-    /// Called between completed frames. The incoming texture is already resident;
-    /// the old texture remains owned until this atomic scene-thread replacement.
     pub fn replace(&mut self, slide: Slide) -> Result<(), i32> {
         if self.slide.layout == slide.layout {
-            let palette_changed = self.slide.revision != slide.revision;
-            self.slide = slide;
-            if palette_changed && self.holy.take().is_some() {
-                self.replace_geometry(&slideshow::geometry(self.slide.layout))?;
+            if self.slide.revision != slide.revision || self.slide.session != slide.session {
+                self.cubes.replace(&[], &[])?;
             }
+            self.slide = slide;
         } else { *self = Self::new(self.device, slide)?; }
         Ok(())
     }
     pub fn layout(&self) -> slideshow::contract::Layout { self.slide.layout }
     pub fn render(
-        &self,
-        queue: Queue,
-        surface: Ui4Surface,
-        camera: RetainedCamera,
-        height: u32,
+        &self, queue: Queue, surface: Ui4Surface, camera: RetainedCamera, height: u32,
     ) -> Result<(), i32> {
-        let point = self.device.submit_retained_frame_v2(
-            queue,
-            surface,
-            self.mesh,
-            self.vertices,
-            self.indices,
-            frame(
-                camera,
-                height,
-                [
-                    self.slide.texture.id().raw(),
-                    0,
-                    0,
-                    0,
-                    0,
-                ],
-            ),
+        let point = self.device.submit_retained_frame_v4(
+            queue, surface, self.mesh, self.cubes.mesh, self.vertices, self.indices,
+            RetainedFrameSubmitV4 {
+                frame: frame(camera, height, [self.slide.texture.id().raw(), 0, 0, 0, 0]),
+                cubes: RetainedCubeDraw {
+                    seed_buffer: self.cubes.seeds[self.cubes.active].raw(),
+                    seed_count: self.cubes.count,
+                    ..RetainedCubeDraw::default()
+                },
+            },
         )?;
         self.device.wait(queue, point.value)
     }
 }
+impl Drop for Wall {
+    fn drop(&mut self) {
+        let _ = self.device.destroy_retained_mesh(self.mesh);
+        let _ = self.device.destroy_buffer(self.indices);
+        let _ = self.device.destroy_buffer(self.vertices);
+    }
+}
+
+const CENTER_COUNT: usize = 27;
+const MAX_CUBES: usize = CENTER_COUNT + 48*48;
+const SEED_BYTES: usize = 64;
+/// Immutable 44-patch topology. Updates only upload TRS/color seeds.
+struct CubeInstances {
+    device: Device,
+    vertices: Buffer,
+    indices: Buffer,
+    mesh: RetainedMesh,
+    seeds: [Buffer;2],
+    active: usize,
+    count: u32,
+}
+impl CubeInstances {
+    fn new(device: Device) -> Result<Self, i32> {
+        let (vertices, indices, mesh) = upload_mesh(device, &[0;12], &[0;44*4],
+            RetainedMeshDescriptor {
+                vertex_count: 1, index_count: 44,
+                vertex_layout: RETAINED_VERTEX_LAYOUT_CUBE_PATCH_SEED,
+                topology: RETAINED_TOPOLOGY_CUBE_PATCHLIST_1 | RETAINED_MESH_FLAG_DOUBLE_SIDED,
+                ..RetainedMeshDescriptor::default()
+            })?;
+        let buffers = (|| {
+            let first = device.create_buffer(MAX_CUBES*SEED_BYTES,
+                BUFFER_USAGE_MAP_READ | BUFFER_USAGE_MAP_WRITE)?;
+            match device.create_buffer(MAX_CUBES*SEED_BYTES,
+                BUFFER_USAGE_MAP_READ | BUFFER_USAGE_MAP_WRITE) {
+                Ok(second) => Ok([first,second]),
+                Err(error) => { let _ = device.destroy_buffer(first); Err(error) }
+            }
+        })();
+        let seeds = match buffers {
+            Ok(seeds) => seeds,
+            Err(error) => {
+                let _ = device.destroy_retained_mesh(mesh);
+                let _ = device.destroy_buffer(indices);
+                let _ = device.destroy_buffer(vertices);
+                return Err(error);
+            }
+        };
+        let mut cubes = Self { device, vertices, indices, mesh, seeds, active:0, count:0 };
+        cubes.replace(&[], &[])?;
+        Ok(cubes)
+    }
+    fn replace(&mut self, pixels: &[cubes_protocol::holy::Pixel], palette: &[u16]) -> Result<(), i32> {
+        let seeds = cube_seeds(pixels, palette)?;
+        let bytes = seed_bytes(&seeds);
+        // Publish only a complete upload; failure leaves the displayed frame intact.
+        let next = 1-self.active;
+        if self.device.write_buffer(self.seeds[next], 0, &bytes)? != bytes.len() {
+            return Err(ERR_IO);
+        }
+        self.active = next;
+        self.count = seeds.len() as u32;
+        Ok(())
+    }
+}
+impl Drop for CubeInstances {
+    fn drop(&mut self) {
+        for buffer in self.seeds { let _ = self.device.destroy_buffer(buffer); }
+        let _ = self.device.destroy_retained_mesh(self.mesh);
+        let _ = self.device.destroy_buffer(self.indices);
+        let _ = self.device.destroy_buffer(self.vertices);
+    }
+}
+fn cube_seeds(pixels: &[cubes_protocol::holy::Pixel], palette: &[u16])
+    -> Result<Vec<RetainedTransformSeed>, i32>
+{
+    if pixels.len() > MAX_CUBES-CENTER_COUNT { return Err(ERR_UNSUPPORTED); }
+    let mut seeds = Vec::with_capacity(CENTER_COUNT+pixels.len());
+    let mut push = |translation: [f32;3], half: f32, color: u16| {
+        seeds.push(RetainedTransformSeed {
+            translation, previous_translation: translation, scale:[half;3],
+            // Same orientation and bounding radius as placed cube assets.
+            rotation:[1.,0.,0.,0.], local_radius:1.74,
+            flags: color as u32 | ((seeds.len() as u32)<<16),
+            ..RetainedTransformSeed::default()
+        });
+    };
+    for x in -1..=1 { for y in -1..=1 { for z in -1..=1 {
+        push([x,y,z].map(|v| v as f32*slideshow::CENTER_CUBE_SIDE),
+            slideshow::CENTER_CUBE_SIDE*0.5, 0xffff);
+    } } }
+    for pixel in pixels {
+        if pixel.x >= 48 || pixel.y >= 48 { return Err(ERR_UNSUPPORTED); }
+        let color = *palette.get(pixel.palette as usize).ok_or(ERR_UNSUPPORTED)?;
+        if color & 0x8000 == 0 { return Err(ERR_UNSUPPORTED); }
+        push([
+            (pixel.x as f32+0.5-24.)*slideshow::contract::C1,
+            slideshow::CENTER_HALF_EXTENT+(48.-pixel.y as f32-0.5)*slideshow::contract::C1,
+            0.,
+        ], slideshow::contract::C1*0.5, color);
+    }
+    Ok(seeds)
+}
+fn seed_bytes(seeds: &[RetainedTransformSeed]) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(seeds.len()*SEED_BYTES);
+    for seed in seeds {
+        for value in seed.translation.into_iter().chain(seed.scale).chain(seed.rotation)
+            .chain([seed.local_radius]).chain(seed.previous_translation) {
+            bytes.extend_from_slice(&value.to_le_bytes());
+        }
+        bytes.extend_from_slice(&seed.draw_group.to_le_bytes());
+        bytes.extend_from_slice(&seed.flags.to_le_bytes());
+    }
+    bytes
+}
 
 fn upload(device: Device, geometry: &slideshow::Geometry) -> Result<(Buffer, Buffer, RetainedMesh), i32> {
-        let vertex_bytes = geometry.vertex_bytes();
-        let index_bytes = geometry.index_bytes();
+    upload_mesh(device, geometry.vertex_bytes(), geometry.index_bytes(),
+        RetainedMeshDescriptor {
+            vertex_count: geometry.vertices.len() as u32,
+            index_count: geometry.indices.len() as u32,
+            vertex_layout: RETAINED_VERTEX_LAYOUT_POS_NORMAL_UV_TANGENT,
+            topology: PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+            ..RetainedMeshDescriptor::default()
+        })
+}
+fn upload_mesh(device: Device, vertex_bytes: &[u8], index_bytes: &[u8],
+    descriptor: RetainedMeshDescriptor,
+) -> Result<(Buffer, Buffer, RetainedMesh), i32> {
         let vertices = device.create_buffer(
             vertex_bytes.len(),
             BUFFER_USAGE_MAP_WRITE | BUFFER_USAGE_VERTEX,
@@ -105,13 +204,7 @@ fn upload(device: Device, geometry: &slideshow::Geometry) -> Result<(Buffer, Buf
             device.create_retained_mesh(
                 vertices,
                 indices,
-                RetainedMeshDescriptor {
-                    vertex_count: geometry.vertices.len() as u32,
-                    index_count: geometry.indices.len() as u32,
-                    vertex_layout: RETAINED_VERTEX_LAYOUT_POS_NORMAL_UV_TANGENT,
-                    topology: PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-                    ..RetainedMeshDescriptor::default()
-                },
+                descriptor,
             )
         })();
         match mesh {
@@ -123,14 +216,6 @@ fn upload(device: Device, geometry: &slideshow::Geometry) -> Result<(Buffer, Buf
             }
         }
 }
-impl Drop for Wall {
-    fn drop(&mut self) {
-        let _ = self.device.destroy_retained_mesh(self.mesh);
-        let _ = self.device.destroy_buffer(self.indices);
-        let _ = self.device.destroy_buffer(self.vertices);
-    }
-}
-
 fn frame(camera: RetainedCamera, _height: u32, textures: [u64; 5]) -> RetainedFrameSubmitV2 {
     let mut frame = RetainedFrameSubmit {
         camera,
@@ -177,3 +262,7 @@ mod tests {
         assert_eq!(frame.material_parameters.occlusion_strength, 0.);
     }
 }
+
+#[cfg(test)]
+#[path = "../tools/slideshow_gpu_regression.rs"]
+mod regression;

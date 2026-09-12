@@ -19,6 +19,7 @@ const WINDOW: usize = 32;
 pub struct Slide {
     pub session: u64,
     pub texture: vmedia::RetainedTexture,
+    pub palette: Vec<u16>,
     pub layout: crate::slideshow::contract::Layout,
     pub revision: u32,
     pub spawn: [f32; 3],
@@ -213,6 +214,20 @@ fn image_format(bytes: &[u8]) -> Option<vmedia::ImageFormat> {
         None
     }
 }
+fn palette_from_rgba(
+    layout: crate::slideshow::contract::Layout, width: u32, height: u32,
+    stride: u32, rgba: &[u8],
+) -> Option<Vec<u16>> {
+    if [width,height] != layout.extent() || stride < width.checked_mul(4)? { return None; }
+    let row = (height as usize-1).checked_mul(stride as usize)?;
+    let colors = rgba.get(row+4..row+(width as usize).checked_mul(4)?)?;
+    Some(colors.chunks_exact(4).take(256).map(|p| {
+        0x8000 | ((u16::from(p[0])*31+127)/255)
+            | (((u16::from(p[1])*31+127)/255)<<5)
+            | (((u16::from(p[2])*31+127)/255)<<10)
+    }).collect())
+}
+
 async fn decode_texture(
     device: trueos::vgpu::Device,
     encoded: &[u8],
@@ -354,6 +369,15 @@ async fn stream(
                 }
                 let (layout, png) = crate::slideshow::contract::Layout::parse(&encoded)
                     .ok_or("gallery package contract")?;
+                // Extract the small RGB palette once per gallery revision. Frame
+                // messages remain sparse palette indices; GPU cubes need RGB555 flags.
+                let image = time::timeout(time::Duration::from_secs(10),
+                    vmedia::decode(vmedia::ImageFormat::Png, png)).await
+                    .map_err(|_| "gallery palette timeout")?
+                    .map_err(|_| "gallery palette decode")?;
+                let palette = palette_from_rgba(layout, image.info.width, image.info.height,
+                    image.info.stride_bytes, &image.rgba).ok_or("gallery palette dimensions")?;
+                drop(image);
                 let texture = decode_texture(device, png).await?;
                 if [texture.info().width, texture.info().height] != layout.extent() {
                     return Err("gallery atlas dimensions");
@@ -365,6 +389,7 @@ async fn stream(
                 s.gallery_ready = Some(Slide {
                     session,
                     texture,
+                    palette,
                     layout,
                     revision,
                     spawn,
@@ -432,6 +457,23 @@ mod server;
 mod tests {
     use super::*;
 
+    #[test]
+    fn atlas_palette_uses_the_same_rgb555_rounding_as_placed_assets() {
+        let layout = crate::slideshow::contract::Layout { tiers:[1;6] };
+        let [width,height] = layout.extent();
+        let stride=width*4;
+        let mut rgba=vec![0; (stride*height) as usize];
+        let start=((height-1)*stride+4) as usize;
+        for (i,color) in [[255,0,0,255],[0,255,0,255],[0,0,255,255],
+            [255,255,255,255],[252,150,17,255]].iter().enumerate() {
+            rgba[start+i*4..start+i*4+4].copy_from_slice(color);
+        }
+        let palette=palette_from_rgba(layout,width,height,stride,&rgba).unwrap();
+        assert_eq!(&palette[..4],&[0x801f,0x83e0,0xfc00,0xffff]);
+        assert_eq!(palette[4],0x8000|31|(18<<5)|(2<<10));
+        assert!(palette_from_rgba(layout,width,height,stride,&rgba[..start]).is_none());
+        assert!(palette_from_rgba(layout,width+1,height,stride,&rgba).is_none());
+    }
     #[test]
     fn manifest_bounds_and_short_chunk_lengths_are_checked() {
         assert!(info(&server::slide_info(1, 0, 0)).is_none());
