@@ -790,7 +790,8 @@ impl CubesWalkerCam {
         cam.unit = 0.8;
         cam.drift_half_extent = 512.;
         // Preserve world bounds for path-search limits, with analytic occupancy.
-        let h = libm::ceilf((WORLD_HALF + HALF_EXTENT/12.)/cam.unit) as i32;
+        let min_blocks = (0..6).map(|face| layout.tier(face).blocks).min().unwrap();
+        let h = libm::ceilf((WORLD_HALF + HALF_EXTENT/min_blocks as f32)/cam.unit) as i32;
         cam.solid = Solid { lo: [-h;3], dims: [(2*h) as usize;3], bits: Vec::new(),
             fine: BTreeMap::new(), slabs: Vec::with_capacity(6) };
         cam.cubes.clear();
@@ -2747,6 +2748,10 @@ mod image_gallery_tests {
             let center = slideshow::center(face);
             let n = slideshow::BASES[face][2];
             let half = slideshow::HALF_EXTENT/layout.tier(face).blocks as f32;
+            for axis in 0..3 {
+                assert!(camera.solid.slabs[face][0][axis] >= camera.solid.lo[axis] as f32);
+                assert!(camera.solid.slabs[face][1][axis] <= (camera.solid.lo[axis]+camera.solid.dims[axis] as i32) as f32);
+            }
             assert!(camera.solid.has(center.map(|x|x/camera.unit)));
             assert!(!camera.solid.has(core::array::from_fn(|a|(center[a]+n[a]*(half+0.1))/camera.unit)));
         }

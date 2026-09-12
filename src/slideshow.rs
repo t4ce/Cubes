@@ -91,7 +91,8 @@ mod tests {
     use super::*;
     #[test]
     fn tiers_are_exact_and_faces_are_centered_with_inward_right_handed_bases() {
-        assert_eq!(contract::TIERS.map(|t|(t.source,t.blocks,t.pixels)), [(64,12,60),(128,18,90),(256,24,120),(512,32,320)]);
+        assert_eq!(contract::TIERS.map(|t|(t.source,t.blocks,t.pixels)), [(64,8,8),(128,10,21),(256,14,31),(512,16,320)]);
+        assert_eq!(contract::TIERS.map(|t|t.grid()), [8,20,28,320]);
         for face in 0..6 {
             let [u,v,n] = BASES[face];
             assert_eq!([u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]], n);
