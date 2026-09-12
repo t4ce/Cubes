@@ -157,6 +157,8 @@ struct CubeScene {
     asset_brush: asset_brush::Brush,
     puzzle: rubik::Puzzle,
     palette_selection: rubik::PaletteSelection,
+    puzzle_expanded: bool,
+    puzzle_tab_held: bool,
     mining: subcubes::Demo,
     mining_asset: orchard::Asset,
     orbit: [f32; 3], // yaw, elevation, radius
@@ -389,6 +391,8 @@ impl CubeScene {
             mode: SceneMode::StaticCube,
             puzzle: rubik::Puzzle::new(0),
             palette_selection: rubik::PaletteSelection::default(),
+            puzzle_expanded: false,
+            puzzle_tab_held: false,
             mining: subcubes::Demo::new(),
             mining_asset: orchard::Asset {
                 name: "mining",
@@ -579,21 +583,12 @@ impl CubeScene {
                     self.frame.height(),
                     self.previous_view_projection,
                 );
-                if let Some((origin, direction)) = picking::ray(
-                    &camera.inverse_view_projection,
-                    event.local_x,
-                    event.local_y,
-                    self.frame.width(),
-                    self.frame.height(),
-                ) && let Some(hit) = picking::pick_face(
-                    origin,
-                    direction,
-                    grid::CUBE_COMPACT_SPACING,
-                    grid::CUBE_GRID_SCALE,
-                    |id| self.puzzle.pose(id, 0.0, 1.0),
-                ) && rubik::cubie_transparent(hit.cubie, self.palette_selection.visible)
-                    && self.puzzle.select(hit.cubie, elapsed_millis)
+                if let Some(hit) = self.eligible_puzzle_hit(
+                    &camera.inverse_view_projection, cursor.local,
+                ) && self.puzzle.select(hit.cubie, elapsed_millis)
                 {
+                    // Remove the hover marker on click, before opening/turn animation.
+                    self.flight_target.clear();
                     self.selected_entry = world_topology::entry(hit.cubie, hit.face_axis);
                     self.selected_face_axis = Some(hit.face_axis);
                     logl::log(
@@ -895,8 +890,21 @@ impl CubeScene {
             }
             let surface = self.device.acquire_ui4_surface(self.frame.window_id())
                 .map_err(|code| CubeError::Vgpu("surface-acquire", code))?;
+            let terrain = &self.network_world.as_ref().ok_or(CubeError::Contract)?.asset;
+            let (visible, _) = orchard::visible_when_limited(&mut self.visibility_scratch,
+                terrain, self.flycam.camera.position, &camera.view_projection,
+                slideshow_gpu::TERRAIN_BUDGET, |_| true);
+            let seeds: Vec<_> = visible.iter().map(|&id| {
+                let cube = terrain.cubes[id];
+                RetainedTransformSeed {
+                    translation: cube.center, previous_translation: cube.center,
+                    scale: [cube.scale;3], rotation: orchard::WORLD_ROTATION,
+                    local_radius: 1.74, flags: cube.flags & 0xffff,
+                    ..RetainedTransformSeed::default()
+                }
+            }).collect();
             self.image_wall.as_mut().ok_or(CubeError::Contract)?
-                .render(self.queue, surface, camera, height, elapsed_millis)
+                .render(self.queue, surface, camera, height, elapsed_millis, &seeds)
                 .map_err(|code| CubeError::Vgpu("image-wall-submit", code))?;
             self.frame.publish(Damage::full(width, height))
                 .map_err(|error| CubeError::Ui4("frame-publish", error))?;
@@ -913,11 +921,32 @@ impl CubeScene {
         let palette_visible = if self.mode == SceneMode::StaticCube { self.palette_selection.visible } else { 0 };
         let palette_count = palette_visible.count_ones() as usize;
         let companion = self.world_cube.visible(self.mode == SceneMode::World);
-        let flight_slot = usize::from(self.mode.is_world() || self.mode == SceneMode::MaterialShowcase);
-        let target = if flight_slot != 0 && self.portal_trip.is_none() {
+        let flight_slot = usize::from(self.mode.is_world()
+            || matches!(self.mode, SceneMode::MaterialShowcase | SceneMode::StaticCube));
+        let puzzle_hover = self.cursors.iter().rev().find_map(|cursor| {
+            self.eligible_puzzle_hit(&camera.inverse_view_projection, cursor.local)
+        }).map(|hit| {
+            let (cell, basis) = self.puzzle.pose(hit.cubie, 0.0, 1.0);
+            let original = [hit.cubie % 3, hit.cubie / 3 % 3, hit.cubie / 9];
+            let sign = if original[hit.face_axis] == 2 { 1.0 } else { -1.0 };
+            let theme = hit.face_axis * 2 + usize::from(sign < 0.0);
+            let target = walker_camera::LandingTarget {
+                center: cell.map(|x| x * puzzle_spacing),
+                scale: grid::CUBE_GRID_SCALE,
+                normal: basis[hit.face_axis].map(|x| x * sign),
+            };
+            let source = orchard::Cube { center: target.center, scale: target.scale, flags: theme as u32 };
+            (target, source, quaternion_from_rotation_columns(basis[0], basis[1], basis[2]).0)
+        });
+        let puzzle_sources = puzzle_hover.map(|(_, source, _)| [source]);
+        let target = if self.mode == SceneMode::StaticCube {
+            puzzle_hover.map(|(target, _, _)| target)
+        } else if flight_slot != 0 && self.portal_trip.is_none() {
             self.walker_camera.as_ref().and_then(|c| c.path_target().or_else(|| c.landing_target()))
         } else { None };
-        let target_cubes = if self.mode.is_world() {
+        let target_cubes = if let Some(sources) = puzzle_sources.as_ref() {
+            &sources[..]
+        } else if self.mode.is_world() {
             &self.active_world.as_ref().unwrap().scene.cubes[..]
         } else if self.mode == SceneMode::MaterialShowcase {
             &self.mining_asset.cubes[..]
@@ -1332,7 +1361,8 @@ impl CubeScene {
                 expanded_count += 1;
             }
         }
-        let landing_seed = flight_target_seed(flight_cube, placeholder);
+        let mut landing_seed = flight_target_seed(flight_cube, placeholder);
+        if let Some((_, _, rotation)) = puzzle_hover { landing_seed.rotation = rotation; }
         if flight_cube.is_some() { expanded_count += 1; }
         expanded_count += path_cubes.len();
         if self.mode == SceneMode::StaticCube || companion || !path_cubes.is_empty() {
@@ -1667,6 +1697,13 @@ impl CubeScene {
             .frame
             .keyboard_state()
             .map_err(|error| CubeError::Ui4("mode-hotkeys", error))?;
+        let tab_held = state.as_ref().is_some_and(|keyboard| keyboard.is_down(0x2b));
+        if tab_held && !self.puzzle_tab_held && self.mode == SceneMode::StaticCube
+            && self.puzzle.selected().is_none() && self.portal_trip.is_none() && self.flight.is_none() {
+            self.puzzle_expanded = !self.puzzle_expanded;
+            self.flight_target.clear();
+        }
+        self.puzzle_tab_held = tab_held;
         self.world_weld.key(state.as_ref().is_some_and(|k| k.is_down(0x0d)),
             self.mode == SceneMode::World);
         let r_held = state
@@ -1777,6 +1814,15 @@ impl CubeScene {
         };
         let first = self.network_world.as_ref().is_none_or(|world| world.session != slide.session);
         let session = slide.session;
+        let terrain = if first {
+            match orchard::decode(WORLD_ASSETS[0].0, &slide.world) {
+                Ok(asset) => Some((slide.world.clone(), asset)),
+                Err(error) => {
+                    logl::log(level::WARN, format_args!("Cubes: server world1 rejected: {error}"));
+                    return Ok(());
+                }
+            }
+        } else { None };
         // Gallery v8 owns a collision-backed top-face spawn; the wire field is
         // still decoded and validated to preserve the CUB1 envelope.
         let _legacy_spawn = slide.spawn;
@@ -1798,18 +1844,17 @@ impl CubeScene {
             }
         }
         if !first && layout_changed {
-            if let Some(camera) = self.walker_camera.as_mut() { camera.replace_image_gallery(layout); }
+            if let Some(camera) = self.walker_camera.as_mut() {
+                camera.replace_image_gallery_world(layout, &self.network_world.as_ref().unwrap().bytes);
+            }
         }
         if first {
-            // Image c1 grids and the center c4 landmark share one retained mesh.
-            let asset = orchard::Asset { name: WORLD_ASSETS[world_topology::VOID].0, cubes: Vec::new(), radius: slideshow::RADIUS };
-            let mut bytes = vec![0u8; 16];
-            bytes[12..16].copy_from_slice(&subcubes::C1.to_le_bytes());
+            let (bytes, asset) = terrain.ok_or(CubeError::Contract)?;
             self.network_world = Some(NetworkWorld { session, bytes, asset });
             self.network_singleton = true;
             self.asset_brush.disable();
             self.select_mode(modes::Selection {
-                mode: SceneMode::World, page: Some(world_topology::VOID),
+                mode: SceneMode::World, page: Some(0),
             }, None)?;
             let camera = self.walker_camera.as_mut().unwrap();
             let (position, rotation) = camera.pose();
@@ -2275,7 +2320,7 @@ impl CubeScene {
                 )
             };
             let mut camera = if self.network_singleton {
-                walker_camera::CubesWalkerCam::image_gallery(self.image_wall.as_ref().ok_or(CubeError::Contract)?.layout())
+                walker_camera::CubesWalkerCam::image_gallery_world(self.image_wall.as_ref().ok_or(CubeError::Contract)?.layout(), world_bytes)
             } else {
                 walker_camera::CubesWalkerCam::from_portal(
                     world_bytes,
@@ -2371,7 +2416,7 @@ impl CubeScene {
                 match mode {
                     SceneMode::InteractiveGrid => "1 interactive-grid Key1=sphere",
                     SceneMode::StaticCube =>
-                        "2 compact-puzzle Key2=random-0..6-palette-cubes click=face/edge/corner turns=3x1s camera=WASD-orbit idle=3s-auto-orbit",
+                        "2 compact-puzzle Key2=random-0..6-palette-cubes Tab=expand/compact click=face/edge/corner turns=3x1s camera=WASD-orbit idle=3s-auto-orbit",
                     SceneMode::Sphere =>
                         "1 sphere=1024 camera=center WASD=look cursor-expand=10%-area Key1=interactive-grid",
                     SceneMode::Orchard => "asset-picker wheel/AD=slide/loop W/S=next/previous-group mouse=orbit LMB=confirm five-row-assets alpha=.25/.5/1/.5/.25 group-previews=above/below alpha=.5",
@@ -2423,9 +2468,24 @@ impl CubeScene {
         }
     }
 
+    /// Hover and click share the same nearest-hit and transparency gate.
+    /// Filtering after picking keeps opaque foreground cubies occluding entry.
+    fn eligible_puzzle_hit(&self, inverse_view_projection: &[f32; 16], local: [i32; 2]) -> Option<picking::Hit> {
+        if self.mode != SceneMode::StaticCube || self.portal_trip.is_some()
+            || self.puzzle.selected().is_some() || self.flight.is_some() {
+            return None;
+        }
+        let (origin, direction) = picking::ray(inverse_view_projection, local[0], local[1],
+            self.frame.width(), self.frame.height())?;
+        picking::pick_face(origin, direction, self.puzzle_spacing(self.previous_elapsed_millis),
+            grid::CUBE_GRID_SCALE, |id| self.puzzle.pose(id, 0.0, 1.0))
+            .filter(|hit| rubik::cubie_transparent(hit.cubie, self.palette_selection.visible))
+    }
+
     fn puzzle_spacing(&self, now: u64) -> f32 {
         let compact = grid::CUBE_COMPACT_SPACING;
-        compact + (grid::CUBE_GRID_SPACING - compact) * self.puzzle.expansion(now)
+        let expansion = if self.puzzle_expanded { 1.0 } else { self.puzzle.expansion(now) };
+        compact + (grid::CUBE_GRID_SPACING - compact) * expansion
     }
 
     fn set_mode_projection(&mut self, mode: SceneMode) {

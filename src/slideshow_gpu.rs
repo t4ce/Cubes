@@ -37,9 +37,9 @@ impl Wall {
     }
     pub fn layout(&self) -> slideshow::contract::Layout { self.slide.layout }
     pub fn render(
-        &mut self, queue: Queue, surface: Ui4Surface, camera: RetainedCamera, height: u32, now: u64,
+        &mut self, queue: Queue, surface: Ui4Surface, camera: RetainedCamera, height: u32, now: u64, terrain: &[RetainedTransformSeed],
     ) -> Result<(), i32> {
-        self.cubes.animate(now)?;
+        self.cubes.animate(now, terrain)?;
         let point = self.device.submit_retained_frame_v4(
             queue, surface, self.mesh, self.cubes.mesh, self.vertices, self.indices,
             RetainedFrameSubmitV4 {
@@ -63,7 +63,8 @@ impl Drop for Wall {
 }
 
 const CENTER_COUNT: usize = 27;
-const MAX_CUBES: usize = CENTER_COUNT + 48*48;
+const MAX_CUBES: usize = MAX_RETAINED_SCENE_INSTANCES;
+pub const TERRAIN_BUDGET: usize = MAX_CUBES-CENTER_COUNT-48*48;
 const SEED_BYTES: usize = 64;
 /// Immutable 44-patch topology. Updates only upload TRS/color seeds.
 struct CubeInstances {
@@ -106,14 +107,20 @@ impl CubeInstances {
         let mut cubes = Self { device, vertices, indices, mesh, seeds, active:0, count:0,
             asset: AnimatedAsset::new() };
         cubes.replace(&[], &[])?;
-        cubes.animate(0)?;
+        cubes.animate(0, &[])?;
         Ok(cubes)
     }
     fn replace(&mut self, pixels: &[cubes_protocol::holy::Pixel], palette: &[u16]) -> Result<(), i32> {
         self.asset.replace(pixels, palette)
     }
-    fn animate(&mut self, now: u64) -> Result<(), i32> {
-        let seeds = self.asset.frame(now);
+    fn animate(&mut self, now: u64, terrain: &[RetainedTransformSeed]) -> Result<(), i32> {
+        if terrain.len() > TERRAIN_BUDGET { return Err(ERR_UNSUPPORTED); }
+        let mut seeds = self.asset.frame(now);
+        for seed in terrain {
+            let mut seed = *seed;
+            seed.flags = (seed.flags & 0xffff) | ((seeds.len() as u32)<<16);
+            seeds.push(seed);
+        }
         let bytes = seed_bytes(&seeds);
         // Publish only a complete upload; failure leaves the displayed frame intact.
         let next = 1-self.active;
@@ -136,16 +143,14 @@ impl AnimatedAsset {
         Self { authored: Vec::new(), ids: Vec::new(), reveal: crate::reveal::Reveal::new() }
     }
     fn replace(&mut self, pixels: &[cubes_protocol::holy::Pixel], palette: &[u16]) -> Result<(), i32> {
-        let mut authored = cube_seeds(pixels, palette)?;
+        let authored = cube_seeds(pixels, palette)?;
         let mut occupied = [false; 48*48];
         let mut ids = Vec::with_capacity(pixels.len());
-        for (index, pixel) in pixels.iter().enumerate() {
+        for pixel in pixels {
             let id = pixel.y as usize*48 + pixel.x as usize;
             if occupied[id] { return Err(ERR_UNSUPPORTED); }
             occupied[id] = true;
             ids.push(id);
-            authored[CENTER_COUNT+index].flags =
-                (authored[CENTER_COUNT+index].flags & 0xffff) | (((CENTER_COUNT+id) as u32)<<16);
         }
         self.authored = authored;
         self.ids = ids;
@@ -161,7 +166,12 @@ impl AnimatedAsset {
                 let mut seed = *seed;
                 let growth = self.reveal.growth_scale(id);
                 seed.scale = seed.scale.map(|scale| scale*growth);
-                if growth > 0. { visible.push(seed); }
+                if growth > 0. {
+                    // flags encode compact GPU output slots, not authored IDs.
+                    // Reveal keeps the persistent grid identity separately.
+                    seed.flags = (seed.flags & 0xffff) | ((visible.len() as u32)<<16);
+                    visible.push(seed);
+                }
             }
         }
         self.reveal.end_frame();
@@ -179,7 +189,7 @@ impl Drop for CubeInstances {
 fn cube_seeds(pixels: &[cubes_protocol::holy::Pixel], palette: &[u16])
     -> Result<Vec<RetainedTransformSeed>, i32>
 {
-    if pixels.len() > MAX_CUBES-CENTER_COUNT { return Err(ERR_UNSUPPORTED); }
+    if pixels.len() > 48*48 { return Err(ERR_UNSUPPORTED); }
     let mut seeds = Vec::with_capacity(CENTER_COUNT+pixels.len());
     let mut push = |translation: [f32;3], half: f32, color: u16| {
         seeds.push(RetainedTransformSeed {

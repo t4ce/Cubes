@@ -780,15 +780,25 @@ impl CubesWalkerCam {
             }
         }
     }
-    pub fn image_gallery(_layout: crate::slideshow::contract::Layout) -> Self {
+    pub fn image_gallery(layout: crate::slideshow::contract::Layout) -> Self {
+        Self::gallery_with_terrain(layout, None)
+    }
+    pub fn image_gallery_world(layout: crate::slideshow::contract::Layout, bytes: &[u8]) -> Self {
+        Self::gallery_with_terrain(layout, Some(bytes))
+    }
+    fn gallery_with_terrain(_layout: crate::slideshow::contract::Layout, bytes: Option<&[u8]>) -> Self {
         use crate::slideshow::{CENTER_CUBE_SIDE, CENTER_HALF_EXTENT, WORLD_HALF};
         let side = crate::slideshow::contract::CENTER_CUBES_PER_AXIS;
-        let mut cam = Self::mining_demo(&[]);
+        let mut cam = bytes.map_or_else(|| Self::mining_demo(&[]), |bytes| Self::from_portal(bytes, false, None));
         cam.unit = 0.8;
         let cube_size = CENTER_CUBE_SIDE/cam.unit;
         let bound = side*cube_size as i32/2+1;
-        cam.solid = Solid::new([-bound;3],[bound;3]);
-        cam.cubes.clear();
+        if bytes.is_none() {
+            cam.solid = Solid::new([-bound;3],[bound;3]);
+            cam.cubes.clear();
+        }
+        // Key8 is one server-owned scene, without local level transitions.
+        cam.portals = [None;7];
         for x in 0..side { for y in 0..side { for z in 0..side {
             let center = [x-side/2,y-side/2,z-side/2].map(|v|v as f32*cube_size);
             let lo = center.map(|v|v-cube_size*0.5);
@@ -809,6 +819,12 @@ impl CubesWalkerCam {
     }
     pub fn replace_image_gallery(&mut self, layout: crate::slideshow::contract::Layout) {
         let replacement = Self::image_gallery(layout);
+        self.solid = replacement.solid;
+        self.cubes = replacement.cubes;
+        self.navigation = Navigation::default();
+    }
+    pub fn replace_image_gallery_world(&mut self, layout: crate::slideshow::contract::Layout, bytes: &[u8]) {
+        let replacement = Self::image_gallery_world(layout, bytes);
         self.solid = replacement.solid;
         self.cubes = replacement.cubes;
         self.navigation = Navigation::default();
@@ -2723,6 +2739,27 @@ mod tests {
 #[cfg(test)]
 mod image_gallery_tests {
     use super::*;
+    #[test]
+    fn server_gallery_retains_world1_collision_and_center_spawn() {
+        let bytes = include_bytes!("../Cube/lvl27/world_01_sky.cubes");
+        let world = CubesWalkerCam::from_world(bytes, false);
+        let layout = crate::slideshow::contract::Layout {tiers:[1;6]};
+        let mut camera = CubesWalkerCam::image_gallery_world(layout, bytes);
+        assert_eq!(camera.cubes.len(), world.cubes.len()+27);
+        assert!(camera.cubes.len() > 27);
+        for cube in &world.cubes {
+            let center = cube.lo.map(|v| v+cube.size*0.5);
+            assert_eq!(camera.solid.has(center), world.solid.has(center));
+        }
+        assert!(!camera.is_flying());
+        assert!(camera.portals.iter().all(Option::is_none));
+        assert!((camera.foot[1]*camera.unit-crate::slideshow::CENTER_HALF_EXTENT).abs()<0.03);
+        camera.server_spawn([12.,23.,34.]);
+        let before = camera.pose();
+        camera.replace_image_gallery_world(layout, bytes);
+        assert_eq!(camera.pose().0,before.0);
+        assert_eq!(camera.cubes.len(), world.cubes.len()+27);
+    }
     #[test]
     fn gallery_starts_on_the_center_c4_landmark_inside_standard_world_bounds() {
         use crate::slideshow::{self, contract::Layout};

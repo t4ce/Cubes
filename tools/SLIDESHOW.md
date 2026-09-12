@@ -51,3 +51,9 @@ Transparent cells disappear immediately; absence uses placement's 240 ms rearm
 policy. Brief pixels can disappear before admission, so this experiment changes
 the visible animation. The center landmark remains full size. This shares the
 placement reveal behavior, not terrace editing, collision or visibility culling.
+
+Key8 now receives world1 (`world_01_sky.cubes`) through the normal CUB1 world
+welcome/request/chunk exchange before publishing the gallery. The ordinary level
+decoder, walker terrain collision and nearest-first visibility selection supply
+the terrain; its cube instances share depth with the images, landmark and VFX.
+The center spawn and 100 ms Holy cadence are unchanged. Rebuild both apps.

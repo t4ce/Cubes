@@ -17,6 +17,7 @@ const MAX_ENCODED_BYTES: usize = 4 * 1024 * 1024;
 const WINDOW: usize = 32;
 
 pub struct Slide {
+    pub world: Vec<u8>,
     pub session: u64,
     pub texture: vmedia::RetainedTexture,
     pub palette: Vec<u16>,
@@ -241,6 +242,68 @@ async fn decode_texture(
     .map_err(|_| "slide texture timeout")?
     .map_err(|_| "slide texture decode failed")
 }
+fn world_info(bytes: &[u8]) -> Option<usize> {
+    let p = payload(bytes, 0x81)?;
+    if p.len() != 12 || p[4] != 1 { return None; }
+    let len = u32::from_le_bytes(p[5..9].try_into().ok()?) as usize;
+    let chunks = u16::from_le_bytes(p[9..11].try_into().ok()?) as usize;
+    (len >= 16 && len <= MAX_ENCODED_BYTES && chunks == len.div_ceil(CHUNK_BYTES)).then_some(len)
+}
+fn accept_world_chunk(bytes: &[u8], encoded: &mut [u8], received: &mut [bool]) -> bool {
+    let Some(p) = payload(bytes, 0x83) else { return false; };
+    if p.len() < 5 || p[0] != 1 { return false; }
+    let index = u16::from_le_bytes([p[1],p[2]]) as usize;
+    if u16::from_le_bytes([p[3],p[4]]) as usize != received.len()
+        || index >= received.len() || received[index] { return false; }
+    let start = index*CHUNK_BYTES;
+    let end = (start+CHUNK_BYTES).min(encoded.len());
+    if p.len() != 5+end-start { return false; }
+    encoded[start..end].copy_from_slice(&p[5..]);
+    received[index] = true;
+    true
+}
+async fn receive_world(socket: &UdpSocket, shared: &Mutex<Shared>, session: u64, username: &str)
+    -> Result<Vec<u8>, &'static str>
+{
+    let mut buffer = [0;1200];
+    let mut hello = vec![1];
+    hello.extend_from_slice(username.as_bytes());
+    let mut length = None;
+    for _ in 0..10 {
+        if shared.lock().unwrap().session != session { return Err("world transfer cancelled"); }
+        socket.send(&packet(1, &hello)).await.map_err(|_| "world hello")?;
+        let deadline = time::Instant::now()+time::Duration::from_secs(1);
+        while time::Instant::now() < deadline {
+            let Ok(Ok(n)) = time::timeout(deadline.saturating_duration_since(time::Instant::now()),
+                socket.recv(&mut buffer)).await else { break; };
+            if let Some(len) = world_info(&buffer[..n]) { length=Some(len); break; }
+        }
+        if length.is_some() { break; }
+    }
+    let mut encoded = vec![0;length.ok_or("world welcome timeout")?];
+    let chunks = encoded.len().div_ceil(CHUNK_BYTES);
+    let mut received = vec![false;chunks];
+    for start in (0..chunks).step_by(WINDOW) {
+        let end = (start+WINDOW).min(chunks);
+        for _ in 0..8 {
+            if shared.lock().unwrap().session != session { return Err("world transfer cancelled"); }
+            for index in start..end {
+                if !received[index] {
+                    socket.send(&packet(3, &(index as u16).to_le_bytes())).await.map_err(|_| "world request")?;
+                }
+            }
+            let deadline = time::Instant::now()+time::Duration::from_millis(200);
+            while !received[start..end].iter().all(|v| *v) && time::Instant::now() < deadline {
+                let Ok(Ok(n)) = time::timeout(deadline.saturating_duration_since(time::Instant::now()),
+                    socket.recv(&mut buffer)).await else { break; };
+                accept_world_chunk(&buffer[..n], &mut encoded, &mut received);
+            }
+            if received[start..end].iter().all(|v| *v) { break; }
+        }
+        if !received[start..end].iter().all(|v| *v) { return Err("world chunks timeout"); }
+    }
+    Ok(encoded)
+}
 async fn stream(
     shared: &Mutex<Shared>,
     session: u64,
@@ -255,6 +318,7 @@ async fn stream(
         .await
         .map_err(|_| "cubesrv connect")?;
     let mut buffer = [0u8; 1200];
+    let world = receive_world(&socket, shared, session, username).await?;
     let mut shown = None;
     let mut shown_holy = None;
     let mut pending_holy = None;
@@ -268,12 +332,12 @@ async fn stream(
             }
             (s.position, s.orientation)
         };
-        let mut hello = vec![27];
+        let mut hello = vec![1];
         hello.extend_from_slice(username.as_bytes());
         socket.send(&packet(1, &hello)).await.map_err(|_| "cubesrv username")?;
         sequence = sequence.wrapping_add(1);
         let mut body = sequence.to_le_bytes().to_vec();
-        body.push(27); // Single shared session; the server chooses the slide.
+        body.push(1); // Single shared session; the server chooses the slide.
         for v in position.into_iter().chain(orientation) {
             body.extend_from_slice(&v.to_le_bytes());
         }
@@ -387,6 +451,7 @@ async fn stream(
                     return Ok(());
                 }
                 s.gallery_ready = Some(Slide {
+                    world: world.clone(),
                     session,
                     texture,
                     palette,
@@ -457,6 +522,33 @@ mod server;
 mod tests {
     use super::*;
 
+    #[test]
+    fn world_transfer_validates_identity_counts_duplicates_and_partial_tail() {
+        let mut welcome = vec![0;12];
+        welcome[4] = 1;
+        welcome[5..9].copy_from_slice(&1030u32.to_le_bytes());
+        welcome[9..11].copy_from_slice(&2u16.to_le_bytes());
+        assert_eq!(world_info(&packet(0x81,&welcome)),Some(1030));
+        welcome[4]=27;
+        assert_eq!(world_info(&packet(0x81,&welcome)),None);
+        let mut encoded = vec![0;1030];
+        let mut received = vec![false;2];
+        let chunk = |id, index: u16, count: u16, size| {
+            let mut body = vec![id];
+            body.extend_from_slice(&index.to_le_bytes());
+            body.extend_from_slice(&count.to_le_bytes());
+            body.extend_from_slice(&vec![7;size]);
+            packet(0x83,&body)
+        };
+        assert!(!accept_world_chunk(&chunk(27,1,2,6),&mut encoded,&mut received));
+        assert!(!accept_world_chunk(&chunk(1,1,3,6),&mut encoded,&mut received));
+        assert!(!accept_world_chunk(&chunk(1,1,2,5),&mut encoded,&mut received));
+        assert!(accept_world_chunk(&chunk(1,1,2,6),&mut encoded,&mut received));
+        assert!(!accept_world_chunk(&chunk(1,1,2,6),&mut encoded,&mut received));
+        assert!(accept_world_chunk(&chunk(1,0,2,1024),&mut encoded,&mut received));
+        assert!(received.iter().all(|v| *v));
+        assert!(encoded.iter().all(|v| *v == 7));
+    }
     #[test]
     fn atlas_palette_uses_the_same_rgb555_rounding_as_placed_assets() {
         let layout = crate::slideshow::contract::Layout { tiers:[1;6] };

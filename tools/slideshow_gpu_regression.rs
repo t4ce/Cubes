@@ -28,7 +28,7 @@ fn slide(device: Device, session: u64, revision: u32) -> Slide {
         Poll::Ready(Ok(texture)) => texture,
         _ => panic!("fixture decode"),
     };
-    Slide { session, revision, texture, palette: vec![0x801f,0x83e0,0xfc00],
+    Slide { world: vec![], session, revision, texture, palette: vec![0x801f,0x83e0,0xfc00],
         layout: slideshow::contract::Layout { tiers:[1;6] }, spawn:[0.;3] }
 }
 fn setup()->(Wall,Queue) {
@@ -38,7 +38,7 @@ fn setup()->(Wall,Queue) {
     (Wall::new(device,slide(device,1,7)).unwrap(),queue)
 }
 fn draw(wall:&mut Wall, queue:Queue, now:u64)->Result<(),i32> {
-    wall.render(queue,wall.device.acquire_ui4_surface(1).unwrap(),RetainedCamera::default(),441,now)
+    wall.render(queue,wall.device.acquire_ui4_surface(1).unwrap(),RetainedCamera::default(),441,now,&[])
 }
 fn animation(pixels:&[(u8,u8,u8)])->crate::network::HolyFrame {
     crate::network::HolyFrame {session:1,gallery_revision:7,revision:3,index:0,
@@ -46,6 +46,22 @@ fn animation(pixels:&[(u8,u8,u8)])->crate::network::HolyFrame {
 }
 fn active_bytes(wall:&Wall)->Vec<u8> {
     driver(|d| d.buffers[&wall.cubes.seeds[wall.cubes.active].raw()][..wall.cubes.count as usize*64].to_vec())
+}
+#[test]
+fn terrain_and_holy_share_compact_slots_and_one_depth_tested_frame() {
+    let (mut wall,queue)=setup();
+    let terrain = [RetainedTransformSeed {translation:[10.,0.,0.], scale:[0.8;3],
+        rotation:[1.,0.,0.,0.],local_radius:1.74,flags:0xffff,
+        ..RetainedTransformSeed::default()}];
+    wall.replace_holy(animation(&[(3,4,0)])).unwrap();
+    for now in [0,333,1033] {
+        wall.render(queue,wall.device.acquire_ui4_surface(1).unwrap(),
+            RetainedCamera::default(),441,now,&terrain).unwrap();
+        assert_eq!(wall.cubes.count,if now==1033 {29} else {28});
+        let bytes=active_bytes(&wall);
+        let last=&bytes[bytes.len()-64..];
+        assert_eq!(f32::from_le_bytes(last[..4].try_into().unwrap()),10.);
+    }
 }
 #[test]
 fn frames_replace_instances_without_rebuilding_either_mesh() {
@@ -162,7 +178,15 @@ fn seeds_preserve_landmark_bounds_sparse_pixel_positions_and_colors() {
 #[unsafe(no_mangle)] extern "C" fn trueos_cabi_vgpu_ui4_surface_discard(_:u64,_:u64)->i32 {driver(|d|{assert!(d.leased);d.leased=false;});0}
 #[unsafe(no_mangle)] extern "C" fn trueos_cabi_vgpu_retained_frame_submit_v4(_:u64,_:u64,submit:*const RetainedFrameSubmitV4,out:*mut TimelinePoint)->i32 {
     driver(|d|{assert!(d.leased);if d.busy{return ERR_BUSY;}
-        d.submissions.push(unsafe{*submit});d.leased=false;
+        let submission = unsafe { &*submit };
+        // Native Picasso requires contiguous group-local output slots, even when
+        // authored IDs or visible pixels are sparse (resources.rs draw templates).
+        let bytes = &d.buffers[&submission.cubes.seed_buffer];
+        for (slot, row) in bytes[..submission.cubes.seed_count as usize*64].chunks_exact(64).enumerate() {
+            let flags = u32::from_le_bytes(row[60..64].try_into().unwrap());
+            if flags >> 16 != slot as u32 { return ERR_UNSUPPORTED; }
+        }
+        d.submissions.push(*submission);d.leased=false;
         unsafe{*out=TimelinePoint{value:d.submissions.len() as u64,physical_serial:1};}0})
 }
 #[unsafe(no_mangle)] extern "C" fn trueos_cabi_vgpu_wait(_:u64,_:u64,_:u64)->i32 {0}
