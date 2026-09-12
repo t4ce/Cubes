@@ -262,6 +262,11 @@ fn accept_world_chunk(bytes: &[u8], encoded: &mut [u8], received: &mut [bool]) -
     received[index] = true;
     true
 }
+fn world_welcome_error(gallery_seen: bool, rejected_welcome: bool) -> &'static str {
+    if rejected_welcome { "incompatible world welcome; rebuild CubeSrv and Cubes together" }
+    else if gallery_seen { "gallery received without world welcome; rebuild and reload CubeSrv with world1 support" }
+    else { "world welcome timeout: no valid gallery or world announcement received" }
+}
 async fn receive_world(socket: &UdpSocket, shared: &Mutex<Shared>, session: u64, username: &str)
     -> Result<Vec<u8>, &'static str>
 {
@@ -269,6 +274,8 @@ async fn receive_world(socket: &UdpSocket, shared: &Mutex<Shared>, session: u64,
     let mut hello = vec![1];
     hello.extend_from_slice(username.as_bytes());
     let mut length = None;
+    let mut gallery_seen = false;
+    let mut rejected_welcome = false;
     for _ in 0..10 {
         if shared.lock().unwrap().session != session { return Err("world transfer cancelled"); }
         socket.send(&packet(1, &hello)).await.map_err(|_| "world hello")?;
@@ -277,10 +284,12 @@ async fn receive_world(socket: &UdpSocket, shared: &Mutex<Shared>, session: u64,
             let Ok(Ok(n)) = time::timeout(deadline.saturating_duration_since(time::Instant::now()),
                 socket.recv(&mut buffer)).await else { break; };
             if let Some(len) = world_info(&buffer[..n]) { length=Some(len); break; }
+            gallery_seen |= info(&buffer[..n]).is_some();
+            rejected_welcome |= payload(&buffer[..n], 0x81).is_some();
         }
         if length.is_some() { break; }
     }
-    let mut encoded = vec![0;length.ok_or("world welcome timeout")?];
+    let mut encoded = vec![0;length.ok_or(world_welcome_error(gallery_seen, rejected_welcome))?];
     let chunks = encoded.len().div_ceil(CHUNK_BYTES);
     let mut received = vec![false;chunks];
     for start in (0..chunks).step_by(WINDOW) {
@@ -522,6 +531,12 @@ mod server;
 mod tests {
     use super::*;
 
+    #[test]
+    fn welcome_failure_distinguishes_old_gallery_server_from_silence() {
+        assert!(world_welcome_error(true,false).contains("rebuild and reload CubeSrv"));
+        assert!(world_welcome_error(true,true).contains("incompatible world welcome"));
+        assert!(world_welcome_error(false,false).contains("no valid gallery or world"));
+    }
     #[test]
     fn world_transfer_validates_identity_counts_duplicates_and_partial_tail() {
         let mut welcome = vec![0;12];
