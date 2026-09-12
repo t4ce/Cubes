@@ -44,6 +44,16 @@ terrain footprint. Worlds 1--26 permit the 32×32 core and their four centered
 (World 27) permits its core only. Boundary movement slides along a wall, so a
 diagonal walk cannot leave the terrain or pass through a portal.
 
+Distant platform replacement hulls retain their exported center and size but
+carry a subtle, bounded three-axis orientation drift while visible. The drift
+is evaluated only for admitted Key-5 hull seeds; detailed platform cubes,
+paths, portals, collision, picking and every other mode keep their authored
+orientation. Each hull has a stable phase so the replacements do not move in
+lockstep, and the quaternion is recomputed from time rather than accumulated.
+CPU culling uses a conservative envelope around each rotating hull, while the
+render seed keeps the exact exported dimensions and never contributes an
+axis-aligned occlusion or face-weld assumption.
+
 Mouse-look in Key 5 uses world-space yaw and clamped pitch with +Y fixed as
 up. Horizontal mouse motion therefore turns around the terrain normal and
 cannot permanently roll the camera or horizon.

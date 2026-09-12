@@ -75,8 +75,17 @@ pub fn geometry(layout: Layout) -> Geometry {
     mesh
 }
 impl Geometry {
-    pub fn vertex_bytes(&self) -> Vec<u8> { self.vertices.iter().flatten().flat_map(|v|v.to_le_bytes()).collect() }
-    pub fn index_bytes(&self) -> Vec<u8> { self.indices.iter().flat_map(|v|v.to_le_bytes()).collect() }
+    pub fn vertex_bytes(&self) -> &[u8] {
+        const { assert!(cfg!(target_endian = "little")); }
+        // Arrays of initialized f32 have no padding. Borrow until upload completes;
+        // avoid allocating a second full geometry copy on the scene thread.
+        unsafe { core::slice::from_raw_parts(self.vertices.as_ptr().cast(), self.vertices.len()*48) }
+    }
+    pub fn index_bytes(&self) -> &[u8] {
+        const { assert!(cfg!(target_endian = "little")); }
+        // u32 indices are initialized, contiguous and little endian on TRUEOS.
+        unsafe { core::slice::from_raw_parts(self.indices.as_ptr().cast(), self.indices.len()*4) }
+    }
 }
 #[cfg(test)]
 mod tests {
@@ -96,6 +105,11 @@ mod tests {
             let layout = Layout {tiers:[tier;6]};
             let mesh = geometry(layout);
             let n = layout.tier(0).blocks as usize;
+            assert_eq!(mesh.vertex_bytes().len(), mesh.vertices.len()*48);
+            assert_eq!(mesh.index_bytes().len(), mesh.indices.len()*4);
+            assert_eq!(&mesh.vertex_bytes()[..4], &mesh.vertices[0][0].to_le_bytes());
+            assert_eq!(&mesh.index_bytes()[..4], &mesh.indices[0].to_le_bytes());
+            assert!(mesh.vertex_bytes().len()+mesh.index_bytes().len() < 27*1024*1024);
             assert_eq!(mesh.indices.len()/3, 6*(44*n*n-8*n*(n-1)));
             for v in &mesh.vertices {
                 assert!(v.iter().all(|f|f.is_finite()));

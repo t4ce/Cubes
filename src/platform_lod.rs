@@ -5,6 +5,12 @@ use alloc::vec::Vec;
 
 pub const ENABLED: bool = true;
 pub const DETAIL_PLATFORMS: usize = 2;
+const HULL_DRIFT_RADIANS: [f32; 3] = [0.038, 0.052, 0.031];
+const HULL_DRIFT_SPEED: [f32; 3] = [0.13, 0.09, 0.11];
+// Product of each bounded Euler rotation's maximum L-infinity norm is
+// 1.12304 for the angles above. This envelope keeps rotated corners inside
+// CPU visibility bounds without changing the rendered hull's authored size.
+const HULL_VISIBILITY_SCALE: f32 = 1.13;
 
 pub struct Hull {
     pub cube: Cube,
@@ -105,7 +111,13 @@ impl View {
             .cubes
             .extend(self.items.iter().map(|item| match *item {
                 Item::Source(id) => source.cubes[id],
-                Item::Hull(id) => metadata.unwrap().hulls[id].cube,
+                Item::Hull(id) => {
+                    let cube = metadata.unwrap().hulls[id].cube;
+                    Cube {
+                        scale: cube.scale * HULL_VISIBILITY_SCALE,
+                        ..cube
+                    }
+                }
             }));
     }
     pub fn asset<'a>(&'a self, source: &'a Asset) -> &'a Asset {
@@ -128,6 +140,21 @@ impl View {
             Item::Hull(_) => None,
         }
     }
+    /// Returns the stable per-world hull ID only for a replacement cube.
+    pub fn hull_id(&self, id: usize) -> Option<usize> {
+        match self.items.get(id) {
+            Some(Item::Hull(id)) if self.metadata.is_some() => Some(*id),
+            _ => None,
+        }
+    }
+    /// Returns the authored render cube for a replacement view item. The view
+    /// asset itself carries a larger, culling-only envelope for animated hulls.
+    pub fn hull(&self, id: usize) -> Option<(usize, Cube)> {
+        let hull = self.hull_id(id)?;
+        self.metadata
+            .and_then(|metadata| metadata.hulls.get(hull))
+            .map(|metadata| (hull, metadata.cube))
+    }
     /// Platform detail and its replacement stay solid; ordinary world cells
     /// retain the existing marker policy. Visibility and submission caps still apply.
     pub fn solid(&self, id: usize) -> bool {
@@ -142,4 +169,34 @@ impl View {
                 .is_some_and(|&owner| owner != 0),
         }
     }
+}
+
+/// A bounded, slow local drift for visible Key5 replacement hulls. Recomputing
+/// from time avoids accumulated quaternion error; callers invoke this only for
+/// hulls that survived visibility and remain expanded cubes.
+pub fn hull_rotation(elapsed_millis: u64, hull_id: usize) -> [f32; 4] {
+    let seconds = elapsed_millis as f32 * 0.001;
+    let phase = hull_id as f32 * 1.618_034;
+    let angles = [
+        HULL_DRIFT_RADIANS[0] * libm::sinf(seconds * HULL_DRIFT_SPEED[0] + phase),
+        HULL_DRIFT_RADIANS[1] * libm::sinf(seconds * HULL_DRIFT_SPEED[1] + phase * 0.73),
+        HULL_DRIFT_RADIANS[2] * libm::sinf(seconds * HULL_DRIFT_SPEED[2] + phase * 1.21),
+    ];
+    let axis = |a: usize| {
+        let half = angles[a] * 0.5;
+        let mut q = [0.; 4];
+        q[a] = libm::sinf(half);
+        q[3] = libm::cosf(half);
+        q
+    };
+    let multiply = |a: [f32; 4], b: [f32; 4]| {
+        [
+            a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1],
+            a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0],
+            a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3],
+            a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2],
+        ]
+    };
+    let drift = multiply(axis(2), multiply(axis(1), axis(0)));
+    multiply(drift, crate::orchard::WORLD_ROTATION)
 }

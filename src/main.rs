@@ -980,13 +980,31 @@ impl CubeScene {
                     |id, rank| {
                         let cube = asset.cubes[id];
                         let source_id = self.platform_view.source_id(id);
-                        let placed = source_id.filter(|&source| source >= base).map(|source| source - base);
-                        if cube.scale < 0.001 || placed.is_some_and(|id| !self.placed_reveal.admit(id)) {
+                        let platform_hull = self.platform_view.hull_id(id).is_some();
+                        let placed = source_id
+                            .filter(|&source| source >= base)
+                            .map(|source| source - base);
+                        if cube.scale < 0.001
+                            || placed.is_some_and(|id| !self.placed_reveal.admit(id))
+                        {
                             return None;
                         }
-                        let distance_squared = asset_brush::lod_distance_squared(cube.center, eye, &camera.view);
-                        Some(rank < detail_budget && ((self.network_singleton || self.platform_view.solid(id)) || (placed.is_none_or(|id| self.placed_reveal.settled(id))
-                            && asset_brush::detailed_with_budget(rank, cube, distance_squared, projection_y, height, detail_budget))))
+                        let distance_squared =
+                            asset_brush::lod_distance_squared(cube.center, eye, &camera.view);
+                        Some(
+                            !platform_hull
+                                && rank < detail_budget
+                                && ((self.network_singleton || self.platform_view.solid(id))
+                                    || (placed.is_none_or(|id| self.placed_reveal.settled(id))
+                                        && asset_brush::detailed_with_budget(
+                                            rank,
+                                            cube,
+                                            distance_squared,
+                                            projection_y,
+                                            height,
+                                            detail_budget,
+                                        ))),
+                        )
                     },
                 );
                 self.placed_reveal.end_frame();
@@ -1014,18 +1032,21 @@ impl CubeScene {
             self.world_weld.prepare(
                 &mut self.world_markers.cubes, &self.world_markers.solids,
                 baked_materials::WELD_COLORS,
-                |id| self.mode == SceneMode::World
-                    // The VS drops seeds whose center is behind the eye. Such a
-                    // submitted neighbor must not cause a visible cap to disappear.
-                    && (camera.view_projection[3] * source[id].center[0]
-                        + camera.view_projection[7] * source[id].center[1]
-                        + camera.view_projection[11] * source[id].center[2]
-                        + camera.view_projection[15]) > 0.
-                    && self.platform_view.source_id(id).is_none_or(|source|
-                        self.active_world.as_ref().unwrap().weld_ready(source)
-                        && (source < base || self.placed_reveal.settled(source - base))),
+                |id| {
+                    self.mode == SceneMode::World
+                        // The VS drops seeds whose center is behind the eye. Such a
+                        // submitted neighbor must not cause a visible cap to disappear.
+                        && (camera.view_projection[3] * source[id].center[0]
+                            + camera.view_projection[7] * source[id].center[1]
+                            + camera.view_projection[11] * source[id].center[2]
+                            + camera.view_projection[15]) > 0.
+                        // Animated replacement hulls are not axis-aligned and must
+                        // never participate in the optional face-weld experiment.
+                        && self.platform_view.source_id(id).is_some_and(|source|
+                            self.active_world.as_ref().unwrap().weld_ready(source)
+                            && (source < base || self.placed_reveal.settled(source - base)))
+                },
             );
-
         }
         match self.frame.begin_gpu_frame() {
             Ok(()) => {}
@@ -1163,10 +1184,26 @@ impl CubeScene {
                 let depth = -(camera.view[2]*translation[0]+camera.view[6]*translation[1]+camera.view[10]*translation[2]+camera.view[14]);
                 scale = grid::marker_scale(depth, camera.projection[5], height);
             }
+            let platform_hull = if self.mode == SceneMode::World {
+                self.world_markers
+                    .solids
+                    .binary_search_by_key(&i, |&(output, _)| output)
+                    .ok()
+                    .and_then(|at| self.platform_view.hull(self.world_markers.solids[at].1))
+            } else {
+                None
+            };
+            if let Some((_, cube)) = platform_hull {
+                // Marker reduction used the conservative CPU visibility
+                // envelope; the GPU retains the authored hull dimensions.
+                scale = cube.scale;
+            }
             let seed = RetainedTransformSeed {
                 translation,
                 scale: [scale; 3],
-                rotation: if self.mode == SceneMode::StaticCube {
+                rotation: if let Some((hull, _)) = platform_hull {
+                    platform_lod::hull_rotation(elapsed_millis, hull)
+                } else if self.mode == SceneMode::StaticCube {
                     quaternion_from_rotation_columns(basis[0], basis[1], basis[2]).0
                 } else if self.mode.is_world() && scale < 0.001 {
                     self.flycam.camera.rotation.0
@@ -1680,9 +1717,14 @@ impl CubeScene {
         let first = self.network_world.as_ref().is_none_or(|world| world.session != slide.session);
         let session = slide.session;
         let spawn = slide.spawn;
-        logl::log(level::INFO, format_args!("Cubes: slideshow revision={} image=512x512 triangles=2 path=retained-pbr", slide.revision));
+        let layout = slide.layout;
+        let layout_changed = self.image_wall.as_ref().is_some_and(|wall| wall.layout() != layout);
+        logl::log(level::INFO, format_args!("Cubes: gallery revision={} faces=6 tiers={:?} atlas={:?} path=retained-pbr-nearest", slide.revision, layout.tiers, layout.extent()));
         if let Some(wall) = self.image_wall.as_mut() {
-            wall.replace(slide);
+            if let Err(error) = wall.replace(slide) {
+                logl::log(level::WARN, format_args!("Cubes: gallery replacement failed error={error}"));
+                return Ok(());
+            }
         } else {
             match slideshow_gpu::Wall::new(self.device, slide) {
                 Ok(wall) => self.image_wall = Some(wall),
@@ -1691,6 +1733,9 @@ impl CubeScene {
                     return Ok(());
                 }
             }
+        }
+        if !first && layout_changed {
+            if let Some(camera) = self.walker_camera.as_mut() { camera.replace_image_gallery(layout); }
         }
         if first {
             // The scene has no cube render data; the walker owns its separate collision grid.
@@ -2168,7 +2213,7 @@ impl CubeScene {
                 )
             };
             let mut camera = if self.network_singleton {
-                walker_camera::CubesWalkerCam::image_wall()
+                walker_camera::CubesWalkerCam::image_gallery(self.image_wall.as_ref().ok_or(CubeError::Contract)?.layout())
             } else {
                 walker_camera::CubesWalkerCam::from_portal(
                     world_bytes,

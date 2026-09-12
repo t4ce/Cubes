@@ -352,8 +352,8 @@ mod tests {
     fn gallery_package_checks_version_tiers_dimensions_and_reserved_bytes() {
         let source = include_bytes!("../../TRUEOS-Blueprints/apps/cubesrv/slides/gallery.cga");
         let (layout, _) = crate::slideshow::contract::Layout::parse(source).unwrap();
-        assert_eq!(layout.extent(), [966, 644]);
-        for (offset,value) in [(0,0),(4,2),(5,5),(6,0),(6,5),(12,1),(32,0)] {
+        assert_eq!(layout.extent(), [layout.tile()*3, layout.tile()*2]);
+        for (offset,value) in [(0,0),(4,2),(5,5),(6,0),(6,5),(12,1),(35,0)] {
             let mut bad = source.to_vec(); bad[offset]=value;
             assert!(crate::slideshow::contract::Layout::parse(&bad).is_none());
         }

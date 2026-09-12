@@ -14,6 +14,8 @@ extern crate self as libm;
 pub fn sqrtf(x:f32)->f32{x.sqrt()}
 pub fn floorf(x:f32)->f32{x.floor()}
 pub fn roundf(x:f32)->f32{x.round()}
+pub fn sinf(x:f32)->f32{x.sin()}
+pub fn cosf(x:f32)->f32{x.cos()}
 '''
 for module, file in [('orchard','orchard'), ('asset_brush','asset_brush'),
                      ('subcubes','SubCubes'), ('cube_format','cube_format'),
@@ -115,6 +117,74 @@ fn platform_solids_survive_distance_but_respect_the_global_detail_cap() {
     assert_eq!(reducer.dots_before,0);
     reducer.prepare_with_solids(&source,&[0],[0.;3],&view,2.414,480,0,|_|1.,|_|true);
     assert!(reducer.cubes[0].scale<0.001); assert_eq!(reducer.dots_before,1);
+}
+#[test]
+fn only_replacement_items_have_stable_hull_ids() {
+    let (name,bytes,m)=&WORLDS[0];
+    let mut asset=orchard::decode(name,bytes).unwrap();
+    for cube in &mut asset.cubes { cube.center=orchard::world_from_demo(cube.center); }
+    let mut view=platform_lod::View::new(); view.prepare(&asset,Some(m),m.hulls[0].cube.center);
+    let mut found=vec![false;m.hulls.len()];
+    for id in 0..view.asset(&asset).cubes.len() {
+        match view.hull_id(id) {
+            Some(hull) => {
+                assert!(view.source_id(id).is_none()); assert!(!found[hull]); found[hull]=true;
+                let authored=m.hulls[hull].cube; let visibility=view.asset(&asset).cubes[id];
+                let (stable,render)=view.hull(id).unwrap();
+                assert_eq!(stable,hull); assert_eq!(render.center,authored.center);
+                assert_eq!(render.scale,authored.scale); assert_eq!(render.flags,authored.flags);
+                assert_eq!(visibility.center,authored.center); assert!(visibility.scale>render.scale);
+            }
+            None => assert!(view.source_id(id).is_some()),
+        }
+    }
+    assert_eq!(found.iter().filter(|&&present|present).count(),m.hulls.len()-platform_lod::DETAIL_PLATFORMS);
+}
+#[test]
+fn hull_rotation_is_normalized_bounded_and_time_varying() {
+    let base=orchard::WORLD_ROTATION;
+    for hull in 0..6 {
+        let a=platform_lod::hull_rotation(0,hull);
+        let b=platform_lod::hull_rotation(17_000,hull);
+        for q in [a,b] {
+            let norm=q.into_iter().map(|v|v*v).sum::<f32>();
+            assert!((norm-1.).abs()<1e-5);
+            let alignment=q.into_iter().zip(base).map(|(x,y)|x*y).sum::<f32>().abs();
+            assert!(alignment>0.998,"drift must stay low-key: {alignment}");
+        }
+        assert_ne!(a,b,"visible hull orientation must drift over time");
+        let before=platform_lod::hull_rotation(599_999,hull);
+        let after=platform_lod::hull_rotation(600_000,hull);
+        let continuity=before.into_iter().zip(after).map(|(x,y)|x*y).sum::<f32>().abs();
+        assert!(continuity>0.99999,"hull drift must not snap at time boundaries: {continuity}");
+    }
+}
+#[test]
+fn rotated_hull_corners_stay_inside_visibility_envelope() {
+    let (name,bytes,m)=&WORLDS[0];
+    let mut asset=orchard::decode(name,bytes).unwrap();
+    for cube in &mut asset.cubes { cube.center=orchard::world_from_demo(cube.center); }
+    let mut view=platform_lod::View::new(); view.prepare(&asset,Some(m),m.hulls[0].cube.center);
+    let rotate=|q:[f32;4],p:[f32;3]| {
+        let cross=|a:[f32;3],b:[f32;3]| [
+            a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]
+        ];
+        let xyz=[q[0],q[1],q[2]]; let t=cross(xyz,p).map(|v|2.*v);
+        let u=cross(xyz,t);
+        core::array::from_fn::<f32,3,_>(|axis|p[axis]+q[3]*t[axis]+u[axis])
+    };
+    for id in 0..view.asset(&asset).cubes.len() {
+        let Some((hull,render))=view.hull(id) else { continue };
+        let envelope=view.asset(&asset).cubes[id].scale;
+        for sample in 0..2048u64 {
+            let q=platform_lod::hull_rotation(sample*1_337,hull);
+            for corner in 0..8 {
+                let local=core::array::from_fn(|axis|if corner&(1<<axis)==0 {-render.scale} else {render.scale});
+                let rotated=rotate(q,local);
+                assert!(rotated.into_iter().all(|v|v.abs()<=envelope+1e-5));
+            }
+        }
+    }
 }
 '''
     (root/'tests.rs').write_text(source)
