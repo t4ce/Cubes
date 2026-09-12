@@ -18,8 +18,6 @@ mod exported {
 
 #[path = "tools/build_interface.rs"]
 mod build_interface;
-#[path = "tools/build_joined_world.rs"]
-mod build_joined_world;
 
 fn main() {
     build_interface::generate(
@@ -128,25 +126,6 @@ fn main() {
         .collect();
     worlds.sort();
     assert_eq!(worlds.len(), 27, "expected all 27 lvl27 world assets");
-    assert_eq!(
-        worlds[0].file_name().unwrap().to_str().unwrap(),
-        "world_01_sky.cubes",
-        "joined Key5 demo must track the first world",
-    );
-    let first_world = fs::read(&worlds[0]).expect("read first joined world");
-    let joined = build_joined_world::build(&first_world);
-    let output = std::path::PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
-    fs::write(output.join("joined_world_01_vertices.bin"), &joined.vertices)
-        .expect("write first joined world vertices");
-    fs::write(output.join("joined_world_01_indices.bin"), &joined.indices)
-        .expect("write first joined world indices");
-    println!(
-        "cargo:warning=joined world 01: {} cubes -> {} exposed quads, {} vertex bytes, {} index bytes",
-        joined.source_cubes,
-        joined.quads,
-        joined.vertices.len(),
-        joined.indices.len(),
-    );
     registry.push_str(&platform_registry(&worlds));
     registry.push_str(&write_registry("WORLD_ASSETS", worlds));
     registry.push_str(&material_palette_registry());

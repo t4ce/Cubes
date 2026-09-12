@@ -105,9 +105,6 @@ svg{vertical-align:middle}
 .history{display:flex;gap:6px;margin-top:12px}
 .history button{padding:6px 9px;font-size:10px;flex:1}
 .history button:last-child{flex:1.35}
-.render-choice{width:100%;margin-top:8px;border:1px solid var(--line);border-radius:7px;background:#fff;padding:8px 9px;font-size:10px}
-.render-proof{margin-top:9px;padding:10px 11px;border:1px solid #d9e4d2;border-radius:8px;background:#edf3e8;font:9px/1.6 var(--mono);color:#597052}
-.render-proof strong{display:block;color:#38553d;font:600 10px/1.4 var(--mono);margin-bottom:3px}
 .sidebar-foot{padding:14px 21px;color:#96a08f;font-size:9px;line-height:1.6}
 .view{position:relative;overflow:hidden;min-width:0;min-height:0;background:radial-gradient(ellipse at 48% 43%,#fafbf4 0%,#edf0e5 66%,#e5eadd 100%)}
 canvas{width:100%;height:100%;display:block;touch-action:none;outline:none}
@@ -292,7 +289,7 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
    <div class="eyebrow"><span>Per-platform rolls</span><span>SEEDED</span></div>
    <div class="field-head"><span>Platform size</span><strong>16–21 / 44–48 c4</strong></div><div id="platformSizeNote" class="field-note">Roll 22 / 23 / 24 → 44 / 46 / 48 c4</div>
    <div class="roll-growth"><div class="field-head"><span>Small-cube growth</span><strong>250–500%</strong></div><div id="growthNote" class="field-note">Individual growth rolls · connected c3 shelves</div></div>
-   <div class="field-note" style="margin-top:9px"><strong style="color:var(--ink)">Seven-cube size tower</strong><br>Bottom → top: r3 · c4 · r2 · c3 · r1 · c2 · c1<br>One of each, 36 c1 tall. No nested 2×2×2 piles.</div>
+  <div class="field-note" style="margin-top:9px"><strong style="color:var(--ink)">Seven-cube size tower</strong><br>Bottom → top: r3 · c4 · r2 · c3 · r1 · c2 · c1<br>One of each, 36 c1 tall. Platforms use one c4 deck; paths are one c4 wide and two c4 high.</div>
   <label class="checks"><input id="showPlatformHulls" type="checkbox" checked><span>Platform hull indicators</span><span>LOD</span></label>
   <label class="checks"><input id="showTierTowers" type="checkbox" checked><span>Show cube-tier towers</span><span>DEMO</span></label>
   <div class="tower-controls"><select id="towerSelect" aria-label="Platform tower to inspect"></select><button id="inspectTower" type="button" disabled>Inspect tower</button></div>
@@ -321,13 +318,6 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
   <div id="budgetBar" class="budget-bar"></div><div id="budgetWarning" class="budget-warning" hidden>Over the soft budget. Placement is still allowed.</div>
   <div class="history"><button id="undoButton" disabled title="Undo (Ctrl / Cmd Z)">↶ Undo</button><button id="redoButton" disabled title="Redo (Ctrl / Cmd Shift Z)">↷ Redo</button><button id="deleteButton" disabled title="Remove this cube, its platform, growth, and path">Delete platform</button></div>
  </section>
- <section class="panel">
-  <div class="eyebrow"><span>03 &nbsp; Terrain render proof</span><span class="num">A / B</span></div>
-  <div class="generation-note"><strong>One joined visual surface.</strong><br>The sparse c4/c3 cubes remain the editor, picking, and future walking model. Only their static terrain rendering is replaced. The atlas uses the six exact opaque palette colours, with no checker or grain pass; a decoded server PNG can occupy the same texture slot later.</div>
-  <label class="field-head" for="terrainRenderer">Visual representation <span style="font:8px var(--mono)">LIVE</span></label>
-  <select id="terrainRenderer" class="render-choice"><option value="joined">Joined surface · six-material atlas</option><option value="cubes">Current bevelled cube instances</option></select>
-  <div id="renderProof" class="render-proof"><strong>GENERATE A WORLD TO COMPARE</strong>Collision and editable ownership stay unchanged.</div>
- </section>
  </div>
  <div class="sidebar-foot">Nothing is generated on opening.<br>Edits stay in this tab. Export your project to keep them.<br><span style="opacity:.7">4³ chunks · c1/c2/r1/c3/r2/c4/r3 tiers · c4 paths · c2 portals</span></div>
 </aside>
@@ -351,15 +341,14 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
   <strong>Build camera</strong><span>Drag to orbit. Scroll to zoom. Right-drag to pan. Home frames the world. Alt-drag also orbits while placing or removing.</span>
   <strong>World layout</strong><span>Each world remains 4 × 4 × 4 chunks. Each chunk is 64 × 64 × 64 c4 cells, or 512³ c1 units. The full world is now 2048³ c1 units: eight times the previous side length. Cube tier sizes themselves are unchanged.</span>
   <strong>Place / remove</strong><span>Place a c1 control cube at the center of a new platform. Placement addresses snap to the c4 terrain grid; the control is centered on the actual footprint. Its platform, growth, and local branch belong to it. With tower demos visible, click the tower to select or remove the same owner. Keys 1 / 2 / 3 choose Select / Place / Remove. Deleting an owner does not remove other platforms or the main network.</span>
-  <strong>Platform size</strong><span>Platforms and paths both use c4 cubes (8 c1 per side) on the same lattice. The seeded 16–24 roll stays the same: 16–21 remain unchanged; 22 / 23 / 24 become 44 / 46 / 48 c4 across. The top two platform layers are each c4 thick. Generated and manual platforms use the same full-cube terracing, with no small finishing rim. Placed platforms keep their pinned rolls when the world regenerates.</span>
+  <strong>Platform size</strong><span>Platforms and paths both use c4 cubes (8 c1 per side) on the same lattice. The seeded 16–24 roll stays the same: 16–21 remain unchanged; 22 / 23 / 24 become 44 / 46 / 48 c4 across. Generated and manual platforms use one clipped c4 deck. Paths are one c4 wide and two c4 high; their upper cell meets the platform deck. Placed platforms keep their pinned rolls when the world regenerates.</span>
   <strong>Cube-size towers</strong><span>Seven cubes, one per tier: bottom to top r3 (12), c4 (8), r2 (6), c3 (4), r1 (3), c2 (2), c1 (1). Each tower is 36 c1 tall and centered on its platform. Inspect tower zooms in and labels each cube. These display-only rulers do not affect routes, collision, or budgets; toggle them off to reveal manual control cubes.</span>
   <strong>Small-cube growth</strong><span>Optional growth is off by default. Each platform retains its independent 250–500% roll. When enabled, it adds connected c3 (4 c1) shelves, exactly half the side length of the c4 terrain cubes. No extra cube tiers are introduced.</span>
   <strong>Local branches</strong><span>With automatic paths on, each owned platform gets one link to existing generated terrain. In a blank world, the first cube grows an isolated platform; later platforms connect to earlier ones. With automatic paths off, the platforms remain and only the paths are hidden. Removing an empty-world anchor repairs only dependent links. World 27 offers all six colours plus Void.</span>
   <strong>Undo / redo</strong><span>Ctrl or Cmd + Z / Shift + Z. History is independent for every world. Ctrl or Cmd + Y also redoes.</span>
   <strong>Portal lab</strong><span>The Portals tab owns eight reusable presets: Sky, Underground, black-hole, white-hole, Island, City, Special, and Leave. Portal structure defaults by destination: pure-theme and Leave portals use Terraced, two-theme portals use Twin ring, and three-theme plus Special/Void portals use Tri ring. Any preset can override that structure; opening, depth, rotation, and flat-colour settings remain reusable.</span>
   <strong>Portal inspection</strong><span>Choose a face, then Back or Angle to inspect that actual portal using the build camera. Back looks through the frame from its reverse side. The World tab or Home frames the whole scene. The optional passage guide previews the same route through the portal without adding terrain or counting toward the budget.</span>
-  <strong>Portal paths</strong><span>Every path uses a 2 × 2 cross-section of c4 cubes, including manual connections and portal bridges. Filled 2 × 2 × 2 elbow joints prevent missing corner cells. Platform connections meet the top two platform layers. Rendering, surface picking, and collision use the same full-c4 geometry. Portal frames stay c2, and their boundary-facing layer and bridge reach the outer world boundary.</span>
-  <strong>Joined terrain proof</strong><span>The default preview joins static terrain into one indexed surface mesh and shades it from one six-material texture atlas. The atlas is flat opaque palette colour: no checker, grain, or softened seam halo. Greedy coplanar quads retain a crisp seam for every source cube, widened by one third from the first pass. A later decoded server PNG can replace the local atlas without changing the mesh. Switch back to cube instances for a live A/B comparison. This changes visuals only: the sparse cube model still owns editing, picking, paths, ownership, and later walking or destruction.</span>
+  <strong>Portal paths</strong><span>Every horizontal path uses a 1 × 2 cross-section of c4 cubes: one wide and two high. Manual connections and portal bridges use the same geometry; vertical sections remain one c4 shaft. Platform connections meet the deck's upper cell. Rendering, surface picking, and collision use the same full-c4 geometry. Portal frames stay c2, and their boundary-facing layer and bridge reach the outer world boundary.</span>
   <strong>Save / import</strong><span>Exports store all 27 world recipes, eight portal presets, corrected cube tiers, the 512-c1 chunk size, c4 placement-grid addresses, and c1-world-space branch centerlines. Earlier projects are migrated by enlarging their world-space layout eightfold; v15 c2 portal designs are preserved without a second size increase. The old r3 (6) and r4 (12) labels become r2 (6) and r3 (12). Safe placed-platform recipes are kept; invalid local links are rebuilt. Imports are fully validated before the live project changes.</span>
  </div>
  <button id="closeHelp" class="primary">Back to making</button><p class="dialog-footer">All 27 worlds start completely empty. Generation is explicit. Control cubes and their owned platforms survive regeneration. Remove a control cube to remove its platform, growth, and branch; the generated main network is separate. 16 is a soft budget, not a hard cap. JSON includes generation recipes, eight reusable portal presets, cube colours, pinned owned-platform rolls, and saved local branch centerlines—not a game-specific loader.</p>
@@ -413,11 +402,6 @@ function mixRGB(a,b,t){return a.map((x,i)=>x+(b[i]-x)*t);}
 function hashSeed(s){let h=2166136261;for(const c of String(s))h=Math.imul(h^c.charCodeAt(0),16777619);return h>>>0;}
 function rng(seed){let a=hashSeed(seed);return ()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return ((t^t>>>14)>>>0)/4294967296;};}
 function cubeGeometryFromGLB(base64){const bin=Uint8Array.from(atob(base64),c=>c.charCodeAt(0));const dv=new DataView(bin.buffer);let p=12,json,binOffset;while(p<bin.length){const len=dv.getUint32(p,true),type=dv.getUint32(p+4,true);if(type===0x4e4f534a)json=JSON.parse(new TextDecoder().decode(bin.subarray(p+8,p+8+len)));if(type===0x004e4942)binOffset=p+8;p+=8+len;}const prim=json.meshes[0].primitives[0];function acc(i){const a=json.accessors[i],b=json.bufferViews[a.bufferView],off=binOffset+(b.byteOffset||0)+(a.byteOffset||0),size=a.type==='VEC3'?3:a.type==='VEC2'?2:1,C=a.componentType===5126?Float32Array:a.componentType===5123?Uint16Array:Uint32Array;return new C(bin.buffer.slice(off,off+a.count*size*C.BYTES_PER_ELEMENT));}const ps=acc(prim.attributes.POSITION),ns=acc(prim.attributes.NORMAL),ix=acc(prim.indices);let lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];ps.forEach((x,i)=>{lo[i%3]=Math.min(lo[i%3],x);hi[i%3]=Math.max(hi[i%3],x);});const scale=Math.max(...hi.map((x,i)=>x-lo[i]));const verts=new Float32Array(ps.length*2);for(let i=0;i<ps.length/3;i++)for(let j=0;j<3;j++){verts[i*6+j]=(ps[i*3+j]-(lo[j]+hi[j])/2)/scale;verts[i*6+3+j]=ns[i*3+j];}return {verts,indices:new Uint16Array(ix)};}
-function terrainAtlasCanvas(){
- const tile=64,canvas=document.createElement('canvas');canvas.width=tile*6;canvas.height=tile;const ctx=canvas.getContext('2d');
- WORLD_THEMES.forEach((theme,i)=>{ctx.fillStyle=theme.color;ctx.fillRect(i*tile,0,tile,tile);});
- return canvas;
-}
 class CubeRenderer {
  constructor(canvas,geometry){this.canvas=canvas;const g=this.gl=canvas.getContext('webgl2',{antialias:true,alpha:true,powerPreference:'high-performance'});if(!g)return new CanvasCompatibilityRenderer(canvas);this.kind='webgl2';this.batches=new Map();this.lines=new Map();
  const vs=`#version 300 es
@@ -434,62 +418,15 @@ class CubeRenderer {
  this.program=this.programFrom(vs,fs);this.uniforms={vp:g.getUniformLocation(this.program,'uVP'),eye:g.getUniformLocation(this.program,'uEye'),opacity:g.getUniformLocation(this.program,'uOpacity'),fog:g.getUniformLocation(this.program,'uFog')};
  this.lineProgram=this.programFrom(`#version 300 es\nprecision highp float;layout(location=0) in vec3 aPosition;layout(location=1) in vec4 aColor;uniform mat4 uVP;out vec4 vColor;void main(){vColor=aColor;gl_Position=uVP*vec4(aPosition,1.0);}`,`#version 300 es\nprecision highp float;in vec4 vColor;out vec4 color;void main(){color=vColor;}`);this.lineVP=g.getUniformLocation(this.lineProgram,'uVP');
  this.geo=g.createBuffer();g.bindBuffer(g.ARRAY_BUFFER,this.geo);g.bufferData(g.ARRAY_BUFFER,geometry.verts,g.STATIC_DRAW);this.index=g.createBuffer();g.bindBuffer(g.ELEMENT_ARRAY_BUFFER,this.index);g.bufferData(g.ELEMENT_ARRAY_BUFFER,geometry.indices,g.STATIC_DRAW);this.indexCount=geometry.indices.length;
- const joinedVS=`#version 300 es
- precision highp float;layout(location=0) in vec3 aPosition;layout(location=1) in vec3 aNormal;layout(location=2) in vec2 aCell;layout(location=3) in float aMaterial;
- uniform mat4 uVP;uniform vec3 uEye;out vec3 vNormal;out vec2 vCell;out float vMaterial;out float vDistance;
- void main(){vNormal=aNormal;vCell=aCell;vMaterial=aMaterial;vDistance=length(aPosition-uEye);gl_Position=uVP*vec4(aPosition,1.0);}`;
- const joinedFS=`#version 300 es
- precision highp float;in vec3 vNormal;in vec2 vCell;in float vMaterial;in float vDistance;uniform sampler2D uAtlas;uniform float uFog;out vec4 color;
- void main(){vec2 cell=fract(vCell);vec2 safeCell=.045+cell*.91;vec2 atlasUv=vec2((floor(vMaterial+.5)+safeCell.x)/6.0,safeCell.y);vec3 base=texture(uAtlas,atlasUv).rgb;vec2 edgeDistance=min(cell,1.0-cell);float d=min(edgeDistance.x,edgeDistance.y);float seam=1.0-step(.0733333,d);vec3 n=normalize(vNormal);float key=max(dot(n,normalize(vec3(-.4,.85,.55))),0.0);float fill=max(dot(n,normalize(vec3(.6,.2,-.5))),0.0);float light=.66+.29*key+.12*fill+.035*n.y;vec3 c=base*light;c*=mix(1.0,.66,seam);c=mix(c,vec3(.933,.941,.91),smoothstep(uFog,uFog*2.1,vDistance)*.42);color=vec4(c,1.0);}`;
- this.joinedProgram=this.programFrom(joinedVS,joinedFS);this.joinedUniforms={vp:g.getUniformLocation(this.joinedProgram,'uVP'),eye:g.getUniformLocation(this.joinedProgram,'uEye'),fog:g.getUniformLocation(this.joinedProgram,'uFog'),atlas:g.getUniformLocation(this.joinedProgram,'uAtlas')};
- this.joined={vao:g.createVertexArray(),vertex:g.createBuffer(),index:g.createBuffer(),count:0,metrics:null};g.bindVertexArray(this.joined.vao);g.bindBuffer(g.ARRAY_BUFFER,this.joined.vertex);for(const [loc,size,offset] of [[0,3,0],[1,3,12],[2,2,24],[3,1,32]]){g.enableVertexAttribArray(loc);g.vertexAttribPointer(loc,size,g.FLOAT,false,36,offset);}g.bindBuffer(g.ELEMENT_ARRAY_BUFFER,this.joined.index);g.bindVertexArray(null);
- this.terrainAtlas=g.createTexture();g.bindTexture(g.TEXTURE_2D,this.terrainAtlas);g.texImage2D(g.TEXTURE_2D,0,g.RGBA,g.RGBA,g.UNSIGNED_BYTE,terrainAtlasCanvas());g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MIN_FILTER,g.LINEAR);g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MAG_FILTER,g.NEAREST);g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_S,g.CLAMP_TO_EDGE);g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_T,g.CLAMP_TO_EDGE);
  g.enable(g.DEPTH_TEST);g.enable(g.CULL_FACE);g.cullFace(g.BACK);g.clearColor(0,0,0,0);}
  programFrom(vs,fs){const g=this.gl,p=g.createProgram();for(const [type,src] of [[g.VERTEX_SHADER,vs],[g.FRAGMENT_SHADER,fs]]){const s=g.createShader(type);g.shaderSource(s,src);g.compileShader(s);if(!g.getShaderParameter(s,g.COMPILE_STATUS))throw new Error(g.getShaderInfoLog(s));g.attachShader(p,s);g.deleteShader(s);}g.linkProgram(p);if(!g.getProgramParameter(p,g.LINK_STATUS))throw new Error(g.getProgramInfoLog(p));return p;}
  setBatch(name,instances,opacity=1){const g=this.gl;let b=this.batches.get(name);if(!b){b={vao:g.createVertexArray(),buffer:g.createBuffer()};this.batches.set(name,b);g.bindVertexArray(b.vao);g.bindBuffer(g.ARRAY_BUFFER,this.geo);for(let i=0;i<2;i++){g.enableVertexAttribArray(i);g.vertexAttribPointer(i,3,g.FLOAT,false,24,i*12);}g.bindBuffer(g.ELEMENT_ARRAY_BUFFER,this.index);g.bindBuffer(g.ARRAY_BUFFER,b.buffer);for(const [loc,size,offset] of [[2,3,0],[3,3,12],[4,3,24],[5,4,36],[6,1,52]]){g.enableVertexAttribArray(loc);g.vertexAttribPointer(loc,size,g.FLOAT,false,56,offset);g.vertexAttribDivisor(loc,1);}}g.bindBuffer(g.ARRAY_BUFFER,b.buffer);g.bufferData(g.ARRAY_BUFFER,new Float32Array(instances),g.DYNAMIC_DRAW);b.count=instances.length/14;b.opacity=opacity;g.bindVertexArray(null);}
- setJoinedTerrain(mesh){const g=this.gl;this.joined.count=mesh?.indices.length||0;this.joined.metrics=mesh?.metrics||null;g.bindVertexArray(this.joined.vao);g.bindBuffer(g.ARRAY_BUFFER,this.joined.vertex);g.bufferData(g.ARRAY_BUFFER,new Float32Array(mesh?.vertices||[]),g.STATIC_DRAW);g.bindBuffer(g.ELEMENT_ARRAY_BUFFER,this.joined.index);g.bufferData(g.ELEMENT_ARRAY_BUFFER,new Uint32Array(mesh?.indices||[]),g.STATIC_DRAW);g.bindVertexArray(null);}
  setLines(name,vertices,overlay=false){const g=this.gl;let b=this.lines.get(name);if(!b){b={vao:g.createVertexArray(),buffer:g.createBuffer()};this.lines.set(name,b);g.bindVertexArray(b.vao);g.bindBuffer(g.ARRAY_BUFFER,b.buffer);g.enableVertexAttribArray(0);g.vertexAttribPointer(0,3,g.FLOAT,false,28,0);g.enableVertexAttribArray(1);g.vertexAttribPointer(1,4,g.FLOAT,false,28,12);}g.bindBuffer(g.ARRAY_BUFFER,b.buffer);g.bufferData(g.ARRAY_BUFFER,new Float32Array(vertices),g.DYNAMIC_DRAW);b.count=vertices.length/7;b.overlay=overlay;g.bindVertexArray(null);}
  resize(){const dpr=Math.min(window.devicePixelRatio||1,1.75),w=Math.max(1,Math.round(this.canvas.clientWidth*dpr)),h=Math.max(1,Math.round(this.canvas.clientHeight*dpr));if(w!==this.canvas.width||h!==this.canvas.height){this.canvas.width=w;this.canvas.height=h;}this.gl.viewport(0,0,w,h);}
- render(cam,span,showGuides){const g=this.gl;this.resize();g.clear(g.COLOR_BUFFER_BIT|g.DEPTH_BUFFER_BIT);const vp=cameraMatrix(cam,this.canvas.width/this.canvas.height);g.enable(g.DEPTH_TEST);g.depthMask(true);g.disable(g.BLEND);if(this.joined.count){g.useProgram(this.joinedProgram);g.uniformMatrix4fv(this.joinedUniforms.vp,false,vp);g.uniform3fv(this.joinedUniforms.eye,cam.pos.toArray());g.uniform1f(this.joinedUniforms.fog,span*2.8);g.activeTexture(g.TEXTURE0);g.bindTexture(g.TEXTURE_2D,this.terrainAtlas);g.uniform1i(this.joinedUniforms.atlas,0);g.bindVertexArray(this.joined.vao);g.drawElements(g.TRIANGLES,this.joined.count,g.UNSIGNED_INT,0);}g.useProgram(this.program);g.uniformMatrix4fv(this.uniforms.vp,false,vp);g.uniform3fv(this.uniforms.eye,cam.pos.toArray());g.uniform1f(this.uniforms.fog,span*2.8);for(const b of this.batches.values()){if(!b.count)continue;if(b.opacity<1){g.enable(g.BLEND);g.blendFunc(g.SRC_ALPHA,g.ONE_MINUS_SRC_ALPHA);g.depthMask(false);}else{g.disable(g.BLEND);g.depthMask(true);}g.uniform1f(this.uniforms.opacity,b.opacity);g.bindVertexArray(b.vao);g.drawElementsInstanced(g.TRIANGLES,this.indexCount,g.UNSIGNED_SHORT,0,b.count);}g.depthMask(false);g.enable(g.BLEND);g.blendFunc(g.SRC_ALPHA,g.ONE_MINUS_SRC_ALPHA);g.useProgram(this.lineProgram);g.uniformMatrix4fv(this.lineVP,false,vp);for(const [name,b] of this.lines){if(!b.count||(!showGuides&&(name==='boundary'||name==='chunks')))continue;b.overlay?g.disable(g.DEPTH_TEST):g.enable(g.DEPTH_TEST);g.bindVertexArray(b.vao);g.drawArrays(g.LINES,0,b.count);}g.bindVertexArray(null);g.depthMask(true);}
+ render(cam,span,showGuides){const g=this.gl;this.resize();g.clear(g.COLOR_BUFFER_BIT|g.DEPTH_BUFFER_BIT);const vp=cameraMatrix(cam,this.canvas.width/this.canvas.height);g.enable(g.DEPTH_TEST);g.depthMask(true);g.disable(g.BLEND);g.useProgram(this.program);g.uniformMatrix4fv(this.uniforms.vp,false,vp);g.uniform3fv(this.uniforms.eye,cam.pos.toArray());g.uniform1f(this.uniforms.fog,span*2.8);for(const b of this.batches.values()){if(!b.count)continue;if(b.opacity<1){g.enable(g.BLEND);g.blendFunc(g.SRC_ALPHA,g.ONE_MINUS_SRC_ALPHA);g.depthMask(false);}else{g.disable(g.BLEND);g.depthMask(true);}g.uniform1f(this.uniforms.opacity,b.opacity);g.bindVertexArray(b.vao);g.drawElementsInstanced(g.TRIANGLES,this.indexCount,g.UNSIGNED_SHORT,0,b.count);}g.depthMask(false);g.enable(g.BLEND);g.blendFunc(g.SRC_ALPHA,g.ONE_MINUS_SRC_ALPHA);g.useProgram(this.lineProgram);g.uniformMatrix4fv(this.lineVP,false,vp);for(const [name,b] of this.lines){if(!b.count||(!showGuides&&(name==='boundary'||name==='chunks')))continue;b.overlay?g.disable(g.DEPTH_TEST):g.enable(g.DEPTH_TEST);g.bindVertexArray(b.vao);g.drawArrays(g.LINES,0,b.count);}g.bindVertexArray(null);g.depthMask(true);}
 }
 function cubeRenderSize(size){return Math.max(.001,size-.014);}
 function instance(out,pos,scale,color,q=new Q4(),emission=0){out.push(...pos.toArray(),...(typeof scale==='number'?[scale,scale,scale]:scale),...color,...q.toArray(),emission);}
-function terrainMaterialIndex(color){
- const palette=WORLD_THEMES.map(t=>hexRGB(t.color));let best=0,distance=Infinity;
- for(let i=0;i<palette.length;i++){const d=color.reduce((sum,c,k)=>sum+(c-palette[i][k])**2,0);if(d<distance){distance=d;best=i;}}
- return best;
-}
-/* Convert the visible sparse-cube set into one indexed render object. Faces
-   merge only across coplanar cells of the same tier and material. The atlas
-   repeats in source-cell UV space, so every logical cube keeps a readable
-   seam even when hundreds of cells become one quad. */
-function joinedTerrainSurface(entries){
- const occupied=new Set(entries.map(({block:b})=>`${b.size}|${b.x},${b.y},${b.z}`)),groups=new Map();let exposedFaces=0;
- const directions=[[0,-1],[0,1],[1,-1],[1,1],[2,-1],[2,1]];
- for(const entry of entries){const b=entry.block,origin=[b.x,b.y,b.z];
-  for(const [axis,sign] of directions){const neighbor=origin.slice();neighbor[axis]+=sign*b.size;if(occupied.has(`${b.size}|${neighbor.join(',')}`))continue;
-   const u=(axis+1)%3,v=(axis+2)%3,plane=origin[axis]+(sign>0?b.size:0),cu=origin[u]/b.size,cv=origin[v]/b.size,key=[axis,sign,plane,b.size,entry.material].join('|');
-   let group=groups.get(key);if(!group){group={axis,sign,plane,size:b.size,material:entry.material,u,v,cells:new Map()};groups.set(key,group);}group.cells.set(`${cu},${cv}`,{cu,cv});exposedFaces++;
-  }
- }
- const vertices=[],indices=[];let quads=0;
- const addQuad=(group,cu,cv,width,height)=>{const {axis,sign,plane,size,material,u,v}=group,normal=[0,0,0];normal[axis]=sign;
-  const point=(du,dv)=>{const p=[0,0,0];p[axis]=plane;p[u]=(cu+du)*size;p[v]=(cv+dv)*size;return p;};
-  const corners=[[point(0,0),0,0],[point(width,0),width,0],[point(0,height),0,height],[point(width,height),width,height]],base=vertices.length/9;
-  for(const [p,tu,tv] of corners)vertices.push(...p,...normal,tu,tv,material);
-  indices.push(...(sign>0?[base,base+1,base+2,base+2,base+1,base+3]:[base,base+2,base+1,base+2,base+3,base+1]));quads++;
- };
- for(const group of groups.values()){
-  const pending=new Map(group.cells),ordered=[...group.cells.values()].sort((a,b)=>a.cv-b.cv||a.cu-b.cu);
-  for(const cell of ordered){const key=`${cell.cu},${cell.cv}`;if(!pending.has(key))continue;let width=1,height=1;
-   while(pending.has(`${cell.cu+width},${cell.cv}`))width++;
-   grow:while(true){for(let x=0;x<width;x++)if(!pending.has(`${cell.cu+x},${cell.cv+height}`))break grow;height++;}
-   for(let y=0;y<height;y++)for(let x=0;x<width;x++)pending.delete(`${cell.cu+x},${cell.cv+y}`);
-   addQuad(group,cell.cu,cell.cv,width,height);
-  }
- }
- return {vertices,indices,metrics:{sourceCubes:entries.length,exposedFaces,quads,triangles:quads*2,vertices:vertices.length/9,indices:indices.length,bufferBytes:vertices.length*4+indices.length*4,draws:indices.length?1:0,materials:6}};
-}
 function line(out,a,b,color=[.45,.5,.44],alpha=.4){out.push(...a.toArray(),...color,alpha,...b.toArray(),...color,alpha);}
 function wireCube(out,center,size,color,alpha=1,dashed=false){const h=size/2;for(let ax=0;ax<3;ax++)for(const b of [-1,1])for(const c of [-1,1]){const axes=[0,1,2].filter(i=>i!==ax),a=[0,0,0],z=[0,0,0];a[ax]=-h;z[ax]=h;a[axes[0]]=z[axes[0]]=b*h;a[axes[1]]=z[axes[1]]=c*h;const v=V3.from(a).add(center),w=V3.from(z).add(center);if(dashed){const steps=Math.ceil(size/(2*SLOT));for(let k=0;k<steps;k++)line(out,v.clone().lerp(w,k/steps),v.clone().lerp(w,Math.min(1,(k+.55)/steps)),color,alpha);}else line(out,v,w,color,alpha);}}
 function rayAABB(origin,dir,lo,hi,maxDistance=Infinity){let t0=-Infinity,t1=Infinity,normal=new V3();for(const a of ['x','y','z']){if(Math.abs(dir[a])<1e-9){if(origin[a]<lo[a]||origin[a]>hi[a])return null;continue;}let tNear=(lo[a]-origin[a])/dir[a],tFar=(hi[a]-origin[a])/dir[a],sign=-1;if(tNear>tFar){[tNear,tFar]=[tFar,tNear];sign=1;}if(tNear>t0){t0=tNear;normal.set(0,0,0);normal[a]=sign;}t1=Math.min(t1,tFar);if(t0>t1)return null;}if(t1<0||t0>maxDistance)return null;const distance=Math.max(0,t0);return {distance,point:origin.clone().addScaledVector(dir,distance),normal};}
@@ -500,7 +437,6 @@ function rayAABB(origin,dir,lo,hi,maxDistance=Infinity){let t0=-Infinity,t1=Infi
 class CanvasCompatibilityRenderer {
  constructor(canvas){this.kind='canvas2d';this.canvas=canvas;this.ctx=canvas.getContext('2d',{alpha:true});if(!this.ctx)throw new Error('Canvas rendering is unavailable in this browser.');this.batches=new Map();this.lines=new Map();this.version=0;this.lastSignature='';this.lastTime=0;}
  setBatch(name,array,opacity=1){const cubes=[];for(let i=0;i<array.length;i+=14){const p=new V3(array[i],array[i+1],array[i+2]),s=[array[i+3],array[i+4],array[i+5]],color=array.slice(i+6,i+9),q=new Q4(...array.slice(i+9,i+13));const vertices=[];for(let b=0;b<8;b++)vertices.push(new V3((b&1?.5:-.5)*s[0],(b&2?.5:-.5)*s[1],(b&4?.5:-.5)*s[2]).applyQuaternion(q).add(p));const normals=[new V3(1,0,0),new V3(-1,0,0),new V3(0,1,0),new V3(0,-1,0),new V3(0,0,1),new V3(0,0,-1)].map(v=>v.applyQuaternion(q));cubes.push({p,vertices,normals,color,emission:array[i+13],radius:Math.max(...s)});}this.batches.set(name,{cubes,opacity});this.version++;}
- setJoinedTerrain(){this.version++;}
  setLines(name,vertices,overlay=false){this.lines.set(name,{vertices,overlay});this.version++;}
  render(cam,span,showGuides){const w=this.canvas.clientWidth,h=this.canvas.clientHeight,dpr=Math.min(devicePixelRatio||1,1.5),sig=[...cam.pos.toArray(),...cam.q.toArray(),w,h,this.version,showGuides].join(',');if(sig===this.lastSignature)return;const now=performance.now();if(now-this.lastTime<42)return;this.lastTime=now;this.lastSignature=sig;if(this.canvas.width!==Math.round(w*dpr)||this.canvas.height!==Math.round(h*dpr)){this.canvas.width=Math.round(w*dpr);this.canvas.height=Math.round(h*dpr);}const ctx=this.ctx;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);const forward=new V3(0,0,-1).applyQuaternion(cam.q),right=new V3(1,0,0).applyQuaternion(cam.q),up=new V3(0,1,0).applyQuaternion(cam.q),f=h/(2*Math.tan(cam.fov/2));const project=p=>{const d=p.clone().sub(cam.pos),z=d.dot(forward);return z>.025?{x:w/2+d.dot(right)*f/z,y:h/2-d.dot(up)*f/z,z}:null;};const faceIndices=[[1,3,7,5],[0,4,6,2],[2,6,7,3],[0,1,5,4],[4,5,7,6],[0,2,3,1]],light=new V3(-.4,.85,.55).normalize(),fill=new V3(.6,.2,-.5).normalize(),polys=[];
  for(const {cubes,opacity} of this.batches.values())for(const c of cubes){const middle=project(c.p);if(!middle||middle.z<c.radius*.45)continue;const screenRadius=c.radius*f/middle.z;if(middle.x+screenRadius<0||middle.x-screenRadius>w||middle.y+screenRadius<0||middle.y-screenRadius>h)continue;const verts=c.vertices.map(project);if(verts.some(v=>!v))continue;const view=cam.pos.clone().sub(c.p);for(let i=0;i<6;i++){const n=c.normals[i];if(n.dot(view)<=0)continue;const points=faceIndices[i].map(j=>verts[j]);const brightness=c.emission<0?1:.66+.29*Math.max(0,n.dot(light))+.12*Math.max(0,n.dot(fill))+.035*n.y+c.emission;const color=c.color.map(x=>clamp(Math.round(x*brightness*255),0,255));polys.push({points,depth:points.reduce((s,p)=>s+p.z,0)/4,color:'rgb('+color.join(',')+')',opacity});}}
@@ -761,7 +697,9 @@ function portalInfo(world,d){
   const keepoutPos=face==='center'?new V3():normal.clone().multiplyScalar(-h+PORTAL_MAX_DEPTH);
   const half=orientHalf(new V3(PORTAL_MAX_RADIUS,PORTAL_MAX_RADIUS,PORTAL_MAX_DEPTH),q),renderHalf=orientHalf(shape.half,q);
   const axis=['x','y','z'].find(a=>Math.abs(normal[a])>.5),transverse=['x','y','z'].filter(a=>a!==axis);
-  const runLo=new V3(-PATH_CUBE_SIZE,-PATH_CUBE_SIZE,-PATH_CUBE_SIZE),runHi=new V3(PATH_CUBE_SIZE,PATH_CUBE_SIZE,PATH_CUBE_SIZE);
+  // Horizontal portal runs use the same one-wide, two-high c4 profile as
+  // ordinary paths. A top/bottom portal has a single-c4 vertical shaft.
+  const runLo=new V3(0,-PATH_CUBE_SIZE,0),runHi=new V3(PATH_CUBE_SIZE,PATH_CUBE_SIZE,PATH_CUBE_SIZE);
   if(face==='center'){runLo[axis]=-PATH_CUBE_SIZE;runHi[axis]=PORTAL_RUN+PATH_CUBE_SIZE;}
   else if(normal[axis]<0){runLo[axis]=h-PORTAL_RUN;runHi[axis]=h;}
   else{runLo[axis]=-h;runHi[axis]=-h+PORTAL_RUN;}
@@ -841,7 +779,7 @@ function manualSupportPoint(d,m){const p=cellOrigin(d,m.cell);return [p.x,p.y-SL
 function platformBounds(d,m,platformSize=null){
  const p=cellOrigin(d,m.cell),count=platformSize??platformProfile(d,m).size;
  const left=-Math.floor(count/2)*SLOT,size=count*SLOT;
- return {lo:p.clone().add(new V3(left,-2*SLOT,left)),hi:p.clone().add(new V3(left+size,0,left+size))};
+ return {lo:p.clone().add(new V3(left,-SLOT,left)),hi:p.clone().add(new V3(left+size,0,left+size))};
 }
 function platformCenter(d,m){const b=platformBounds(d,m);return new V3((b.lo.x+b.hi.x)/2,b.hi.y,(b.lo.z+b.hi.z)/2);}
 function platformAssetBounds(d,m){
@@ -908,13 +846,11 @@ function themeIndexAt(world,p,seed=0){p=p.clone().multiplyScalar(1/SLOT);if(worl
 function moduleVoxels(world,d,m,put){
  const p=cellOrigin(d,m.cell),owner=(m.kind==='manual'?'cube-platform:':'platform:')+cellKey(m.cell),variant=m.variant||0;
  const size=platformProfile(d,m).size;
- // Retain the two largest top terraces for generated and owned platforms.
- for(let layer=0;layer<2;layer++){
-  const width=size-layer*2,lo=-Math.floor(width/2),hi=lo+width,cut=Math.floor(width*.18);
-  for(let x=lo;x<hi;x++)for(let z=lo;z<hi;z++){
-   if(Math.min(x-lo,hi-1-x)+Math.min(z-lo,hi-1-z)<cut)continue;
-   put(p.x+x*SLOT,p.y-(1+layer)*SLOT,p.z+z*SLOT,'platform',owner,variant);
-  }
+ // One clipped c4 deck is the complete generated platform footprint.
+ const lo=-Math.floor(size/2),hi=lo+size,cut=Math.floor(size*.18);
+ for(let x=lo;x<hi;x++)for(let z=lo;z<hi;z++){
+  if(Math.min(x-lo,hi-1-x)+Math.min(z-lo,hi-1-z)<cut)continue;
+  put(p.x+x*SLOT,p.y-SLOT,p.z+z*SLOT,'platform',owner,variant);
  }
 }
 function routeNodes(world,d){
@@ -944,22 +880,28 @@ function orthogonalCenterlineRaw(start,end,key,span,variation=45){
  }
  return path;
 }
-function stampPath2x2(points,emit){
+function pathCrossSection(point,axis){
+ const u=PATH_CUBE_SIZE;
+ // A horizontal path is one c4 wide and two c4 high. A vertical segment is
+ // a one-c4 shaft because its length already supplies the height.
+ return axis===1?[point.slice()]:[point.map((v,i)=>i===1?v-u:v),point.slice()];
+}
+function pathClearanceCells(point){
+ const seen=new Set(),cells=[];
+ for(const axis of [0,1,2])for(const cell of pathCrossSection(point,axis)){
+  const key=cellKey(cell);if(!seen.has(key)){seen.add(key);cells.push(cell);}
+ }
+ return cells;
+}
+function stampPath1x2(points,emit){
  // Both path construction and collision use exactly these full c4 cells.
- // Unioning adjacent segment profiles plus a solid 2³ joint closes every elbow.
  const axisOf=(a,b)=>[0,1,2].find(k=>a[k]!==b[k]),u=PATH_CUBE_SIZE;
  for(let i=0;i<points.length-1;i++){
   const a=points[i],b=points[i+1],axis=axisOf(a,b);if(axis==null)continue;
   if(a.some((v,k)=>k!==axis&&v!==b[k]))throw new Error('Route contains a non-orthogonal segment.');
-  const trans=[0,1,2].filter(k=>k!==axis);
   for(let along=Math.min(a[axis],b[axis]);along<=Math.max(a[axis],b[axis]);along+=u){
-   for(const du of [-u,0])for(const dv of [-u,0]){const c=a.slice();c[axis]=along;c[trans[0]]+=du;c[trans[1]]+=dv;emit(c,axis);}
+   const c=a.slice();c[axis]=along;for(const cell of pathCrossSection(c,axis))emit(cell,axis);
   }
- }
- for(let i=1;i<points.length-1;i++){
-  const prev=axisOf(points[i-1],points[i]),next=axisOf(points[i],points[i+1]);
-  if(prev==null||next==null||prev===next)continue;
-  for(const x of [-u,0])for(const y of [-u,0])for(const z of [-u,0])emit([points[i][0]+x,points[i][1]+y,points[i][2]+z],'joint');
  }
 }
 function routeCellBlocked(portals,d,p,allowPassage=true){
@@ -969,8 +911,7 @@ function routeCellBlocked(portals,d,p,allowPassage=true){
  return portals.some(o=>portalFrameBlocked(o,lo,hi,.15,allowPassage));
 }
 function routeJointBlocked(portals,d,p,allowPassage=true){
- const u=PATH_CUBE_SIZE;
- for(const x of [-u,0])for(const y of [-u,0])for(const z of [-u,0])if(routeCellBlocked(portals,d,[p[0]+x,p[1]+y,p[2]+z],allowPassage))return true;
+ for(const cell of pathClearanceCells(p))if(routeCellBlocked(portals,d,cell,allowPassage))return true;
  return false;
 }
 function routeVoxels(world,d,a,b,edgeIndex,put,ends={}){
@@ -994,7 +935,7 @@ function routeVoxels(world,d,a,b,edgeIndex,put,ends={}){
  if(!middle)throw new Error('No safe c4 route found for connection '+(edgeIndex+1)+'.');
  for(let i=1;i<middle.length;i++)points.push(middle[i]);
  if(leadB){let cur=innerEnd.slice();while(cur.some((v,i)=>v!==end[i])){const ax=cur.findIndex((v,i)=>v!==end[i]);cur=cur.slice();cur[ax]+=Math.sign(end[ax]-cur[ax])*u;points.push(cur);}}
- stampPath2x2(points,cell=>put(...cell,'path',null,edgeIndex));return points;
+ stampPath1x2(points,cell=>put(...cell,'path',null,edgeIndex));return points;
 }
 /* Derived half-block expansions. Every accepted cell must share a face with
  * existing terrain: incomplete outlines are intentional, floating crumbs are not. */
@@ -1034,7 +975,7 @@ function expansionVoxels(world,d,primary,{profiles:customProfiles=null,initialDe
 }
 function baseSignature(world,d){
  const c=d.config;
- return JSON.stringify(['cube-tier-paths-v16',world.id,d.spanChunks,c.seed,c.growthEnabled!==false,c.bend,c.height,c.loops,c.autoPaths,
+ return JSON.stringify(['cube-tier-paths-v17',world.id,d.spanChunks,c.seed,c.growthEnabled!==false,c.bend,c.height,c.loops,c.autoPaths,
   d.modules.filter(m=>m.kind==='generated').map(m=>[m.cell,m.variant])]);
 }
 function buildBaseGeometry(world,d){
@@ -1056,7 +997,7 @@ function buildBaseGeometry(world,d){
  * removal never edits the generated base or any other platform's contribution. */
 function buildOwnedPlatform(world,d,m,reuse=null){
  const profile=platformProfile(d,m),seed=m.platform?.seed??d.config.seed;
- const signature=JSON.stringify(['c4-owned-v17',world.id,d.spanChunks,m.cell,m.variant,profile.size,profile.growth,seed]);
+ const signature=JSON.stringify(['c4-owned-v18',world.id,d.spanChunks,m.cell,m.variant,profile.size,profile.growth,seed]);
  if(reuse?.signature===signature)return reuse;buildStats.platformBuilds++;
  const primary=new Map(),owner='cube-platform:'+cellKey(m.cell);
  moduleVoxels(world,d,m,(x,y,z,kind,owner,variant)=>primary.set(voxelKey(x,y,z),{x,y,z,size:SLOT,kind,owner,variant}));
@@ -1099,7 +1040,7 @@ function makeManualBranch(world,d,base,m,earlier){
  let anchor=null,best=Infinity;
  if(base.primary.size){
   // Attach to a top-surface cell, not the nearest underside/sidewall cell.
-  // The route's upper layer is then exactly the platform's upper layer.
+  // The route's upper cell is then exactly the platform deck cell.
   for(const v of base.primary.values()){
    if(base.primary.has(voxelKey(v.x,v.y+u,v.z)))continue;
    const p=[v.x,v.y,v.z],dist=V3.from(p).distanceTo(V3.from(end));
@@ -1110,8 +1051,8 @@ function makeManualBranch(world,d,base,m,earlier){
  const sk=cellKey(anchor.point),blocked=p=>{
   if(routeJointBlocked(portals,d,p,false)||assetSocketBlocked(sockets,p))return true;
   if(cellKey(p)===ek||cellKey(p)===sk)return false;
-  for(const x of [-u,0])for(const y of [-u,0])for(const z of [-u,0]){
-   const q=[p[0]+x,p[1]+y,p[2]+z],k=cellKey(q);
+  for(const q of pathClearanceCells(p)){
+   const k=cellKey(q);
    if(base.detailUnits.has(k)&&!base.primary.has(k))return true;
    const lo=V3.from(q),hi=lo.clone().add(new V3(u,u,u));
    if(controls.some(b=>['x','y','z'].every(a=>hi[a]>b.lo[a]&&lo[a]<b.hi[a])))return true;
@@ -1142,9 +1083,9 @@ function syncManualBranches(world,d,base){
 }
 function branchVoxels(world,d,m,put){
  const path=m.branch?.points;if(!path||path.length<2)return;
- // Manual branches use the exact same 2 × 2 cross-section as generated routes
- // and portal bridges, including right through their platform connection.
- stampPath2x2(path,(cell)=>put(cell[0],cell[1],cell[2],m));
+ // Manual branches use the same one-wide, two-high profile as generated
+ // routes and portal bridges, including their platform connection.
+ stampPath1x2(path,(cell)=>put(cell[0],cell[1],cell[2],m));
 }
 function buildGeometry(world,d,{reuseBase=null,reuseOwned=null,syncBranches=false}={}){
  const base=reuseBase?.signature===baseSignature(world,d)?reuseBase:buildBaseGeometry(world,d);
@@ -1284,7 +1225,6 @@ const $=id=>document.getElementById(id);
 const canvas=$('canvas');
 let renderEngine,selectedWorldId=1,tool='select',sliceAxis='y',sliceIndex=DEFAULT_SPAN*CHUNK_CELLS/2-1,selectedCell=null,hoverCell=null,hoverValid=false;
 let currentGeometry={voxels:new Map(),nodes:[],edges:[]},currentPortals=[],portalElements=[],showGuides=true;
-let terrainRenderMode='joined',joinedTerrainMetrics={sourceCubes:0,exposedFaces:0,quads:0,triangles:0,vertices:0,indices:0,bufferBytes:0,draws:0,materials:6};
 const camera={pos:new V3(85,62,90),q:new Q4(),fov:45*Math.PI/180};
 const orbit={target:new V3(),yaw:.76,pitch:.48,radius:142};
 let snapSurface=true;
@@ -1317,11 +1257,10 @@ function renderPortals(){
 function updatePortalPreview(){
  if(!renderEngine)return;const blocks=[],lines=[],o=currentPortals.find(o=>o.face===portalFace);
  if(showPortalRun&&o&&o.face!=='center'){
-  const colour=[.60,.72,.56],u=PATH_CUBE_SIZE,h=halfOf(data()),axis=['x','y','z'].indexOf(o.axis),trans=[0,1,2].filter(i=>i!==axis),lo=o.runLo[o.axis],hi=o.runHi[o.axis];
-  for(let along=lo;along<hi;along+=u)for(const du of [-u,0])for(const dv of [-u,0]){
-   const origin=[0,0,0];origin[axis]=along;origin[trans[0]]=du;origin[trans[1]]=dv;
-   if(origin.some(v=>v<-h||v+u>h))continue;
-   const p=new V3(origin[0]+u/2,origin[1]+u/2,origin[2]+u/2);instance(blocks,p,cubeRenderSize(u),colour);wireCube(lines,p,u,colour,.48);
+  const colour=[.60,.72,.56],u=PATH_CUBE_SIZE,h=halfOf(data());
+  for(let x=o.runLo.x;x<o.runHi.x;x+=u)for(let y=o.runLo.y;y<o.runHi.y;y+=u)for(let z=o.runLo.z;z<o.runHi.z;z+=u){
+   const origin=[x,y,z];if(origin.some(v=>v<-h||v+u>h))continue;
+   const p=new V3(x+u/2,y+u/2,z+u/2);instance(blocks,p,cubeRenderSize(u),colour);wireCube(lines,p,u,colour,.48);
   }
  }
  renderEngine.setBatch('portalDemo',blocks,.19);renderEngine.setLines('portalDemoGrid',lines);
@@ -1449,30 +1388,21 @@ function renderTierPaths(world,d,seed){
 function updateScene(){
  const w=world(),d=data(),seed=hashSeed(d.config.seed);
  currentGeometry=buildGeometry(w,d,{reuseBase:currentGeometry.base,reuseOwned:currentGeometry.ownedPlatforms,syncBranches:true});currentPortals=portalInfo(w,d);
- const terrain=[],terrainEntries=[];let surfaceCount=0;
+ const terrain=[];let surfaceCount=0;
  for(const v of currentGeometry.blocks){
   if(v.kind==='manual'&&showTierTowers)continue;
   if(v.size===SLOT&&SIX.every(a=>currentGeometry.primary.get(voxelKey(v.x+a[0]*SLOT,v.y+a[1]*SLOT,v.z+a[2]*SLOT))?.size===SLOT))continue;
   const p=new V3(v.x+v.size*.5,v.y+v.size*.5,v.z+v.size*.5),id=v.theme??w.themes[themeIndexAt(w,p,seed)];
   const base=hexRGB(w.kind==='special'&&v.kind!=='manual'?voidTerrainColour(p):v.kind==='manual'?themeFor(id).color:PALETTES[id]);
-  instance(terrain,p,cubeRenderSize(v.size),base);terrainEntries.push({block:v,material:terrainMaterialIndex(base)});surfaceCount++;
+  instance(terrain,p,cubeRenderSize(v.size),base);surfaceCount++;
  }
- const useJoined=terrainRenderMode==='joined'&&renderEngine.kind==='webgl2',joined=useJoined?joinedTerrainSurface(terrainEntries):null;
- renderEngine.setBatch('terrain',useJoined?[]:terrain);renderEngine.setJoinedTerrain(joined);joinedTerrainMetrics=joined?.metrics||{sourceCubes:surfaceCount,exposedFaces:0,quads:0,triangles:0,vertices:0,indices:0,bufferBytes:0,draws:0,materials:6};
+ renderEngine.setBatch('terrain',terrain);
  const pathCubeCount=renderTierPaths(w,d,seed),assetTowerCount=renderAssetScaleTowers(w,d,seed);
  const hullLines=[];
  if($('showPlatformHulls').checked)for(const h of platformHulls(currentGeometry))wireCube(hullLines,V3.from(h.center),h.side,[.96,.75,.32],.55);
  renderEngine.setLines('platformHulls',hullLines,true);
  renderPortals();renderEngine.setBatch('ghost',[],.085);updateGuides();updateSelectionGraphics();updateUI();
- const currentIndices=surfaceCount*(renderEngine.indexCount||36),currentBytes=surfaceCount*14*4,proof=$('renderProof'),bytes=n=>n>=1048576?(n/1048576).toFixed(2)+' MiB':(n/1024).toFixed(0)+' KiB';
- if(useJoined&&surfaceCount){proof.innerHTML=`<strong>ONE STATIC MESH · ONE SIX-MATERIAL ATLAS</strong>${surfaceCount.toLocaleString()} source cubes → ${joinedTerrainMetrics.exposedFaces.toLocaleString()} exposed faces → ${joinedTerrainMetrics.quads.toLocaleString()} joined quads<br>${joinedTerrainMetrics.indices.toLocaleString()} indices vs ${currentIndices.toLocaleString()} · ${bytes(joinedTerrainMetrics.bufferBytes)} mesh vs ${bytes(currentBytes)} instances<br>Cube collision retained`;}
- else if(useJoined){proof.innerHTML='<strong>ONE STATIC MESH · ONE SIX-MATERIAL ATLAS</strong>Generate or place terrain to populate the joined surface. Cube collision remains authoritative.';}
- else{proof.innerHTML=`<strong>CURRENT CUBE INSTANCE PATH</strong>${surfaceCount.toLocaleString()} instances · ${currentIndices.toLocaleString()} submitted indices · ${bytes(currentBytes)} instance buffer<br>Switch to the joined surface to compare; collision and editor data do not change.`;}
- $('voxelStats').textContent=`${surfaceCount.toLocaleString()} SOURCE CUBES · ${useJoined?joinedTerrainMetrics.triangles.toLocaleString()+' JOINED TRIANGLES':'BEVELLED INSTANCES'} · ${pathCubeCount.toLocaleString()} c4 PATH CUBES · ${currentGeometry.details.size} c3 GROWTH · ${assetTowerCount} TIER TOWERS`;
-}
-function setTerrainRenderer(mode){
- if(!['joined','cubes'].includes(mode)||mode==='joined'&&renderEngine?.kind!=='webgl2')return false;
- terrainRenderMode=mode;if($('terrainRenderer'))$('terrainRenderer').value=mode;updateScene();return true;
+ $('voxelStats').textContent=`${surfaceCount.toLocaleString()} SOURCE CUBES · BEVELLED INSTANCES · ${pathCubeCount.toLocaleString()} c4 PATH CUBES · ${currentGeometry.details.size} c3 GROWTH · ${assetTowerCount} TIER TOWERS`;
 }
 function updateGuides(){
  const d=data(),h=halfOf(d),bounds=[],chunks=[],slice=[],axes=['x','y','z'];
@@ -1689,8 +1619,6 @@ $('inspectTower').onclick=()=>focusTierTower();
 $('towerSelect').onchange=()=>{if(towerFocus)focusTierTower();};
 $('showPlatformHulls').onchange=()=>updateScene();
 $('showTierTowers').onchange=e=>{showTierTowers=e.target.checked;if(!showTierTowers)towerFocus=null;updateScene();};
-$('terrainRenderer').onchange=e=>setTerrainRenderer(e.target.value);
-if(renderEngine.kind!=='webgl2'){$('terrainRenderer').value='cubes';$('terrainRenderer').disabled=true;$('terrainRenderer').title='Joined mesh proof requires WebGL2; the cube-model Canvas renderer remains active.';terrainRenderMode='cubes';}
 for(const key of PORTAL_PRESET_KEYS){const option=document.createElement('option');option.value=key;option.textContent=portalPresetLabel(key);$('portalPreset').append(option);}
 function setSidebarTab(tab){const portals=tab==='portals';$('portalTabPane').hidden=!portals;$('worldTabPane').hidden=portals;$('portalTabButton').classList.toggle('active',portals);$('worldTabButton').classList.toggle('active',!portals);$('portalTabButton').setAttribute('aria-selected',String(portals));$('worldTabButton').setAttribute('aria-selected',String(!portals));}
 $('worldTabButton').onclick=()=>{setSidebarTab('world');frameWorld();};$('portalTabButton').onclick=()=>setSidebarTab('portals');
@@ -1783,12 +1711,12 @@ window.LITTLE_WORLDS={
  getState:()=>({selectedWorldId,mode:'build',tool,level:JSON.parse(JSON.stringify(data())),allEmpty:levelData.every(d=>d.modules.length===0),renderer:renderEngine?.kind,
   ownedPlatformCount:currentGeometry.ownedPlatforms?.size||0,portalCount:currentPortals.length,portalDesign:{...portalPresets[portalPresetKeySelected]},portalPresetKey:portalPresetKeySelected,portalPresets:JSON.parse(JSON.stringify(portalPresets)),portalSummaries:JSON.parse(JSON.stringify(portalSummaries)),portalRenderBuilds,portalPreview:showPortalRun,portalFocus,voxels:currentGeometry.voxels.size,blocks:currentGeometry.blocks?.length||0,
   expansionBlocks:[...(currentGeometry.details?.values()||[])].filter(v=>v.kind==='expansion').length,finishingBlocks:[...(currentGeometry.details?.values()||[])].filter(v=>v.kind==='platformRim').length,localLinks:currentGeometry.localLinks||0,buildStats:{...buildStats},cubeThemes:cubeThemes(world()),platformHulls:platformHulls(currentGeometry),showPlatformHulls:$('showPlatformHulls').checked,platformProfiles:data().modules.map(m=>({cell:m.cell,kind:m.kind,...platformProfile(data(),m)})),pickingStep:currentGeometry.voxels.step||1,assetCubeTiers:ASSET_CUBE_TIERS.map(t=>({...t})),cubeTiers:{...CUBE_TIERS},pathCubeTier:'c4',portalCubeTier:'c2',worldTierCapacity:{c4PerAxis:Math.floor(data().spanChunks*CHUNK/CUBE_TIERS.c4),c4Total:Math.floor(data().spanChunks*CHUNK/CUBE_TIERS.c4)**3,r3PerAxis:Math.floor(data().spanChunks*CHUNK/CUBE_TIERS.r3),r3Total:Math.floor(data().spanChunks*CHUNK/CUBE_TIERS.r3)**3,r3Remainder:(data().spanChunks*CHUNK)%CUBE_TIERS.r3},assetScaleTowerCount:showTierTowers?assetTowerSummaries.length:0,assetTowerSummaries:JSON.parse(JSON.stringify(assetTowerSummaries)),showTierTowers,towerFocus,
-  layouts:WORLD_LAYOUTS.slice(),defaultLayout:DEFAULT_SPAN,chunkCount:data().spanChunks**3,chunkSizeC1:CHUNK,worldSizeC1:halfOf(data())*2,platformCubeTier:'c4',platformCubeSize:SLOT,worldScale:8,terrainRenderMode,joinedTerrainMetrics:{...joinedTerrainMetrics},
+  layouts:WORLD_LAYOUTS.slice(),defaultLayout:DEFAULT_SPAN,chunkCount:data().spanChunks**3,chunkSizeC1:CHUNK,worldSizeC1:halfOf(data())*2,platformCubeTier:'c4',platformCubeSize:SLOT,worldScale:8,
   camera:{pos:camera.pos.toArray(),quaternion:camera.q.toArray()}}),
  exportProject,importProject,selectWorld,generate:generateCurrent,clear:clearWorld,place:placeModule,remove:removeModule,
- setTool,setTerrainRenderer,updateSetting,setCubeTheme,updatePortalSetting,focusPortal,focusTierTower,frameWorld,resetPortalSettings,undo:()=>applyHistory(),redo:()=>applyHistory(true),
+ setTool,updateSetting,setCubeTheme,updatePortalSetting,focusPortal,focusTierTower,frameWorld,resetPortalSettings,undo:()=>applyHistory(),redo:()=>applyHistory(true),
  buildGeometry:(id)=>buildGeometry(WORLDS[id-1],levelData[id-1],{reuseBase:id===selectedWorldId?currentGeometry.base:null,reuseOwned:id===selectedWorldId?currentGeometry.ownedPlatforms:null}),portalInfo:(id)=>portalInfo(WORLDS[id-1],levelData[id-1]),
- project:(a)=>project(V3.from(a)),testMath:{V3,Q4,rayAABB,gridRay,stampPath2x2,platformBounds,platformCenter,routeJointBlocked,platformAssetBounds,joinedTerrainSurface},
+ project:(a)=>project(V3.from(a)),testMath:{V3,Q4,rayAABB,gridRay,stampPath1x2,platformBounds,platformCenter,routeJointBlocked,platformAssetBounds},
  placementPreview:(x,y)=>{const cell=placementCell(screenRay({clientX:x,clientY:y}));return {cell,valid:!!cell&&!placementProblem(cell)};},
  get geometry(){return currentGeometry;},get roster(){return WORLDS;}
 };

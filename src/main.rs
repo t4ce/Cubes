@@ -16,7 +16,6 @@ mod grid;
 mod modes;
 mod cube_interface;
 mod interface_gpu;
-mod joined_world;
 mod marker_lod;
 mod platform_lod;
 mod render_limits;
@@ -179,7 +178,6 @@ struct CubeScene {
     plateau_reset_held: bool,
     picker_mode: SceneMode,
     image_wall: Option<slideshow_gpu::Wall>,
-    joined_world: Option<joined_world::Renderer>,
     network_world: Option<NetworkWorld>,
     network_singleton: bool,
     picker_camera: Option<FlyCam>,
@@ -419,7 +417,6 @@ impl CubeScene {
             plateau_reset_held: false,
             picker_mode: SceneMode::World,
             image_wall: None,
-            joined_world: None,
             network_world: None,
             network_singleton: false,
             picker_camera: None,
@@ -884,32 +881,6 @@ impl CubeScene {
                 (width, height),
             )
             .map_err(|error| CubeError::Ui4("background-update", error))?;
-        if self.mode == SceneMode::World
-            && self.world_index == 0
-            && !self.network_singleton
-            && self.joined_world.is_some()
-        {
-            match self.frame.begin_gpu_frame() {
-                Ok(()) => {}
-                Err(Ui4Error::Busy) => return Ok(()),
-                Err(error) => return Err(CubeError::Ui4("frame-begin", error)),
-            }
-            let surface = self
-                .device
-                .acquire_ui4_surface(self.frame.window_id())
-                .map_err(|code| CubeError::Vgpu("surface-acquire", code))?;
-            self.joined_world
-                .as_ref()
-                .ok_or(CubeError::Contract)?
-                .render(self.queue, surface, camera)
-                .map_err(|code| CubeError::Vgpu("joined-world-submit", code))?;
-            self.frame
-                .publish(Damage::full(width, height))
-                .map_err(|error| CubeError::Ui4("frame-publish", error))?;
-            self.previous_view_projection = camera.view_projection;
-            self.first_frame = false;
-            return Ok(());
-        }
         if self.network_singleton && self.mode.is_world() {
             match self.frame.begin_gpu_frame() {
                 Ok(()) => {},
@@ -2089,28 +2060,6 @@ impl CubeScene {
         }
         if mode == SceneMode::World {
             self.worlds.load_world(self.world_index).map_err(|_| CubeError::Contract)?;
-            if self.world_index == 0 && !self.network_singleton && self.joined_world.is_none() {
-                match joined_world::Renderer::new(self.device) {
-                    Ok(renderer) => {
-                        logl::log(
-                            level::INFO,
-                            format_args!(
-                                "Cubes: Key5 world=1 render=joined-indexed quads={} triangles={} mesh_bytes={} shader=unlit-base-color texture=opaque-palette hard-edge=7/96 cull=double-sided",
-                                renderer.quads(),
-                                renderer.quads() * 2,
-                                renderer.bytes(),
-                            ),
-                        );
-                        self.joined_world = Some(renderer);
-                    }
-                    Err(code) => logl::log(
-                        level::WARN,
-                        format_args!(
-                            "Cubes: Key5 world=1 joined renderer unavailable error={code}; fallback=cube-seeds"
-                        ),
-                    ),
-                }
-            }
         }
         if !mode.is_world() && !self.mode.is_world() {
             self.demo_camera = None;

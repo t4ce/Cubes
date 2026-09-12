@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Cube Nature · SubCubes + Birds + Morphlings + Cube UI</title>
+<title>Cube Nature · SubCubes + Birds + Snake + Cube UI</title>
 <style>
   html,body{height:100%;margin:0;background:#f1eee1;font-family:Inter,system-ui,Arial,sans-serif;color:#222}
   #app{height:100%;display:grid;grid-template-rows:auto auto minmax(0,1fr)}
@@ -153,7 +153,7 @@
     body[data-view-mode="materials"] #tierNote{font-size:10px;line-height:1.45}
   }
 
-  /* The Morphlings preview is independent of birds, placement and material edit. */
+  /* The single Snake preview is independent of birds, placement and material edit. */
   #morphlingToggle{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
   #morphlingToggle[aria-pressed="true"]{color:#fff;background:#496245;border-color:#496245}
   .morphlingIcon{font-size:18px;line-height:1}
@@ -362,7 +362,7 @@
       <option value="text">UI · microfont text</option>
       <option value="icons">UI · icon controls</option>
     </select>
-    <button id="morphlingToggle" type="button" aria-pressed="false" aria-controls="morphlingControls morphlingHelp" title="Grounded, grid-inhabiting creatures" disabled><span class="morphlingIcon" aria-hidden="true">▦</span> Morphlings</button>
+    <button id="morphlingToggle" type="button" aria-pressed="false" aria-controls="morphlingControls morphlingHelp" title="Classic single-chain grid snake" disabled><span class="morphlingIcon" aria-hidden="true">▦</span> Snake</button>
     <span id="animalControls" hidden>
       <button id="pauseBird" type="button" aria-pressed="false" title="Pause or resume the shared flight / sit loop">Pause</button>
       <label title="Follow the bird close up; uncheck to frame the whole preview grid"><input id="followBird" type="checkbox" checked>Follow bird</label>
@@ -380,13 +380,9 @@
       <label id="uiTextWrap" hidden>Preview text <textarea id="uiText" rows="2" maxlength="80" spellcheck="false" aria-label="Text rendered as cubes" aria-describedby="uiHint"></textarea></label>
     </div>
     <div id="morphlingControls" hidden>
-      <select id="morphlingSpecies" aria-label="Morphling creature" title="One creature at a time. Changing creature starts a fresh habitat; Moss is kept unchanged.">
-        <option value="moss">Moss · little builder</option>
-        <option value="loam">Loam · segmented worm</option>
-      </select>
-      <select id="morphlingTier" aria-label="Morphling size tier" title="Each tier uses exactly three adjacent cube sizes. Changing tier starts a fresh habitat."></select>
-      <select id="morphlingBehaviour" aria-label="Morphling behaviour"><option value="auto">Auto · walk &amp; build</option><option value="rest">Rest pose</option><option value="walk">Walk</option></select>
-      <button id="morphlingBuild" type="button" title="Reach for eight target cells and place a small, two-layer wall">Place small cubes</button>
+      <select id="morphlingTier" aria-label="Snake size tier" title="Each tier uses exactly three adjacent cube sizes. Changing tier starts a fresh habitat."></select>
+      <select id="morphlingBehaviour" aria-label="Snake behaviour"><option value="auto">Auto · move &amp; place</option><option value="rest">Idle</option><option value="walk">Move</option></select>
+      <button id="morphlingBuild" type="button" title="Drop the current tail cube onto the plane">Drop tail now</button>
       <button id="pauseMorphling" type="button" aria-pressed="false">Pause</button>
       <label><input id="followMorphling" type="checkbox" checked> Follow</label>
     </div>
@@ -415,10 +411,10 @@
     <div id="materialStageInfo" hidden><strong>Six colors. Six small materials.</strong><p>Select a cube or swatch to edit · Drag to orbit · Scroll / pinch to zoom</p></div>
     <div id="materialLabels" hidden aria-label="Select a preview material"></div>
     <div id="morphlingHelp" hidden>
-      <div><span id="morphlingEyebrow" class="morphlingEyebrow">GRID INHABITANT · PROTOTYPE 01</span><strong id="morphlingName">Moss, the little builder</strong>
-        <p>150 ms cell transitions · old cells linger 90 ms, then dissolve.<br><span id="morphlingNote">Click the ground to walk there and build.</span></p>
+      <div><span id="morphlingEyebrow" class="morphlingEyebrow">SNAKE 1 · CLASSIC GRID CHAIN</span><strong id="morphlingName">Snake 1, classic grid snake</strong>
+        <p>One-cell steps · one contiguous chain · no movement fades.<br><span id="morphlingNote">Click the ground to send the snake there.</span></p>
       </div>
-      <button id="clearMorphlingBuilds" type="button" disabled>Clear creations</button>
+      <button id="clearMorphlingBuilds" type="button" disabled>Reset food</button>
     </div>
     </div>
     <aside id="uiEditor" hidden aria-label="Custom cube menu editor">
@@ -750,11 +746,11 @@ window.addEventListener('cube-nature-view-mode',event=>{
   document.getElementById('preset').disabled=['placement','materials'].includes(mode);
   document.getElementById('animalPreset').disabled=['placement','materials'].includes(mode);
   document.getElementById('regen').disabled=['placement','materials'].includes(mode);
-  document.getElementById('regen').title=mode==='ui'?'Cycle cube UI color theme':mode==='morphling'?'Respawn one morphling with new colors and a fresh habitat':mode==='animal'?'New bird color variant and flight route':'New asset color / shape variant';
+  document.getElementById('regen').title=mode==='ui'?'Cycle cube UI color theme':mode==='morphling'?'Respawn one snake with new colors and a fresh habitat':mode==='animal'?'New bird color variant and flight route':'New asset color / shape variant';
   const exportButton=document.getElementById('exportCubes');
   exportButton.disabled=['placement','materials'].includes(mode);
-  exportButton.textContent=mode==='ui'?'Export UI':mode==='morphling'?'Export morphling':'Export CUBES';
-  exportButton.title=mode==='ui'?'Export the UI’s logical cube cells, widget bounds, font metadata and timing as JSON':mode==='morphling'?'Export morphling rest/walk poses, current grid cells, creations and timing as JSON':mode==='animal'?'Export bird’s static, grid-aligned bind pose; animation remains in the preview':'Export the selected single asset as CUBES';
+  exportButton.textContent=mode==='ui'?'Export UI':mode==='morphling'?'Export snake':'Export CUBES';
+  exportButton.title=mode==='ui'?'Export the UI’s logical cube cells, widget bounds, font metadata and timing as JSON':mode==='morphling'?'Export snake idle/move poses, current grid cells, spawned cubes and timing as JSON':mode==='animal'?'Export bird’s static, grid-aligned bind pose; animation remains in the preview':'Export the selected single asset as CUBES';
 });
 window.dispatchEvent(new Event('cube-nature-theme-host-ready'));
 
@@ -2474,20 +2470,14 @@ window.CUBE_NATURE_MATERIAL_EDITOR=Object.freeze({get active(){return active;},s
     samples:samples.children.map(m=>({id:m.userData.materialId,position:m.position.toArray(),renderSide:m.scale.x})),materials:store.getData().materials})});
 </script>
 
-<!-- Two morphling species, one preview inhabitant, five legal size windows. -->
+<!-- One classic single-chain snake, five legal size windows. -->
 <script type="module" id="cube-morphlings">
 import * as THREE from 'three';
 const SubCubes=window.Cubes.SubCubes;
-// A logical position is {x,y} on the ground; height is gy. Three.js maps
-// logical (x,y,height) to (X,Z,Y). Cube minimum corners remain integer c1 cells.
 const MORPHLING_TIMING=Object.freeze({beat:.150,appear:.150,linger:.090,vanish:.150,spawnWave:.240});
 const MORPHLING_WINDOWS=Object.freeze(SubCubes.tiers.slice(0,-2).map((_,i)=>Object.freeze(SubCubes.tiers.slice(i,i+3))));
-const MORPHLING_SPECIES=Object.freeze({
-  moss:Object.freeze({id:'moss',name:'Moss',heading:'Moss, the little builder',eyebrow:'GRID INHABITANT · PROTOTYPE 01',
-    auto:'Auto · walk & build',idle:'Rest pose',move:'Walk',resting:'Resting',moving:'Walking'}),
-  loam:Object.freeze({id:'loam',name:'Loam',heading:'Loam, the segmented builder',eyebrow:'GRID INHABITANT · 06 BODY SEGMENTS · 186 CUBES',
-    auto:'Auto · crawl & build',idle:'Idle · ripple & blink',move:'Move · crawl',resting:'Idling',moving:'Crawling'})
-});
+const SNAKE_SPEC=Object.freeze({id:'snake1',name:'Snake 1',heading:'Snake 1, classic grid snake',eyebrow:'SNAKE 1 · SINGLE CHAIN · 5–10 SEGMENTS · GROUND ONLY',
+  auto:'Auto · roam, seek & grow',idle:'Idle',move:'Move',resting:'Idling',moving:'Sliding',build:'Tail drop'});
 const morphClamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const morphEase=t=>{t=morphClamp(t,0,1);return t*t*(3-2*t);};
 const morphKey=q=>`${q.gx},${q.gy},${q.gz},${q.tier}`;
@@ -2501,439 +2491,189 @@ function morphWorld(q,position,direction=0){
   else{gx=x;gz=z;}
   return {...q,gx:gx+position.x,gy,gz:gz+position.y};
 }
-function morphLocalPoint(x,y,position,direction){
-  x-=position.x;y-=position.y;
-  return direction===1?{x:-y,y:x}:direction===2?{x:-x,y:-y}:direction===3?{x:y,y:-x}:{x,y};
-}
-function validateMorphling(records,tierIndex,{checkGround=true}={}){
+function validateMorphling(records,tierIndex){
   const allowed=MORPHLING_WINDOWS[tierIndex];
-  if(!allowed)throw new RangeError('Morphling tier must be 1–5.');
+  if(!allowed)throw new RangeError('Snake tier must be 1–5.');
   const keys=new Set();
   for(let i=0;i<records.length;i++){
     const q=records[i];
-    if(!allowed.some(t=>t.side===q.tier)||!SubCubes.isGridStart(q.gx,q.gy,q.gz,q.tier)||q.gy<0)throw new Error('Illegal morphling grid record.');
-    if(q.tierId!==SubCubes.get(q.tier).id)throw new Error('Morphling tier ID mismatch.');
-    if(keys.has(morphKey(q)))throw new Error('Duplicate morphling cube.');keys.add(morphKey(q));
-    for(let j=0;j<i;j++)if(morphOverlap(q,records[j]))throw new Error(`Morphling overlap: ${q.part} / ${records[j].part}`);
+    if(!allowed.some(t=>t.side===q.tier)||!SubCubes.isGridStart(q.gx,q.gy,q.gz,q.tier)||q.gy<0)throw new Error('Illegal snake grid record.');
+    if(q.tierId!==SubCubes.get(q.tier).id)throw new Error('Snake tier ID mismatch.');
+    if(keys.has(morphKey(q)))throw new Error('Duplicate snake cube.');keys.add(morphKey(q));
+    for(let j=0;j<i;j++)if(morphOverlap(q,records[j]))throw new Error(`Snake overlap: ${q.part} / ${records[j].part}`);
   }
-  if(checkGround&&!records.some(q=>(q.part?.startsWith('foot')||Number.isInteger(q.segment))&&q.gy===0))throw new Error('Morphling has lost ground contact.');
-  return {cubeCount:records.length,tierIds:[...new Set(records.map(q=>q.tierId))],grounded:records.some(q=>(q.part?.startsWith('foot')||Number.isInteger(q.segment))&&q.gy===0)};
+  if(!records.some(q=>q.gy===0))throw new Error('Ground snake lost the plane.');
+  return {cubeCount:records.length,tierIds:[...new Set(records.map(q=>q.tierId))]};
 }
-function makeMorphlingBlueprint(tierIndex=0,seed=1){
-  if(!Number.isInteger(tierIndex)||!MORPHLING_WINDOWS[tierIndex])throw new RangeError('Morphling tier must be 1–5.');
-  const [small,medium,large]=MORPHLING_WINDOWS[tierIndex],s=small.side,m=medium.side,l=large.side;
-  const random=morphRandom(seed),records=[];
+function snakePalette(seed){
   const palettes=[
-    {body:[0x6c806e,0x839480,0x95a18b],head:[0x9cae91,0xabba9b,0x8fa486],dark:[0x526354,0x63735d],trim:[0xb18b54,0xc4a268,0xd4b47b]},
-    {body:[0x727d89,0x8b96a0,0x9ea6aa],head:[0xa6b4bb,0xb8c3c5,0x94a8b0],dark:[0x515f6e,0x617281],trim:[0xb98b5b,0xd2a16e,0xe0ba88]},
-    {body:[0x8a7466,0xa08a77,0xb09c87],head:[0xb4ac8d,0xc5bda0,0xa69e82],dark:[0x645e50,0x786d59],trim:[0x76928e,0x91ada1,0xa5bbae]}
+    {body:[0x61a84f,0x70b75c,0x7ec56a],eye:0x1f281f,accent:[0xb8d97d,0x9fdc66]},
+    {body:[0x4b84b6,0x5c96c8,0x6ca7d8],eye:0x152235,accent:[0x9fd6ff,0x81c1ef]},
+    {body:[0xc98346,0xd89356,0xe1a16b],eye:0x3a2716,accent:[0xf5d07a,0xf0c369]}
   ];
-  const palette=palettes[(seed-1+palettes.length)%palettes.length];
-  const add=(x,y,z,t,part,colors)=>{const a=Array.isArray(colors)?colors:[colors];records.push({gx:x,gy:y,gz:z,tier:t,tierId:SubCubes.get(t).id,color:a[Math.floor(random()*a.length)]>>>0,part,kind:part});};
-  const box=(x,y,z,nx,ny,nz,t,part,colors,keep=()=>true)=>{
-    for(let iy=0;iy<ny;iy++)for(let ix=0;ix<nx;ix++)for(let iz=0;iz<nz;iz++)if(keep(ix,iy,iz))add(x+ix*t,y+iy*t,z+iz*t,t,part,colors);
-  };
-  const bodyY=2*s+2*m,headY=bodyY+3*l,handX=2*l+m+s,handY=2*m;
-  box(-2*l,bodyY,-2*l,4,3,4,l,'body',palette.body,(x,y,z)=>y===1||!((x===0||x===3)&&(z===0||z===3)));
-  box(-3*m,headY,-2*m,6,4,4,m,'head',palette.head,(x,y,z)=>y===1||y===2||!((x===0||x===5)&&(z===0||z===3)));
-  for(const side of [-1,1]){
-    const suffix=side<0?'L':'R',cx=side*(l+s);
-    box(cx-2*s,0,-3*s,4,2,6,s,`foot${suffix}`,palette.dark,(x,y,z)=>y===0||!((x===0||x===3)&&(z===0||z===5)));
-    box(cx-m,2*s,-m,2,2,2,m,`leg${suffix}`,palette.dark);
-    box(side<0?-2*l-2*m:2*l,bodyY,-m,2,3,2,m,`arm${suffix}`,palette.body);
-    box(side*handX-Math.floor(1.5*s),handY,-s,3,2,3,s,`hand${suffix}`,palette.head);
-    box(side<0?-4*m:3*m,headY+m,-m,1,2,1,m,'ear',palette.dark);
-    const eyeX=side<0?-2*m:2*m-2*s;
-    for(let ix=0;ix<2;ix++)for(let iy=0;iy<2;iy++)add(eyeX+ix*s,headY+2*m+iy*s,2*m,s,'eye',ix===0&&iy===1?0xe3ead8:0x273b34);
-  }
-  for(let i=0;i<4;i++)add((i-2)*s,headY+m-s,2*m,s,'mouth',0x526653);
-  // Chest plate and backpack are attached to faces, never buried in body cells.
-  box(-4*s,bodyY+l,2*l,8,4,1,s,'chest',palette.trim);
-  box(-Math.floor(1.5*m),bodyY+s,-2*l-2*m,3,2,2,m,'pack',palette.dark);
-  box(-2*s,bodyY+s+2*m,-2*l-2*m,4,1,2,s,'cargo',palette.trim);
-  for(const x of [-2*s,0,2*s])box(x,headY+4*m,-s,1,2,2,s,'crest',palette.body);
-  const model={tierIndex,seed,s,m,l,records,palette,bodyY,headY,handX,handY,
-    height:headY+4*m+2*s,radius:Math.max(2*l+2*m+3*s,4*m+s),
-    halfCells:Math.max(32,8*l+8*s),name:'Moss · the little builder'};
-  model.report=validateMorphling(records,tierIndex);
+  return palettes[(seed-1)%palettes.length];
+}
+function makeSnake1Blueprint(tierIndex=0,seed=1){
+  const medium=MORPHLING_WINDOWS[tierIndex]?.[1];
+  if(!medium)throw new RangeError('Snake tier must be 1–5.');
+  const t=medium.side,palette=snakePalette(seed);
+  const model={species:'snake1',name:'Snake 1 · classic grid snake',tierIndex,seed,bodyTier:t,
+    palette,minLength:5,maxLength:10,height:t,radius:6*t,halfCells:Math.max(30,20*t),records:[]};
+  model.records=makeSnake1Pose(model,{length:model.minLength});
+  validateMorphling(model.records,tierIndex);
   return model;
 }
-function makeMorphlingPose(model,{position={x:0,y:0},direction=0,state='rest',phase=0,reach=null}={}){
-  const {s,m,l}=model,records=[],local=[];
-  const swings=[-1,0,1,1,1,0,-1,-1],swing=state==='walk'?swings[phase%8]*s:0;
-  for(const base of model.records){
-    if(reach&&(base.part==='armR'||base.part==='handR'))continue;
-    let dz=0;
-    if(base.part==='footL'||base.part==='legL')dz=swing;
-    if(base.part==='footR'||base.part==='legR')dz=-swing;
-    if(base.part==='armL'||base.part==='handL')dz=-swing;
-    if(base.part==='armR'||base.part==='handR')dz=swing;
-    local.push({...base,gz:base.gz+dz});
+function makeSnake1Pose(model,{position={x:0,y:0},direction=0,state='rest',phase=0,length=5}={}){
+  const t=model.bodyTier,records=[],color=model.palette.body[0];
+  for(let i=0;i<length;i++){
+    const q={gx:0,gy:0,gz:-i*t,tier:t,tierId:SubCubes.get(t).id,color,part:i===0?'head':i===length-1?'tail':'body',segment:i,kind:'snake1'};
+    records.push(morphWorld(q,position,direction));
   }
-  if(reach){
-    const handX=model.handX-Math.floor(1.5*s),handZ=Math.round(reach.z),handY=Math.max(0,Math.round(reach.y));
-    const color=model.palette.head[1];
-    for(let y=0;y<2;y++)for(let x=0;x<3;x++)for(let z=0;z<3;z++)local.push({gx:handX+x*s,gy:handY+y*s,gz:handZ+z*s,tier:s,tierId:SubCubes.get(s).id,color,part:'handR',kind:'handR'});
-    // Re-author a stair-stepped arm toward the live target. No bone transforms.
-    const shoulderTop=model.bodyY+3*m,lowest=handY+2*s;
-    const rows=Math.max(1,Math.floor((shoulderTop-lowest)/m));
-    for(let row=0;row<rows;row++){
-      const t=rows===1?1:row/(rows-1),gy=shoulderTop-(row+1)*m;
-      const gz=Math.round(-m+(handZ+s)*t);
-      for(let x=0;x<2;x++)for(let z=0;z<2;z++){
-        const q={gx:2*l+x*m,gy,gz:gz+z*m,tier:m,tierId:SubCubes.get(m).id,color:model.palette.body[row%3],part:'armR',kind:'armR'};
-        if(gy>=0&&!local.some(p=>morphOverlap(p,q)))local.push(q);
-      }
-    }
-  }
-  for(const q of local)records.push(morphWorld(q,position,direction));
   return records;
 }
-
-// Clock-driven simulation. Logical occupancy is only the latest pose + creations;
-// retiring render cells are visual echoes, never obstacles or exported content.
-class MorphlingController{
+class BaseSnakeController{
   constructor(model,field){
-    this.model=model;this.field=field;this.random=morphRandom(model.seed+907);
-    this.position={x:0,y:0};this.direction=0;this.time=0;this.nextBeat=MORPHLING_TIMING.beat;
-    this.phase=0;this.state='rest';this.stateTicks=0;this.behaviour='auto';this.paused=false;
-    this.route=[];this.creations=[];this.plan=[];this.buildIndex=0;this.buildPhase=0;
-    this.commandBuild=false;this.message='One inhabitant. Click the ground to walk there and build.';
-    this.cycles=0;this.poseRecords=[];this.commitPose(true);
-  }
-  free(position,direction){
-    const {s,l,radius,halfCells}=this.model;
-    if(Math.abs(position.x)+radius>halfCells||Math.abs(position.y)+radius>halfCells)return false;
-    // Every creation is at most two small cubes tall. Only the two feet enter
-    // this height band; use their full stride envelopes when planning a route.
-    for(const side of [-1,1]){
-      const cx=side*(l+s),points=[[cx-2*s,-4*s],[cx+2*s,4*s]].map(([x,z])=>{
-        if(direction===1)return [z,-x];if(direction===2)return [-x,-z];if(direction===3)return [-z,x];return [x,z];
-      });
-      const x0=Math.min(points[0][0],points[1][0])+position.x,x1=Math.max(points[0][0],points[1][0])+position.x;
-      const z0=Math.min(points[0][1],points[1][1])+position.y,z1=Math.max(points[0][1],points[1][1])+position.y;
-      if(this.creations.some(q=>q.gy<2*s&&q.gx<x1&&q.gx+q.tier>x0&&q.gz<z1&&q.gz+q.tier>z0))return false;
-    }
-    return true;
-  }
-  findRoute(goal){
-    const s=this.model.s,limit=Math.floor((this.model.halfCells-this.model.radius)/s)*s;
-    const target={x:morphClamp(Math.round(goal.x/s)*s,-limit,limit),y:morphClamp(Math.round(goal.y/s)*s,-limit,limit)};
-    const key=p=>`${p.x},${p.y},${p.direction}`,start={...this.position,direction:this.direction,parent:-1};
-    const nodes=[start],seen=new Set([key(start)]),vectors=[[0,s],[s,0],[0,-s],[-s,0]];
-    for(let head=0;head<nodes.length&&head<10000;head++){
-      const current=nodes[head];
-      if(current.x===target.x&&current.y===target.y){
-        const route=[];for(let i=head;nodes[i].parent>=0;i=nodes[i].parent){const n=nodes[i];route.push({x:n.x,y:n.y,direction:n.direction});}
-        return route.reverse();
-      }
-      const order=[0,1,2,3].sort((a,b)=>{
-        const va=vectors[a],vb=vectors[b];return Math.abs(current.x+va[0]-target.x)+Math.abs(current.y+va[1]-target.y)-Math.abs(current.x+vb[0]-target.x)-Math.abs(current.y+vb[1]-target.y);
-      });
-      for(const d of order){
-        const [dx,dy]=vectors[d],next={x:current.x+dx,y:current.y+dy,direction:d,parent:head},k=key(next);
-        if(seen.has(k))continue;seen.add(k);
-        if(!this.free(current,d)||!this.free(next,d))continue;
-        nodes.push(next);
-      }
-    }
-    return null;
-  }
-  goTo(goal,{build=true}={}){
-    if(!Number.isFinite(goal.x)||!Number.isFinite(goal.y))return false;
-    const route=this.findRoute(goal);
-    if(!route){this.message='No clear route. Try another ground cell or clear the creations.';return false;}
-    this.route=route;this.commandBuild=build;this.plan=[];this.state='walk';this.stateTicks=0;
-    this.message=build?'Walking to your ground cell, then placing small cubes.':'Walking on the ground grid.';
-    if(!route.length)this.arrive();
-    return true;
-  }
-  wander(){
-    const limit=this.model.halfCells-this.model.radius-2*this.model.s;
-    for(let i=0;i<18;i++){
-      const goal={x:(this.random()*2-1)*limit,y:(this.random()*2-1)*limit};
-      if(Math.hypot(goal.x-this.position.x,goal.y-this.position.y)<4*this.model.s)continue;
-      if(this.goTo(goal,{build:this.behaviour==='auto'}))return true;
-    }
-    this.state='rest';this.stateTicks=0;this.message='Resting — clear creations to open more walking space.';return false;
-  }
-  arrive(){
-    if(this.commandBuild){this.commandBuild=false;this.startBuild();}
-    else{this.state='rest';this.stateTicks=0;}
-  }
-  makePlan(){
-    const {s,l,handX,halfCells}=this.model,plan=[];
-    const currentPose=makeMorphlingPose(this.model,{position:this.position,direction:this.direction});
-    // A two-layer, four-cube little wall. Build from the far end toward the palm.
-    // The hand follows these actual records, so the reach varies per block/site.
-    for(let layer=0;layer<2;layer++)for(let i=3;i>=0;i--){
-      const q=morphWorld({gx:handX-Math.floor(1.5*s)+s,gy:layer*s,gz:2*l+(3+i)*s,tier:s,tierId:SubCubes.get(s).id,
-        color:this.model.palette.trim[(i+layer)%3],part:'creation',kind:'cube'},this.position,this.direction);
-      if(q.gx<-halfCells+2*s||q.gz<-halfCells+2*s||q.gx+s>halfCells-2*s||q.gz+s>halfCells-2*s)return [];
-      if(this.creations.some(p=>morphOverlap(p,q))||currentPose.some(p=>morphOverlap(p,q)))return [];
-      plan.push(q);
-    }
-    return plan;
-  }
-  startBuild(){
-    if(this.creations.length>=96){this.state='rest';this.message='96 created cubes. Clear creations to keep building.';this.stateTicks=0;return false;}
-    this.route=[];this.commandBuild=false;
-    let plan=[];
-    const oldDirection=this.direction;
-    for(let i=0;i<4;i++){
-      this.direction=(oldDirection+i)%4;
-      if(!this.free(this.position,this.direction))continue;
-      plan=this.makePlan();if(plan.length)break;
-    }
-    if(!plan.length){this.direction=oldDirection;this.state='rest';this.stateTicks=0;this.message='This work area is occupied. Click an open ground cell or clear creations.';return false;}
-    this.plan=plan;this.buildIndex=0;this.buildPhase=0;this.state='build';this.stateTicks=0;
-    this.message='Reaching, placing, releasing — each little cube stays in the grid.';
-    this.commitPose();return true;
-  }
-  setBehaviour(value){
-    if(!['auto','rest','walk'].includes(value))return false;
-    this.behaviour=value;this.state='rest';this.stateTicks=0;this.route=[];this.plan=[];this.commandBuild=false;
-    this.message=value==='rest'?'Rest pose. Every cube stays in its occupied cell.':'One grounded inhabitant; no flight or mesh sliding.';
-    if(value==='walk')this.wander();this.commitPose();return true;
-  }
-  clearCreations(){this.creations=[];this.plan=[];this.route=[];this.commandBuild=false;this.state='rest';this.stateTicks=0;this.message='Creations cleared. The morphling stays where it is.';this.commitPose();}
-  beat(){
-    this.phase=(this.phase+1)%8;this.stateTicks++;
-    if(this.state==='rest'){
-      if(this.behaviour==='walk'&&this.stateTicks>=3)this.wander();
-      else if(this.behaviour==='auto'&&this.stateTicks>=12)this.wander();
-    }else if(this.state==='walk'){
-      const next=this.route[0];
-      if(!next)this.arrive();
-      else if(this.direction!==next.direction)this.direction=next.direction;
-      else if(this.stateTicks%2===0){
-        this.position={x:next.x,y:next.y};this.route.shift();
-        if(!this.route.length)this.arrive();
-      }
-    }else if(this.state==='build'){
-      this.buildPhase++;
-      if(this.buildPhase===5){
-        const q=this.plan[this.buildIndex];
-        if(q&&!this.creations.some(p=>morphOverlap(p,q)))this.creations.push({...q});
-      }
-      if(this.buildPhase>=10){
-        this.buildPhase=0;this.buildIndex++;
-        if(this.buildIndex>=this.plan.length){this.state='rest';this.stateTicks=0;this.plan=[];this.cycles++;this.message='A little wall left behind. Resting before the next walk.';}
-      }
-    }
-    this.commitPose();
-  }
-  commitPose(initial=false){
-    let reach=null,carry=null;
-    if(this.state==='build'&&this.plan[this.buildIndex]){
-      const target=this.plan[this.buildIndex];
-      // Rotate a cube minimum corner back, not its center (avoids half-cell drift).
-      const unrotate=(q,d)=>morphWorld({...q,gx:q.gx-this.position.x,gz:q.gz-this.position.y},{x:0,y:0},(4-d)%4);
-      const q=unrotate(target,this.direction),p=this.buildPhase;
-      const amount=p<=4?morphEase(p/4):p<=6?1:1-morphEase((p-6)/3);
-      // Palm has three small-cube rows; its central row sits over q.gz.
-      reach={y:Math.round(this.model.handY+(q.gy+this.model.s-this.model.handY)*amount),z:Math.round(-this.model.s+q.gz*amount)};
-      if(p<5){
-        carry=morphWorld({gx:this.model.handX-Math.floor(1.5*this.model.s)+this.model.s,gy:reach.y-this.model.s,gz:reach.z+this.model.s,
-          tier:this.model.s,tierId:SubCubes.get(this.model.s).id,color:target.color,part:'heldCube',kind:'cube'},this.position,this.direction);
-      }
-    }
-    this.poseRecords=makeMorphlingPose(this.model,{position:this.position,direction:this.direction,state:this.state,phase:this.phase,reach});
-    if(carry&&!this.poseRecords.some(q=>morphOverlap(q,carry))&&!this.creations.some(q=>morphOverlap(q,carry)))this.poseRecords.push(carry);
-    this.field.setPose([...this.poseRecords,...this.creations],this.time,{initial,height:this.model.height});
+    this.model=model;this.field=field;this.random=morphRandom(model.seed+907);this.position={x:0,y:0};this.direction=0;
+    this.time=0;this.nextBeat=MORPHLING_TIMING.beat;this.phase=0;this.state='rest';this.stateTicks=0;this.behaviour='auto';this.paused=false;
+    this.creations=[];this.length=model.minLength;this.cycles=0;this.message='Click the ground to send the snake there.';this.poseRecords=[];
+    this.commitPose(true);
   }
   update(dt){
     if(this.paused||!Number.isFinite(dt)||dt<=0)return;
     const end=this.time+dt;
-    // Use exact simulation beat times; pause and hidden tabs never age echoes.
     while(this.nextBeat<=end+1e-9){this.time=this.nextBeat;this.beat();this.nextBeat+=MORPHLING_TIMING.beat;}
     this.time=end;this.field.update(this.time);
   }
-  snapshot(){return {name:this.model.name,tier:this.model.tierIndex+1,tierIds:MORPHLING_WINDOWS[this.model.tierIndex].map(t=>t.id),
-    cubeCount:this.poseRecords.filter(q=>q.part!=='heldCube').length,restCubeCount:this.model.records.length,createdCubes:this.creations.length,
+  snapshot(){return {name:this.model.name,species:'snake1',tier:this.model.tierIndex+1,tierIds:MORPHLING_WINDOWS[this.model.tierIndex].map(t=>t.id),cubeCount:this.poseRecords.length,createdCubes:this.creations.length,
     state:this.state,behaviour:this.behaviour,paused:this.paused,groundPosition:{...this.position},groundHeight:0,
-    rendererAxes:'ground X/Z, height Y',direction:this.direction,phase:this.phase,time:this.time,cycles:this.cycles,
-    cadenceMs:150,appearMs:150,lingerMs:90,vanishMs:150,routeRemaining:this.route.length,buildIndex:this.buildIndex,message:this.message};}
+    direction:this.direction,phase:this.phase,time:this.time,cycles:this.cycles,message:this.message,length:this.length,cadenceMs:150};}
 }
-
-// Loam is a second creature, not a modified Moss rig. All shape changes author
-// new integer-grid records and reuse the exact same fixed-cell renderer.
-function makeWormBlueprint(tierIndex=0,seed=1){
-  if(!Number.isInteger(tierIndex)||!MORPHLING_WINDOWS[tierIndex])throw new RangeError('Morphling tier must be 1–5.');
-  const [small,medium,large]=MORPHLING_WINDOWS[tierIndex],s=small.side,m=medium.side,l=large.side;
-  const random=morphRandom(seed),records=[],pitch=l+s,headZ=3*pitch+m-l;
-  const palettes=[
-    {body:[0xb96c50,0xc8815e,0xd5936a],head:[0xdba47e,0xe3b18b,0xcf9472],dark:[0x84513f,0x976047,0xa8704d],trim:[0xd7aa56,0xe2bf74,0xebd195]},
-    {body:[0xad7770,0xbe8b80,0xcc9c8d],head:[0xdfb7a1,0xeac6ac,0xd3a890],dark:[0x795951,0x8c665a,0x9b7563],trim:[0xbda66d,0xd0bc82,0xe2d39e]},
-    {body:[0x7f8862,0x92976c,0xa5a77a],head:[0xb8b894,0xc7c5a2,0xabaf85],dark:[0x59664b,0x6a7451,0x7b8058],trim:[0xc8a26b,0xdab67e,0xe6ca99]}
-  ];
-  const palette=palettes[((seed-1)%palettes.length+palettes.length)%palettes.length];
-  const add=(x,y,z,t,segment,part,colors)=>{
-    const a=Array.isArray(colors)?colors:[colors];
-    records.push({gx:x,gy:y,gz:z,tier:t,tierId:SubCubes.get(t).id,color:a[Math.floor(random()*a.length)]>>>0,segment,part,kind:part});
-  };
-  // Six 24-cube barrels: large cores, medium shoulder caps and small ring cells.
-  // The narrow collars meet the next segment without intersecting its volume.
-  for(let segment=1;segment<=6;segment++){
-    const z=headZ-segment*pitch;
-    for(const x of [-l,0])add(x,0,z,l,segment,'wormCore',palette.body);
-    for(const x of [-m,0])add(x,l,z,m,segment,'wormCap',palette.head);
-    for(const x of [-l-m,l])add(x,0,z,m,segment,'wormFlank',palette.body);
-    for(let y=0;y<4;y++)for(let x=0;x<4;x++){
-      if(x===0||x===3||y===0||y===3)add((x-2)*s,y*s,z+l,s,segment,'wormRing',palette.dark);
-    }
-    for(const x of [-s,0])for(const dz of [0,s])add(x,l+m,z+dz,s,segment,'wormRidge',palette.trim);
-    for(const x of [-l-m-s,l+m])add(x,s,z,s,segment,'wormFlank',palette.trim);
-  }
-  // A broad 36-cube head with a little face, brows and two short sensory nubs.
-  for(const x of [-l,0])for(const z of [0,l])add(x,0,headZ+z,l,0,'wormHead',palette.head);
-  for(const x of [-m,0])for(const z of [0,m])add(x,l,headZ+z,m,0,'wormBrow',palette.body);
-  for(const x of [-l-m,l])for(const z of [0,m])add(x,0,headZ+z,m,0,'wormCheek',palette.head);
-  for(let y=0;y<4;y++)for(let x=0;x<4;x++){
-    const eye=y===2&&(x===0||x===3),mouth=y===0&&(x===1||x===2);
-    add((x-2)*s,y*s,headZ+2*l,s,0,eye?'wormEye':mouth?'wormMouth':'wormFace',eye?0x302a23:mouth?palette.dark:palette.head);
-  }
-  for(const x of [-2*s,-s,0,s])add(x,l+m,headZ+m,s,0,'wormCrown',palette.trim);
-  for(const x of [-2*s,s])for(let y=0;y<2;y++)add(x,l+m+s+y*s,headZ+m,s,0,'wormFeelers',y?palette.trim:palette.body);
-  // A six-cube taper, not a seventh full-sized barrel.
-  const tailFront=headZ-6*pitch;
-  for(const x of [-m,0])for(const z of [-2*m,-m])add(x,0,tailFront+z,m,7,'wormTail',palette.dark);
-  for(const x of [-s,0])add(x,0,tailFront-2*m-s,s,7,'wormTailTip',palette.trim);
-  const headFront=headZ+2*l+s,radius=headFront+4*s;
-  const model={species:'loam',name:'Loam · the segmented builder',tierIndex,seed,s,m,l,pitch,headZ,headFront,
-    records,palette,bodySegments:6,segmentCount:8,height:l+m+5*s,radius,halfCells:Math.max(40,radius+18*s)};
-  // Broad-phase ground envelopes include the full side-to-side ripple. They are
-  // cheap enough for route searches and cover all low cubes, not just feet.
-  model.groundEnvelopes=Array.from({length:8},(_,segment)=>{
-    const low=records.filter(q=>q.segment===segment&&q.gy<2*s);
-    return {x0:Math.min(...low.map(q=>q.gx))-s,x1:Math.max(...low.map(q=>q.gx+q.tier))+s,
-      z0:Math.min(...low.map(q=>q.gz)),z1:Math.max(...low.map(q=>q.gz+q.tier))};
-  });
-  model.report=validateMorphling(records,tierIndex);
-  if(records.length!==186)throw new Error('Loam must have 186 cubes in its neutral pose.');
-  return model;
-}
-function makeWormPose(model,{position={x:0,y:0},direction=0,state='rest',phase=0,reach=null,blink=false}={}){
-  const {s,m}=model,local=[],wave=phase*Math.PI/4;
-  const amplitude=state==='build'?0:state==='walk'?s:.6*s;
-  for(const base of model.records){
-    // Every barrel gets the same travelling wave with its own phase delay.
-    // Longitudinal intervals remain disjoint, including when the worm bends.
-    let dx=Math.round(Math.sin(wave-base.segment*.85)*amplitude),dy=0,dz=0;
-    if(base.segment===0){
-      if(reach){dx=reach.x;dy=reach.y;dz=reach.z;}
-      else dy=Math.max(0,Math.round(Math.sin(wave*.5)*s*.55));
-    }
-    local.push({...base,gx:base.gx+dx,gy:base.gy+dy,gz:base.gz+dz,
-      color:blink&&base.part==='wormEye'?model.palette.dark[1]:base.color});
-  }
-  if(reach&&reach.z>0){
-    // Re-author a short neck as the head reaches. Its small cubes are born and
-    // retired just like the rest of the creature; none are stretched or slid.
-    const rows=Math.floor(reach.z/s),remainder=reach.z-rows*s;
-    for(let row=0;row<rows;row++){
-      const dx=Math.round(reach.x*(row+.5)/Math.max(1,rows));
-      for(const x of [-s,0])for(const y of [0,s]){
-        const q={gx:dx+x,gy:reach.y+y,gz:model.headZ+remainder+row*s,tier:s,tierId:SubCubes.get(s).id,
-          color:model.palette.dark[row%3],segment:0,part:'wormNeck',kind:'wormNeck'};
-        if(!local.some(p=>morphOverlap(p,q)))local.push(q);
-      }
-    }
-  }
-  return local.map(q=>morphWorld(q,position,direction));
-}
-function wormBuildFrame(model,target,phase){
-  const s=model.s,p=morphClamp(phase,0,9);
-  const amount=p<=4?morphEase(p/4):p<=6?1:1-morphEase((p-6)/3);
-  const reach={x:Math.round((target.gx+s)*amount),y:Math.round(2*s+(target.gy+s-2*s)*amount),
-    z:Math.round((target.gz-model.headZ-2*model.l)*amount)};
-  const carry=p<5?{gx:-s+reach.x,gy:reach.y-s,gz:model.headZ+2*model.l+reach.z,tier:s,tierId:SubCubes.get(s).id,
-    color:target.color,part:'heldCube',kind:'cube'}:null;
-  return {reach,carry};
-}
-class WormMorphlingController extends MorphlingController{
+class Snake1Controller extends BaseSnakeController{
   constructor(model,field){
     super(model,field);
-    this.message='Loam · six rippling body segments. Click the ground to crawl there and build.';
+    const t=model.bodyTier;
+    this.body=Array.from({length:model.minLength},(_,i)=>({x:0,y:-i*t}));
+    this.length=this.body.length;this.position={...this.body[0]};this.direction=0;
+    this.targetFood=null;this.manualGoal=null;this.moveBeat=0;
+    this.nextTurnAt=this.time+3+this.random()*2;
+    this.nextTargetAt=this.time+4+this.random()*6;
+    this.nextDropAt=this.time+25+this.random()*10;
+    this.foodFloor=5;this.foodCeiling=10;
+    this.spawnFood(this.foodFloor+Math.floor(this.random()*(this.foodCeiling-this.foodFloor+1)));
+    this.state='walk';this.message='Classic grid snake · one cube chain. Food is already on the plane.';
+    this.commitPose(true);
   }
-  free(position,direction){
-    const {s,radius,halfCells,groundEnvelopes}=this.model;
-    if(Math.abs(position.x)+radius>halfCells||Math.abs(position.y)+radius>halfCells)return false;
-    if(!this.creations.length)return true;
-    for(const e of groundEnvelopes){
-      const points=[[e.x0,e.z0],[e.x1,e.z1]].map(([x,z])=>direction===1?[z,-x]:direction===2?[-x,-z]:direction===3?[-z,x]:[x,z]);
-      const x0=Math.min(points[0][0],points[1][0])+position.x,x1=Math.max(points[0][0],points[1][0])+position.x;
-      const z0=Math.min(points[0][1],points[1][1])+position.y,z1=Math.max(points[0][1],points[1][1])+position.y;
-      if(this.creations.some(q=>q.gy<2*s&&q.gx<x1&&q.gx+q.tier>x0&&q.gz<z1&&q.gz+q.tier>z0))return false;
+  bodyKey(p){return `${p.x},${p.y}`;}
+  directionVector(direction=this.direction){
+    const t=this.model.bodyTier;
+    return direction===0?{x:0,y:t}:direction===1?{x:t,y:0}:direction===2?{x:0,y:-t}:{x:-t,y:0};
+  }
+  inside(x,y){const limit=this.model.halfCells-this.model.bodyTier;return x>=-limit&&x<=limit&&y>=-limit&&y<=limit;}
+  recordsFromBody(){
+    const t=this.model.bodyTier,color=this.model.palette.body[0];
+    return this.body.map((p,i)=>({gx:p.x,gy:0,gz:p.y,tier:t,tierId:SubCubes.get(t).id,color,
+      part:i===0?'head':i===this.body.length-1?'tail':'body',segment:i,kind:'snake1'}));
+  }
+  occupiedBody({ignoreTail=false}={}){
+    const end=ignoreTail?this.body.length-1:this.body.length;
+    return new Set(this.body.slice(0,end).map(p=>this.bodyKey(p)));
+  }
+  spawnFood(count=1){
+    const t=this.model.bodyTier,worldLimit=this.model.halfCells-2*t,body=this.occupiedBody(),head=this.body[0];let added=0;
+    // Keep food in the initial/follow camera neighborhood so the 5–10 cubes are
+    // obvious immediately instead of being scattered somewhere across the stage.
+    for(let tries=0;tries<500&&added<count;tries++){
+      const ox=(Math.floor(this.random()*13)-6)*t,oy=(Math.floor(this.random()*13)-6)*t;
+      const x=morphClamp(head.x+ox,-worldLimit,worldLimit),y=morphClamp(head.y+oy,-worldLimit,worldLimit),key=`${x},${y}`;
+      if(body.has(key)||this.creations.some(q=>q.gx===x&&q.gz===y)||Math.abs(x-head.x)+Math.abs(y-head.y)<3*t)continue;
+      this.creations.push({gx:x,gy:0,gz:y,tier:t,tierId:SubCubes.get(t).id,color:this.model.palette.accent[added%this.model.palette.accent.length],part:'food',kind:'food'});added++;
     }
-    return true;
+    return added;
   }
-  makePlan(){
-    const {s,headZ,l,halfCells}=this.model,plan=[];
-    const neutral=makeWormPose(this.model,{position:this.position,direction:this.direction,state:'build'});
-    // A four-wide, two-high wall in front of the mouth. Each target drives the
-    // head's lateral reach, extension and height rather than a canned hand pose.
-    for(let layer=0;layer<2;layer++)for(let i=0;i<4;i++){
-      const q=morphWorld({gx:(i-2)*s,gy:layer*s,gz:headZ+2*l+3*s,tier:s,tierId:SubCubes.get(s).id,
-        color:this.model.palette.trim[(i+layer)%3],part:'creation',kind:'cube'},this.position,this.direction);
-      if(q.gx<-halfCells+2*s||q.gz<-halfCells+2*s||q.gx+s>halfCells-2*s||q.gz+s>halfCells-2*s)return [];
-      if(this.creations.some(p=>morphOverlap(p,q))||neutral.some(p=>morphOverlap(p,q)))return [];
-      plan.push(q);
+  findPath(goal){
+    const t=this.model.bodyTier,start=this.body[0],blocked=this.occupiedBody({ignoreTail:true}),startKey=this.bodyKey(start),goalKey=`${goal.x},${goal.y}`;
+    blocked.delete(startKey);const queue=[{x:start.x,y:start.y}],parent=new Map([[startKey,null]]),dirAt=new Map();
+    const dirs=[0,1,2,3];
+    for(let head=0;head<queue.length&&head<12000;head++){
+      const p=queue[head],pk=`${p.x},${p.y}`;if(pk===goalKey)break;
+      for(const d of dirs){const v=this.directionVector(d),n={x:p.x+v.x,y:p.y+v.y},k=`${n.x},${n.y}`;if(parent.has(k)||!this.inside(n.x,n.y)||blocked.has(k))continue;parent.set(k,pk);dirAt.set(k,d);queue.push(n);}
     }
-    // The head and held cube must also clear earlier creations throughout the
-    // reach, not merely at the target. A blocked work envelope tries another
-    // heading through the shared startBuild controller.
-    if(this.creations.length)for(const target of plan){
-      const local=morphWorld({...target,gx:target.gx-this.position.x,gz:target.gz-this.position.y},{x:0,y:0},(4-this.direction)%4);
-      for(let phase=0;phase<10;phase++){
-        const frame=wormBuildFrame(this.model,local,phase);
-        const pose=makeWormPose(this.model,{position:this.position,direction:this.direction,state:'build',reach:frame.reach});
-        if(frame.carry)pose.push(morphWorld(frame.carry,this.position,this.direction));
-        if(pose.some(q=>this.creations.some(p=>morphOverlap(q,p))))return [];
-      }
+    if(!parent.has(goalKey))return null;
+    const path=[];let k=goalKey;while(k!==startKey){const d=dirAt.get(k),[x,y]=k.split(',').map(Number);path.push({x,y,direction:d});k=parent.get(k);}return path.reverse();
+  }
+  chooseFoodTarget(){
+    if(this.body.length>=this.model.maxLength||!this.creations.length)return false;
+    const options=[...this.creations];
+    while(options.length){const i=Math.floor(this.random()*options.length),q=options.splice(i,1)[0],path=this.findPath({x:q.gx,y:q.gz});if(path?.length){this.targetFood=q;this.message=`Seeking a food cube · ${path.length} grid steps away.`;return true;}}
+    return false;
+  }
+  safeDirections(){
+    const blocked=this.occupiedBody({ignoreTail:true}),dirs=[];
+    for(const d of [0,1,2,3]){if((d+2)%4===this.direction)continue;const v=this.directionVector(d),n={x:this.body[0].x+v.x,y:this.body[0].y+v.y};if(this.inside(n.x,n.y)&&!blocked.has(this.bodyKey(n)))dirs.push(d);}return dirs;
+  }
+  chooseTurn(){
+    const options=this.safeDirections().filter(d=>d!==this.direction);if(options.length)this.direction=options[Math.floor(this.random()*options.length)];
+    this.nextTurnAt=this.time+3+this.random()*2;
+  }
+  nextStep(){
+    let goal=null,path=null;
+    if(this.manualGoal){goal=this.manualGoal;path=this.findPath(goal);if(!path?.length){this.manualGoal=null;goal=null;}}
+    if(!goal&&this.targetFood){if(!this.creations.includes(this.targetFood))this.targetFood=null;else{goal={x:this.targetFood.gx,y:this.targetFood.gz};path=this.findPath(goal);if(!path?.length){this.targetFood=null;goal=null;}}}
+    if(goal&&path?.length){this.direction=path[0].direction;return {x:path[0].x,y:path[0].y};}
+    if(this.time>=this.nextTurnAt)this.chooseTurn();
+    let v=this.directionVector(),n={x:this.body[0].x+v.x,y:this.body[0].y+v.y},blocked=this.occupiedBody({ignoreTail:true});
+    if(!this.inside(n.x,n.y)||blocked.has(this.bodyKey(n))){this.chooseTurn();v=this.directionVector();n={x:this.body[0].x+v.x,y:this.body[0].y+v.y};}
+    return this.inside(n.x,n.y)&&!blocked.has(this.bodyKey(n))?n:null;
+  }
+  advance(){
+    const next=this.nextStep();if(!next)return;
+    const foodIndex=this.creations.findIndex(q=>q.gx===next.x&&q.gz===next.y),ate=foodIndex>=0;
+    this.body.unshift(next);this.position={...next};
+    if(ate&&this.body.length<=this.model.maxLength){
+      const [food]=this.creations.splice(foodIndex,1);if(food===this.targetFood)this.targetFood=null;
+      this.length=this.body.length;this.nextTargetAt=this.time+4+this.random()*7;
+      this.message=`Ate one cube · length ${this.body.length}.`;
+    }else{
+      if(ate){const [food]=this.creations.splice(foodIndex,1);if(food===this.targetFood)this.targetFood=null;}
+      this.body.pop();this.length=this.body.length;
     }
-    return plan;
+    if(this.manualGoal&&next.x===this.manualGoal.x&&next.y===this.manualGoal.y){this.manualGoal=null;this.message='Destination reached.';}
+    if(this.creations.length<this.foodFloor)this.spawnFood(this.foodFloor-this.creations.length);
   }
-  goTo(goal,options={}){
-    const ok=super.goTo(goal,options);
-    if(ok&&this.state==='walk')this.message=options.build===false?'Crawling · a head-to-tail ripple, one grid step at a time.':'Crawling to your ground cell, then placing small cubes with the mouth.';
-    return ok;
+  dropTail(){
+    if(this.body.length<=this.model.minLength){this.message='At minimum length · keeping five segments.';return false;}
+    const tail=this.body.pop(),t=this.model.bodyTier;
+    if(!this.creations.some(q=>q.gx===tail.x&&q.gz===tail.y))this.creations.push({gx:tail.x,gy:0,gz:tail.y,tier:t,tierId:SubCubes.get(t).id,color:this.model.palette.body[0],part:'food',kind:'food'});
+    this.length=this.body.length;this.targetFood=null;this.message=`Dropped the tail cube · length ${this.body.length}.`;return true;
   }
-  startBuild(){
-    const ok=super.startBuild();
-    if(ok)this.message='Brace, extend, place, retract · the body stays on the ground.';
-    return ok;
+  startBuild(){const ok=this.dropTail();this.nextDropAt=this.time+25+this.random()*10;this.commitPose();return ok;}
+  clearCreations(){this.creations=[];this.targetFood=null;this.spawnFood(this.foodFloor+Math.floor(this.random()*(this.foodCeiling-this.foodFloor+1)));this.message='Food reset on the plane.';this.commitPose();}
+  goTo(goal){
+    if(!Number.isFinite(goal.x)||!Number.isFinite(goal.y))return false;const t=this.model.bodyTier,limit=this.model.halfCells-t;
+    this.manualGoal={x:morphClamp(Math.round(goal.x/t)*t,-limit,limit),y:morphClamp(Math.round(goal.y/t)*t,-limit,limit)};this.targetFood=null;this.state='walk';this.message='Pathfinding to the clicked grid cell.';return true;
   }
   setBehaviour(value){
-    const ok=super.setBehaviour(value);
-    if(ok&&value==='rest')this.message='Idle · a slow segment ripple, a small head nod and an occasional blink.';
-    return ok;
+    if(!['auto','rest','walk'].includes(value))return false;this.behaviour=value;this.targetFood=null;this.manualGoal=null;
+    if(value==='rest'){this.state='rest';this.message='Idle · one contiguous chain.';}
+    else if(value==='walk'){this.state='walk';this.message='Move demo · straight runs with a corner every 3–5 seconds.';}
+    else{this.state='walk';this.message='Auto · roam, occasionally seek food, and drop a tail cube roughly every 30 seconds.';}
+    this.commitPose();return true;
+  }
+  beat(){
+    this.phase=(this.phase+1)%8;this.stateTicks++;
+    if(this.state!=='rest'&&++this.moveBeat>=2){this.moveBeat=0;this.advance();}
+    if(this.behaviour==='auto'&&this.state!=='rest'){
+      if(!this.targetFood&&!this.manualGoal&&this.time>=this.nextTargetAt){if(this.random()<.72)this.chooseFoodTarget();this.nextTargetAt=this.time+4+this.random()*7;}
+      if(this.time>=this.nextDropAt){this.dropTail();this.nextDropAt=this.time+25+this.random()*10;}
+    }
+    this.commitPose();
   }
   commitPose(initial=false){
-    let reach=null,carry=null;
-    if(this.state==='build'&&this.plan[this.buildIndex]){
-      const target=this.plan[this.buildIndex];
-      const local=morphWorld({...target,gx:target.gx-this.position.x,gz:target.gz-this.position.y},{x:0,y:0},(4-this.direction)%4);
-      const frame=wormBuildFrame(this.model,local,this.buildPhase);
-      reach=frame.reach;if(frame.carry)carry=morphWorld(frame.carry,this.position,this.direction);
-    }
-    this.poseRecords=makeWormPose(this.model,{position:this.position,direction:this.direction,state:this.state,
-      phase:this.state==='rest'?this.time*.7:this.phase,reach,blink:this.state==='rest'&&this.time%5.4>5.1});
-    if(carry&&!this.poseRecords.some(q=>morphOverlap(q,carry))&&!this.creations.some(q=>morphOverlap(q,carry)))this.poseRecords.push(carry);
-    this.field.setPose([...this.poseRecords,...this.creations],this.time,{initial,height:this.model.height});
+    if(!this.body){this.poseRecords=makeSnake1Pose(this.model,{position:this.position,direction:this.direction,length:this.length});this.field.setPose(this.poseRecords,this.time,{initial,height:this.model.height,instant:true});return;}
+    this.poseRecords=this.recordsFromBody();this.field.setPose([...this.poseRecords,...this.creations],this.time,{initial,height:this.model.height,instant:true});
   }
-  snapshot(){return {...super.snapshot(),species:'loam',bodySegments:6,segmentCount:8,locomotion:'segmented-grid-crawl'};}
+  snapshot(){return {...super.snapshot(),length:this.body?.length||this.length,foodCubes:this.creations.length,targetingFood:!!this.targetFood,nextTurnIn:Math.max(0,this.nextTurnAt-this.time),nextDropIn:Math.max(0,this.nextDropAt-this.time),locomotion:'single-contiguous-grid-chain'};}
 }
-function makeMorphlingSpecies(tierIndex=0,seed=1,species='moss'){
-  if(species==='loam')return makeWormBlueprint(tierIndex,seed);
-  if(species!=='moss')throw new RangeError(`Unknown morphling species: ${species}`);
-  return makeMorphlingBlueprint(tierIndex,seed);
-}
-function poseMorphlingSpecies(model,options={}){return model.species==='loam'?makeWormPose(model,options):makeMorphlingPose(model,options);}
-
-// A single instanced draw call. Per-cell alpha hashing avoids transparent-sort
-// artifacts where incoming grid cells overlap the deliberately lingering echoes.
-// The original beveled cube geometry and each cube's legal, uniform size stay fixed.
 class MorphlingGridField{
   constructor(host,parent,{capacity=4096,assetType='morphling'}={}){
     if(!Number.isInteger(capacity)||capacity<1||capacity>262144)throw new RangeError('Invalid grid-field capacity.');
@@ -2950,7 +2690,7 @@ class MorphlingGridField{
     };
     this.material.customProgramCacheKey=()=> 'morphling-cell-fade-r180-v1';
     this.mesh=new THREE.InstancedMesh(this.geometry,this.material,this.capacity);this.mesh.count=0;
-    this.mesh.name=assetType==='interface'?'UI_FixedGridCells':'Morphling_FixedGridCells';this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);this.mesh.frustumCulled=false;
+    this.mesh.name=assetType==='interface'?'UI_FixedGridCells':'Snake_FixedGridCells';this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);this.mesh.frustumCulled=false;
     this.mesh.userData={assetType,strictGrid:true,animatedTransforms:false};parent.add(this.mesh);
     this.matrix=new THREE.Matrix4();this.center=new THREE.Vector3();this.scale=new THREE.Vector3();this.rotation=new THREE.Quaternion();this.color=new THREE.Color();
   }
@@ -2959,56 +2699,32 @@ class MorphlingGridField{
     if(entry.retired===null||time<entry.retired+MORPHLING_TIMING.linger)return bornAt(time);
     return bornAt(entry.retired+MORPHLING_TIMING.linger)*(1-morphEase((time-entry.retired-MORPHLING_TIMING.linger)/MORPHLING_TIMING.vanish));
   }
-  setPose(records,time,{initial=false,height=1}={}){
+  setPose(records,time,{initial=false,height=1,instant=false}={}){
     const desired=new Set();
-    for(const q of records){
-      const key=morphKey(q);if(desired.has(key))throw new Error('Duplicate logical morphling cell.');desired.add(key);
-      const entry=this.entries.get(key);
-      if(entry){
-        if(entry.retired!==null){entry.fromAlpha=this.opacity(entry,time);entry.born=time;entry.retired=null;this.dirty=true;}
-        if(entry.record.color!==q.color)this.dirty=true;entry.record=q;
-      }else{
-        const wave=initial?(q.gy/Math.max(1,height))*MORPHLING_TIMING.spawnWave:((Math.abs(q.gx+q.gy+q.gz)%3)*.009);
-        this.entries.set(key,{record:q,born:time+wave,fromAlpha:0,retired:null});this.dirty=true;
-      }
+    if(instant){
+      for(const q of records){const key=morphKey(q);if(desired.has(key))throw new Error('Duplicate logical snake cell.');desired.add(key);const entry=this.entries.get(key);if(entry){entry.record=q;entry.born=time-MORPHLING_TIMING.appear;entry.retired=null;entry.fromAlpha=1;}else this.entries.set(key,{record:q,born:time-MORPHLING_TIMING.appear,retired:null,fromAlpha:1,index:-1});}
+      for(const key of [...this.entries.keys()])if(!desired.has(key))this.entries.delete(key);
+      this.dirty=true;this.animating=false;this.sync(time,height);return;
     }
-    for(const [key,entry] of this.entries)if(!desired.has(key)&&entry.retired===null){entry.retired=time;this.dirty=true;}
-    this.update(time);
+    for(const q of records){const key=morphKey(q);if(desired.has(key))throw new Error('Duplicate logical snake cell.');desired.add(key);const entry=this.entries.get(key);if(entry){if(entry.retired!==null){entry.fromAlpha=this.opacity(entry,time);entry.born=time;entry.retired=null;this.dirty=true;}if(entry.record.color!==q.color)this.dirty=true;entry.record=q;}else{this.entries.set(key,{record:q,born:initial?time-MORPHLING_TIMING.appear:time,retired:null,fromAlpha:initial?1:0,index:-1});this.dirty=true;}}
+    for(const [key,entry] of this.entries){if(!desired.has(key)&&entry.retired===null){entry.retired=time;this.dirty=true;}}
+    this.animating=this.dirty||[...this.entries.values()].some(entry=>entry.retired!==null||time<entry.born+MORPHLING_TIMING.appear);
+    if(!this.animating&&!this.dirty)return;this.sync(time,height);
   }
-  update(time){
-    if(!this.dirty&&!this.animating)return;
-    let i=0,animating=false;
-    for(const [key,entry] of this.entries){
-      if(entry.retired!==null&&time>=entry.retired+MORPHLING_TIMING.linger+MORPHLING_TIMING.vanish){this.entries.delete(key);continue;}
-      if(i>=this.capacity)throw new RangeError('Morphling render capacity exceeded.');
-      const q=entry.record,alpha=this.opacity(entry,time);
-      if(entry.retired!==null||alpha<1)animating=true;
-      this.center.set((q.gx+q.tier/2)*this.host.gridUnit,(q.gy+q.tier/2)*this.host.gridUnit,(q.gz+q.tier/2)*this.host.gridUnit);
-      this.scale.setScalar(SubCubes.renderSide(q.tier,this.host.gridUnit));
-      // A matrix always represents one occupied cell. There is no lerp, rotation,
-      // grow/shrink tween, or root translation between old and new cube centers.
-      this.matrix.compose(this.center,this.rotation,this.scale);this.mesh.setMatrixAt(i,this.matrix);
-      this.color.setHex(q.color);this.mesh.setColorAt(i,this.color);this.fade.setX(i,alpha);i++;
-    }
-    this.mesh.count=i;this.mesh.boundingSphere=null;this.mesh.boundingBox=null;this.mesh.instanceMatrix.needsUpdate=true;if(this.mesh.instanceColor)this.mesh.instanceColor.needsUpdate=true;this.fade.needsUpdate=true;
-    this.animating=animating;this.dirty=false;
+  sync(time,height){
+    let i=0;for(const [key,entry] of [...this.entries]){const alpha=this.opacity(entry,time);if(entry.retired!==null&&alpha<=.0001){this.entries.delete(key);continue;}if(i>=this.capacity)throw new RangeError('Snake render capacity exceeded.');entry.index=i;const q=entry.record,unit=this.host.gridUnit;this.center.set((q.gx+q.tier*.5)*unit,(q.gy+q.tier*.5)*unit,(q.gz+q.tier*.5)*unit);this.scale.setScalar(q.tier*unit);this.matrix.compose(this.center,this.rotation,this.scale);this.mesh.setMatrixAt(i,this.matrix);this.color.setHex(q.color>>>0);this.mesh.setColorAt(i,this.color);this.fade.array[i]=alpha;i++;}
+    this.mesh.count=i;this.mesh.instanceMatrix.needsUpdate=true;if(this.mesh.instanceColor)this.mesh.instanceColor.needsUpdate=true;this.fade.needsUpdate=true;this.dirty=false;
   }
-  settle(time){
-    for(const [key,entry] of this.entries){if(entry.retired!==null)this.entries.delete(key);else{entry.born=time-1;entry.fromAlpha=1;}}
-    this.dirty=true;this.update(time);
-  }
-  snapshot(time){return [...this.entries.values()].map(e=>({gx:e.record.gx,gy:e.record.gy,gz:e.record.gz,tier:e.record.tier,opacity:this.opacity(e,time),retiring:e.retired!==null}));}
+  update(time){if(!this.animating)return;this.sync(time);} snapshot(time){return [...this.entries.values()].map(e=>({gx:e.record.gx,gy:e.record.gy,gz:e.record.gz,tier:e.record.tier,opacity:this.opacity(e,time),retiring:e.retired!==null}));}
   dispose(){this.mesh.removeFromParent();this.mesh.dispose();this.geometry.dispose();this.material.dispose();this.entries.clear();}
 }
-
 const host=window.CUBE_NATURE_THEME_HOST;
 const toggle=document.getElementById('morphlingToggle'),controlsPanel=document.getElementById('morphlingControls');
-const speciesSelect=document.getElementById('morphlingSpecies');
 const tierSelect=document.getElementById('morphlingTier'),behaviourSelect=document.getElementById('morphlingBehaviour');
 const pauseButton=document.getElementById('pauseMorphling'),followInput=document.getElementById('followMorphling');
 const help=document.getElementById('morphlingHelp'),note=document.getElementById('morphlingNote'),clearButton=document.getElementById('clearMorphlingBuilds');
-const root=new THREE.Group();root.name='Morphlings_OneGridInhabitant';root.visible=false;host.scene.add(root);
-const stage=new THREE.Group();stage.name='MorphlingGround_DisplayOnly';root.add(stage);
+const root=new THREE.Group();root.name='Snake1_Preview';root.visible=false;host.scene.add(root);
+const stage=new THREE.Group();stage.name='SnakeGround_DisplayOnly';root.add(stage);
 const originalContext=document.getElementById('tierContext').innerHTML;
 const limitKeys=['minPolarAngle','maxPolarAngle','minDistance','maxDistance','screenSpacePanning'];
 let active=false,model=null,field=null,controller=null,seed=1,savedLimits=null,stageTier=null,statusTime=0,shadow=null;
@@ -3017,166 +2733,69 @@ for(const [index,windowTiers] of MORPHLING_WINDOWS.entries()){
   const option=document.createElement('option');option.value=index;option.textContent=`Tier ${index+1} · ${windowTiers.map(t=>t.id).join(' / ')}`;tierSelect.appendChild(option);
 }
 function settleCamera(){const damping=host.controls.enableDamping;host.controls.enableDamping=false;host.controls.update();host.controls.enableDamping=damping;}
-function setCameraLimits(){if(!model)return;host.controls.minPolarAngle=.08;host.controls.maxPolarAngle=Math.PI/2-.035;host.controls.minDistance=model.s*host.gridUnit*3;host.controls.maxDistance=model.halfCells*host.gridUnit*12;host.controls.screenSpacePanning=false;}
-function disposeStage(){
-  stage.traverse(o=>{o.geometry?.dispose();if(o.material){o.material.map?.dispose();o.material.dispose();}});stage.clear();shadow=null;stageTier=null;
-}
+function setCameraLimits(){if(!model)return;host.controls.minPolarAngle=.08;host.controls.maxPolarAngle=Math.PI/2-.035;host.controls.minDistance=model.bodyTier*host.gridUnit*3;host.controls.maxDistance=model.halfCells*host.gridUnit*12;host.controls.screenSpacePanning=false;}
+function disposeStage(){stage.traverse(o=>{o.geometry?.dispose();if(o.material){o.material.map?.dispose?.();o.material.dispose?.();}});stage.clear();shadow=null;stageTier=null;}
 function buildStage(){
-  disposeStage();
-  const size=2*model.halfCells*host.gridUnit;
-  const ground=new THREE.Mesh(new THREE.PlaneGeometry(size,size),new THREE.MeshStandardMaterial({color:0xe7e3d4,roughness:1}));
-  ground.rotation.x=-Math.PI/2;ground.position.y=-.012;ground.name='MorphlingGround';stage.add(ground);
+  disposeStage();const size=2*model.halfCells*host.gridUnit;
+  const ground=new THREE.Mesh(new THREE.PlaneGeometry(size,size),new THREE.MeshStandardMaterial({color:0xe7e3d4,roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-.012;ground.name='SnakeGround';stage.add(ground);
   const fine=new THREE.GridHelper(size,2*model.halfCells,0xa4ad99,0xc6c7b8);fine.material.transparent=true;fine.material.opacity=.40;fine.material.depthWrite=false;stage.add(fine);
-  const canvas=document.createElement('canvas');canvas.width=canvas.height=96;
-  const ctx=canvas.getContext('2d'),g=ctx.createRadialGradient(48,48,3,48,48,47);g.addColorStop(0,'rgba(34,48,31,.27)');g.addColorStop(1,'rgba(34,48,31,0)');ctx.fillStyle=g;ctx.fillRect(0,0,96,96);
+  const canvas=document.createElement('canvas');canvas.width=canvas.height=96;const ctx=canvas.getContext('2d'),g=ctx.createRadialGradient(48,48,3,48,48,47);g.addColorStop(0,'rgba(34,48,31,.22)');g.addColorStop(1,'rgba(34,48,31,0)');ctx.fillStyle=g;ctx.fillRect(0,0,96,96);
   shadow=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(canvas),transparent:true,depthWrite:false,opacity:.75}));
-  shadow.rotation.x=-Math.PI/2;shadow.position.y=.003;shadow.scale.setScalar((4*model.l+5*model.s)*host.gridUnit);shadow.renderOrder=1;stage.add(shadow);
-  if(model.species==='loam')shadow.scale.set((2*model.l+2*model.m+2*model.s)*host.gridUnit,2*model.headFront*host.gridUnit,1);
-  updateStageGuide(host.grid.userData.tierId);
+  shadow.rotation.x=-Math.PI/2;shadow.position.y=.003;shadow.scale.set((8*model.bodyTier)*host.gridUnit,(6*model.bodyTier)*host.gridUnit,1);shadow.renderOrder=1;stage.add(shadow);updateStageGuide(host.grid.userData.tierId);
 }
-function updateStageGuide(value){
-  if(!model)return;
-  if(stageTier){stage.remove(stageTier);stageTier.geometry.dispose();stageTier.material.dispose();stageTier=null;}
-  const step=SubCubes.requireTier(value).side;if(step===1)return;
-  const h=model.halfCells*host.gridUnit,n=Math.floor(model.halfCells/step),vertices=[];
-  for(let i=-n;i<=n;i++){const p=i*step*host.gridUnit;vertices.push(-h,.002,p,h,.002,p,p,.002,-h,p,.002,h);}
-  const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
-  stageTier=new THREE.LineSegments(geometry,new THREE.LineBasicMaterial({color:0x8d9e7d,transparent:true,opacity:.5,depthWrite:false}));stage.add(stageTier);
-}
+function updateStageGuide(value){if(!model)return;if(stageTier){stage.remove(stageTier);stageTier.geometry.dispose();stageTier.material.dispose();stageTier=null;}const step=SubCubes.requireTier(value).side;if(step===1)return;const h=model.halfCells*host.gridUnit,n=Math.floor(model.halfCells/step),vertices=[];for(let i=-n;i<=n;i++){const p=i*step*host.gridUnit;vertices.push(-h,.002,p,h,.002,p,p,.002,-h,p,.002,h);}const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));stageTier=new THREE.LineSegments(geometry,new THREE.LineBasicMaterial({color:0x8d9e7d,transparent:true,opacity:.5,depthWrite:false}));stage.add(stageTier);}
 function frameMorphling(){
-  if(!model||!controller||!active)return;
-  const view=document.getElementById('sceneViewport'),w=view.clientWidth,h=view.clientHeight;if(!w||!h)return;
-  host.renderer.setSize(w,h,false);host.camera.aspect=w/h;host.camera.zoom=1;
-  const unit=host.gridUnit,close=followInput.checked,r=(close?model.radius+2*model.s:model.halfCells)*unit,height=model.height*unit;
-  const center=new THREE.Vector3(close?controller.position.x*unit:0,height*(close?.44:.20),close?controller.position.y*unit:0);
-  const dir=new THREE.Vector3(.95,.72,1.2).normalize(),right=new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),dir).normalize(),up=new THREE.Vector3().crossVectors(dir,right).normalize();
-  const tanV=Math.tan(host.camera.fov*Math.PI/360),tanH=tanV*host.camera.aspect;let distance=0;
-  for(const x of [-r,r])for(const y of [-center.y,height-center.y])for(const z of [-r,r]){
-    const offset=new THREE.Vector3(x,y,z);distance=Math.max(distance,offset.dot(dir)+Math.abs(offset.dot(right))/tanH,offset.dot(dir)+Math.abs(offset.dot(up))/tanV);
-  }
-  settleCamera();host.controls.target.copy(center);host.camera.position.copy(center).addScaledVector(dir,distance*1.13);
-  host.camera.near=.02;host.camera.far=Math.max(200,distance*20);host.camera.updateProjectionMatrix();host.controls.update();
+  if(!model||!controller||!active)return;const view=document.getElementById('sceneViewport'),w=view.clientWidth,h=view.clientHeight;if(!w||!h)return;
+  host.renderer.setSize(w,h,false);host.camera.aspect=w/h;host.camera.zoom=1;const unit=host.gridUnit,close=followInput.checked,r=(close?model.radius+2*model.bodyTier:model.halfCells)*unit,height=model.height*unit;
+  const center=new THREE.Vector3(close?controller.position.x*unit:0,height*(close?.34:.18),close?controller.position.y*unit:0);const dir=new THREE.Vector3(.95,.72,1.2).normalize(),right=new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),dir).normalize(),up=new THREE.Vector3().crossVectors(dir,right).normalize();const tanV=Math.tan(host.camera.fov*Math.PI/360),tanH=tanV*host.camera.aspect;let distance=0;
+  for(const x of [-r,r])for(const y of [-center.y,height-center.y])for(const z of [-r,r]){const offset=new THREE.Vector3(x,y,z);distance=Math.max(distance,offset.dot(dir)+Math.abs(offset.dot(right))/tanH,offset.dot(dir)+Math.abs(offset.dot(up))/tanV);}settleCamera();host.controls.target.copy(center);host.camera.position.copy(center).addScaledVector(dir,distance*1.13);host.camera.near=.02;host.camera.far=Math.max(200,distance*20);host.camera.updateProjectionMatrix();host.controls.update();
 }
 function syncMorphlingUI(){
-  toggle.setAttribute('aria-pressed',String(active));controlsPanel.hidden=!active;help.hidden=!active;
-  if(!controller||!active)return;
-  const spec=MORPHLING_SPECIES[model.species||'moss'];
-  speciesSelect.value=spec.id;
-  const state=controller.snapshot(),labels={rest:spec.resting,walk:spec.moving,build:`Placing ${Math.min(8,state.buildIndex+1)} / 8`};
+  toggle.setAttribute('aria-pressed',String(active));controlsPanel.hidden=!active;help.hidden=!active;if(!controller||!active)return;
+  const spec=SNAKE_SPEC,state=controller.snapshot(),labels={rest:spec.resting,walk:spec.moving,build:spec.build};
   for(const option of behaviourSelect.options)option.textContent=option.value==='auto'?spec.auto:option.value==='rest'?spec.idle:spec.move;
-  document.getElementById('morphlingName').textContent=spec.heading;
-  document.getElementById('morphlingEyebrow').textContent=spec.eyebrow;
-  document.getElementById('morphlingBuild').title=spec.id==='loam'?'Brace, extend the head, place eight small cubes with the mouth, then retract':'Reach for eight target cells and place a small, two-layer wall';
-  pauseButton.textContent=controller.paused?'Resume':'Pause';pauseButton.setAttribute('aria-pressed',String(controller.paused));
-  behaviourSelect.value=controller.behaviour;clearButton.disabled=controller.creations.length===0;
-  document.getElementById('status').textContent=`${spec.name} · tier ${state.tier} · ${state.cubeCount} cubes · ${controller.paused?'Paused · ':''}${labels[state.state]} · ${state.createdCubes} placed`;
-  document.getElementById('tierContext').textContent=`Morphling ${state.tier}: ${state.tierIds.join(' · ')} only`;
-  document.getElementById('tierHeading').textContent='Grid guide';
-  note.textContent=controller.message;
+  document.getElementById('morphlingName').textContent=spec.heading;document.getElementById('morphlingEyebrow').textContent=spec.eyebrow;
+  const buildButton=document.getElementById('morphlingBuild');buildButton.textContent='Drop tail now';buildButton.title='Drop the current tail cube onto the plane.';
+  clearButton.textContent='Reset food';
+  pauseButton.textContent=controller.paused?'Resume':'Pause';pauseButton.setAttribute('aria-pressed',String(controller.paused));behaviourSelect.value=controller.behaviour;clearButton.disabled=controller.creations.length===0;
+  document.getElementById('status').textContent=`${spec.name} · tier ${state.tier} · ${state.cubeCount} cubes · ${controller.paused?'Paused · ':''}${labels[state.state]} · ${state.createdCubes} food`;
+  document.getElementById('tierContext').textContent=`Snake ${state.tier}: ${state.tierIds.join(' · ')} only`;document.getElementById('tierHeading').textContent='Grid guide';note.textContent=controller.message;
   for(const button of document.getElementById('tierButtons').children)button.dataset.morphAllowed=String(state.tierIds.includes(button.dataset.tier));
 }
 function rebuild(){
-  field?.dispose();model=makeMorphlingSpecies(Number(tierSelect.value),seed,speciesSelect.value);field=new MorphlingGridField(host,root);
-  controller=model.species==='loam'?new WormMorphlingController(model,field):new MorphlingController(model,field);controller.behaviour=behaviourSelect.value||'auto';
-  if(controller.behaviour==='walk'||(model.species==='loam'&&controller.behaviour==='rest'))controller.setBehaviour(controller.behaviour);
+  field?.dispose();model=makeSnake1Blueprint(Number(tierSelect.value),seed);field=new MorphlingGridField(host,root);controller=new Snake1Controller(model,field);
+  controller.behaviour=behaviourSelect.value||'auto';if(controller.behaviour!=='rest')controller.setBehaviour(controller.behaviour);
   buildStage();setCameraLimits();host.setGridTier(MORPHLING_WINDOWS[model.tierIndex][1].id,'morphling');frameMorphling();syncMorphlingUI();
 }
-function selectMorphling(options={}){
-  if(typeof options==='string')options={species:options};
-  const {rebuild:replace=false,species=speciesSelect.value}=options;
-  if(!Object.hasOwn(MORPHLING_SPECIES,species))return false;
+function selectMorphling({rebuild:replace=false}={}){
   if(!host.getCubeGeometry()||['placement','materials'].includes(host.viewMode))return false;
   if(!active&&host.viewMode!=='morphling')savedLimits=Object.fromEntries(limitKeys.map(k=>[k,host.controls[k]]));
-  speciesSelect.value=species;
-  if(!controller||replace||model.tierIndex!==Number(tierSelect.value)||(model.species||'moss')!==species)rebuild();
+  if(!controller||replace||model.tierIndex!==Number(tierSelect.value))rebuild();
   window.dispatchEvent(new CustomEvent('cube-nature-view-mode',{detail:{mode:'morphling'}}));
   active=true;root.visible=true;setCameraLimits();updateStageGuide(host.grid.userData.tierId);syncMorphlingUI();frameMorphling();return true;
 }
 function exportMorphling(){
-  if(!model||!controller)return;
-  const spec=MORPHLING_SPECIES[model.species||'moss'];
+  if(!model||!controller)return;const spec=SNAKE_SPEC;
   const record=q=>({gx:q.gx,gy:q.gy,gz:q.gz,tier:q.tier,tierId:q.tierId,color:q.color,part:q.part,...(Number.isInteger(q.segment)?{segment:q.segment}:{})});
-  const data={format:'subcubes-morphling',version:1,name:spec.name,species:spec.id,seed,tier:model.tierIndex+1,cubeSystem:SubCubes.metadata,
-    axes:{logicalGround:['x','y'],rendererGround:['x','z'],rendererHeight:'y'},timingMs:{beat:150,appear:150,linger:90,vanish:150},
-    restPose:model.records.map(record),walkPoses:Array.from({length:8},(_,phase)=>poseMorphlingSpecies(model,{state:'walk',phase}).map(record)),
-    ...(model.species==='loam'?{bodySegments:6,segmentCount:8,locomotion:'segmented-grid-crawl',
-      idlePoses:Array.from({length:8},(_,phase)=>makeWormPose(model,{state:'rest',phase}).map(record)),
-      placementStyle:'Mouth-led reach, place and retract; grounded body; temporary small-cube neck.'}:{}),
-    state:controller.snapshot(),currentPose:controller.poseRecords.map(record),creations:controller.creations.map(record)};
+  const data={format:'subcubes-snake',version:1,name:spec.name,species:spec.id,seed,tier:model.tierIndex+1,cubeSystem:SubCubes.metadata,
+    axes:{logicalGround:['x','y'],rendererGround:['x','z'],rendererHeight:'y'},timingMs:{beat:150},
+    restPose:makeSnake1Pose(model,{state:'rest',length:model.minLength}).map(record),
+    state:controller.snapshot(),currentPose:controller.poseRecords.map(record),food:controller.creations.map(record)};
   const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)+'\n'],{type:'application/json'})),a=document.createElement('a');
-  a.href=url;a.download=`${spec.id}_morphling_tier_${model.tierIndex+1}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);
+  a.href=url;a.download=`snake1_tier_${model.tierIndex+1}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);
 }
-function ready(){if(!host.getCubeGeometry())return false;toggle.disabled=false;return true;}
-window.addEventListener('cube-nature-geometry-ready',ready);ready();
-toggle.addEventListener('click',()=>selectMorphling());
-speciesSelect.addEventListener('change',()=>{if(active)selectMorphling({species:speciesSelect.value});});
-tierSelect.addEventListener('change',()=>{if(active)rebuild();});
-behaviourSelect.addEventListener('change',()=>{if(controller){controller.setBehaviour(behaviourSelect.value);syncMorphlingUI();}});
-pauseButton.addEventListener('click',()=>{if(controller){controller.paused=!controller.paused;syncMorphlingUI();}});
-document.getElementById('morphlingBuild').addEventListener('click',()=>{if(!controller)return;controller.paused=false;controller.startBuild();syncMorphlingUI();});
-clearButton.addEventListener('click',()=>{controller?.clearCreations();syncMorphlingUI();});
-followInput.addEventListener('change',frameMorphling);
-window.addEventListener('cube-nature-grid-tier',event=>{if(active)updateStageGuide(event.detail.tierId);});
-window.addEventListener('cube-nature-material-changed',()=>{if(active)syncMorphlingUI();});
-window.addEventListener('cube-nature-view-mode',event=>{
-  const next=event.detail?.mode;
-  if(next==='morphling'){
-    active=true;root.visible=true;setCameraLimits();syncMorphlingUI();
-  }else{
-    if(active&&savedLimits)for(const k of limitKeys)host.controls[k]=savedLimits[k];
-    active=false;root.visible=false;controlsPanel.hidden=true;help.hidden=true;toggle.setAttribute('aria-pressed','false');
-    for(const b of document.getElementById('tierButtons').children)delete b.dataset.morphAllowed;
-    if(next==='asset'||next==='animal'){document.getElementById('tierContext').innerHTML=originalContext;document.getElementById('tierHeading').textContent='Grid tier';}
-  }
-});
-// Tap selects a ground destination. Orbit drags, two-finger gestures, modified
-// clicks and cancelled touches never issue a walk/build command.
-const canvas=host.renderer.domElement,raycaster=new THREE.Raycaster(),ndc=new THREE.Vector2(),groundPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0),hitPoint=new THREE.Vector3();
-const pointers=new Set();let gesture=null;
-const resetGesture=()=>{pointers.clear();gesture=null;};
-canvas.addEventListener('pointerdown',e=>{
-  if(!active)return;pointers.add(e.pointerId);if(pointers.size>1){if(gesture)gesture.dragged=true;return;}
-  gesture=e.button===0&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey?{id:e.pointerId,x:e.clientX,y:e.clientY,dragged:false,threshold:e.pointerType==='touch'?9:5}:null;
-});
-canvas.addEventListener('pointermove',e=>{if(active&&gesture&&gesture.id===e.pointerId&&Math.hypot(e.clientX-gesture.x,e.clientY-gesture.y)>gesture.threshold)gesture.dragged=true;});
-canvas.addEventListener('pointerup',e=>{
-  const g=gesture,click=active&&g&&g.id===e.pointerId&&!g.dragged&&pointers.size===1&&e.button===0&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&Math.hypot(e.clientX-g.x,e.clientY-g.y)<=g.threshold;
-  pointers.delete(e.pointerId);gesture=null;if(!click||!controller)return;
-  const rect=canvas.getBoundingClientRect();if(!rect.width||!rect.height)return;
-  ndc.set((e.clientX-rect.left)/rect.width*2-1,1-(e.clientY-rect.top)/rect.height*2);
-  host.camera.updateMatrixWorld(true);raycaster.setFromCamera(ndc,host.camera);
-  if(!raycaster.ray.intersectPlane(groundPlane,hitPoint))return;
-  const goal={x:hitPoint.x/host.gridUnit,y:hitPoint.z/host.gridUnit};
-  if(Math.abs(goal.x)>model.halfCells||Math.abs(goal.y)>model.halfCells)return;
-  // Do not turn clicks on the creature into an unrelated point behind its body.
-  if(raycaster.intersectObject(field.mesh,false).some(hit=>hit.distance<raycaster.ray.origin.distanceTo(hitPoint)-.05))return;
-  if(controller.goTo(goal)){controller.paused=false;syncMorphlingUI();}
-});
-canvas.addEventListener('pointercancel',resetGesture);
-canvas.addEventListener('lostpointercapture',e=>{pointers.delete(e.pointerId);if(gesture?.id===e.pointerId)gesture=null;});
-window.addEventListener('blur',resetGesture);document.addEventListener('visibilitychange',()=>{if(document.hidden)resetGesture();});
-window.addEventListener('cube-nature-view-mode',resetGesture);
-window.addEventListener('resize',()=>{if(active)frameMorphling();});
-host.regenerateMorphling=()=>{seed++;selectMorphling({rebuild:true});};
-host.exportMorphlingJSON=exportMorphling;
-host.onFrame.add(dt=>{
-  if(!active||!controller)return;controller.update(dt);
-  if(shadow){shadow.position.x=controller.position.x*host.gridUnit;shadow.position.z=controller.position.y*host.gridUnit;if(model.species==='loam')shadow.rotation.z=-controller.direction*Math.PI/2;}
-  if(followInput.checked){
-    cameraTarget.set(controller.position.x*host.gridUnit,model.height*host.gridUnit*.44,controller.position.y*host.gridUnit);
-    cameraShift.subVectors(cameraTarget,host.controls.target).multiplyScalar(1-Math.exp(-5*dt));host.camera.position.add(cameraShift);host.controls.target.add(cameraShift);
-  }
-  statusTime+=dt;if(statusTime>=.1){statusTime=0;syncMorphlingUI();}
-});
-window.CUBE_NATURE_MORPHLINGS=Object.freeze({timing:MORPHLING_TIMING,tiers:MORPHLING_WINDOWS,species:MORPHLING_SPECIES,makeBlueprint:makeMorphlingSpecies,makePose:poseMorphlingSpecies,makeWormBlueprint,makeWormPose,validate:validateMorphling,
-  select:selectMorphling,setSpecies:value=>selectMorphling({species:value}),setPaused:value=>{if(controller){controller.paused=!!value;syncMorphlingUI();}},
+function ready(){if(!host.getCubeGeometry())return false;toggle.disabled=false;return true;}window.addEventListener('cube-nature-geometry-ready',ready);ready();
+toggle.addEventListener('click',()=>selectMorphling());tierSelect.addEventListener('change',()=>{if(active)rebuild();});behaviourSelect.addEventListener('change',()=>{if(controller){controller.setBehaviour(behaviourSelect.value);syncMorphlingUI();}});pauseButton.addEventListener('click',()=>{if(controller){controller.paused=!controller.paused;syncMorphlingUI();}});document.getElementById('morphlingBuild').addEventListener('click',()=>{if(!controller)return;controller.paused=false;controller.startBuild();syncMorphlingUI();});clearButton.addEventListener('click',()=>{controller?.clearCreations();syncMorphlingUI();});followInput.addEventListener('change',frameMorphling);window.addEventListener('cube-nature-grid-tier',event=>{if(active)updateStageGuide(event.detail.tierId);});window.addEventListener('cube-nature-material-changed',()=>{if(active)syncMorphlingUI();});window.addEventListener('cube-nature-view-mode',event=>{const next=event.detail?.mode;if(next==='morphling'){active=true;root.visible=true;setCameraLimits();syncMorphlingUI();}else{if(active&&savedLimits)for(const k of limitKeys)host.controls[k]=savedLimits[k];active=false;root.visible=false;controlsPanel.hidden=true;help.hidden=true;toggle.setAttribute('aria-pressed','false');for(const b of document.getElementById('tierButtons').children)delete b.dataset.morphAllowed;if(next==='asset'||next==='animal'){document.getElementById('tierContext').innerHTML=originalContext;document.getElementById('tierHeading').textContent='Grid tier';}}});
+const canvas=host.renderer.domElement,raycaster=new THREE.Raycaster(),ndc=new THREE.Vector2(),groundPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0),hitPoint=new THREE.Vector3();const pointers=new Set();let gesture=null;const resetGesture=()=>{pointers.clear();gesture=null;};canvas.addEventListener('pointerdown',e=>{if(!active)return;pointers.add(e.pointerId);if(pointers.size>1){if(gesture)gesture.dragged=true;return;}gesture=e.button===0&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey?{id:e.pointerId,x:e.clientX,y:e.clientY,dragged:false,threshold:e.pointerType==='touch'?9:5}:null;});canvas.addEventListener('pointermove',e=>{if(active&&gesture&&gesture.id===e.pointerId&&Math.hypot(e.clientX-gesture.x,e.clientY-gesture.y)>gesture.threshold)gesture.dragged=true;});canvas.addEventListener('pointerup',e=>{const g=gesture,click=active&&g&&g.id===e.pointerId&&!g.dragged&&pointers.size===1&&e.button===0&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&Math.hypot(e.clientX-g.x,e.clientY-g.y)<=g.threshold;pointers.delete(e.pointerId);gesture=null;if(!click||!controller)return;const rect=canvas.getBoundingClientRect();if(!rect.width||!rect.height)return;ndc.set((e.clientX-rect.left)/rect.width*2-1,1-(e.clientY-rect.top)/rect.height*2);host.camera.updateMatrixWorld(true);raycaster.setFromCamera(ndc,host.camera);if(!raycaster.ray.intersectPlane(groundPlane,hitPoint))return;const goal={x:hitPoint.x/host.gridUnit,y:hitPoint.z/host.gridUnit};if(Math.abs(goal.x)>model.halfCells||Math.abs(goal.y)>model.halfCells)return;if(raycaster.intersectObject(field.mesh,false).some(hit=>hit.distance<raycaster.ray.origin.distanceTo(hitPoint)-.05))return;if(controller.goTo(goal)){controller.paused=false;syncMorphlingUI();}});canvas.addEventListener('pointercancel',resetGesture);canvas.addEventListener('lostpointercapture',e=>{pointers.delete(e.pointerId);if(gesture?.id===e.pointerId)gesture=null;});window.addEventListener('blur',resetGesture);document.addEventListener('visibilitychange',()=>{if(document.hidden)resetGesture();});window.addEventListener('cube-nature-view-mode',resetGesture);window.addEventListener('resize',()=>{if(active)frameMorphling();});host.regenerateMorphling=()=>{seed++;selectMorphling({rebuild:true});};host.exportMorphlingJSON=exportMorphling;host.onFrame.add(dt=>{if(!active||!controller)return;controller.update(dt);if(shadow){shadow.position.x=controller.position.x*host.gridUnit;shadow.position.z=controller.position.y*host.gridUnit;shadow.rotation.z=-controller.direction*Math.PI/2;}if(followInput.checked){cameraTarget.set(controller.position.x*host.gridUnit,model.height*host.gridUnit*.34,controller.position.y*host.gridUnit);cameraShift.subVectors(cameraTarget,host.controls.target).multiplyScalar(1-Math.exp(-5*dt));host.camera.position.add(cameraShift);host.controls.target.add(cameraShift);}statusTime+=dt;if(statusTime>=.1){statusTime=0;syncMorphlingUI();}});
+window.CUBE_NATURE_MORPHLINGS=Object.freeze({timing:MORPHLING_TIMING,tiers:MORPHLING_WINDOWS,species:Object.freeze({snake1:SNAKE_SPEC}),
+  makeBlueprint:makeSnake1Blueprint,makePose:makeSnake1Pose,validate:validateMorphling,select:selectMorphling,
+  setPaused:value=>{if(controller){controller.paused=!!value;syncMorphlingUI();}},
   setTier:value=>{if(!Number.isInteger(value)||value<1||value>5)return false;tierSelect.value=value-1;if(active)rebuild();return true;},
-  setBehaviour:value=>controller?.setBehaviour(value)||false,placeCubes:()=>controller?.startBuild()||false,clearCreations:()=>controller?.clearCreations(),
+  setBehaviour:value=>controller?.setBehaviour(value)||false,dropTail:()=>controller?.startBuild()||false,resetFood:()=>controller?.clearCreations(),
   goTo:(x,y)=>controller?.goTo({x,y})||false,getState:()=>controller?.snapshot()||null,
-  getRecords:()=>controller?{pose:controller.poseRecords.map(q=>({...q})),creations:controller.creations.map(q=>({...q}))}:null,
+  getRecords:()=>controller?{pose:controller.poseRecords.map(q=>({...q})),food:controller.creations.map(q=>({...q}))}:null,
   getRenderCells:()=>field?.snapshot(controller?.time||0)||[],get controller(){return controller;},get field(){return field;},get root(){return root;}});
 window.CUBE_NATURE_GRID_TRANSITIONS=Object.freeze({timing:MORPHLING_TIMING,createField:(parent,options={})=>new MorphlingGridField(host,parent,options)});
-
 </script>
 
 <!-- MicroFont cube authoring and the isolated interface preview. -->
@@ -3291,7 +2910,7 @@ const MENU_LIMITS=Object.freeze({title:30,buttonText:14,columns:40,rows:12,text:
 const printable=(value,limit)=>[...String(value??'')].slice(0,limit).map(c=>c.codePointAt(0)>=32&&c.codePointAt(0)<=126?c:'?').join('');
 const clamp=(value,min,max,fallback=min)=>Number.isFinite(Number(value))?Math.min(max,Math.max(min,Math.round(Number(value)))):fallback;
 function defaultState(){return {progress:38,enabled:true,checked:false,count:0};}
-function defaultMenu(){return {title:'FIELD STATION',text:'Moss + Loam\nReady to build',buttonCount:2,
+function defaultMenu(){return {title:'FIELD STATION',text:'Snake\nReady to demo',buttonCount:2,
   buttons:[{mode:'both',text:'BUILD',icon:'play'},{mode:'both',text:'RESET',icon:'left'},{mode:'icon',text:'OK',icon:'check'}],
   controls:{slider:true,checkbox:true,toggle:true,counter:true}};}
 function normalizeMenu(value={}){
@@ -3418,7 +3037,7 @@ function build(preset='dashboard',{tierId='c1',themeId='fern',text=DEFAULT_TEXT,
   }else if(preset==='dashboard'){
     panel(0,0,104,94,'FIELD STATION');
     button('close',88,3,12,12,{icon:'close',style:'danger',aria:'Close field station (preview only)'});
-    label('Moss + Loam',7,23);label('Ready to build',7,39,1,theme.muted);
+    label('Snake',7,23);label('Ready to demo',7,39,1,theme.muted);
     button('build',7,57,42,17,{text:'BUILD',style:'primary',aria:'Build (preview only)'});
     button('reset',55,57,42,17,{text:'RESET',aria:'Reset (preview only)'});
     slider('level',4,77,69,14);label(`${state.progress}%`,76,78);

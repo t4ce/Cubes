@@ -191,26 +191,3 @@ Run `python3 tools/test_platform_lod.py` to check all 27 worlds, ownership,
 nearest-platform switching, portal updates, placement IDs and marker bypass.
 The periodic `Cubes: platform-lod` log reports source and candidate counts;
 these are pre-visibility counts, not GPU timings.
-
-## World 01 joined-surface Blueprint demo
-
-Key 5 still opens `world_01_sky.cubes` first. That first page now has a
-render-only proof path: `build.rs` removes covered cube faces and writes one
-indexed `POS_NORMAL_UV` mesh. The source's six opaque world colours
-(plus its neutral portal-frame entry) become one small atlas. Every surviving
-source face maps to a flat palette tile with a hard 7/96 border, replacing the
-bevel/noise treatment while retaining a visible cube boundary. The retained
-base-colour shader performs one texture lookup and no lighting, tangent-space,
-reflection, tone-map, or fog work. The joined mesh remains double-sided.
-
-World 01 contains 15,024 decoded source cubes. Its joined artifact contains
-27,388 exposed quads / 54,776 triangles in one retained draw, with 3,505,664
-vertex bytes and 657,312 index bytes. The `.cubes` bytes are unchanged and
-remain authoritative for walking, collision, targeting, and portal crossing.
-Dynamic portal repainting, placed assets, path indicators, and the display
-cube are intentionally not part of this first static-terrain draw. Worlds
-02–27, custom plateaus, and network image walls retain their existing render
-paths.
-
-Run `python3 tools/test_joined_world.py` to verify the world-01 face removal,
-mesh counts, and partial-face rectangle coverage on the host.
