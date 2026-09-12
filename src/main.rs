@@ -38,6 +38,7 @@ mod transition;
 #[path = "CubesWalkerCam.rs"]
 mod walker_camera;
 mod world_cube;
+mod world_weld;
 mod world_portals;
 mod world_topology;
 use alloc::vec::Vec;
@@ -147,6 +148,7 @@ struct CubeScene {
     world_cube: world_cube::Companion,
     visibility_scratch: orchard::VisibilityScratch,
     world_markers: marker_lod::Reducer,
+    world_weld: world_weld::Welder,
     platform_view: platform_lod::View,
     limits: render_limits::Limits,
     limits_cursor: Option<GridCursor>,
@@ -364,6 +366,7 @@ impl CubeScene {
             world_index: 0,
             visibility_scratch: orchard::VisibilityScratch::new(),
             world_markers: marker_lod::Reducer::new(),
+            world_weld: world_weld::Welder::default(),
             platform_view: platform_lod::View::new(),
             limits: render_limits::Limits::new(),
             limits_cursor: None,
@@ -1008,6 +1011,20 @@ impl CubeScene {
                 },
                 |id| self.network_singleton || self.platform_view.solid(id),
             );
+            self.world_weld.prepare(
+                &mut self.world_markers.cubes, &self.world_markers.solids,
+                baked_materials::WELD_COLORS,
+                |id| self.mode == SceneMode::World
+                    // The VS drops seeds whose center is behind the eye. Such a
+                    // submitted neighbor must not cause a visible cap to disappear.
+                    && (camera.view_projection[3] * source[id].center[0]
+                        + camera.view_projection[7] * source[id].center[1]
+                        + camera.view_projection[11] * source[id].center[2]
+                        + camera.view_projection[15]) > 0.
+                    && self.platform_view.source_id(id).is_none_or(|source|
+                        self.active_world.as_ref().unwrap().weld_ready(source)
+                        && (source < base || self.placed_reveal.settled(source - base))),
+            );
 
         }
         match self.frame.begin_gpu_frame() {
@@ -1461,6 +1478,11 @@ impl CubeScene {
         ) {
             logl::log(level::INFO, format_args!("Cubes: {report}"));
             if self.mode.is_world() {
+                logl::log(level::INFO, format_args!(
+                    "Cubes: world-weld enabled={} joined={} internal_faces_removed={} ds_triangles_saved={} (patch submissions unchanged)",
+                    self.world_weld.enabled, self.world_weld.joined,
+                    self.world_weld.removed_faces, self.world_weld.triangles_saved()
+                ));
                 if let Some((platforms, detailed)) = self.platform_view.counts() {
                     let source = &self.active_world.as_ref().unwrap().scene;
                     logl::log(level::INFO, format_args!(
@@ -1571,6 +1593,8 @@ impl CubeScene {
             .frame
             .keyboard_state()
             .map_err(|error| CubeError::Ui4("mode-hotkeys", error))?;
+        self.world_weld.key(state.as_ref().is_some_and(|k| k.is_down(0x0d)),
+            self.mode == SceneMode::World);
         let r_held = state
             .as_ref()
             .is_some_and(|keyboard| keyboard.is_down(0x15));
@@ -2245,7 +2269,7 @@ impl CubeScene {
                         "1 sphere=1024 camera=center WASD=look cursor-expand=10%-area Key1=interactive-grid",
                     SceneMode::Orchard => "asset-picker wheel/AD=slide/loop W/S=next/previous-group mouse=orbit LMB=confirm five-row-assets alpha=.25/.5/1/.5/.25 group-previews=above/below alpha=.5",
                     SceneMode::World =>
-                        "5 lvl27-world first-person mouse-look WASD=surface-walk Shift=walk/flight-boost Tab=surface-path Space=confirm-path/edge-push/approach Home=align Key5=next-world R=display-cube MMB=picker/tool-off wheel=group-assets LMB=place",
+                        "5 lvl27-world first-person mouse-look WASD=surface-walk Shift=walk/flight-boost Tab=surface-path Space=confirm-path/edge-push/approach Home=align Key5=next-world J=weld-toggle R=display-cube MMB=picker/tool-off wheel=group-assets LMB=place",
                     SceneMode::Plateau => "4 custom-plateau username=t4ce Tab=surface-path Space=confirm-path WASD/Tab=cancel-travel MMB=picker/tool-off LMB=place Key0=delete-profile",
                     SceneMode::Interface => "3 custom-menu Key3=confirm/info/slider pointer=hover/press actions=preview-only",
                     SceneMode::RenderLimits => "9 render limits upper=full-geometry lower=retained-seeds click/drag=16-steps Key5=world",

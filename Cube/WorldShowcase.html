@@ -298,10 +298,11 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
   <div class="field"><div class="field-head"><label for="countInput">Platform target</label><output id="countValue">10</output></div><input id="countInput" type="range" min="0" max="16" step="1" value="10"></div>
   <div class="field"><div class="field-head"><label for="seedInput">Seed</label><span style="font-size:8px;color:#9aa38f">REPEATABLE BY WORLD</span></div><div class="seed-row"><input id="seedInput" type="text" maxlength="96" value="little-01" spellcheck="false" autocomplete="off"><button id="shuffleSeed" title="New seed and generate" aria-label="New seed and generate">⚄</button></div></div>
   <label class="checks"><input id="autoPaths" type="checkbox" checked><span>Automatic paths</span><span>LIVE</span></label>
-  <details class="advanced"><summary>Shape &amp; route variation</summary>
+  <details class="advanced"><summary>Shape &amp; network</summary>
    <div class="field"><div class="field-head"><label for="heightInput">Vertical spread</label><output id="heightValue">55%</output></div><input id="heightInput" type="range" min="0" max="100" value="55"></div>
-   <div class="field"><div class="field-head"><label for="bendInput">Turn variation</label><output id="bendValue">45%</output></div><input id="bendInput" type="range" min="0" max="100" value="45"></div>
    <div class="field"><div class="field-head"><label for="loopsInput">Extra loops</label><output id="loopsValue">20%</output></div><input id="loopsInput" type="range" min="0" max="100" value="20"></div>
+   <div class="field-note">Routes use the fewest clear orthogonal turns. Long links do not gain decorative bends.</div>
+   <input id="bendInput" type="hidden" value="45"><output id="bendValue" hidden>45%</output>
   </details>
   <div class="generate-row"><button id="generateButton" class="primary">✧ &nbsp; Generate world</button><button id="rebuildButton" title="Rebuild terrain, paths, and growth" aria-label="Rebuild terrain, paths, and growth">⟳</button></div>
   <div class="minor-actions"><button id="generateAllButton" class="text-button">Generate all 27 ↗</button><button id="clearButton" class="text-button danger">Clear world</button></div>
@@ -700,7 +701,7 @@ function portalInfo(world,d){
   // A path is one c4 high and two c4 wide. Keep the portal passage exactly
   // that profile too, including top/bottom routes, so no segment narrows.
   const runLo=new V3(0,0,0),runHi=new V3(PATH_CUBE_SIZE,PATH_CUBE_SIZE,PATH_CUBE_SIZE);
-  runLo[axis===0?2:0]=-PATH_CUBE_SIZE;
+  runLo[axis==='x'?'z':'x']=-PATH_CUBE_SIZE;
   if(face==='center'){runLo[axis]=-PATH_CUBE_SIZE;runHi[axis]=PORTAL_RUN+PATH_CUBE_SIZE;}
   else if(normal[axis]<0){runLo[axis]=h-PORTAL_RUN;runHi[axis]=h;}
   else{runLo[axis]=-h;runHi[axis]=-h+PORTAL_RUN;}
@@ -878,8 +879,10 @@ function platformPathAttachment(d,m,other){
  if(!lanes.length)return {point:origin,normal:null,length:0};
  lanes.sort((a,b)=>Math.abs((p[['x','y','z'][transverse]]+a*u)-other[transverse])-Math.abs((p[['x','y','z'][transverse]]+b*u)-other[transverse])||a-b);
  const point=origin.slice();point[axis]=p[['x','y','z'][axis]]+(sign>0?hi:lo-1)*u;point[transverse]=p[['x','y','z'][transverse]]+lanes[0]*u;
- const normal=new V3();normal[['x','y','z'][axis]]=sign;
- return {point,normal,length:2*u};
+ // The selected point is already one c4 outside the terrace. Let the route
+ // meet it directly; a mandatory outward lead here creates a visible L-jog
+ // even when the remaining route is otherwise a straight continuation.
+ return {point,normal:null,length:0};
 }
 function routeNodes(world,d){
  // Only generated anchors participate in the global graph. Manual cubes get
@@ -890,27 +893,28 @@ function routeNodes(world,d){
  return nodes;
 }
 function connectGraph(nodes,d){if(nodes.length<2)return [];const seen=new Set([0]),edges=[],used=new Set();while(seen.size<nodes.length){let best=null;for(const i of seen)for(let j=0;j<nodes.length;j++)if(!seen.has(j)){const a=nodes[i].p,b=nodes[j].p,dist=a.distanceTo(b)+Math.abs(a.y-b.y)*.15;if(!best||dist<best.dist)best={i,j,dist};}if(!best)break;seen.add(best.j);edges.push([best.i,best.j]);used.add([best.i,best.j].sort((a,b)=>a-b).join('-'));}const extra=[];for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){if(nodes[i].kind==='portal'||nodes[j].kind==='portal'||used.has(`${i}-${j}`))continue;extra.push({i,j,dist:nodes[i].p.distanceTo(nodes[j].p)});}extra.sort((a,b)=>a.dist-b.dist);const n=Math.min(extra.length,Math.round(nodes.filter(n=>n.kind==='platform').length*d.config.loops/100*.7));for(let i=0;i<n;i++)edges.push([extra[i].i,extra[i].j]);return edges;}
-function splitIntegerDistance(distance,parts){if(parts<=0)return [];const base=Math.floor(distance/parts),extra=distance%parts;return Array.from({length:parts},(_,i)=>base+(i<extra?1:0)).filter(Boolean);}
-function orthogonalCenterlineRaw(start,end,key,span,variation=45){
- const s=start.slice(),e=end.slice(),delta=e.map((v,i)=>v-s[i]),abs=delta.map(Math.abs),active=[0,1,2].filter(i=>abs[i]>0);if(!active.length)return [s];
- const euclid=Math.hypot(...delta),ratio=clamp(euclid/(Math.sqrt(3)*span),0,1);
- // Preserve a direct 1- or 2-axis route until a link is genuinely long.
- // Extra turns ease in only after a quarter of the world's diagonal, so
- // variation remains a long-distance feature rather than a near-platform jog.
- const longLink=clamp((ratio-.25)/.75,0,1);
- const extra=Math.round(14*longLink*longLink*(.5+.5*variation/100));
- let target=clamp(active.length+extra,active.length,16);
- target=Math.min(target,abs.reduce((a,b)=>a+b,0));
- const partCounts=[0,0,0];for(const ax of active)partCounts[ax]=1;
- for(let n=active.length;n<target;n++){let best=active[0];for(const ax of active)if(abs[ax]/(partCounts[ax]+1)>abs[best]/(partCounts[best]+1))best=ax;partCounts[best]++;}
- const queues=partCounts.map((parts,ax)=>splitIntegerDistance(abs[ax],parts).map(size=>({ax,size,sign:Math.sign(delta[ax])})));
- const rand=rng(key+'|orthogonal-v12'),path=[s.slice()];let cur=s.slice(),remaining=target;
- while(remaining-->0){const options=active.filter(ax=>queues[ax].length);
-  options.sort((a,b)=>queues[b].reduce((n,c)=>n+c.size,0)-queues[a].reduce((n,c)=>n+c.size,0));
-  const pick=options[Math.min(options.length-1,Math.floor(rand()*Math.min(2,options.length)))],chunk=queues[pick].shift();
-  for(let i=0;i<chunk.size;i++){cur=cur.slice();cur[pick]+=chunk.sign;path.push(cur);}
+function directCenterlineCandidates(start,end){
+ const s=start.slice(),e=end.slice(),delta=e.map((v,i)=>v-s[i]);
+ const active=[0,1,2].filter(i=>delta[i]!==0);if(!active.length)return [s];
+ // Prefer a horizontal departure, then the larger horizontal displacement,
+ // with vertical movement last. Every permutation is retained as a clear-path
+ // fallback, but each candidate uses an axis exactly once: straight, L, or
+ // at most two corners for a three-axis destination.
+ const preferred=active.slice().sort((a,b)=>{
+  const av=a===1,bv=b===1;if(av!==bv)return av?1:-1;
+  return Math.abs(delta[b])-Math.abs(delta[a])||a-b;
+ });
+ const orders=[];
+ function permute(prefix,remaining){
+  if(!remaining.length){orders.push(prefix);return;}
+  for(let i=0;i<remaining.length;i++)permute(prefix.concat(remaining[i]),remaining.slice(0,i).concat(remaining.slice(i+1)));
  }
- return path;
+ permute([],preferred);
+ return orders.map(order=>{
+  const path=[s.slice()];let cur=s.slice();
+  for(const axis of order){const step=Math.sign(delta[axis]);while(cur[axis]!==e[axis]){cur=cur.slice();cur[axis]+=step;path.push(cur);}}
+  return path;
+ });
 }
 function pathWidthAxis(axis){return axis===0?2:0;}
 function pathCrossSection(point,axis){
@@ -959,9 +963,11 @@ function routeVoxels(world,d,a,b,edgeIndex,put,ends={}){
  const u=PATH_CUBE_SIZE,portals=portalInfo(world,d),sockets=d.modules.map(m=>platformAssetBounds(d,m));
  const key=d.config.seed+'|'+world.id+'|route|'+edgeIndex;
  const start=a.toArray().map(v=>Math.round(v/u)*u),end=b.toArray().map(v=>Math.round(v/u)*u);
- const portalLead=Math.max(4,Math.min(14,Math.round(a.distanceTo(b)/u*.07)))*u;
  const attachment=(p,other,normal)=>{
-  if(normal)return {point:p,normal,length:portalLead};
+  // portalRunVoxels already owns the full four-c4 clear passage through a
+  // portal. Starting the free route at its mouth avoids a second, forced
+  // 4–14-c4 leg and lets the route's actual distance choose its direction.
+  if(normal)return {point:p,normal:null,length:0};
   const m=d.modules.find(m=>cellKey(manualSupportPoint(d,m))===cellKey(p));if(!m)return null;
   return platformPathAttachment(d,m,other);
  };
@@ -1016,7 +1022,7 @@ function expansionVoxels(world,d,primary,{profiles:customProfiles=null,initialDe
 }
 function baseSignature(world,d){
  const c=d.config;
- return JSON.stringify(['cube-tier-paths-v21',world.id,d.spanChunks,c.seed,c.growthEnabled!==false,c.bend,c.height,c.loops,c.autoPaths,
+ return JSON.stringify(['cube-tier-paths-v25',world.id,d.spanChunks,c.seed,c.growthEnabled!==false,c.bend,c.height,c.loops,c.autoPaths,
   d.modules.filter(m=>m.kind==='generated').map(m=>[m.cell,m.variant])]);
 }
 function buildBaseGeometry(world,d){
@@ -1049,17 +1055,15 @@ const SIX=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
 const manhattan=(a,b)=>Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])+Math.abs(a[2]-b[2]);
 function pointInside(d,p){const h=halfOf(d);return p.every(x=>Number.isInteger(x)&&x>=-h&&x<h);}
 function portalBlocked(world,d,p,padding=.35){return routeJointBlocked(portalInfo(world,d),d,p,false);}
-/* Deterministic single-branch pathfinder. The normal case is a sparse
- * orthogonal line: long straight runs joined only by 90-degree turns. A* is
- * used only for real obstructions; generated terrain is never excavated. */
+/* Minimum-bend 2 × 1 path planner. The normal case considers only direct
+ * orthogonal axis orders; A* is reserved for actual obstructions. */
 function localCenterline(world,d,start,end,blocked,key){
  if(manhattan(start,end)===0)return [start.slice()];
  const u=PATH_CUBE_SIZE,sg=start.map(v=>Math.round(v/u)),eg=end.map(v=>Math.round(v/u));
  const real=p=>p.map(v=>v*u),isBlocked=p=>blocked(real(p));
- // Search on the original 256-cell lattice, not the 2048-c1-unit lattice.
- // Several seeded long-run candidates avoid unnecessarily busy A* routes.
- for(let attempt=0;attempt<5;attempt++){
-  const raw=orthogonalCenterlineRaw(sg,eg,key+(attempt?'|retry'+attempt:''),halfOf(d)*2/u,d.config.bend);
+ // A direct link never repeats an axis. Try every L/three-axis ordering only
+ // when the preferred one meets a real portal or tower collision.
+ for(const raw of directCenterlineCandidates(sg,eg)){
   if(raw.every(p=>!isBlocked(p)))return raw.map(real);
  }
  const heap=[],scores=new Map(),parents=new Map(),positions=new Map(),closed=new Set();let order=0;

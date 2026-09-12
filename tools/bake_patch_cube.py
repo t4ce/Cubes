@@ -148,10 +148,29 @@ def carousel_shader(colors):
     return f"vec3 carouselColor(uint index) {{\n uint rgb = {colors[0]}u;\n{choices}\n return vec3(rgb&31u,(rgb>>5u)&31u,(rgb>>10u)&31u)/31.0;\n}}\n"
 
 
+def weld_colors(materials):
+    """Exact RGB555 world themes and imported palette, with stable compact IDs."""
+    def packed(rgb):
+        return sum(((v * 31 + 127) // 255) << (a * 5) for a, v in enumerate(rgb))
+    colors = {packed([int(m["rgb"][a] * 255 + 0.5) for a in "rgb"]) for m in materials}
+    for i, name in enumerate(("sky", "underground", "black-hole", "white-hole", "island", "city"), 1):
+        path = ROOT / "Cube/lvl27" / f"world_{i:02}_{name}.cubes"
+        colors.add(packed(path.read_bytes()[16:19]))
+    if len(colors) > 16:
+        raise ValueError("world weld color IDs exceed four bits")
+    return sorted(colors)
+
+
+def weld_color_shader(colors):
+    choices = "".join(f"    if (index == {i}u) rgb = {rgb}u;\n" for i, rgb in enumerate(colors))
+    return "vec3 weldColor(uint index) {\n    uint rgb = 0u;\n" + choices + "    return vec3(rgb&31u,(rgb>>5u)&31u,(rgb>>10u)&31u)/31.0;\n}\n"
+
+
 def write_sources(source: Path, out: Path, palette: Path = PALETTE):
     raw, triangles = geometry(source)
     palette_raw, materials = load_palette(palette)
     asset_colors = carousel_colors()
+    joined_colors = weld_colors(materials)
     out.mkdir(parents=True, exist_ok=True)
     # uintBitsToFloat preserves every reference float bit, including signed
     # zero. Constants belong to shader code, never a runtime vertex mesh.
@@ -208,6 +227,13 @@ void main() {
     uint id = compacted.ids[gl_InstanceIndex];
     instanceID = float(id + 1u);
     uint base = id * 13u;
+    uint flags = floatBitsToUint(instances.rows[base+12u].z);
+    // 0x1800 is disjoint from Rubik face IDs 0..5 packed at bit 10.
+    if ((flags & 63488u) == 6144u) {
+        // Exact binary fraction: six mask bits fit even at the 8192-seed limit.
+        // Keep the existing VS/HS varying and native URB layout unchanged.
+        instanceID = -instanceID - float((flags >> 4u) & 63u) / 128.0;
+    }
     mat4 model = mat4(instances.rows[base], instances.rows[base+1u],
                       instances.rows[base+2u], instances.rows[base+3u]);
     vec4 center = model * vec4(seed, 1.0);
@@ -271,14 +297,28 @@ void main() {
     int positionID = triangleCornerToPositionID(gl_PrimitiveID, gl_InvocationID);
     vec3 p = cubePosition(positionID);
     vec3 n = triangleCornerNormal(gl_PrimitiveID, gl_InvocationID);
-    gl_out[gl_InvocationID].gl_Position =
-        vec4(p, 1.0);
-    controlNormal[gl_InvocationID] = vec4(n, instanceID[0]);
+    float level = 1.0;
+    if (instanceID[0] < 0.0) {
+        // Expand the reference's twelve square triangles to sharp unit corners.
+        // Its other 32 bevel triangles and the paired internal faces emit no DS work.
+        p = sign(p);
+        uint mask = uint(fract(-instanceID[0]) * 128.0);
+        int face = -1;
+        if (n.x > 0.9999) face = 0;
+        if (n.x < -0.9999) face = 1;
+        if (n.y > 0.9999) face = 2;
+        if (n.y < -0.9999) face = 3;
+        if (n.z > 0.9999) face = 4;
+        if (n.z < -0.9999) face = 5;
+        level = face >= 0 && (mask & (1u << uint(max(face, 0)))) == 0u ? 1.0 : 0.0;
+    }
+    gl_out[gl_InvocationID].gl_Position = vec4(p, 1.0);
+    controlNormal[gl_InvocationID] = vec4(n, floor(abs(instanceID[0])));
     if (gl_InvocationID == 0) {
-        gl_TessLevelOuter[0] = 1.0;
-        gl_TessLevelOuter[1] = 1.0;
-        gl_TessLevelOuter[2] = 1.0;
-        gl_TessLevelInner[0] = 1.0;
+        gl_TessLevelOuter[0] = level;
+        gl_TessLevelOuter[1] = level;
+        gl_TessLevelOuter[2] = level;
+        gl_TessLevelInner[0] = level;
     }
 }
 ''')
@@ -297,7 +337,7 @@ layout(std430, set=0, binding=0) readonly buffer Camera {
     vec4 position_near;
 } camera;
 layout(std430, set=0, binding=1) readonly buffer Instances { vec4 rows[]; } instances;
-''' + palette_shader(materials) + carousel_shader(asset_colors) + '''
+''' + palette_shader(materials) + carousel_shader(asset_colors) + weld_color_shader(joined_colors) + '''
 void main() {
     vec3 b = gl_TessCoord;
     vec4 p = b.x * gl_in[0].gl_Position
@@ -334,7 +374,10 @@ void main() {
         // The Key 1 sphere colours marker dots and expanded cubes by position
         // on the containing sphere.
         bool carousel = (flags & 57856u) == 25088u; // no RGB555 bit; both showcase bits plus group-1 bit
-        if (carousel) {
+        if ((flags & 63488u) == 6144u) {
+            if ((flags & 1024u) != 0u) material = int(flags & 15u);
+            else baseColor = weldColor(flags & 15u);
+        } else if (carousel) {
             if ((flags & 4096u) != 0u) material = int(flags & 7u);
             else baseColor = carouselColor(flags & 511u);
             uint opacity = (flags >> 10u) & 3u;
@@ -374,6 +417,7 @@ void main() {
         }
         if (material >= 0) paletteMaterial(uint(material), baseColor, roughness, metallic);
         bool transparentPass = (flags & 32768u) == 0u && (flags & 512u) != 0u;
+        if ((flags & 63488u) == 6144u) transparentPass = false;
         hidden = !carousel && (transparentPass ? (sticker < 0 || sticker != int((flags >> 10u) & 7u)) : sticker >= 0);
         if (sticker >= 0) alpha=0.35;
         if (!marker) {
@@ -458,6 +502,7 @@ void main() {
         "unique_positions": len(canonical_positions), "unique_normals": len(set(normals)),
         "coordinate_space": "mesh-local, matching Cubes/build.rs",
         "carousel_colors_rgb555": asset_colors,
+        "world_weld_colors_rgb555": joined_colors,
         "runtime_integrated": False, "host_render_verified": False,
         "baremetal_verified": False,
     }

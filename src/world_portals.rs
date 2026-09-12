@@ -36,6 +36,14 @@ pub struct World {
 }
 
 impl World {
+    /// Settled portal pieces can weld; a route change only excludes its moving pieces.
+    pub fn weld_ready(&self, source: usize) -> bool {
+        self.change.is_none_or(|change| {
+            self.pieces.binary_search_by_key(&source, |piece| piece.index)
+                .map_or(true, |i| change.from[self.pieces[i].face] == change.to[self.pieces[i].face])
+        })
+    }
+
     pub fn new(index: usize, asset: &Asset, bytes: &[u8], puzzle: &Puzzle) -> Self {
         // The page decoder already validated this record stream. Keep part IDs
         // alongside an active copy; cached floors and authored pages stay intact.
@@ -238,6 +246,7 @@ mod tests {
         let mut p = Puzzle::new(0);
         let mut w = world(&p);
         let original = w.scene.cubes.clone();
+        assert!((0..original.len()).all(|id| w.weld_ready(id)));
         p.select(0, 0);
         for now in [1000, 2000] {
             p.update(now);
@@ -246,6 +255,11 @@ mod tests {
         let change = w
             .change
             .expect("permutation must update at least one Sky portal");
+        for id in 0..w.scene.cubes.len() {
+            let moving = w.pieces.iter().any(|piece|
+                piece.index == id && change.from[piece.face] != change.to[piece.face]);
+            assert_eq!(w.weld_ready(id), !moving);
+        }
         w.update(&p, 2500);
         assert!(w.pieces.iter().any(|piece| {
             let s = w.scene.cubes[piece.index].scale;
@@ -264,6 +278,7 @@ mod tests {
         }));
         w.update(&p, 4000);
         assert!(w.change.is_none());
+        assert!((0..original.len()).all(|id| w.weld_ready(id)));
         assert_eq!(w.current, world_topology::routes(0, &p));
         assert!(
             w.scene

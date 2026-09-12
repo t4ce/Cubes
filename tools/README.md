@@ -22,6 +22,9 @@ data; PS keeps the baseline diffuse result for neutral bevels and world/room col
 and evaluates the imported Key2/Key7 metallic/roughness response. This is baked reference geometry, not
 a general-purpose cube-generation or arbitrary-asset shader API.
 
+See [WORLD_WELD.md](WORLD_WELD.md) for the opt-in Key5 **J** experiment that closes
+matching opaque neighbors and suppresses their internal faces.
+
 ## Checks and bake
 
 Run from Cubes:

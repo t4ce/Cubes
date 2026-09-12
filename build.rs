@@ -156,6 +156,24 @@ fn main() {
         exported::PALETTE_SHA256,
         "material palette differs from baked HS/DS; run tools/bake_patch_cube.py and tools/export_patch_driver.py"
     );
+    // Welding compresses exact world RGB555 colors into four-bit IDs. Do not
+    // let regenerated world themes silently use the previous shader's table.
+    let document: serde_json::Value = serde_json::from_slice(&palette).unwrap();
+    let pack = |rgb: [u8; 3]| -> u32 {
+        rgb.into_iter().enumerate().map(|(a, c)|
+            ((c as u32 * 31 + 127) / 255) << (a * 5)).sum()
+    };
+    let mut colors = std::collections::BTreeSet::new();
+    for material in document["materials"].as_array().unwrap() {
+        colors.insert(pack(["r", "g", "b"].map(|a|
+            (material["rgb"][a].as_f64().unwrap() * 255.).round() as u8)));
+    }
+    for (i, name) in ["sky", "underground", "black-hole", "white-hole", "island", "city"].iter().enumerate() {
+        let bytes = fs::read(format!("Cube/lvl27/world_{:02}_{name}.cubes", i + 1)).unwrap();
+        colors.insert(pack(bytes[16..19].try_into().unwrap()));
+    }
+    assert_eq!(colors.into_iter().collect::<Vec<_>>(), exported::WELD_COLORS,
+        "world weld colors differ from baked HS/DS; rebake and export before building");
     // The sidecar validates the exported source, not the currently booted
     // kernel. Driver integration still requires rebuilding/booting TRUEOS.
     // No vertex/index mesh expansion at build time. Runtime uploads one seed.

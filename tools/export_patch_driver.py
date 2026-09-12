@@ -11,11 +11,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def export(bake, output):
     manifest = json.loads((bake / 'manifest.json').read_text())
-    from bake_patch_cube import carousel_colors
+    from bake_patch_cube import carousel_colors, weld_colors, load_palette, PALETTE
     assert manifest['carousel_colors_rgb555'] == carousel_colors(), 'asset colors changed since bake; rebake before exporting'
     assert manifest['palette_sha256'] == hashlib.sha256(
         (ROOT / 'Cube/subcubes-materials.json').read_bytes()
     ).hexdigest(), 'palette changed since bake; rebake before exporting'
+    assert manifest['world_weld_colors_rgb555'] == weld_colors(load_palette(PALETTE)[1]), 'world colors changed; rebake before exporting'
     assert manifest['compiled_device_id'] in ('0xa780', '0x4680')
     assert manifest['patches'] == 44 and manifest['input_control_points'] == 1
     native = bake / manifest['native_directory']
@@ -115,6 +116,7 @@ pub(crate) fn matches(pipeline: &TrianglePipeline) -> bool {
         f'pub(crate) const PALETTE_SHA256: &str = "{manifest["palette_sha256"]}";\n'
         f'pub(crate) const CONTRACT_VERSION: u32 = 11;\n'
         f'pub(crate) const CAROUSEL_COLORS: &[u32] = &{manifest["carousel_colors_rgb555"]};\n'
+        f'pub(crate) const WELD_COLORS: &[u32] = &{manifest["world_weld_colors_rgb555"]};\n'
     )
 
 if __name__ == '__main__':

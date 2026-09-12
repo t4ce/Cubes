@@ -18,6 +18,8 @@ struct Entry {
 
 pub struct Reducer {
     pub cubes: Vec<Cube>,
+    /// (output index, source ID), excluding markers and averaged dots.
+    pub solids: Vec<(usize, usize)>,
     pub dots_before: usize,
     pub dots_after: usize,
     entries: Vec<Entry>,
@@ -32,6 +34,7 @@ impl Reducer {
         let side = 2048. * crate::subcubes::C1;
         Self {
             cubes: Vec::new(),
+            solids: Vec::new(),
             dots_before: 0,
             dots_after: 0,
             entries: Vec::new(),
@@ -129,6 +132,7 @@ impl Reducer {
         growth: impl Fn(usize) -> f32, solid: impl Fn(usize) -> bool,
     ) {
         self.cubes.clear();
+        self.solids.clear();
         self.entries.clear();
         self.dots_before = 0;
         self.dots_after = 0;
@@ -145,6 +149,7 @@ impl Reducer {
             )) {
                 // Classify LOD using authored size. Keep growing solids above
                 // the shader's 0.001 flat-dot threshold, including their first frame.
+                self.solids.push((self.cubes.len(), id));
                 self.cubes.push(Cube {
                     scale: (cube.scale * growth(id)).max(0.00101),
                     ..cube
