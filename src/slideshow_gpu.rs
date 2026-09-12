@@ -1,4 +1,4 @@
-//! One ordinary retained PBR draw. No cube seeds, HS expansion or CPU readback.
+//! Six beveled image slabs, one atlas, one immutable retained PBR draw.
 use crate::{network::Slide, slideshow};
 use trueos::vgpu::*;
 
@@ -11,8 +11,9 @@ pub struct Wall {
 }
 impl Wall {
     pub fn new(device: Device, slide: Slide) -> Result<Self, i32> {
-        let vertex_bytes = slideshow::vertices();
-        let index_bytes = slideshow::indices();
+        let geometry = slideshow::geometry(slide.layout);
+        let vertex_bytes = geometry.vertex_bytes();
+        let index_bytes = geometry.index_bytes();
         let vertices = device.create_buffer(
             vertex_bytes.len(),
             BUFFER_USAGE_MAP_WRITE | BUFFER_USAGE_VERTEX,
@@ -37,10 +38,10 @@ impl Wall {
                 vertices,
                 indices,
                 RetainedMeshDescriptor {
-                    vertex_count: 4,
-                    index_count: 6,
+                    vertex_count: geometry.vertices.len() as u32,
+                    index_count: geometry.indices.len() as u32,
                     vertex_layout: RETAINED_VERTEX_LAYOUT_POS_NORMAL_UV_TANGENT,
-                    topology: PRIMITIVE_TOPOLOGY_TRIANGLE_LIST | RETAINED_MESH_FLAG_DOUBLE_SIDED,
+                    topology: PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
                     ..RetainedMeshDescriptor::default()
                 },
             )
@@ -62,9 +63,12 @@ impl Wall {
     }
     /// Called between completed frames. The incoming texture is already resident;
     /// the old texture remains owned until this atomic scene-thread replacement.
-    pub fn replace(&mut self, slide: Slide) {
-        self.slide = slide;
+    pub fn replace(&mut self, slide: Slide) -> Result<(), i32> {
+        if self.slide.layout == slide.layout { self.slide = slide; }
+        else { *self = Self::new(self.device, slide)?; }
+        Ok(())
     }
+    pub fn layout(&self) -> slideshow::contract::Layout { self.slide.layout }
     pub fn render(
         &self,
         queue: Queue,
@@ -85,8 +89,8 @@ impl Wall {
                     self.slide.texture.id().raw(),
                     0,
                     0,
-                    self.slide.bevel.occlusion.id().raw(),
-                    self.slide.bevel.normal.id().raw(),
+                    0,
+                    0,
                 ],
             ),
         )?;
@@ -101,16 +105,7 @@ impl Drop for Wall {
     }
 }
 
-fn frame(camera: RetainedCamera, height: u32, textures: [u64; 5]) -> RetainedFrameSubmitV2 {
-    let relief = slideshow::relief(
-        [
-            camera.position_near[0],
-            camera.position_near[1],
-            camera.position_near[2],
-        ],
-        camera.projection[5],
-        height,
-    );
+fn frame(camera: RetainedCamera, _height: u32, textures: [u64; 5]) -> RetainedFrameSubmitV2 {
     let mut frame = RetainedFrameSubmit {
         camera,
         seed_count: 1,
@@ -130,11 +125,11 @@ fn frame(camera: RetainedCamera, height: u32, textures: [u64; 5]) -> RetainedFra
     RetainedFrameSubmitV2 {
         frame,
         material_parameters: RetainedMaterialParameters {
-            normal_scale: relief,
-            occlusion_strength: relief,
+            normal_scale: 0.,
+            occlusion_strength: 0.,
             metallic_factor: 0.15,
             roughness_factor: 0.34,
-            flags: RETAINED_MATERIAL_FLAG_DOUBLE_SIDED,
+            flags: RETAINED_MATERIAL_FLAG_NEAREST,
             ..RetainedMaterialParameters::default()
         },
     }
@@ -144,25 +139,15 @@ fn frame(camera: RetainedCamera, height: u32, textures: [u64; 5]) -> RetainedFra
 mod tests {
     use super::*;
     #[test]
-    fn image_changes_only_material_and_retains_live_camera_lighting() {
-        let mut camera = RetainedCamera::default();
-        camera.position_near = [0., 0., -220., 0.01];
-        camera.projection[5] = 2.63;
-        let first = frame(camera, 441, [11, 0, 0, 22, 33]);
-        let second = frame(camera, 441, [44, 0, 0, 22, 33]);
-        assert_eq!(first.frame.seed_count, 1);
-        assert_eq!(first.frame.static_draw_count, 0);
-        assert_eq!(first.frame.seeds, second.frame.seeds);
-        assert_eq!(second.frame.material.textures, [44, 0, 0, 22, 33]);
-        assert_eq!(first.frame.camera, camera);
-        assert_eq!(first.material_parameters.normal_scale, 1.);
-        assert_eq!(first.material_parameters.occlusion_strength, 1.);
-        camera.position_near[2] = 0.;
-        assert_eq!(
-            frame(camera, 441, [44, 0, 0, 22, 33])
-                .material_parameters
-                .normal_scale,
-            0.
-        );
+    fn gallery_uses_one_draw_one_atlas_and_nearest_filtering() {
+        let camera = RetainedCamera::default();
+        let frame = frame(camera, 441, [11, 0, 0, 0, 0]);
+        assert_eq!(frame.frame.seed_count, 1);
+        assert_eq!(frame.frame.static_draw_count, 0);
+        assert_eq!(frame.frame.material.textures, [11,0,0,0,0]);
+        assert_eq!(frame.frame.camera, camera);
+        assert_eq!(frame.material_parameters.flags, RETAINED_MATERIAL_FLAG_NEAREST);
+        assert_eq!(frame.material_parameters.normal_scale, 0.);
+        assert_eq!(frame.material_parameters.occlusion_strength, 0.);
     }
 }

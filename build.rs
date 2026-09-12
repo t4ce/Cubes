@@ -1,3 +1,6 @@
+#[path = "src/image_cube.rs"]
+#[allow(dead_code)]
+mod image_cube;
 extern crate alloc;
 #[allow(dead_code)]
 #[path = "src/cube_format.rs"]
@@ -140,6 +143,8 @@ fn main() {
     println!("cargo:rerun-if-changed={EXPORTED_MANIFEST}");
     let source = fs::read(SOURCE).expect("read cube reference");
     let digest = format!("{:x}", Sha256::digest(&source));
+    println!("cargo:rerun-if-changed=src/image_cube.rs");
+    assert_eq!(digest, image_cube::SOURCE_SHA256, "run tools/prepare_image_cube.py");
     assert_eq!(
         exported::CONTRACT_VERSION,
         11,

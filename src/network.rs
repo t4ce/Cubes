@@ -14,22 +14,15 @@ const CHUNK_BYTES: usize = 1024;
 const MAX_ENCODED_BYTES: usize = 4 * 1024 * 1024;
 const WINDOW: usize = 32;
 
-pub struct BevelMaps {
-    pub normal: vmedia::RetainedTexture,
-    pub occlusion: vmedia::RetainedTexture,
-}
-
 pub struct Slide {
     pub session: u64,
     pub texture: vmedia::RetainedTexture,
-    pub bevel: Arc<BevelMaps>,
+    pub layout: crate::slideshow::contract::Layout,
     pub revision: u32,
     pub spawn: [f32; 3],
 }
 struct Shared {
     session: u64,
-    bevel: Option<Arc<BevelMaps>>,
-    bevel_loading: bool,
     running: bool,
     ready: Option<Result<Slide, &'static str>>,
     position: [f32; 3],
@@ -48,8 +41,6 @@ impl Client {
             username,
             shared: Arc::new(Mutex::new(Shared {
                 session: 0,
-                bevel: None,
-                bevel_loading: false,
                 running: false,
                 ready: None,
                 position: [0.; 3],
@@ -175,9 +166,6 @@ fn image_format(bytes: &[u8]) -> Option<vmedia::ImageFormat> {
         None
     }
 }
-fn valid_image_extent(width: u32, height: u32) -> bool {
-    width == 512 && height == 512
-}
 async fn decode_texture(
     device: trueos::vgpu::Device,
     encoded: &[u8],
@@ -190,46 +178,6 @@ async fn decode_texture(
     .await
     .map_err(|_| "slide texture timeout")?
     .map_err(|_| "slide texture decode failed")
-}
-async fn bevel_maps(device: trueos::vgpu::Device) -> Result<Arc<BevelMaps>, &'static str> {
-    let normal = decode_texture(device, include_bytes!("../assets/slideshow/normal.png")).await?;
-    let occlusion =
-        decode_texture(device, include_bytes!("../assets/slideshow/occlusion.png")).await?;
-    Ok(Arc::new(BevelMaps { normal, occlusion }))
-}
-/// One shared pair of data maps per device, including across reconnects.
-async fn shared_bevel_maps(
-    shared: &Mutex<Shared>,
-    session: u64,
-    device: trueos::vgpu::Device,
-) -> Result<Arc<BevelMaps>, &'static str> {
-    loop {
-        let load = {
-            let mut state = shared.lock().unwrap();
-            if state.session != session {
-                return Err("slide session cancelled");
-            }
-            if let Some(maps) = &state.bevel {
-                return Ok(maps.clone());
-            }
-            if state.bevel_loading {
-                false
-            } else {
-                state.bevel_loading = true;
-                true
-            }
-        };
-        if load {
-            let result = bevel_maps(device).await;
-            let mut state = shared.lock().unwrap();
-            state.bevel_loading = false;
-            if let Ok(maps) = &result {
-                state.bevel = Some(maps.clone());
-            }
-            return result;
-        }
-        time::sleep(time::Duration::from_millis(10)).await;
-    }
 }
 async fn stream(
     shared: &Mutex<Shared>,
@@ -246,7 +194,6 @@ async fn stream(
         .map_err(|_| "cubesrv connect")?;
     let mut buffer = [0u8; 1200];
     let mut shown = None;
-    let mut bevel = None;
     let mut sequence = 0u32;
     let mut missed = 0;
     loop {
@@ -350,12 +297,11 @@ async fn stream(
                 if shared.lock().unwrap().session != session {
                     return Ok(());
                 }
-                let texture = decode_texture(device, &encoded).await?;
-                if !valid_image_extent(texture.info().width, texture.info().height) {
-                    return Err("slide image dimensions");
-                }
-                if bevel.is_none() {
-                    bevel = Some(shared_bevel_maps(shared, session, device).await?);
+                let (layout, png) = crate::slideshow::contract::Layout::parse(&encoded)
+                    .ok_or("gallery package contract")?;
+                let texture = decode_texture(device, png).await?;
+                if [texture.info().width, texture.info().height] != layout.extent() {
+                    return Err("gallery atlas dimensions");
                 }
                 let mut s = shared.lock().unwrap();
                 if s.session != session {
@@ -364,7 +310,7 @@ async fn stream(
                 s.ready = Some(Ok(Slide {
                     session,
                     texture,
-                    bevel: bevel.as_ref().unwrap().clone(),
+                    layout,
                     revision,
                     spawn,
                 }));
@@ -403,10 +349,15 @@ mod tests {
         assert!(accept_chunk(&valid, 1, &mut output, &mut received));
     }
     #[test]
-    fn native_texture_extent_and_image_format_are_checked() {
-        assert!(valid_image_extent(512, 512));
-        assert!(!valid_image_extent(511, 512));
-        assert!(!valid_image_extent(512, 0));
+    fn gallery_package_checks_version_tiers_dimensions_and_reserved_bytes() {
+        let source = include_bytes!("../../TRUEOS-Blueprints/apps/cubesrv/slides/gallery.cga");
+        let (layout, _) = crate::slideshow::contract::Layout::parse(source).unwrap();
+        assert_eq!(layout.extent(), [966, 644]);
+        for (offset,value) in [(0,0),(4,2),(5,5),(6,0),(6,5),(12,1),(32,0)] {
+            let mut bad = source.to_vec(); bad[offset]=value;
+            assert!(crate::slideshow::contract::Layout::parse(&bad).is_none());
+        }
+        assert!(crate::slideshow::contract::Layout::parse(&source[..32]).is_none());
         assert_eq!(image_format(b"raw-rgb"), None);
     }
     #[test]
