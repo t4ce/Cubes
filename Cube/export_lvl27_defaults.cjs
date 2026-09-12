@@ -69,7 +69,7 @@ function compact(entry) {
     if (voxel.size !== 8) throw new Error(`unexpected non-c4 voxel in world ${entry.world.id}`);
     const cell = [(voxel.x + 1024) / 8, (voxel.y + 1024) / 8, (voxel.z + 1024) / 8];
     if (!cell.every(Number.isInteger) || !cell.every(n => n >= 0 && n < 256)) throw new Error(`out-of-range c4 cell in world ${entry.world.id}`);
-    // Parts 9/10 remain connector triggers; 11/12 are decorative frame pieces.
+    // Parts 9/10 retain connector/path ownership; 11/12 identify portal frames.
     // Generated paths can occupy a run before portalRunVoxels visits it.
     // Classify by the actual connector volume, preserving all source geometry.
     const portal = entry.portals.find(o => ['x','y','z'].every(a => voxel[a] >= o.runLo[a] && voxel[a]+8 <= o.runHi[a]));

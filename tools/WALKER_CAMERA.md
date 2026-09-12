@@ -1,10 +1,12 @@
 # World walker camera
 
 `src/CubesWalkerCam.rs` replaces the flat world-plane controller in World View.
-Use **5 or F5** to enter/cycle worlds. Arrival is one authored voxel in front
-of the portal's inner plane, standing on its 2×2 connector and facing the world
-center. World cycling uses the north portal; Void uses its central portal and
-faces -Z. If there is no nearby support, arrival stays in drift.
+Use **5 or F5** to enter/cycle worlds. Arrival is three c4 pathway cubes inward
+from the portal frame's inner face, centered across the connector's two-cube
+width and standing on its center-facing broad side (the side with more clearance).
+The view points straight inward, away from the portal. World cycling uses the
+north portal; Void uses its central portal and faces -Z. If there is no nearby
+support, arrival stays in drift.
 
 Key2 clicks use the selected sticker's equivalent Leave portal. Local sticker
 axes are ranked X/Y/Z: pure worlds use top; duo worlds use bottom/top; trio worlds
@@ -16,7 +18,8 @@ while the puzzle expands. The camera then approaches the destination's matching
 return face and fades into that world. Generic Leave portals finish in Key2
 without a turn or re-entry. Mode hotkeys cancel automatic travel. Portal entry
 is blocked for five seconds after arrival; Space push-off/approach has no cooldown.
-The trigger tests a crossing of the opening, not contact with its decorative ring.
+The trigger activates only when the camera crosses the frame's inner face inside
+the empty opening, not while approaching along the connector or touching its ring.
 
 - Mouse: look; WASD or arrows: walk; either Shift: twice normal walking speed.
 - Key4/Key5, attached to a surface: Tab toggles path preview. Aim at a cube
@@ -52,6 +55,9 @@ three-face vertex, choose a face by moving across the edge.
 
 The authored c1 cell size is 0.2 renderer units in v2 exports. The camera's movement
 unit is four c1 (0.8 renderer units), with collision sampled on the c1 grid.
+Both c4 pathway lanes and their c2 portal frames touch the authored ±1024-c1
+world border. The v2 flight envelope ends at that same border instead of rounding
+outward to another virtual chunk.
 Only c3, r2, c4 and r3 affect walking, drift collision and Space attachment;
 c1, c2 and r1 are pass-through geometry. Tiny visual gaps
 and bevels do not split the walking surface. The occupancy includes the full
@@ -99,7 +105,7 @@ They share depth-sorted transparency with the target and world companion, and
 never enter occupancy or saved placements.
 
 The near plane is 0.01 renderer units. Key5's far plane covers the diagonal of
-the camera's drift envelope, including a small margin (about 799 units for the
+the camera's drift envelope, including a small margin (about 710 units for the
 current 409.6-unit-wide worlds). The former fixed 100-unit plane clipped before
 the world center when viewed from a boundary entrance. CPU visibility and GPU
 projection use the same range. Key7 also derives its range from its camera bounds.
@@ -121,9 +127,12 @@ See `MARKER_LOD.md` for the thresholds, sparse-area preservation and CPU benchma
 Run `python3 tools/test_walker_camera.py` and `cargo check` from Cubes.
 The host tests exercise the Rust implementation, seam support, steps, inner corners,
 reverse/perch, assistance, drift collision, Space/indicator agreement, and all 27
-real portal entries. They also check all 27 worlds against the far-plane bounds
-and verify distant cubes reach detail/marker selection. They do not establish
-GPU rendering or subjective feel.
+real portal entries. They verify centered broad-side spawns, exact inward heading,
+three-cube frame clearance, frame-plane-only triggering, both connector lanes and
+the frame touching every outer border, protected revisit arrival corridors, the
+full centered Void aperture, the exact v2 flight envelope, far-plane bounds, and
+distant detail/marker selection. They do not establish GPU rendering or subjective
+feel.
 
 Path regressions cover shortest weighted search, all six faces, step/inside-corner
 travel, fine-grid extensions, long diagonal routes, disconnected solids,

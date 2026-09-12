@@ -58,7 +58,7 @@ fn authored_world_colors_select_the_six_imported_theme_materials() {
 fn distant_world_cubes_reach_detail_or_marker_selection() {
     let camera = walker_camera::CubesWalkerCam::from_world(WORLD_PAGES[0], false);
     let far = camera.far_plane();
-    assert!(far > 790. && far < 810.);
+    assert!(far > 705. && far < 715.);
     let height = 441;
     let focal = 1. / (walker_camera::FOV * 0.5).tan();
     // Standard retained perspective: forward -Z, depth range 0..1.

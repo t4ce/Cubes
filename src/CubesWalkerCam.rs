@@ -386,8 +386,11 @@ struct PushOff {
 #[derive(Clone, Copy)]
 struct PortalOpening {
     half: V,
+    aperture_radius: f32,
     front: V,
     inward: V,
+    spawn: V,
+    support: V,
 }
 fn portal_inward(face: usize) -> V {
     match face {
@@ -435,8 +438,8 @@ impl CubesWalkerCam {
     pub fn from_world(bytes: &[u8], void: bool) -> Self {
         Self::from_portal(bytes, void, None)
     }
-    /// Arrivals stand on the 2×2 connector one voxel in front of the opening.
-    /// Without nearby support they stay in drift rather than snapping far away.
+    /// Arrivals use the broad face of the 2×1 connector, three c4 cubes inward
+    /// from the frame. Without nearby support they stay in drift.
     pub fn from_portal(bytes: &[u8], void: bool, arrival: Option<usize>) -> Self {
         let v2 = bytes[4] == 2;
         let unit = if v2 {
@@ -455,8 +458,11 @@ impl CubesWalkerCam {
         };
         let mut lo = [i32::MAX; 3];
         let mut hi = [i32::MIN; 3];
-        let mut portal_lows = [[f32::INFINITY; 3]; 7];
-        let mut portal_highs = [[f32::NEG_INFINITY; 3]; 7];
+        let mut connector_lows = [[f32::INFINITY; 3]; 7];
+        let mut connector_highs = [[f32::NEG_INFINITY; 3]; 7];
+        let mut frame_lows = [[f32::INFINITY; 3]; 7];
+        let mut frame_highs = [[f32::NEG_INFINITY; 3]; 7];
+        let mut connector_cube_size = [0.0f32; 7];
         for r in &records {
             let p = origin(r);
             let size = r.side as f32 * factor;
@@ -465,7 +471,7 @@ impl CubesWalkerCam {
                 hi[a] = hi[a].max(libm::ceilf(p[a] + size) as i32);
             }
             let center = p.map(|x| x as f32 + size as f32 * 0.5);
-            let face = if matches!(r.part, 13 | 14) || (void && !v2) {
+            let face = if matches!(r.part, 13 | 14 | 15 | 16) || (void && !v2) {
                 6
             } else if center[1].abs() > center[0].abs().max(center[2].abs()) {
                 if center[1] < 0. { 4 } else { 5 }
@@ -478,31 +484,122 @@ impl CubesWalkerCam {
             };
             if matches!(r.part, 9 | 10 | 13 | 14) {
                 for a in 0..3 {
-                    portal_lows[face][a] = portal_lows[face][a].min(p[a] as f32);
-                    portal_highs[face][a] = portal_highs[face][a].max((p[a] + size) as f32);
+                    connector_lows[face][a] = connector_lows[face][a].min(p[a]);
+                    connector_highs[face][a] = connector_highs[face][a].max(p[a] + size);
+                }
+                connector_cube_size[face] = connector_cube_size[face].max(r.tier as f32 * factor);
+            } else if matches!(r.part, 11 | 12 | 15 | 16) {
+                for a in 0..3 {
+                    frame_lows[face][a] = frame_lows[face][a].min(p[a]);
+                    frame_highs[face][a] = frame_highs[face][a].max(p[a] + size);
                 }
             }
         }
         let portals = core::array::from_fn(|face| {
-            let lo = portal_lows[face];
-            let hi = portal_highs[face];
-            if !lo[0].is_finite() {
+            let connector_lo = connector_lows[face];
+            let connector_hi = connector_highs[face];
+            let frame_lo = frame_lows[face];
+            let frame_hi = frame_highs[face];
+            let has_connector = connector_lo[0].is_finite();
+            let has_frame = frame_lo[0].is_finite();
+            if !has_connector && !has_frame {
                 return None;
             }
             let inward = portal_inward(face);
-            let front = core::array::from_fn(|a| {
-                if inward[a] > 0. {
-                    hi[a]
-                } else if inward[a] < 0. {
-                    lo[a]
+            let axis = (0..3).find(|&a| inward[a] != 0.).unwrap();
+            let center = |lo: V, hi: V| core::array::from_fn(|a| (lo[a] + hi[a]) * 0.5);
+            let connector_center = if has_connector {
+                center(connector_lo, connector_hi)
+            } else {
+                center(frame_lo, frame_hi)
+            };
+            let frame_center = if has_frame {
+                center(frame_lo, frame_hi)
+            } else {
+                connector_center
+            };
+            let mut front = connector_center;
+            front[axis] = if has_frame {
+                if inward[axis] > 0. {
+                    frame_hi[axis]
                 } else {
-                    (lo[a] + hi[a]) * 0.5
+                    frame_lo[axis]
                 }
-            });
+            } else if inward[axis] > 0. {
+                connector_hi[axis]
+            } else {
+                connector_lo[axis]
+            };
+            let half = if has_connector {
+                core::array::from_fn(|a| (connector_hi[a] - connector_lo[a]) * 0.5)
+            } else {
+                [0.; 3]
+            };
+            // The centered Void exit has no connector. Derive its circular
+            // empty aperture from the nearest frame cube instead of reducing
+            // it to a single point.
+            let aperture_radius = if face == 6 && !has_connector && has_frame {
+                records
+                    .iter()
+                    .filter(|r| matches!(r.part, 15 | 16))
+                    .filter_map(|r| {
+                        let p = origin(r);
+                        let size = r.side as f32 * factor;
+                        let touches_front = if inward[axis] > 0. {
+                            (p[axis] + size - front[axis]).abs() < EPS
+                        } else {
+                            (p[axis] - front[axis]).abs() < EPS
+                        };
+                        if !touches_front {
+                            return None;
+                        }
+                        let squared: f32 = (0..3)
+                            .filter(|&a| a != axis)
+                            .map(|a| {
+                                let distance = if frame_center[a] < p[a] {
+                                    p[a] - frame_center[a]
+                                } else if frame_center[a] > p[a] + size {
+                                    frame_center[a] - (p[a] + size)
+                                } else {
+                                    0.
+                                };
+                                distance * distance
+                            })
+                            .sum();
+                        Some(libm::sqrtf(squared))
+                    })
+                    .fold(f32::INFINITY, f32::min)
+            } else {
+                0.
+            };
+            // The connector's one-cube transverse axis is offset from the
+            // centered frame. Its center-facing broad face has the larger gap.
+            let mut support = tangent(UP, inward);
+            if has_connector {
+                let mut transverse = (0..3).filter(|&a| a != axis);
+                let a = transverse.next().unwrap();
+                let b = transverse.next().unwrap();
+                let narrow = if half[a] <= half[b] { a } else { b };
+                let toward_center = frame_center[narrow] - connector_center[narrow];
+                if toward_center.abs() > EPS {
+                    support = [0.; 3];
+                    support[narrow] = toward_center.signum();
+                }
+            }
+            let cube_size = if connector_cube_size[face] > 0. {
+                connector_cube_size[face]
+            } else if v2 {
+                8. * factor
+            } else {
+                1.
+            };
             Some(PortalOpening {
                 front,
                 inward,
-                half: core::array::from_fn(|a| (hi[a] - lo[a]) * 0.5),
+                half,
+                aperture_radius,
+                spawn: add(front, mul(inward, 3. * cube_size)),
+                support,
             })
         });
         let opening = portals[arrival.unwrap_or(if void { 6 } else { 0 })];
@@ -527,12 +624,9 @@ impl CubesWalkerCam {
             }
             Self::insert_bounds(&mut solid, p, size);
         }
-        // One authored voxel in front of the opening, on its world-facing side.
         let inward = portal_inward(arrival.unwrap_or(if void { 6 } else { 0 }));
-        let mut target = opening.map_or([0., hi[1] as f32 + 1., 0.], |p| add(p.front, p.inward));
-        // The 2×2 connector occupies the center itself. Stand on its surface,
-        // preserving distance from the portal rather than sliding far into the world.
-        let support_up = tangent(UP, inward);
+        let mut target = opening.map_or([0., hi[1] as f32 + 1., 0.], |p| p.spawn);
+        let support_up = opening.map_or(tangent(UP, inward), |p| p.support);
         for _ in 0..1024 {
             if !solid.has(target) {
                 break;
@@ -547,7 +641,11 @@ impl CubesWalkerCam {
         let extent = (0..3)
             .map(|a| lo[a].abs().max(hi[a].abs()) as f32)
             .fold(0., f32::max);
-        let drift_half_extent = (libm::ceilf((extent + 1.) / 32.) * 32.).max(32.);
+        let drift_half_extent = if v2 {
+            extent
+        } else {
+            (libm::ceilf((extent + 1.) / 32.) * 32.).max(32.)
+        };
         let mut cam = Self {
             solid,
             portals,
@@ -579,11 +677,7 @@ impl CubesWalkerCam {
                 cam.attach(hit);
             }
             cam.position = cam.camera_target();
-            let direction = if void {
-                FORWARD
-            } else {
-                norm(mul(cam.position, -1.))
-            };
+            let direction = opening.unwrap().inward;
             cam.forward = tangent(direction, cam.up);
             cam.pitch = libm::asinf(dot(direction, cam.up).clamp(-1., 1.));
             cam.view = look(direction, cam.up);
@@ -720,7 +814,7 @@ impl CubesWalkerCam {
         self.elevation = None;
         self.approach = None;
     }
-    /// Swept eye test for the 2×2 connector opening, not the decorative ring.
+    /// Swept eye test at the frame's inward face, inside its empty aperture.
     pub fn crossed_portal(&self, previous: V) -> Option<usize> {
         let start = mul(previous, 1. / self.unit);
         let delta = sub(self.position, start);
@@ -729,13 +823,18 @@ impl CubesWalkerCam {
             // Only an inward-to-outward crossing enters the portal.
             let before = dot(sub(start, p.front), p.inward);
             let after = dot(sub(self.position, p.front), p.inward);
-            if before <= 0.25 || after > 0.25 {
+            if before <= 0. || after > 0. {
                 return None;
             }
-            let t = (before - 0.25) / (before - after);
+            let t = before / (before - after);
             let at = sub(add(start, mul(delta, t)), p.front);
             let lateral = sub(at, mul(p.inward, dot(at, p.inward)));
-            if (0..3).all(|a| lateral[a].abs() <= p.half[a] + EYE + SKIN + EPS) {
+            let inside = if p.aperture_radius > 0. {
+                dot(lateral, lateral) < p.aperture_radius * p.aperture_radius - EPS
+            } else {
+                (0..3).all(|a| lateral[a].abs() <= p.half[a] + EYE + SKIN + EPS)
+            };
+            if inside {
                 Some(face)
             } else {
                 None
@@ -862,9 +961,14 @@ impl CubesWalkerCam {
             .collect();
         let h = self.drift_half_extent as i32;
         for c in &bounds {
-            // Keep every portal's connector and arrival area usable on revisits.
+            // Keep the whole frame-to-spawn corridor and arrival area usable
+            // on revisits, including portals other than the current arrival.
             if self.portals.iter().flatten().any(|p| {
-                (0..3).all(|a| c.lo[a] < p.front[a] + 3. && c.lo[a] + c.size > p.front[a] - 3.)
+                (0..3).all(|a| {
+                    let lo = p.front[a].min(p.spawn[a]) - 3.;
+                    let hi = p.front[a].max(p.spawn[a]) + 3.;
+                    c.lo[a] < hi && c.lo[a] + c.size > lo
+                })
             }) {
                 return false;
             }
@@ -2120,56 +2224,101 @@ mod tests {
         assert_eq!(c.pitch, 1.42);
     }
     #[test]
-    fn explicit_portal_arrivals_are_centered_clear_and_face_the_origin() {
-        // Authored Leave slots: pure=top, dual=bottom/top, trio=west/bottom/top.
-        for (index, bytes) in crate::WORLD_PAGES.iter().take(26).enumerate() {
-            let portals: &[usize] = if index < 6 {
-                &[5]
-            } else if index < 18 {
-                &[4, 5]
-            } else {
-                &[3, 4, 5]
-            };
-            for &portal in portals {
-                let c = CubesWalkerCam::from_portal(bytes, false, Some(portal));
+    fn portal_arrivals_use_the_centered_broad_face_three_cubes_from_the_frame() {
+        for (world, bytes) in crate::WORLD_PAGES.iter().enumerate() {
+            for face in 0..6 {
+                let c = CubesWalkerCam::from_portal(bytes, world == 26, Some(face));
+                let p = c.portals[face].unwrap();
                 assert!(
                     !c.solid.has(c.position),
-                    "world {} portal {}",
-                    index + 1,
-                    portal
+                    "world {} face {} arrival inside solid {:?}",
+                    world + 1,
+                    face,
+                    c.position
                 );
                 close(c.position, c.camera_target());
-                close(c.view.rotate(FORWARD), norm(mul(c.position, -1.)));
-                if portal == 3 {
-                    assert!(c.position[0] < -70.);
-                } else if portal == 4 {
-                    assert!(c.position[1] < -70.);
+                close(c.view.rotate(FORWARD), p.inward);
+                assert!(!c.fly, "world {} face {} did not attach", world + 1, face);
+                assert!(
+                    (dot(sub(c.position, p.front), p.inward) - 6.).abs() < 1e-4,
+                    "world {} face {} is not three c4 cubes from the frame",
+                    world + 1,
+                    face
+                );
+
+                let radial = (0..3).find(|&a| p.inward[a] != 0.).unwrap();
+                let mut transverse = (0..3).filter(|&a| a != radial);
+                let a = transverse.next().unwrap();
+                let b = transverse.next().unwrap();
+                let (narrow, wide) = if p.half[a] <= p.half[b] {
+                    (a, b)
                 } else {
-                    assert!(c.position[1] > 70.);
-                }
+                    (b, a)
+                };
+                assert!((p.half[narrow] - 1.).abs() < EPS);
+                assert!((p.half[wide] - 2.).abs() < EPS);
+                assert!((c.foot[wide] - p.front[wide]).abs() < EPS);
+                assert!(c.up[narrow] * p.front[narrow] < 0.);
+                assert!(c.up[wide].abs() < EPS);
+                assert!(
+                    (c.foot[narrow]
+                        - (p.front[narrow] + c.up[narrow] * (p.half[narrow] + SKIN)))
+                        .abs()
+                        < EPS
+                );
             }
         }
+
+        // Void's seventh portal has a frame but deliberately has no connector.
+        let c = CubesWalkerCam::from_portal(crate::WORLD_PAGES[26], true, Some(6));
+        let p = c.portals[6].unwrap();
+        close(c.view.rotate(FORWARD), p.inward);
+        assert!((dot(sub(c.position, p.front), p.inward) - 6.).abs() < 1e-4);
+        assert!((p.aperture_radius - 5.5).abs() < EPS);
     }
     #[test]
-    fn real_portal_openings_trigger_on_entry_not_on_arrival_or_ring() {
+    fn real_portals_trigger_at_the_frame_opening_not_in_front_or_on_the_ring() {
         for (world, bytes) in crate::WORLD_PAGES.iter().enumerate() {
             let mut c = CubesWalkerCam::from_world(bytes, world == 26);
             for face in 0..7 {
                 let Some(p) = c.portals[face] else {
                     continue;
                 };
-                let start = add(p.front, p.inward);
-                c.position = start;
-                assert_eq!(c.crossed_portal(mul(start, c.unit)), None);
-                c.position = add(p.front, mul(p.inward, 0.15));
-                assert_eq!(c.crossed_portal(mul(start, c.unit)), Some(face));
-                let tangent = tangent(UP, p.inward);
-                let off = mul(tangent, 3.);
-                c.position = add(c.position, off);
-                assert_eq!(c.crossed_portal(mul(add(start, off), c.unit)), None);
+                let spawn_side = add(p.front, mul(p.inward, 6.));
+                let just_inside = add(p.front, mul(p.inward, 0.15));
+                let just_beyond = add(p.front, mul(p.inward, -0.15));
+                c.position = just_inside;
+                assert_eq!(c.crossed_portal(mul(spawn_side, c.unit)), None);
+                c.position = just_beyond;
+                assert_eq!(c.crossed_portal(mul(just_inside, c.unit)), Some(face));
+
+                let radial = (0..3).find(|&a| p.inward[a] != 0.).unwrap();
+                let lateral_axis = (0..3)
+                    .filter(|&a| a != radial)
+                    .min_by(|&a, &b| p.half[a].total_cmp(&p.half[b]))
+                    .unwrap();
+                let mut off = [0.; 3];
+                off[lateral_axis] = if p.aperture_radius > 0. {
+                    p.aperture_radius + 1.
+                } else {
+                    p.half[lateral_axis] + EYE + SKIN + 1.
+                };
+                c.position = add(just_beyond, off);
+                assert_eq!(
+                    c.crossed_portal(mul(add(just_inside, off), c.unit)),
+                    None
+                );
+                if p.aperture_radius > 0. {
+                    off[lateral_axis] = p.aperture_radius * 0.8;
+                    c.position = add(just_beyond, off);
+                    assert_eq!(
+                        c.crossed_portal(mul(add(just_inside, off), c.unit)),
+                        Some(face)
+                    );
+                }
                 // Backward exit from a portal does not count as entering it.
-                c.position = start;
-                assert_eq!(c.crossed_portal(mul(p.front, c.unit)), None);
+                c.position = just_inside;
+                assert_eq!(c.crossed_portal(mul(just_beyond, c.unit)), None);
             }
         }
     }
@@ -2184,7 +2333,7 @@ mod tests {
             for &face in faces {
                 let mut c = CubesWalkerCam::from_portal(bytes, world == 26, Some(face));
                 let p = c.portals[face].unwrap();
-                assert!((dot(sub(c.position, p.front), p.inward) - 1.).abs() < 1e-4);
+                assert!((dot(sub(c.position, p.front), p.inward) - 6.).abs() < 1e-4);
                 let mut entered = None;
                 for _ in 0..100 {
                     let before = c.pose().0;
@@ -2196,6 +2345,15 @@ mod tests {
                         0.016,
                     );
                     entered = c.crossed_portal(before);
+                    if dot(sub(c.position, p.front), p.inward) > 0. {
+                        assert_eq!(
+                            entered,
+                            None,
+                            "world {} face {} triggered early",
+                            world + 1,
+                            face
+                        );
+                    }
                     if entered.is_some() {
                         break;
                     }
@@ -2208,6 +2366,7 @@ mod tests {
     fn far_plane_covers_all_world_geometry_from_every_drift_corner() {
         for (world, bytes) in crate::WORLD_PAGES.iter().enumerate() {
             let c = CubesWalkerCam::from_world(bytes, world == 26);
+            assert_eq!(c.drift_half_extent, 256.);
             let unit = f32::from_le_bytes(bytes[12..16].try_into().unwrap());
             // Include decorative/ghost tiers as well as collision solids.
             for r in crate::cube_format::records(bytes) {
@@ -2227,12 +2386,144 @@ mod tests {
         assert_eq!(c.far_plane(), 100.);
     }
     #[test]
+    fn v2_flight_cannot_enter_the_old_rounded_space_past_the_world_border() {
+        let mut c = CubesWalkerCam::from_world(crate::WORLD_PAGES[0], false);
+        c.fly = true;
+        c.foot = [250., 230., 230.];
+        c.position = c.foot;
+        c.up = UP;
+        c.forward = [1., 0., 0.];
+        c.view = look(c.forward, c.up);
+        c.rotation = c.view;
+        assert!(!c.solid.has(c.foot));
+        for _ in 0..20 {
+            c.update(
+                Input {
+                    forward: 1.,
+                    boost: true,
+                    ..Input::default()
+                },
+                0.035,
+            );
+        }
+        assert!((c.foot[0] - 255.45).abs() < 1e-4);
+        assert_eq!((c.foot[1], c.foot[2]), (230., 230.));
+    }
+    #[test]
+    fn placed_cubes_cannot_block_any_portals_new_arrival_area() {
+        let bytes = crate::WORLD_PAGES[0];
+        for face in 0..6 {
+            let arrival = (face + 1) % 6;
+            let mut protected = CubesWalkerCam::from_portal(bytes, false, Some(arrival));
+            let p = protected.portals[face].unwrap();
+            let radial = (0..3).find(|&a| p.inward[a] != 0.).unwrap();
+            let narrow = (0..3)
+                .filter(|&a| a != radial)
+                .min_by(|&a, &b| p.half[a].total_cmp(&p.half[b]))
+                .unwrap();
+            // A c4 cube touching the chosen broad face would occupy the player.
+            let center = add(p.spawn, mul(p.support, p.half[narrow] + 1.));
+            let piece = (mul(center, protected.unit), 0.799);
+
+            let mut control = CubesWalkerCam::from_portal(bytes, false, Some(arrival));
+            control.portals = [None; 7];
+            assert!(control.add_placed(&[piece]), "face {} control placement", face);
+            assert!(!protected.add_placed(&[piece]), "face {} arrival blocker", face);
+        }
+    }
+    #[test]
+    fn every_outer_portal_frame_and_both_path_lanes_touch_the_world_border() {
+        for (world, bytes) in crate::WORLD_PAGES.iter().enumerate() {
+            let factor = 0.25;
+            let camera = CubesWalkerCam::from_world(bytes, world == 26);
+            let mut frame_cells = [0usize; 6];
+            let mut path_cells = [0usize; 6];
+            let mut frame_inner: [Option<f32>; 6] = [None; 6];
+            for record in crate::cube_format::records(bytes) {
+                if !matches!(record.part, 9 | 10 | 11 | 12) {
+                    continue;
+                }
+                for cube in record.cubes() {
+                    let lo = [
+                        cube.origin[0] as f32 * factor,
+                        cube.origin[1] as f32 * factor,
+                        -(cube.origin[2] + cube.side) as f32 * factor,
+                    ];
+                    let hi = lo.map(|v| v + cube.side as f32 * factor);
+                    if matches!(cube.part, 11 | 12) {
+                        let center: V = core::array::from_fn(|a| (lo[a] + hi[a]) * 0.5);
+                        let face = if center[1].abs() > center[0].abs().max(center[2].abs()) {
+                            if center[1] < 0. { 4 } else { 5 }
+                        } else if center[0].abs() > center[2].abs() {
+                            if center[0] > 0. { 1 } else { 3 }
+                        } else if center[2] > 0. {
+                            0
+                        } else {
+                            2
+                        };
+                        let inward = portal_inward(face);
+                        let axis = (0..3).find(|&a| inward[a] != 0.).unwrap();
+                        let inner = if inward[axis] > 0. { hi[axis] } else { lo[axis] };
+                        frame_inner[face] = Some(match frame_inner[face] {
+                            Some(old) if inward[axis] > 0. => old.max(inner),
+                            Some(old) => old.min(inner),
+                            None => inner,
+                        });
+                    }
+                    for (face, (axis, border, high_side)) in [
+                        (2, 256., true),
+                        (0, 256., true),
+                        (2, -256., false),
+                        (0, -256., false),
+                        (1, -256., false),
+                        (1, 256., true),
+                    ]
+                    .into_iter()
+                    .enumerate()
+                    {
+                        let edge = if high_side { hi[axis] } else { lo[axis] };
+                        if (edge - border).abs() < EPS {
+                            if matches!(cube.part, 9 | 10) {
+                                path_cells[face] += 1;
+                            } else {
+                                frame_cells[face] += 1;
+                            }
+                        }
+                    }
+                }
+            }
+            assert_eq!(
+                path_cells,
+                [2; 6],
+                "world {} path border cells",
+                world + 1
+            );
+            assert!(
+                frame_cells.into_iter().all(|count| count > 0),
+                "world {} frame border cells {:?}",
+                world + 1,
+                frame_cells
+            );
+            for face in 0..6 {
+                let p = camera.portals[face].unwrap();
+                let axis = (0..3).find(|&a| p.inward[a] != 0.).unwrap();
+                assert!(
+                    (p.front[axis] - frame_inner[face].unwrap()).abs() < EPS,
+                    "world {} face {} trigger is not on the frame",
+                    world + 1,
+                    face
+                );
+            }
+        }
+    }
+    #[test]
     fn every_real_world_starts_in_front_of_its_portal_and_can_move() {
         assert_eq!(crate::WORLD_PAGES.len(), 27);
         for (index, bytes) in crate::WORLD_PAGES.iter().enumerate() {
             let mut c = CubesWalkerCam::from_world(bytes, index == 26);
             let opening = c.portals[if index == 26 { 6 } else { 0 }].unwrap();
-            assert!((dot(sub(c.position, opening.front), opening.inward) - 1.).abs() < 1e-4);
+            assert!((dot(sub(c.position, opening.front), opening.inward) - 6.).abs() < 1e-4);
+            close(c.view.rotate(FORWARD), opening.inward);
             assert!(
                 !c.solid.has(c.position),
                 "world {} entry inside solid {:?}",
@@ -2241,7 +2532,7 @@ mod tests {
             );
             if index < 26 {
                 assert!(c.foot[2] > 0., "world {} foot {:?}", index + 1, c.foot);
-                close(c.forward, tangent(mul(c.foot, -1.), c.up));
+                close(c.forward, tangent(opening.inward, c.up));
             }
             let start = c.foot;
             for _ in 0..100 {

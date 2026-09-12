@@ -130,7 +130,9 @@ to that face and ends at its center. Its initial view is preserved and blends in
 450 ms. The window fades out over the last 700 ms, switches directly to the
 matching Key5 world, and fades in over 900 ms. This is a fade-through, not a
 simultaneous two-scene crossfade. Arrival uses the clicked sticker's equivalent
-Leave portal, one voxel in front on its connector, facing the world center.
+Leave portal, three c4 pathway cubes inward from the frame. It is centered on the
+connector's two-cube width, attached to its center-facing broad side where the gap
+is larger, and looking straight away from the portal.
 World-linked portals reverse the flight into Key2, perform exactly one shared
 layer turn while expanding, and enter the destination's reciprocal face. Generic
 Leave portals exit to Key2 without turning. A five-second arrival cooldown prevents
