@@ -159,6 +159,8 @@ struct CubeScene {
     palette_selection: rubik::PaletteSelection,
     puzzle_expanded: bool,
     puzzle_tab_held: bool,
+    puzzle_space_held: bool,
+    puzzle_space_pressed: bool,
     mining: subcubes::Demo,
     mining_asset: orchard::Asset,
     orbit: [f32; 3], // yaw, elevation, radius
@@ -393,6 +395,8 @@ impl CubeScene {
             palette_selection: rubik::PaletteSelection::default(),
             puzzle_expanded: false,
             puzzle_tab_held: false,
+            puzzle_space_held: false,
+            puzzle_space_pressed: false,
             mining: subcubes::Demo::new(),
             mining_asset: orchard::Asset {
                 name: "mining",
@@ -585,19 +589,8 @@ impl CubeScene {
                 );
                 if let Some(hit) = self.eligible_puzzle_hit(
                     &camera.inverse_view_projection, cursor.local,
-                ) && self.puzzle.select(hit.cubie, elapsed_millis)
-                {
-                    // Remove the hover marker on click, before opening/turn animation.
-                    self.flight_target.clear();
-                    self.selected_entry = world_topology::entry(hit.cubie, hit.face_axis);
-                    self.selected_face_axis = Some(hit.face_axis);
-                    logl::log(
-                        level::INFO,
-                        format_args!(
-                            "Cubes: selected cubie={} opening then 3 tracked turns",
-                            hit.cubie
-                        ),
-                    );
+                ) {
+                    self.enter_puzzle_hit(hit, elapsed_millis);
                 }
             }
             if let Some(existing) = self.cursors.iter_mut().find(|c| {
@@ -608,6 +601,16 @@ impl CubeScene {
                 *existing = cursor;
             } else {
                 self.cursors.push(cursor);
+            }
+        }
+        if self.puzzle_space_pressed {
+            self.puzzle_space_pressed = false;
+            let camera = self.flycam.camera.retained(
+                self.frame.width(), self.frame.height(), self.previous_view_projection,
+            );
+            if let Some(hit) = self.cursors.iter().rev().find_map(|cursor|
+                self.eligible_puzzle_hit(&camera.inverse_view_projection, cursor.local)) {
+                self.enter_puzzle_hit(hit, elapsed_millis);
             }
         }
         let width = self.frame.width();
@@ -1697,6 +1700,10 @@ impl CubeScene {
             .frame
             .keyboard_state()
             .map_err(|error| CubeError::Ui4("mode-hotkeys", error))?;
+        let space_held = state.as_ref().is_some_and(|keyboard| keyboard.is_down(0x2c));
+        self.puzzle_space_pressed = space_held && !self.puzzle_space_held
+            && self.mode == SceneMode::StaticCube;
+        self.puzzle_space_held = space_held;
         let tab_held = state.as_ref().is_some_and(|keyboard| keyboard.is_down(0x2b));
         if tab_held && !self.puzzle_tab_held && self.mode == SceneMode::StaticCube
             && self.puzzle.selected().is_none() && self.portal_trip.is_none() && self.flight.is_none() {
@@ -2416,7 +2423,7 @@ impl CubeScene {
                 match mode {
                     SceneMode::InteractiveGrid => "1 interactive-grid Key1=sphere",
                     SceneMode::StaticCube =>
-                        "2 compact-puzzle Key2=random-0..6-palette-cubes Tab=expand/compact click=face/edge/corner turns=3x1s camera=WASD-orbit idle=3s-auto-orbit",
+                        "2 compact-puzzle Key2=random-0..6-palette-cubes Tab=expand/compact click/Space=face/edge/corner turns=3x1s camera=WASD-orbit idle=3s-auto-orbit",
                     SceneMode::Sphere =>
                         "1 sphere=1024 camera=center WASD=look cursor-expand=10%-area Key1=interactive-grid",
                     SceneMode::Orchard => "asset-picker wheel/AD=slide/loop W/S=next/previous-group mouse=orbit LMB=confirm five-row-assets alpha=.25/.5/1/.5/.25 group-previews=above/below alpha=.5",
@@ -2466,6 +2473,17 @@ impl CubeScene {
         if let Some(camera) = self.walker_camera.as_mut() {
             camera.replace_mining_blocks(&self.mining.blocks);
         }
+    }
+
+    fn enter_puzzle_hit(&mut self, hit: picking::Hit, now: u64) {
+        if !self.puzzle.select(hit.cubie, now) { return; }
+        // Both click and Space remove the marker before opening/turn animation.
+        self.flight_target.clear();
+        self.selected_entry = world_topology::entry(hit.cubie, hit.face_axis);
+        self.selected_face_axis = Some(hit.face_axis);
+        logl::log(level::INFO, format_args!(
+            "Cubes: selected cubie={} opening then 3 tracked turns", hit.cubie,
+        ));
     }
 
     /// Hover and click share the same nearest-hit and transparency gate.
