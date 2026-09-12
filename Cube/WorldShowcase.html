@@ -284,10 +284,10 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
  <div id="worldTabPane" class="tab-pane">
  <section class="panel">
   <div class="eyebrow"><span>01 &nbsp; Shape the void</span><span class="num">GENERATION</span></div>
-  <div class="generation-note"><strong>Terraces, c4 paths &amp; cube tiers.</strong><br>One seeded system. The largest three rolls become double-width landmarks.</div>
+  <div class="generation-note"><strong>Terraces, c4 paths &amp; cube tiers.</strong><br>Six seeded portal plateaus. Each stays small and directly paired.</div>
   <div class="platform-rolls" aria-label="Automatic per-platform rolls">
    <div class="eyebrow"><span>Per-platform rolls</span><span>SEEDED</span></div>
-   <div class="field-head"><span>Platform size</span><strong>16–21 / 44–48 c4</strong></div><div id="platformSizeNote" class="field-note">Roll 22 / 23 / 24 → 44 / 46 / 48 c4</div>
+   <div class="field-head"><span>Platform size</span><strong>16–19 c4</strong></div><div id="platformSizeNote" class="field-note">Six seeded portal plateaus · rolls 16 / 17 / 18 / 19 c4</div>
    <div class="roll-growth"><div class="field-head"><span>Small-cube growth</span><strong>250–500%</strong></div><div id="growthNote" class="field-note">Individual growth rolls · connected c3 shelves</div></div>
   <div class="field-note" style="margin-top:9px"><strong style="color:var(--ink)">Seven-cube size tower</strong><br>Bottom → top: r3 · c4 · r2 · c3 · r1 · c2 · c1<br>One of each, 36 c1 tall. Platforms use one c4 deck; paths are one c4 high and two c4 wide.</div>
   <label class="checks"><input id="showPlatformHulls" type="checkbox" checked><span>Platform hull indicators</span><span>LOD</span></label>
@@ -295,7 +295,7 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
   <div class="tower-controls"><select id="towerSelect" aria-label="Platform tower to inspect"></select><button id="inspectTower" type="button" disabled>Inspect tower</button></div>
   </div>
   <label class="checks"><input id="growthEnabled" type="checkbox"><span>Small-cube growth enabled</span><span>OFF BY DEFAULT</span></label>
-  <div class="field"><div class="field-head"><label for="countInput">Platform target</label><output id="countValue">10</output></div><input id="countInput" type="range" min="0" max="16" step="1" value="10"></div>
+  <div class="field"><div class="field-head"><span>Portal plateaus</span><strong>6 FIXED</strong></div><div class="field-note">One small plateau per portal. Generation replaces only these six derived plateaus.</div><input id="countInput" type="hidden" value="6"><output id="countValue" hidden>6</output></div>
   <div class="field"><div class="field-head"><label for="seedInput">Seed</label><span style="font-size:8px;color:#9aa38f">REPEATABLE BY WORLD</span></div><div class="seed-row"><input id="seedInput" type="text" maxlength="96" value="little-01" spellcheck="false" autocomplete="off"><button id="shuffleSeed" title="New seed and generate" aria-label="New seed and generate">⚄</button></div></div>
   <label class="checks"><input id="autoPaths" type="checkbox" checked><span>Automatic paths</span><span>LIVE</span></label>
   <details class="advanced"><summary>Shape &amp; network</summary>
@@ -342,14 +342,14 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
   <strong>Build camera</strong><span>Drag to orbit. Scroll to zoom. Right-drag to pan. Home frames the world. Alt-drag also orbits while placing or removing.</span>
   <strong>World layout</strong><span>Each world remains 4 × 4 × 4 chunks. Each chunk is 64 × 64 × 64 c4 cells, or 512³ c1 units. The full world is now 2048³ c1 units: eight times the previous side length. Cube tier sizes themselves are unchanged.</span>
   <strong>Place / remove</strong><span>Place a c1 control cube at the center of a new platform. Placement addresses snap to the c4 terrain grid; the control is centered on the actual footprint. Its platform, growth, and local branch belong to it. With tower demos visible, click the tower to select or remove the same owner. Keys 1 / 2 / 3 choose Select / Place / Remove. Deleting an owner does not remove other platforms or the main network.</span>
-  <strong>Platform size</strong><span>Platforms and paths both use c4 cubes (8 c1 per side) on the same lattice. The seeded 16–24 roll stays the same: 16–21 remain unchanged; 22 / 23 / 24 become 44 / 46 / 48 c4 across. Generated and manual platforms use one clipped c4 deck. Paths are one c4 high and two c4 wide, so they join that deck as walkways rather than sidewalls. Each route chooses its nearest valid two-c4 edge lane instead of a fixed centre exit. Placed platforms keep their pinned rolls when the world regenerates.</span>
+  <strong>Platform size</strong><span>Platforms and paths both use c4 cubes (8 c1 per side) on the same lattice. The six generated portal plateaus independently roll 16 / 17 / 18 / 19 c4 across. Side links use one clipped horizontal deck; the top and bottom plateaus are each rolled 90° around X or Z into an XY or YZ plane. Placed platforms keep their pinned rolls when the world regenerates.</span>
   <strong>Cube-size towers</strong><span>Seven cubes, one per tier: bottom to top r3 (12), c4 (8), r2 (6), c3 (4), r1 (3), c2 (2), c1 (1). Each tower is 36 c1 tall and centered on its platform. Inspect tower zooms in and labels each cube. These display-only rulers do not affect routes, collision, or budgets; toggle them off to reveal manual control cubes.</span>
   <strong>Small-cube growth</strong><span>Optional growth is off by default. Each platform retains its independent 250–500% roll. When enabled, it adds connected c3 (4 c1) shelves, exactly half the side length of the c4 terrain cubes. No extra cube tiers are introduced.</span>
   <strong>Local branches</strong><span>With automatic paths on, each owned platform gets one link to existing generated terrain. In a blank world, the first cube grows an isolated platform; later platforms connect to earlier ones. With automatic paths off, the platforms remain and only the paths are hidden. Removing an empty-world anchor repairs only dependent links. World 27 offers all six colours plus Void.</span>
   <strong>Undo / redo</strong><span>Ctrl or Cmd + Z / Shift + Z. History is independent for every world. Ctrl or Cmd + Y also redoes.</span>
   <strong>Portal lab</strong><span>The Portals tab owns eight reusable presets: Sky, Underground, black-hole, white-hole, Island, City, Special, and Leave. Portal structure defaults by destination: pure-theme and Leave portals use Terraced, two-theme portals use Twin ring, and three-theme plus Special/Void portals use Tri ring. Any preset can override that structure; opening, depth, rotation, and flat-colour settings remain reusable.</span>
   <strong>Portal inspection</strong><span>Choose a face, then Back or Angle to inspect that actual portal using the build camera. Back looks through the frame from its reverse side. The World tab or Home frames the whole scene. The optional passage guide previews the same route through the portal without adding terrain or counting toward the budget.</span>
-  <strong>Portal paths</strong><span>Every path uses a 1 × 2 c4 walking-deck profile: one high and two wide. Manual connections, vertical rises, and portal bridges use that same two-cell profile. Generated routes attach at the nearest valid terrace edge lane, and every change of direction fills its complete two-wide corner. Rendering, surface picking, and collision use the same full-c4 geometry. Portal frames stay c2, and their boundary-facing layer and bridge reach the outer world boundary.</span>
+  <strong>Portal paths</strong><span>Portal frames remain round. Each outer face supplies one portal in its X, Y, or Z plane, with one plateau 15–25% of the way toward the world centre. The top and bottom plateaus use the two meaningful 90° rolls—one around X and one around Z—rather than a meaningless Y spin. Generation makes exactly six straight portal-to-plateau links—no cross-links. The local c4 connector is seeded either flat 2 × 1 or upright 1 × 2; the circular portal itself never changes. Rendering, picking, and collision use the same complete c4 geometry. Portal frames stay c2, and their boundary-facing layer and bridge reach the outer world boundary.</span>
   <strong>Save / import</strong><span>Exports store all 27 world recipes, eight portal presets, corrected cube tiers, the 512-c1 chunk size, c4 placement-grid addresses, and c1-world-space branch centerlines. Earlier projects are migrated by enlarging their world-space layout eightfold; v15 c2 portal designs are preserved without a second size increase. The old r3 (6) and r4 (12) labels become r2 (6) and r3 (12). Safe placed-platform recipes are kept; invalid local links are rebuilt. Imports are fully validated before the live project changes.</span>
  </div>
  <button id="closeHelp" class="primary">Back to making</button><p class="dialog-footer">All 27 worlds start completely empty. Generation is explicit. Control cubes and their owned platforms survive regeneration. Remove a control cube to remove its platform, growth, and branch; the generated main network is separate. 16 is a soft budget, not a hard cap. JSON includes generation recipes, eight reusable portal presets, cube colours, pinned owned-platform rolls, and saved local branch centerlines—not a game-specific loader.</p>
@@ -686,8 +686,27 @@ function orientHalf(h,q){
  const a=new V3(h.x,0,0).applyQuaternion(q),b=new V3(0,h.y,0).applyQuaternion(q),c=new V3(0,0,h.z).applyQuaternion(q);
  return new V3(Math.abs(a.x)+Math.abs(b.x)+Math.abs(c.x),Math.abs(a.y)+Math.abs(b.y)+Math.abs(c.y),Math.abs(a.z)+Math.abs(b.z)+Math.abs(c.z));
 }
+function verticalPlateauRollAxis(d,face){
+ // Top and bottom start as horizontal XZ decks. Their meaningful 90° rolls
+ // are around X and Z; a Y roll would only spin the same horizontal deck.
+ // The seeded pair deliberately uses both axes once per world.
+ if(face!=='top'&&face!=='bottom')return null;
+ const swapped=rng(d.config.seed+'|'+d.id+'|vertical-plateau-roll-v1')()<.5;
+ return face==='top'?(swapped?'x':'z'):(swapped?'z':'x');
+}
+function portalConnectorProfiles(world,d){
+ // The circular frame never rotates. A rolled top/bottom plateau determines
+ // which of its two in-plane c4 connector profiles meets it. The four side
+ // profiles fill the remaining slots, preserving three flat and three upright.
+ const profiles=new Map(),sides=SIDE_FACES.slice(),rand=rng(d.config.seed+'|'+world.id+'|portal-connector-roll-v2');
+ for(const face of ['bottom','top'])profiles.set(face,verticalPlateauRollAxis(d,face)==='x'?'flat':'upright');
+ for(let i=sides.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[sides[i],sides[j]]=[sides[j],sides[i]];}
+ const uprightNeeded=3+[...profiles.values()].filter(profile=>profile==='flat').length-2;
+ sides.forEach((face,i)=>profiles.set(face,i<uprightNeeded?'upright':'flat'));
+ return profiles;
+}
 function portalInfo(world,d){
- const h=halfOf(d),infos=[];
+ const h=halfOf(d),infos=[],profiles=portalConnectorProfiles(world,d);
  for(const face of [...ALL_FACES,...(world.centerPortal?['center']:[])]){
   const edge=face==='center'?world.centerPortal:world.faces[face],normal=FACE_NORMAL[face];
   const settings={...portalSettingsForEdge(edge)},shape=portalFrameCells(settings);
@@ -698,15 +717,17 @@ function portalInfo(world,d){
   const keepoutPos=face==='center'?new V3():normal.clone().multiplyScalar(-h+PORTAL_MAX_DEPTH);
   const half=orientHalf(new V3(PORTAL_MAX_RADIUS,PORTAL_MAX_RADIUS,PORTAL_MAX_DEPTH),q),renderHalf=orientHalf(shape.half,q);
   const axis=['x','y','z'].find(a=>Math.abs(normal[a])>.5),transverse=['x','y','z'].filter(a=>a!==axis);
-  // A path is one c4 high and two c4 wide. Keep the portal passage exactly
-  // that profile too, including top/bottom routes, so no segment narrows.
+  // Keep the portal passage exactly as wide as its assigned connector.  The
+  // circle itself is deliberately independent from this c4 profile.
+  const pathProfile=profiles.get(face)||'flat';
   const runLo=new V3(0,0,0),runHi=new V3(PATH_CUBE_SIZE,PATH_CUBE_SIZE,PATH_CUBE_SIZE);
-  runLo[axis==='x'?'z':'x']=-PATH_CUBE_SIZE;
+  const widthAxis=pathWidthAxis(axis,pathProfile);
+  runLo[widthAxis]=-PATH_CUBE_SIZE;
   if(face==='center'){runLo[axis]=-PATH_CUBE_SIZE;runHi[axis]=PORTAL_RUN+PATH_CUBE_SIZE;}
   else if(normal[axis]<0){runLo[axis]=h-PORTAL_RUN;runHi[axis]=h;}
   else{runLo[axis]=-h;runHi[axis]=-h+PORTAL_RUN;}
   const mouth=new V3();mouth[axis]=face==='center'?PORTAL_RUN:normal[axis]<0?h-PORTAL_RUN:-h+PORTAL_RUN;
-  infos.push({face,edge,pos,keepoutPos,normal,q,axis,transverse,circle:true,half,renderHalf,localHalf:shape.half,shape,settings,mix:portalMixIds(edge),runLo,runHi,mouth});
+  infos.push({face,edge,pos,keepoutPos,normal,q,axis,transverse,circle:true,half,renderHalf,localHalf:shape.half,shape,settings,mix:portalMixIds(edge),pathProfile,runLo,runHi,mouth});
  }
  return infos;
 }
@@ -733,7 +754,7 @@ const DETAIL_UNIT=CUBE_TIERS.c3,CONTROL_UNIT=CUBE_TIERS.c1,SOFT_CAP=16,MAX_MODUL
 // demo renders exactly those seven (largest first); no unnamed eighth tier is invented.
 const ASSET_CUBE_TIERS=Object.freeze(CUBE_TIER_ORDER.map(name=>({name,size:CUBE_TIERS[name]})));
 const WORLD_C1_SIZE=4*CHUNK;
-const PLATFORM_MIN=16,PLATFORM_MAX=24,PLATFORM_BOOST_MIN=22,PLATFORM_SIZE_MAX=48,GROWTH_MIN=250,GROWTH_MAX=500;
+const PLATFORM_MIN=16,PLATFORM_MAX=19,PLATFORM_SIZE_MAX=19,GROWTH_MIN=250,GROWTH_MAX=500;
 const buildStats={baseBuilds:0,platformBuilds:0,branchBuilds:0,compositions:0};
 const DEFAULT_SPAN=4,WORLD_LAYOUTS=Object.freeze([4]);
 const FACE_NORMAL={north:new V3(0,0,1),south:new V3(0,0,-1),east:new V3(-1,0,0),west:new V3(1,0,0),top:new V3(0,-1,0),bottom:new V3(0,1,0),center:new V3(0,0,1)};
@@ -765,10 +786,10 @@ function overlapsBox(lo,hi,p,half,padding=0){return ['x','y','z'].every(a=>hi[a]
 function softRandom(key){const r=rng(key);return (r()+r()+r())/3;}
 function platformProfile(d,m){
  const key=d.config.seed+'|platform-roll-v7|'+d.id+'|'+m.variant+'|'+cellOrigin(d,m.cell).toArray().map(v=>v/SLOT).join(',');
- // Preserve the original seeded roll. Only its final footprint is promoted.
+ // Every generated plateau stays within the four smallest c4 footprints.
  const rollSize=m.kind==='manual'&&m.platform?m.platform.rollSize:PLATFORM_MIN+Math.round(softRandom(key+'|size')*(PLATFORM_MAX-PLATFORM_MIN));
  const growthPercent=m.kind==='manual'&&m.platform?m.platform.growthPercent:GROWTH_MIN+Math.round(softRandom(key+'|growth')*(GROWTH_MAX-GROWTH_MIN));
- const boosted=rollSize>=PLATFORM_BOOST_MIN,size=boosted?rollSize*2:rollSize;
+ const boosted=false,size=Math.min(PLATFORM_MAX,rollSize);
  return {rollSize,size,worldSize:size*SLOT,cubeTier:'c4',boosted,growthPercent,growth:d.config.growthEnabled===false?0:growthPercent/100};
 }
 function pinManualPlatform(d,m){
@@ -781,6 +802,15 @@ function manualSupportPoint(d,m){const p=cellOrigin(d,m.cell);return [p.x,p.y-SL
 function platformBounds(d,m,platformSize=null){
  const p=cellOrigin(d,m.cell),count=platformSize??platformProfile(d,m).size;
  const left=-Math.floor(count/2)*SLOT,size=count*SLOT;
+ const roll=verticalPlateauRollAxis(d,m.portalFace);
+ if(roll){
+  // The anchor is the plateau edge closest to its top/bottom portal. A 90°
+  // X roll makes an XY plateau; a 90° Z roll makes a YZ plateau.
+  const y0=m.portalFace==='top'?p.y:p.y-size,y1=m.portalFace==='top'?p.y+size:p.y;
+  return roll==='x'
+   ?{lo:new V3(p.x+left,y0,p.z),hi:new V3(p.x+left+size,y1,p.z+SLOT)}
+   :{lo:new V3(p.x,y0,p.z+left),hi:new V3(p.x+SLOT,y1,p.z+left+size)};
+ }
  return {lo:p.clone().add(new V3(left,-SLOT,left)),hi:p.clone().add(new V3(left+size,0,left+size))};
 }
 function platformCenter(d,m){const b=platformBounds(d,m);return new V3((b.lo.x+b.hi.x)/2,b.hi.y,(b.lo.z+b.hi.z)/2);}
@@ -813,34 +843,20 @@ function moduleFits(world,d,m,platformSize=null){
 function snapshot(id){const h=histories[id-1];h.undo.push(JSON.stringify(levelData[id-1]));if(h.undo.length>50)h.undo.shift();h.redo=[];}
 function changeHistory(id,redo=false){const h=histories[id-1],a=redo?h.redo:h.undo,b=redo?h.undo:h.redo;if(!a.length)return false;b.push(JSON.stringify(levelData[id-1]));levelData[id-1]=JSON.parse(a.pop());return true;}
 function generatePlatforms(world,d){
- const rand=rng(d.config.seed+'|'+world.id+'|platforms'),h=halfOf(d);
+ const rand=rng(d.config.seed+'|'+world.id+'|portal-plateaus');
  const manual=d.modules.filter(m=>m.kind==='manual');d.modules=manual.slice();
- const want=Math.max(0,Math.min(SOFT_CAP,Math.round(d.config.count))-manual.length);
- const radius=Math.max(2*SLOT,h-PLATFORM_SIZE_MAX*SLOT*.75-5*SLOT),spread=Math.max(0,h-8*SLOT)*d.config.height/100;
- const phase=rand()*Math.PI*2;
- // Best-candidate placement gives one coherent, seeded family: spacious
- // platforms in a meandering vertical arrangement, not four lookalike presets.
- for(let i=0;i<want;i++){
-  const variant=Math.floor(rand()*1e6);let best=null;
-  for(let trial=0;trial<56;trial++){
-   const a=rand()*Math.PI*2+phase,r=radius*Math.sqrt(.07+rand()*.82);
-   const p=new V3(Math.cos(a)*r,Math.sin(a*1.4+phase)*spread*.45+(rand()-.5)*spread*.7,Math.sin(a)*r);
-   const cell=pointCell(d,p),m={cell,kind:'generated',variant};
-   // Reserve the promoted 48-block footprint. Later seed rolls can grow
-   // these generated anchors without clipping the world or owned platforms.
-   if(!moduleFits(world,d,m,PLATFORM_SIZE_MAX))continue;
-   const bounds=platformBounds(d,m,PLATFORM_SIZE_MAX);let separation=Infinity,blocked=false;
-   for(const other of d.modules){
-    const b=platformBounds(d,other,other.kind==='manual'?null:PLATFORM_SIZE_MAX);
-    if(['x','y','z'].every(ax=>bounds.hi[ax]+SLOT>b.lo[ax]&&bounds.lo[ax]-SLOT<b.hi[ax])){blocked=true;break;}
-    const q=cellOrigin(d,other.cell),delta=p.clone().sub(q);delta.y*=1.2;
-    separation=Math.min(separation,delta.length());
-   }
-   if(blocked)continue;
-   const score=d.modules.length?separation:radius-p.length()*.3;
-   if(!best||score>best.score)best={cell,score};
-  }
-  if(best)d.modules.push({cell:best.cell,kind:'generated',variant});
+ // Four side portals and the top/bottom portals each own exactly one nearby
+ // plateau. Fifteen to twenty-five percent of the mouth-to-centre distance
+ // keeps every plateau near its portal, never beyond the world's midpoint.
+ for(const o of portalInfo(world,d)){
+  // A special centre portal remains a portal, not a seventh generation slot.
+  if(!ALL_FACES.includes(o.face))continue;
+  const fraction=.15+rand()*.10,p=o.mouth.clone().multiplyScalar(1-fraction);
+  // Side decks share the portal mouth height. Their radial edge attachment
+  // is therefore a single X or Z run, never a final down-step.
+  if(o.axis!=='y')p.y+=SLOT;
+  const cell=pointCell(d,p),m={cell,kind:'generated',portalFace:o.face,variant:Math.floor(rand()*1e6)};
+  if(moduleFits(world,d,m,PLATFORM_SIZE_MAX))d.modules.push(m);
  }
  d.generated=d.modules.length>0;return d;
 }
@@ -848,11 +864,17 @@ function themeIndexAt(world,p,seed=0){p=p.clone().multiplyScalar(1/SLOT);if(worl
 function moduleVoxels(world,d,m,put){
  const p=cellOrigin(d,m.cell),owner=(m.kind==='manual'?'cube-platform:':'platform:')+cellKey(m.cell),variant=m.variant||0;
  const size=platformProfile(d,m).size;
- // One clipped c4 deck is the complete generated platform footprint.
+ const roll=verticalPlateauRollAxis(d,m.portalFace);
+ // One clipped c4 deck is the complete generated platform footprint. The two
+ // top/bottom decks are rolled 90° into an XY or YZ plateau, never spun in XZ.
  const lo=-Math.floor(size/2),hi=lo+size,cut=Math.floor(size*.18);
- for(let x=lo;x<hi;x++)for(let z=lo;z<hi;z++){
-  if(Math.min(x-lo,hi-1-x)+Math.min(z-lo,hi-1-z)<cut)continue;
-  put(p.x+x*SLOT,p.y-SLOT,p.z+z*SLOT,'platform',owner,variant);
+ for(let a=lo;a<hi;a++)for(let b=0;b<size;b++){
+  if(Math.min(a-lo,hi-1-a)+Math.min(b,size-1-b)<cut)continue;
+  if(roll){
+   const y=p.y+(m.portalFace==='top'?b:b-size)*SLOT;
+   if(roll==='x')put(p.x+a*SLOT,y,p.z,'platform',owner,variant);
+   else put(p.x,y,p.z+a*SLOT,'platform',owner,variant);
+  }else put(p.x+a*SLOT,p.y-SLOT,p.z+(lo+b)*SLOT,'platform',owner,variant);
  }
 }
 function platformDeckCell(d,m,point){
@@ -865,6 +887,9 @@ function platformDeckCell(d,m,point){
 function platformPathAttachment(d,m,other){
  const u=PATH_CUBE_SIZE,p=cellOrigin(d,m.cell),size=platformProfile(d,m).size;
  const origin=[p.x,p.y-u,p.z],dx=other[0]-origin[0],dz=other[2]-origin[2];
+ // The two rolled vertical plateaus meet their portal connector on the outer
+ // Y edge. That preserves one continuous, straight vertical segment.
+ if(m.portalFace==='top'||m.portalFace==='bottom')return {point:[p.x,p.y,p.z],normal:null,length:0};
  const axis=Math.abs(dx)>=Math.abs(dz)?0:2,transverse=axis===0?2:0;
  const sign=Math.sign(other[axis]-origin[axis])||1,lo=-Math.floor(size/2),hi=lo+size;
  const edge=axis===0?(sign>0?hi-1:lo):(sign>0?hi-1:lo);
@@ -885,14 +910,31 @@ function platformPathAttachment(d,m,other){
  return {point,normal:null,length:0};
 }
 function routeNodes(world,d){
- // Only generated anchors participate in the global graph. Manual cubes get
- // one independently owned local branch; they never reshuffle these edges.
- const nodes=d.modules.filter(m=>m.kind==='generated').map(m=>({p:cellOrigin(d,m.cell).add(new V3(0,-SLOT,0)),kind:'platform',key:cellKey(m.cell)}));
- if(!nodes.length)return nodes;
- for(const o of portalInfo(world,d))nodes.push({p:o.mouth.clone(),kind:'portal',key:o.face,normal:o.normal});
+ // Every standard portal owns exactly one generated plateau. Manual cubes get
+ // their own local branch and never reshuffle these fixed portal pairings.
+ const nodes=[],paired=new Set();
+ for(const o of portalInfo(world,d)){
+  if(!ALL_FACES.includes(o.face))continue;
+  const m=d.modules.find(m=>m.kind==='generated'&&m.portalFace===o.face);
+  if(m){nodes.push({p:cellOrigin(d,m.cell).add(new V3(0,-SLOT,0)),kind:'platform',key:cellKey(m.cell),portalFace:o.face});paired.add(m);}
+  nodes.push({p:o.mouth.clone(),kind:'portal',key:o.face,portalFace:o.face,normal:o.normal,pathProfile:o.pathProfile});
+ }
+ // Keep a valid graph when opening a legacy save that predates portalFace.
+ for(const m of d.modules)if(m.kind==='generated'&&!paired.has(m))nodes.push({p:cellOrigin(d,m.cell).add(new V3(0,-SLOT,0)),kind:'platform',key:cellKey(m.cell)});
  return nodes;
 }
-function connectGraph(nodes,d){if(nodes.length<2)return [];const seen=new Set([0]),edges=[],used=new Set();while(seen.size<nodes.length){let best=null;for(const i of seen)for(let j=0;j<nodes.length;j++)if(!seen.has(j)){const a=nodes[i].p,b=nodes[j].p,dist=a.distanceTo(b)+Math.abs(a.y-b.y)*.15;if(!best||dist<best.dist)best={i,j,dist};}if(!best)break;seen.add(best.j);edges.push([best.i,best.j]);used.add([best.i,best.j].sort((a,b)=>a-b).join('-'));}const extra=[];for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){if(nodes[i].kind==='portal'||nodes[j].kind==='portal'||used.has(`${i}-${j}`))continue;extra.push({i,j,dist:nodes[i].p.distanceTo(nodes[j].p)});}extra.sort((a,b)=>a.dist-b.dist);const n=Math.min(extra.length,Math.round(nodes.filter(n=>n.kind==='platform').length*d.config.loops/100*.7));for(let i=0;i<n;i++)edges.push([extra[i].i,extra[i].j]);return edges;}
+function connectGraph(nodes,d){
+ const edges=[],byFace=new Map();
+ nodes.forEach((node,i)=>{
+  if(node.kind==='platform'){if(node.portalFace)byFace.set('platform:'+node.portalFace,i);}
+  else if(node.kind==='portal'&&node.portalFace)byFace.set('portal:'+node.portalFace,i);
+ });
+ // A world has exactly six primary routes: one straight segment from each
+ // outer portal to the plateau that belongs to it. There is no global graph
+ // search and no extra plateau-to-plateau network.
+ for(const face of ALL_FACES){const a=byFace.get('platform:'+face),b=byFace.get('portal:'+face);if(a!=null&&b!=null)edges.push([a,b]);}
+ return edges;
+}
 function directCenterlineCandidates(start,end){
  const s=start.slice(),e=end.slice(),delta=e.map((v,i)=>v-s[i]);
  const active=[0,1,2].filter(i=>delta[i]!==0);if(!active.length)return [s];
@@ -916,36 +958,44 @@ function directCenterlineCandidates(start,end){
   return path;
  });
 }
-function pathWidthAxis(axis){return axis===0?2:0;}
-function pathCrossSection(point,axis){
- const u=PATH_CUBE_SIZE,widthAxis=pathWidthAxis(axis);
+function pathWidthAxis(axis,profile='flat'){
+ // Rolling the connector around its forward axis makes side routes 1 × 2.
+ // For a vertical route it simply rotates the two-wide footprint in its
+ // horizontal plane, without making a segment wider along its travel axis.
+ if(profile==='upright')return axis===1?2:1;
+ return axis===0?2:0;
+}
+function pathCrossSection(point,axis,profile='flat'){
+ const u=PATH_CUBE_SIZE,widthAxis=pathWidthAxis(axis,profile);
  // A walking path is one c4 high and two c4 wide. Vertical changes retain
  // the same two-cell horizontal footprint instead of becoming 1 × 1 shafts.
  return [point.map((v,i)=>i===widthAxis?v-u:v),point.slice()];
 }
-function pathClearanceCells(point){
+function pathClearanceCells(point,profile='flat'){
  const seen=new Set(),cells=[];
  // Reserve the completed corner too. It prevents a one-c4 notch whenever a
  // two-wide path changes direction, and keeps route collision exact.
- for(const axis of [0,2])for(const cell of pathCrossSection(point,axis)){
+ for(const axis of [0,2])for(const cell of pathCrossSection(point,axis,profile)){
   const key=cellKey(cell);if(!seen.has(key)){seen.add(key);cells.push(cell);}
  }
- const corner=point.slice();corner[0]-=PATH_CUBE_SIZE;corner[2]-=PATH_CUBE_SIZE;
- const key=cellKey(corner);if(!seen.has(key))cells.push(corner);
+ if(profile==='flat'){
+  const corner=point.slice();corner[0]-=PATH_CUBE_SIZE;corner[2]-=PATH_CUBE_SIZE;
+  const key=cellKey(corner);if(!seen.has(key))cells.push(corner);
+ }
  return cells;
 }
-function stampPath1x2(points,emit){
+function stampPath1x2(points,emit,profile='flat'){
  // Both path construction and collision use the same two-cell c4 deck.
  const axisOf=(a,b)=>[0,1,2].find(k=>a[k]!==b[k]),u=PATH_CUBE_SIZE;
  for(let i=0;i<points.length-1;i++){
   const a=points[i],b=points[i+1],axis=axisOf(a,b);if(axis==null)continue;
   if(a.some((v,k)=>k!==axis&&v!==b[k]))throw new Error('Route contains a non-orthogonal segment.');
   for(let along=Math.min(a[axis],b[axis]);along<=Math.max(a[axis],b[axis]);along+=u){
-   const c=a.slice();c[axis]=along;for(const cell of pathCrossSection(c,axis))emit(cell,axis);
+   const c=a.slice();c[axis]=along;for(const cell of pathCrossSection(c,axis,profile))emit(cell,axis);
   }
   const next=i+2<points.length?axisOf(b,points[i+2]):null;
-  if(next!=null&&pathWidthAxis(axis)!==pathWidthAxis(next)){
-   const corner=b.slice();corner[pathWidthAxis(axis)]-=u;corner[pathWidthAxis(next)]-=u;emit(corner,axis);
+  if(next!=null&&pathWidthAxis(axis,profile)!==pathWidthAxis(next,profile)){
+   const corner=b.slice();corner[pathWidthAxis(axis,profile)]-=u;corner[pathWidthAxis(next,profile)]-=u;emit(corner,axis);
   }
  }
 }
@@ -955,19 +1005,22 @@ function routeCellBlocked(portals,d,p,allowPassage=true){
  const lo=V3.from(p),hi=lo.clone().add(new V3(u,u,u));
  return portals.some(o=>portalFrameBlocked(o,lo,hi,.15,allowPassage));
 }
-function routeJointBlocked(portals,d,p,allowPassage=true){
- for(const cell of pathClearanceCells(p))if(routeCellBlocked(portals,d,cell,allowPassage))return true;
+function routeJointBlocked(portals,d,p,allowPassage=true,profile='flat'){
+ for(const cell of pathClearanceCells(p,profile))if(routeCellBlocked(portals,d,cell,allowPassage))return true;
  return false;
 }
 function routeVoxels(world,d,a,b,edgeIndex,put,ends={}){
- const u=PATH_CUBE_SIZE,portals=portalInfo(world,d),sockets=d.modules.map(m=>platformAssetBounds(d,m));
+ // Generated tier towers are display-only. They cannot be allowed to reject
+ // the one mandated straight route into a rolled portal plateau.
+ const u=PATH_CUBE_SIZE,portals=portalInfo(world,d),sockets=d.modules.filter(m=>m.kind==='manual').map(m=>platformAssetBounds(d,m));
  const key=d.config.seed+'|'+world.id+'|route|'+edgeIndex;
  const start=a.toArray().map(v=>Math.round(v/u)*u),end=b.toArray().map(v=>Math.round(v/u)*u);
- const attachment=(p,other,normal)=>{
+ const profile=ends.a?.pathProfile||ends.b?.pathProfile||'flat';
+ const attachment=(p,other,end)=>{
   // portalRunVoxels already owns the full four-c4 clear passage through a
   // portal. Starting the free route at its mouth avoids a second, forced
   // 4–14-c4 leg and lets the route's actual distance choose its direction.
-  if(normal)return {point:p,normal:null,length:0};
+  if(end?.normal)return {point:p,normal:null,length:0};
   const m=d.modules.find(m=>cellKey(manualSupportPoint(d,m))===cellKey(p));if(!m)return null;
   return platformPathAttachment(d,m,other);
  };
@@ -977,12 +1030,12 @@ function routeVoxels(world,d,a,b,edgeIndex,put,ends={}){
  const points=[source.point.slice()];let innerStart=source.point.slice(),innerEnd=target.point.slice();
  if(leadA){const ax=['x','y','z'].findIndex(k=>Math.abs(leadA.normal[k])>.5),sign=Math.sign(leadA.normal[['x','y','z'][ax]]);for(let v=0;v<leadA.length;v+=u){innerStart=innerStart.slice();innerStart[ax]+=sign*u;points.push(innerStart.slice());}}
  if(leadB){const ax=['x','y','z'].findIndex(k=>Math.abs(leadB.normal[k])>.5);innerEnd[ax]+=Math.sign(leadB.normal[['x','y','z'][ax]])*leadB.length;}
- const blocked=p=>routeJointBlocked(portals,d,p)||assetSocketBlocked(sockets,p);
+ const blocked=p=>routeJointBlocked(portals,d,p,true,profile)||assetSocketBlocked(sockets,p);
  const middle=localCenterline(world,d,innerStart,innerEnd,blocked,key);
  if(!middle)throw new Error('No safe c4 route found for connection '+(edgeIndex+1)+'.');
  for(let i=1;i<middle.length;i++)points.push(middle[i]);
  if(leadB){let cur=innerEnd.slice();while(cur.some((v,i)=>v!==target.point[i])){const ax=cur.findIndex((v,i)=>v!==target.point[i]);cur=cur.slice();cur[ax]+=Math.sign(target.point[ax]-cur[ax])*u;points.push(cur);}}
- stampPath1x2(points,cell=>put(...cell,'path',null,edgeIndex));return points;
+ stampPath1x2(points,cell=>put(...cell,'path',null,edgeIndex),profile);return points;
 }
 /* Derived half-block expansions. Every accepted cell must share a face with
  * existing terrain: incomplete outlines are intentional, floating crumbs are not. */
@@ -1022,8 +1075,8 @@ function expansionVoxels(world,d,primary,{profiles:customProfiles=null,initialDe
 }
 function baseSignature(world,d){
  const c=d.config;
- return JSON.stringify(['cube-tier-paths-v25',world.id,d.spanChunks,c.seed,c.growthEnabled!==false,c.bend,c.height,c.loops,c.autoPaths,
-  d.modules.filter(m=>m.kind==='generated').map(m=>[m.cell,m.variant])]);
+ return JSON.stringify(['portal-plateaus-v26',world.id,d.spanChunks,c.seed,c.growthEnabled!==false,c.autoPaths,
+  d.modules.filter(m=>m.kind==='generated').map(m=>[m.cell,m.variant,m.portalFace||null])]);
 }
 function buildBaseGeometry(world,d){
  buildStats.baseBuilds++;
@@ -1034,7 +1087,7 @@ function buildBaseGeometry(world,d){
  }
  for(const m of d.modules.filter(m=>m.kind==='generated'))moduleVoxels(world,d,m,put);
  let nodes=[],edges=[],routePaths=[];
- if(d.config.autoPaths){nodes=routeNodes(world,d);edges=connectGraph(nodes,d);edges.forEach(([a,b],i)=>routePaths.push(routeVoxels(world,d,nodes[a].p,nodes[b].p,i,put,{a:nodes[a].normal,b:nodes[b].normal})));if(nodes.length)for(const o of portals)portalRunVoxels(o,put);}
+ if(d.config.autoPaths){nodes=routeNodes(world,d);edges=connectGraph(nodes,d);edges.forEach(([a,b],i)=>routePaths.push(routeVoxels(world,d,nodes[a].p,nodes[b].p,i,put,{a:nodes[a],b:nodes[b]})));if(nodes.length)for(const o of portals)portalRunVoxels(o,put);}
  const details=expansionVoxels(world,d,primary),detailUnits=new Set();
  for(const v of details.values())detailUnits.add(voxelKey(snapGrid(v.x,u),snapGrid(v.y,u),snapGrid(v.z,u)));
  return {signature:baseSignature(world,d),primary,details,detailUnits,nodes,edges,routePaths};
@@ -1238,6 +1291,10 @@ function validateProject(json){
    if(!original.every(x=>x>=0&&x<sourceCells))throw new Error('A cube is outside its original grid.');
    const cell=original.map(x=>x+offset),obj={cell,kind:m.kind,variant:m.variant},key=m.kind+'|'+cellKey(cell);
    if(!validCell(out,cell)||seen.has(key))throw new Error('A cube is outside the grid or duplicated.');
+   if(m.kind==='generated'&&m.portalFace!=null){
+    if(!ALL_FACES.includes(m.portalFace))throw new Error('A generated plateau has an invalid portal face.');
+    obj.portalFace=m.portalFace;
+   }
    if(m.kind==='manual'){
     if(json.version>=7){const p=m.platform;if(!p||!Number.isInteger(p.rollSize)||p.rollSize<16||p.rollSize>24||!Number.isInteger(p.growthPercent)||p.growthPercent<250||p.growthPercent>500||typeof p.seed!=='string'||p.seed.length>96)throw new Error('Invalid owned-platform recipe.');obj.platform={rollSize:p.rollSize,growthPercent:p.growthPercent,seed:p.seed};}else pinManualPlatform(out,obj);
     if(hasBranches&&!validCubeTheme(world,m.theme))throw new Error('A placed cube uses a colour outside the world palette.');
@@ -1498,7 +1555,7 @@ function updateSelectionGraphics(){
 function updateUI(){const w=world(),d=data(),names=w.themes.map(id=>themeFor(id).name),count=d.modules.length;$('worldSelect').value=w.id;$('worldAddress').textContent=`${pad(w.id)} / 27 · [${w.iterator.join(',')}]`;$('themeChips').replaceChildren();for(const id of w.themes){const chip=document.createElement('span');chip.className='theme-chip';const dot=document.createElement('i');dot.className='swatch';dot.style.background=themeFor(id).color;chip.append(dot,document.createTextNode(themeFor(id).name));$('themeChips').append(chip);}for(const b of document.querySelectorAll('[data-world]')){b.classList.toggle('active',+b.dataset.world===w.id);b.classList.toggle('filled',levelData[+b.dataset.world-1].modules.length>0);}for(const b of document.querySelectorAll('[data-tool]')){b.classList.toggle('active',b.dataset.tool===tool);b.setAttribute('aria-pressed',b.dataset.tool===tool);}for(const key of ['count','height','bend','loops']){$(key+'Input').value=d.config[key];$(key+'Value').textContent=d.config[key]+settingSuffix(key);}$('seedInput').value=d.config.seed;$('autoPaths').checked=d.config.autoPaths;$('growthEnabled').checked=d.config.growthEnabled!==false;const span=d.spanChunks*CHUNK;$('dimensionNote').textContent=`${span}³ c1 units · ${d.spanChunks**3} chunks · outer portals only`;const c4n=Math.floor(span/CUBE_TIERS.c4),r3n=Math.floor(span/CUBE_TIERS.r3);$('cubeTierNote').innerHTML=`<strong>Seven cube tiers · side lengths in c1</strong><div class="tier-legend">${[...CUBE_TIER_ORDER].reverse().map(name=>`<span><i style="background:${TIER_COLOURS[name]}"></i>${name} <b>${CUBE_TIERS[name]}</b></span>`).join('')}</div><div class="field-note">Platforms + paths: c4 (8). Portal frame cubes: c2 (2).<br>1 chunk = ${CHUNK} c1 = ${CHUNK_CELLS} c4 per axis.<br>WORLD FIT · c4 ${c4n}³ = ${(c4n**3).toLocaleString()}<br>r3 ${r3n}³ = ${(r3n**3).toLocaleString()} · ${span%CUBE_TIERS.r3} c1 left per axis</div>`;$('sizeChip').textContent=`${span} × ${span} × ${span}`;$('stateChip').textContent=count?`${count} PLATFORMS · ${d.modules.filter(m=>m.kind==='manual').length} CONTROL CUBES`:'EMPTY';$('sceneKicker').textContent=`WORLD ${pad(w.id)} / ${w.kind==='special'?'SPECIAL WORLD':w.kind.toUpperCase()+' THEME'}`;$('sceneTitle').textContent=count?'A small world, taking shape.':'Room to make a world.';$('sceneSubtitle').textContent=count?`${currentGeometry.edges.length} main links + ${currentGeometry.localLinks} local branches · ${d.modules.filter(m=>m.kind==='manual').length} control cubes · ${names.join(' + ')}`:w.kind==='special'?'An empty void. Six returns. A centered leave portal.':'An empty volume. Six possible directions.';$('emptyCard').hidden=count>0||tool==='place'||!!portalFocus||!!towerFocus;$('budgetCount').textContent=`${count} / ${SOFT_CAP}`;$('budgetCount').classList.toggle('over-budget',count>SOFT_CAP);$('budgetWarning').hidden=count<=SOFT_CAP;$('budgetBar').classList.toggle('over',count>SOFT_CAP);[...$('budgetBar').children].forEach((el,i)=>el.classList.toggle('on',i<count));const h=histories[w.id-1];$('undoButton').disabled=!h.undo.length;$('redoButton').disabled=!h.redo.length;$('deleteButton').disabled=!selectedCell;$('sliceInput').max=d.spanChunks*CHUNK_CELLS-1;sliceIndex=clamp(sliceIndex,0,d.spanChunks*CHUNK_CELLS-1);$('sliceInput').value=sliceIndex;$('sliceAxis').value=sliceAxis;const sv=-halfOf(d)+(sliceIndex+.5)*SLOT;$('sliceValue').textContent=(sv<0?'−':'+')+Math.abs(sv);updateGenerationNotes();updateTowerUI();updateCubePalette();updatePortalUI();updateViewHeading();updateHint();}
 function updateGenerationNotes(){
  const profiles=data().modules.map(m=>platformProfile(data(),m));
- $('platformSizeNote').textContent=profiles.length?`This world: ${Math.min(...profiles.map(p=>p.size))}–${Math.max(...profiles.map(p=>p.size))} c4 across (${Math.min(...profiles.map(p=>p.worldSize))}–${Math.max(...profiles.map(p=>p.worldSize))} c1) · ${profiles.filter(p=>p.boosted).length} doubled`:'16–21 c4 across · rolls 22 / 23 / 24 → 44 / 46 / 48 c4';
+ $('platformSizeNote').textContent=profiles.length?`This world: ${Math.min(...profiles.map(p=>p.size))}–${Math.max(...profiles.map(p=>p.size))} c4 across (${Math.min(...profiles.map(p=>p.worldSize))}–${Math.max(...profiles.map(p=>p.worldSize))} c1)`:'Six seeded portal plateaus · rolls 16 / 17 / 18 / 19 c4';
  $('growthNote').textContent=data().config.growthEnabled===false?'Growth is off; each platform keeps its roll.':profiles.length?`This world: ${Math.min(...profiles.map(p=>p.growthPercent))}–${Math.max(...profiles.map(p=>p.growthPercent))}% · connected c3 shelves`:'Individual growth rolls · connected c3 shelves';
 }
 function updateCubePalette(){
@@ -1605,7 +1662,7 @@ function removeModule(cell,{quiet=false}={}){
  selectedCell=null;hoverCell=null;updateScene();if(!quiet)toast('Removed the control cube, its platform, growth, and local path. Other terrain stays.');return true;
 }
 
-function generateCurrent(){snapshot(selectedWorldId);generatePlatforms(world(),data());selectedCell=null;hoverCell=null;updateScene();toast(`${data().modules.filter(m=>m.kind==='generated').length} platforms · ${currentGeometry.details.size} small growth blocks · portal presets refreshed unchanged.`);}
+function generateCurrent(){snapshot(selectedWorldId);generatePlatforms(world(),data());selectedCell=null;hoverCell=null;updateScene();toast(`${data().modules.filter(m=>m.kind==='generated').length} portal plateaus · 6 straight paired links · portal frames unchanged.`);}
 function clearWorld(){if(!data().modules.length)return;snapshot(selectedWorldId);data().modules=[];data().generated=false;selectedCell=null;hoverCell=null;updateScene();toast('Empty again. The boundary guides and portals are all that remain.');}
 function applyHistory(redo=false){
  
