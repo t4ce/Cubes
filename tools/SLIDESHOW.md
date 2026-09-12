@@ -18,7 +18,7 @@ asking the native media API to decode its atlas. `src/slideshow_gpu.rs` owns
 mesh buffers and texture lifetime. Same-tier replacements reuse the mesh;
 changed-tier replacements create the new mesh before releasing the old one.
 Failures preserve the old scene. Another numbered mode disconnects and releases
-the gallery. The v5 package describes integer c1 cube grids and their atlas;
+the gallery. The v6 package describes integer c1 cube grids and their atlas;
 each cube is 0.2 renderer units across. Like other c1 detail, the gallery has
 no walking collision or Space-snap targets. Spawn remains in flight at origin.
 
