@@ -445,7 +445,7 @@ async fn stream(
             }
         }
         // Heartbeats recover lost announcements and keep current telemetry flowing.
-        time::sleep(time::Duration::from_millis(250)).await;
+        time::sleep(time::Duration::from_millis(cubes_protocol::holy::PERIOD_MS as u64)).await;
     }
 }
 

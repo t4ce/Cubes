@@ -1,6 +1,9 @@
 //! Exact cubie identities and lattice orientations; animation never accumulates drift.
 pub const PALETTE_FLAG: u32 = 256;
-/// Key 2 gives every cubie all six translucent palette faces, including its core.
+/// Palette-only low bits: cubie/color identity occupies bits 0..4.
+pub const OPAQUE_FACE_FLAG: u32 = 1 << 5;
+pub const SOLID_PALETTE_FLAG: u32 = 1 << 6;
+/// Key 2 gives every cubie all six palette faces, including its core.
 pub const ALL_FACES_FLAG: u32 = 128;
 pub const ALL_FACE_COUNT: usize = 27 * 6;
 pub const OUTER_FACE_COUNT: usize = 54;

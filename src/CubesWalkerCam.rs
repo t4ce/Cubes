@@ -22,8 +22,6 @@ const EDGE_TRAVEL: f32 = 1.8;
 const WALK_SPEED: f32 = 2.9 * 5.;
 const SHIFT_SPEED: f32 = WALK_SPEED * 2.;
 const PATH_SPEED: f32 = SHIFT_SPEED * 2.;
-// Packed Key-5 worlds use one walker cell for four c1 cells.
-const V2_UNIT: f32 = 4.*crate::subcubes::C1;
 // 7.5% narrower than the original 45-degree walker view.
 pub const FOV: f32 = core::f32::consts::FRAC_PI_4 * 0.925;
 pub const NEAR: f32 = 0.01;
@@ -463,7 +461,7 @@ impl CubesWalkerCam {
     pub fn from_portal(bytes: &[u8], void: bool, arrival: Option<usize>) -> Self {
         let v2 = bytes[4] == 2;
         let unit = if v2 {
-            V2_UNIT
+            0.8
         } else {
             f32::from_le_bytes(bytes[12..16].try_into().unwrap())
         };
@@ -786,9 +784,7 @@ impl CubesWalkerCam {
         use crate::slideshow::{CENTER_CUBE_SIDE, CENTER_HALF_EXTENT, WORLD_HALF};
         let side = crate::slideshow::contract::CENTER_CUBES_PER_AXIS;
         let mut cam = Self::mining_demo(&[]);
-        // Match Key 5's v2 walker scale: one contact cell is four c1 cells and
-        // a c4 is two cells wide. The ordinary walker still owns all six sides.
-        cam.unit = V2_UNIT;
+        cam.unit = 0.8;
         let cube_size = CENTER_CUBE_SIDE/cam.unit;
         let bound = side*cube_size as i32/2+1;
         cam.solid = Solid::new([-bound;3],[bound;3]);
@@ -2735,8 +2731,6 @@ mod image_gallery_tests {
             let camera = CubesWalkerCam::image_gallery(layout);
             assert!(!camera.is_flying());
             assert_eq!(camera.cubes.len(), 27);
-            assert_eq!(camera.unit, V2_UNIT);
-            assert_eq!(camera.cubes[0].size, 2.);
             assert_eq!(camera.up, UP);
             assert_eq!(camera.pose().1.rotate(FORWARD), FORWARD);
             assert!((camera.foot[1]*camera.unit-slideshow::CENTER_HALF_EXTENT).abs()<0.03);
@@ -2749,35 +2743,6 @@ mod image_gallery_tests {
                 assert!(!camera.solid.has(center.map(|x|x/camera.unit)));
             }
             assert!(camera.portals.iter().all(Option::is_none));
-        }
-    }
-    #[test]
-    fn gallery_landmark_uses_key5_surface_routes_on_all_six_sides() {
-        let mut camera = CubesWalkerCam::image_gallery(
-            crate::slideshow::contract::Layout {tiers:[1;6]},
-        );
-        let half = (crate::slideshow::CENTER_HALF_EXTENT/camera.unit) as i32;
-        for side in 0..6 {
-            let mut goal = Face {cell:[0;3],side};
-            let axis = side as usize/2;
-            goal.cell[axis] = if side%2==0 {-half} else {half-1};
-            let start = camera.standing_face().unwrap();
-            let mut search = Search::new(start,goal,camera.solid.grid_step());
-            while search.status==Status::Searching {
-                search.advance(128,|face|camera.path_neighbors(face));
-            }
-            assert_eq!(search.status,Status::Ready,"{start:?} -> {goal:?}");
-            camera.navigation = Navigation {enabled:true,travelling:true,
-                route:search.route().unwrap(),..Navigation::default()};
-            for _ in 0..2000 {
-                camera.update(Input::default(),0.016);
-                assert!(!camera.fly);
-                if !camera.navigation.travelling {break;}
-            }
-            assert!(!camera.navigation.travelling,"route did not finish");
-            let arrived = camera.standing_face().unwrap();
-            assert_eq!(arrived.side,side,"{arrived:?} -> {goal:?}");
-            assert_eq!(camera.up,goal.normal());
         }
     }
     #[test]

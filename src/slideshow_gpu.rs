@@ -29,6 +29,7 @@ impl Wall {
         if self.slide.layout == slide.layout {
             if self.slide.revision != slide.revision || self.slide.session != slide.session {
                 self.cubes.replace(&[], &[])?;
+                self.cubes.asset.reveal.reset();
             }
             self.slide = slide;
         } else { *self = Self::new(self.device, slide)?; }
@@ -36,8 +37,9 @@ impl Wall {
     }
     pub fn layout(&self) -> slideshow::contract::Layout { self.slide.layout }
     pub fn render(
-        &self, queue: Queue, surface: Ui4Surface, camera: RetainedCamera, height: u32,
+        &mut self, queue: Queue, surface: Ui4Surface, camera: RetainedCamera, height: u32, now: u64,
     ) -> Result<(), i32> {
+        self.cubes.animate(now)?;
         let point = self.device.submit_retained_frame_v4(
             queue, surface, self.mesh, self.cubes.mesh, self.vertices, self.indices,
             RetainedFrameSubmitV4 {
@@ -72,6 +74,7 @@ struct CubeInstances {
     seeds: [Buffer;2],
     active: usize,
     count: u32,
+    asset: AnimatedAsset,
 }
 impl CubeInstances {
     fn new(device: Device) -> Result<Self, i32> {
@@ -100,12 +103,17 @@ impl CubeInstances {
                 return Err(error);
             }
         };
-        let mut cubes = Self { device, vertices, indices, mesh, seeds, active:0, count:0 };
+        let mut cubes = Self { device, vertices, indices, mesh, seeds, active:0, count:0,
+            asset: AnimatedAsset::new() };
         cubes.replace(&[], &[])?;
+        cubes.animate(0)?;
         Ok(cubes)
     }
     fn replace(&mut self, pixels: &[cubes_protocol::holy::Pixel], palette: &[u16]) -> Result<(), i32> {
-        let seeds = cube_seeds(pixels, palette)?;
+        self.asset.replace(pixels, palette)
+    }
+    fn animate(&mut self, now: u64) -> Result<(), i32> {
+        let seeds = self.asset.frame(now);
         let bytes = seed_bytes(&seeds);
         // Publish only a complete upload; failure leaves the displayed frame intact.
         let next = 1-self.active;
@@ -115,6 +123,49 @@ impl CubeInstances {
         self.active = next;
         self.count = seeds.len() as u32;
         Ok(())
+    }
+}
+/// One persistent grid asset. Sparse frame ordering is never an instance identity.
+struct AnimatedAsset {
+    authored: Vec<RetainedTransformSeed>,
+    ids: Vec<usize>,
+    reveal: crate::reveal::Reveal,
+}
+impl AnimatedAsset {
+    fn new() -> Self {
+        Self { authored: Vec::new(), ids: Vec::new(), reveal: crate::reveal::Reveal::new() }
+    }
+    fn replace(&mut self, pixels: &[cubes_protocol::holy::Pixel], palette: &[u16]) -> Result<(), i32> {
+        let mut authored = cube_seeds(pixels, palette)?;
+        let mut occupied = [false; 48*48];
+        let mut ids = Vec::with_capacity(pixels.len());
+        for (index, pixel) in pixels.iter().enumerate() {
+            let id = pixel.y as usize*48 + pixel.x as usize;
+            if occupied[id] { return Err(ERR_UNSUPPORTED); }
+            occupied[id] = true;
+            ids.push(id);
+            authored[CENTER_COUNT+index].flags =
+                (authored[CENTER_COUNT+index].flags & 0xffff) | (((CENTER_COUNT+id) as u32)<<16);
+        }
+        self.authored = authored;
+        self.ids = ids;
+        Ok(())
+    }
+    fn frame(&mut self, now: u64) -> Vec<RetainedTransformSeed> {
+        // Share placement's admission delay, rate cap, growth curve and rearm policy.
+        // Tick at display cadence, independently of the server's 100 ms updates.
+        self.reveal.begin_frame(now, 48*48);
+        let mut visible = self.authored[..CENTER_COUNT].to_vec();
+        for (&id, seed) in self.ids.iter().zip(&self.authored[CENTER_COUNT..]) {
+            if self.reveal.admit(id) {
+                let mut seed = *seed;
+                let growth = self.reveal.growth_scale(id);
+                seed.scale = seed.scale.map(|scale| scale*growth);
+                if growth > 0. { visible.push(seed); }
+            }
+        }
+        self.reveal.end_frame();
+        visible
     }
 }
 impl Drop for CubeInstances {
@@ -249,6 +300,42 @@ fn frame(camera: RetainedCamera, _height: u32, textures: [u64; 5]) -> RetainedFr
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn pixels(points: &[(u8,u8,u8)]) -> Vec<cubes_protocol::holy::Pixel> {
+        points.iter().map(|&(x,y,palette)| cubes_protocol::holy::Pixel {x,y,palette}).collect()
+    }
+    #[test]
+    fn continuing_cells_keep_growth_across_sparse_reordering_and_color_changes() {
+        let mut asset = AnimatedAsset::new();
+        asset.replace(&pixels(&[(3,4,0)]), &[0xffff,0x801f]).unwrap();
+        assert_eq!(asset.frame(0).len(), CENTER_COUNT);
+        assert_eq!(asset.frame(333).len(), CENTER_COUNT);
+        let before = asset.frame(433)[CENTER_COUNT];
+        assert!(before.scale[0] > 0. && before.scale[0] < 0.1);
+        asset.replace(&pixels(&[(1,2,0),(3,4,1)]), &[0xffff,0x801f]).unwrap();
+        let after = asset.frame(433);
+        assert_eq!(after.len(), CENTER_COUNT+1);
+        assert_eq!(after[CENTER_COUNT].scale, before.scale);
+        assert_eq!(after[CENTER_COUNT].flags >> 16, before.flags >> 16);
+        assert_eq!(after[CENTER_COUNT].flags & 0xffff, 0x801f);
+        assert!(asset.replace(&pixels(&[(3,4,0),(3,4,0)]), &[0xffff]).is_err());
+        assert_eq!(asset.frame(433)[CENTER_COUNT].flags, after[CENTER_COUNT].flags);
+    }
+    #[test]
+    fn transient_pixels_follow_placement_delay_and_absence_rearms() {
+        let mut asset = AnimatedAsset::new();
+        asset.replace(&pixels(&[(0,0,0)]), &[0xffff]).unwrap();
+        assert_eq!(asset.frame(0).len(), CENTER_COUNT);
+        asset.replace(&[], &[]).unwrap();
+        assert_eq!(asset.frame(100).len(), CENTER_COUNT);
+        asset.replace(&pixels(&[(0,0,0)]), &[0xffff]).unwrap();
+        assert_eq!(asset.frame(200).len(), CENTER_COUNT);
+        assert_eq!(asset.frame(533).len(), CENTER_COUNT);
+        assert_eq!(asset.frame(1233)[CENTER_COUNT].scale, [0.1;3]);
+        asset.replace(&[], &[]).unwrap();
+        assert_eq!(asset.frame(1300).len(), CENTER_COUNT);
+        asset.replace(&pixels(&[(0,0,0)]), &[0xffff]).unwrap();
+        assert_eq!(asset.frame(1600).len(), CENTER_COUNT);
+    }
     #[test]
     fn gallery_uses_one_draw_one_atlas_and_nearest_filtering() {
         let camera = RetainedCamera::default();

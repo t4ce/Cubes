@@ -156,6 +156,7 @@ struct CubeScene {
     flight_target: flight_target::Indicator,
     asset_brush: asset_brush::Brush,
     puzzle: rubik::Puzzle,
+    palette_stage: usize,
     mining: subcubes::Demo,
     mining_asset: orchard::Asset,
     orbit: [f32; 3], // yaw, elevation, radius
@@ -387,6 +388,7 @@ impl CubeScene {
             cursors: Vec::new(),
             mode: SceneMode::StaticCube,
             puzzle: rubik::Puzzle::new(0),
+            palette_stage: 0,
             mining: subcubes::Demo::new(),
             mining_asset: orchard::Asset {
                 name: "mining",
@@ -721,7 +723,12 @@ impl CubeScene {
             for i in 0..3 {
                 self.look_target[i] += (target[i] - self.look_target[i]) * ease;
             }
-            let [yaw, pitch, radius] = self.orbit;
+            let [yaw, pitch, mut radius] = self.orbit;
+            if self.mode == SceneMode::StaticCube && self.palette_stage > 0 {
+                let aspect = self.frame.width() as f32 / self.frame.height().max(1) as f32;
+                let fit = (6.0_f32.max(6.8 / aspect)) / libm::tanf(PUZZLE_YFOV * 0.5) + 1.9;
+                radius = radius.max(fit);
+            }
             let radial = [
                 radius * libm::cosf(pitch) * libm::sinf(yaw),
                 radius * libm::sinf(pitch),
@@ -892,8 +899,8 @@ impl CubeScene {
             }
             let surface = self.device.acquire_ui4_surface(self.frame.window_id())
                 .map_err(|code| CubeError::Vgpu("surface-acquire", code))?;
-            self.image_wall.as_ref().ok_or(CubeError::Contract)?
-                .render(self.queue, surface, camera, height)
+            self.image_wall.as_mut().ok_or(CubeError::Contract)?
+                .render(self.queue, surface, camera, height, elapsed_millis)
                 .map_err(|code| CubeError::Vgpu("image-wall-submit", code))?;
             self.frame.publish(Damage::full(width, height))
                 .map_err(|error| CubeError::Ui4("frame-publish", error))?;
@@ -907,6 +914,7 @@ impl CubeScene {
             self.carousel.prepare(elapsed_millis).map_err(|_| CubeError::Contract)?;
             self.carousel.limit(self.limits.full().min(self.limits.seeds()-1));
         }
+        let palette_count = if self.mode == SceneMode::StaticCube { self.palette_stage } else { 0 };
         let companion = self.world_cube.visible(self.mode == SceneMode::World);
         let flight_slot = usize::from(self.mode.is_world() || self.mode == SceneMode::MaterialShowcase);
         let target = if flight_slot != 0 && self.portal_trip.is_none() {
@@ -1077,12 +1085,13 @@ impl CubeScene {
         // Visibility removes submissions, not authored scene instances. The
         // fallback seed is an ABI placeholder and is never a countable cube.
         let opaque_count =
-            scene_opaque_count + ghost_count + if companion { 27 } else { 0 };
+            scene_opaque_count + ghost_count + palette_count + if companion { 27 } else { 0 };
         let countable_seed_count = visibility_stats
             .map_or(scene_opaque_count, |stats| stats.source)
             + usize::from(flight_cube.is_some())
             + path_cubes.len()
             + ghost_count
+            + palette_count
             + if companion { 27 } else { 0 };
         let seed_count = opaque_count + flight_slot + path_cubes.len()
             + if self.mode == SceneMode::Orchard { 1 } else if self.mode == SceneMode::StaticCube {
@@ -1269,6 +1278,30 @@ impl CubeScene {
             };
             encode_seed(seed, &mut seed_bytes[row * 64..(row + 1) * 64]);
         }
+        // Camera-relative columns keep WASD confined to the center puzzle.
+        // Each solid palette cube spins continuously at the idle orbit speed.
+        for color in 0..palette_count {
+            let scale = grid::CUBE_GRID_SCALE * 2.0;
+            let depth = libm::sqrtf(self.flycam.camera.position.iter().map(|x| x * x).sum::<f32>());
+            let position = [if color % 2 == 0 { -4.7 } else { 4.7 },
+                (color / 2) as f32 * 3.9 - 3.9, -depth];
+            let offset = self.flycam.camera.rotation.rotate(position);
+            let translation = core::array::from_fn(|a| self.flycam.camera.position[a] + offset[a]);
+            let angle = -(elapsed_millis as f32 * 0.001) * IDLE_ORBIT_RADIANS_PER_SECOND;
+            let (sn, cs) = (libm::sinf(angle), libm::cosf(angle));
+            let basis = [[cs, 0., -sn], [0., 1., 0.], [sn, 0., cs]]
+                .map(|axis| self.flycam.camera.rotation.rotate(axis));
+            let row = scene_opaque_count + ghost_count + color;
+            let seed = RetainedTransformSeed {
+                translation, previous_translation: translation,
+                scale: [scale; 3],
+                rotation: quaternion_from_rotation_columns(basis[0], basis[1], basis[2]).0,
+                local_radius: grid::CUBE_LOCAL_RADIUS, draw_group: 0,
+                flags: ((row as u32) << 16) | rubik::PALETTE_FLAG | rubik::SOLID_PALETTE_FLAG | color as u32,
+            };
+            encode_seed(seed, &mut seed_bytes[row * 64..(row + 1) * 64]);
+            expanded_count += 1;
+        }
         if companion {
             let placement = world_cube::Placement::new(
                 width,
@@ -1334,6 +1367,9 @@ impl CubeScene {
                     let mut seed = seed;
                     seed.draw_group = 1;
                     seed.flags = (seed.flags & 0xffff) | 512 | ((face as u32) << 10);
+                    if all_faces && face >= self.palette_stage {
+                        seed.flags |= rubik::OPAQUE_FACE_FLAG;
+                    }
                     faces.push((depth, seed));
                 }
             }
@@ -1684,7 +1720,12 @@ impl CubeScene {
             if self.portal_trip.is_some() {
                 self.puzzle.cancel_travel(self.previous_elapsed_millis);
             }
-            self.select_mode(selection, None)?;
+            if selection.mode == SceneMode::StaticCube && self.mode == SceneMode::StaticCube {
+                self.palette_stage = (self.palette_stage + 1) % 7;
+            } else {
+                if selection.mode == SceneMode::StaticCube { self.palette_stage = 0; }
+                self.select_mode(selection, None)?;
+            }
         } else if self.mode == SceneMode::Orchard {
             if group_step != 0 {
                 let page = self.carousel.adjacent_group(group_step);
@@ -1728,7 +1769,7 @@ impl CubeScene {
                 if let Err(error) = wall.replace_holy(frame) {
                     logl::log(level::WARN, format_args!("Cubes: Holy frame replacement failed error={error}"));
                 } else {
-                    logl::log(level::DEBUG, format_args!("Cubes: Holy revision={revision} frame={index} cubes={cubes} period_ms=250"));
+                    logl::log(level::DEBUG, format_args!("Cubes: Holy revision={revision} frame={index} cubes={cubes} period_ms={}", cubes_protocol::holy::PERIOD_MS));
                 }
                 return Ok(());
             }
@@ -2329,7 +2370,7 @@ impl CubeScene {
                 match mode {
                     SceneMode::InteractiveGrid => "1 interactive-grid Key1=sphere",
                     SceneMode::StaticCube =>
-                        "2 compact-puzzle click=face/edge/corner turns=3x1s camera=WASD-orbit idle=3s-auto-orbit",
+                        "2 compact-puzzle Key2=0..6-palette-cubes click=face/edge/corner turns=3x1s camera=WASD-orbit idle=3s-auto-orbit",
                     SceneMode::Sphere =>
                         "1 sphere=1024 camera=center WASD=look cursor-expand=10%-area Key1=interactive-grid",
                     SceneMode::Orchard => "asset-picker wheel/AD=slide/loop W/S=next/previous-group mouse=orbit LMB=confirm five-row-assets alpha=.25/.5/1/.5/.25 group-previews=above/below alpha=.5",

@@ -217,3 +217,19 @@ CPU tests compare the 132 corner-to-24-canonical-position mapping and every
 per-corner normal bit with the approved reference, but cannot prove GPU output, tessellator ordering, rasterization,
 or bare-metal stability. Compare a rendered frame against the reference
 before claiming verified 1:1 presentation. No rig deployment or reboot was performed.
+
+## Key2 palette stages
+
+Key2 cycles from zero to six solid palette cubes, adding one per press and
+wrapping back to zero. They occupy two columns of three beside the puzzle,
+alternating left/right in local face palette order (+X, -X, +Y, -Y, +Z, -Z).
+Each is twice a cubie's side length and rotates continuously at the idle orbit
+speed, independently of WASD. The camera reserves space for both columns while
+any are visible and restores normal framing at zero.
+
+The center starts with opaque square faces. Each visible palette cube switches
+its matching face color to the original 0.35 alpha; stage six therefore restores
+the previous translucent appearance. Bevels remain opaque. The Key5 miniature
+keeps its existing outer stickers and has no additional palette cubes.
+The shader uses palette bits 5 (opaque face) and 6 (solid uniform color);
+rebuild both the Cubes app and the kernel containing the exported shader.

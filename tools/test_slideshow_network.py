@@ -22,6 +22,7 @@ path = "lib.rs"
 use cubes_protocol as plateau;
 #[path="{APP}/src/network.rs"] mod network;
 #[path="{APP}/src/slideshow.rs"] mod slideshow;
+#[path="{APP}/src/reveal.rs"] mod reveal;
 #[path="{APP}/src/slideshow_gpu.rs"] mod slideshow_gpu;
 // The packet tests do not call the Blueprint lifecycle/console ABI.
 #[unsafe(no_mangle)] pub extern "C" fn trueos_cabi_write(_: u32, _: *const u8, _: usize) {{}}

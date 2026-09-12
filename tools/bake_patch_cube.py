@@ -414,12 +414,13 @@ void main() {
             if (normal.z > 0.9999 && (allFaces || cell.z == 2u)) sticker=4;
             if (normal.z < -0.9999 && (allFaces || cell.z == 0u)) sticker=5;
             material = sticker;
+            if ((flags & 64u) != 0u) { material = int(cubie); sticker = -1; }
         }
         if (material >= 0) paletteMaterial(uint(material), baseColor, roughness, metallic);
         bool transparentPass = (flags & 32768u) == 0u && (flags & 512u) != 0u;
         if ((flags & 63488u) == 6144u) transparentPass = false;
         hidden = !carousel && (transparentPass ? (sticker < 0 || sticker != int((flags >> 10u) & 7u)) : sticker >= 0);
-        if (sticker >= 0) alpha=0.35;
+        if (sticker >= 0 && (flags & 32u) == 0u) alpha=0.35;
         if (!marker) {
             p = model * p;
             normal = normalize(mat3(model) * normal); // positive uniform scale only

@@ -37,8 +37,8 @@ fn setup()->(Wall,Queue) {
     let queue=device.create_queue(QueueClass::Render).unwrap();
     (Wall::new(device,slide(device,1,7)).unwrap(),queue)
 }
-fn draw(wall:&Wall, queue:Queue)->Result<(),i32> {
-    wall.render(queue,wall.device.acquire_ui4_surface(1).unwrap(),RetainedCamera::default(),441)
+fn draw(wall:&mut Wall, queue:Queue, now:u64)->Result<(),i32> {
+    wall.render(queue,wall.device.acquire_ui4_surface(1).unwrap(),RetainedCamera::default(),441,now)
 }
 fn animation(pixels:&[(u8,u8,u8)])->crate::network::HolyFrame {
     crate::network::HolyFrame {session:1,gallery_revision:7,revision:3,index:0,
@@ -52,13 +52,16 @@ fn frames_replace_instances_without_rebuilding_either_mesh() {
     let (mut wall,queue)=setup();
     let center=active_bytes(&wall);
     assert_eq!(wall.cubes.count,27);
-    draw(&wall,queue).unwrap();
+    draw(&mut wall,queue,0).unwrap();
     let original=driver(|d| (d.creates,d.submissions[0]));
-    for pixels in [&[(0,47,0),(47,0,2)][..], &[(24,24,1)][..], &[][..]] {
+    for (step, pixels) in [&[(0,47,0),(47,0,2)][..], &[(24,24,1)][..], &[][..]].into_iter().enumerate() {
         wall.replace_holy(animation(pixels)).unwrap();
+        let now = step as u64*2000;
+        draw(&mut wall,queue,now).unwrap();
+        draw(&mut wall,queue,now+333).unwrap();
+        draw(&mut wall,queue,now+1033).unwrap();
         assert_eq!(wall.cubes.count,27+pixels.len() as u32);
         assert_eq!(&active_bytes(&wall)[..27*64],&center);
-        draw(&wall,queue).unwrap();
         driver(|d| {
             assert_eq!(d.creates,original.0);
             let frame=d.submissions.last().unwrap();
@@ -78,9 +81,14 @@ fn frames_replace_instances_without_rebuilding_either_mesh() {
 fn incomplete_upload_and_old_session_keep_the_displayed_frame() {
     let (mut wall,queue)=setup();
     wall.replace_holy(animation(&[(2,3,0)])).unwrap();
+    draw(&mut wall,queue,0).unwrap();
+    draw(&mut wall,queue,333).unwrap();
+    draw(&mut wall,queue,1033).unwrap();
     let before=active_bytes(&wall);
     driver(|d| d.short_write=true);
-    assert_eq!(wall.replace_holy(animation(&[(5,6,1),(7,8,2)])),Err(ERR_IO));
+    wall.replace_holy(animation(&[(5,6,1),(7,8,2)])).unwrap();
+    assert_eq!(draw(&mut wall,queue,1100),Err(ERR_IO));
+    assert!(!driver(|d|d.leased));
     driver(|d| d.short_write=false);
     assert_eq!(active_bytes(&wall),before);
     let writes=driver(|d|d.writes);
@@ -89,11 +97,12 @@ fn incomplete_upload_and_old_session_keep_the_displayed_frame() {
     assert_eq!(driver(|d|d.writes),writes);
     assert_eq!(active_bytes(&wall),before);
     driver(|d| d.busy=true);
-    assert_eq!(draw(&wall,queue),Err(ERR_BUSY));
+    assert_eq!(draw(&mut wall,queue,0),Err(ERR_BUSY));
     assert!(!driver(|d|d.leased));
     driver(|d| d.busy=false);
-    draw(&wall,queue).unwrap();
+    draw(&mut wall,queue,0).unwrap();
     wall.replace(slide(wall.device,1,8)).unwrap();
+    draw(&mut wall,queue,1200).unwrap();
     assert_eq!(wall.cubes.count,27);
 }
 #[test]
