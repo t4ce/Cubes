@@ -2735,7 +2735,7 @@ mod image_gallery_tests {
     #[test]
     fn six_slab_collision_matches_each_tier_without_a_dense_world_grid() {
         use crate::slideshow::{self, contract::Layout};
-        let layout = Layout {tiers:[1,2,3,4,3,4]};
+        let layout = Layout {tiers:[1,2,3,1,2,3]};
         let camera = CubesWalkerCam::image_gallery(layout);
         assert_eq!(camera.pose().0, [0.;3]);
         assert_eq!(camera.pose().1.rotate(FORWARD), FORWARD);
@@ -2762,7 +2762,7 @@ mod image_gallery_tests {
         let mut camera = CubesWalkerCam::image_gallery(crate::slideshow::contract::Layout {tiers:[1;6]});
         camera.server_spawn([12.,23.,34.]);
         let before = camera.pose();
-        camera.replace_image_gallery(crate::slideshow::contract::Layout {tiers:[4;6]});
+        camera.replace_image_gallery(crate::slideshow::contract::Layout {tiers:[3;6]});
         assert_eq!(camera.pose().0,before.0);
         assert_eq!(camera.pose().1.0,before.1.0);
     }

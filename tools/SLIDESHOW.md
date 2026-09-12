@@ -30,7 +30,7 @@ python3 -B tools/test_slideshow_network.py
 python3 -B tools/test_walker_camera.py
 ```
 
-The network harness exercises all four geometry tiers, face orientation,
+The network harness exercises all three geometry tiers, face orientation,
 internal-face removal, bounds, package validation, chunk reordering/duplicates
 and material submission. Native XeLP rendering and frame timing remain untested
 until the rebuilt TRUEOS kernel, CubeSrv and Cubes are run together.

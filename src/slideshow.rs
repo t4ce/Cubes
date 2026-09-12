@@ -86,8 +86,8 @@ mod tests {
     use super::*;
     #[test]
     fn tiers_are_exact_and_faces_are_centered_with_inward_right_handed_bases() {
-        assert_eq!(contract::TIERS.map(|t|(t.source,t.blocks,t.pixels)), [(64,8,8),(128,10,21),(256,14,31),(512,28,31)]);
-        assert_eq!(contract::TIERS.map(|t|t.grid()), [8,20,28,28]);
+        assert_eq!(contract::TIERS.map(|t|(t.source,t.blocks,t.pixels)), [(48,6,6),(128,8,16),(256,16,32)]);
+        assert_eq!(contract::TIERS.map(|t|t.grid()), [6,16,32]);
         for face in 0..6 {
             let [u,v,n] = BASES[face];
             assert_eq!([u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]], n);
@@ -96,7 +96,7 @@ mod tests {
     }
     #[test]
     fn geometry_is_bounded_wound_outward_and_has_no_touching_flat_faces() {
-        for tier in 1..=4 {
+        for tier in 1..=3 {
             let layout = Layout {tiers:[tier;6]};
             let mesh = geometry(layout);
             let n = layout.tier(0).blocks as usize;
@@ -125,7 +125,7 @@ mod tests {
     }
     #[test]
     fn bevel_and_front_vertices_use_the_same_image_plane_on_all_six_faces() {
-        let layout = Layout { tiers: [1,2,3,4,3,4] };
+        let layout = Layout { tiers: [1,2,3,1,2,3] };
         let mesh = geometry(layout);
         for v in &mesh.vertices {
             let face = (0..6).min_by(|&a,&b| {
@@ -145,7 +145,7 @@ mod tests {
     }
     #[test]
     fn one_pixel_per_block_tiers_keep_bevel_samples_inside_their_own_pixel() {
-        for tier in [1,4] {
+        for tier in [1] {
             let layout=Layout {tiers:[tier;6]};
             let n=layout.tier(0).blocks;
             assert_eq!(n,layout.tier(0).grid());
