@@ -119,7 +119,7 @@ fn frame(camera: RetainedCamera, _height: u32, textures: [u64; 5]) -> RetainedFr
     frame.seeds[0] = RetainedTransformSeed {
         scale: [1.; 3],
         rotation: [0., 0., 0., 1.],
-        local_radius: slideshow::DISTANCE + 2. * slideshow::HALF_EXTENT,
+        local_radius: slideshow::RADIUS,
         ..RetainedTransformSeed::default()
     };
     RetainedFrameSubmitV2 {

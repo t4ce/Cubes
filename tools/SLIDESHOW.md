@@ -1,7 +1,7 @@
 # Key-8 six-face image gallery
 
 The old flat panel and per-image-pixel normal/occlusion maps have been removed.
-Key 8 now displays six real beveled cube slabs, with one image centered on each
+Key 8 now displays six real beveled c1 cube slabs, with one image centered on each
 inward-facing world face. The scene has one retained indexed mesh and one PNG
 atlas, using the native PBR shader with nearest filtering.
 
@@ -18,8 +18,9 @@ asking the native media API to decode its atlas. `src/slideshow_gpu.rs` owns
 mesh buffers and texture lifetime. Same-tier replacements reuse the mesh;
 changed-tier replacements create the new mesh before releasing the old one.
 Failures preserve the old scene. Another numbered mode disconnects and releases
-the gallery. The walker uses six analytic collision volumes; small decorative
-bevel recesses are intentionally solid for navigation.
+the gallery. The v5 package describes integer c1 cube grids and their atlas;
+each cube is 0.2 renderer units across. Like other c1 detail, the gallery has
+no walking collision or Space-snap targets. Spawn remains in flight at origin.
 
 Validation:
 

@@ -126,8 +126,6 @@ struct Solid {
     dims: [usize; 3],
     bits: Vec<u64>,
     fine: BTreeMap<[i32; 3], u64>,
-    // Six gallery slab volumes need no dense world-sized occupancy allocation.
-    slabs: Vec<[V; 2]>,
 }
 impl Solid {
     fn new(lo: [i32; 3], hi: [i32; 3]) -> Self {
@@ -137,7 +135,6 @@ impl Solid {
             dims,
             bits: alloc::vec![0; dims.iter().product::<usize>().div_ceil(64)],
             fine: BTreeMap::new(),
-            slabs: Vec::new(),
         }
     }
     fn index(&self, p: [i32; 3]) -> Option<usize> {
@@ -167,7 +164,6 @@ impl Solid {
         if self.fine.is_empty() { 1. } else { 0.25 }
     }
     fn has(&self, p: V) -> bool {
-        if self.slabs.iter().any(|[lo, hi]| (0..3).all(|a| p[a] >= lo[a] && p[a] < hi[a])) { return true; }
         if self
             .index(cell(p))
             .is_some_and(|i| self.bits.get(i / 64).is_some_and(|bits| bits & (1 << (i % 64)) != 0))
@@ -784,35 +780,17 @@ impl CubesWalkerCam {
             }
         }
     }
-    pub fn image_gallery(layout: crate::slideshow::contract::Layout) -> Self {
-        use crate::slideshow::{self, HALF_EXTENT, WORLD_HALF};
+    pub fn image_gallery(_layout: crate::slideshow::contract::Layout) -> Self {
+        use crate::slideshow::WORLD_HALF;
         let mut cam = Self::mining_demo(&[]);
         cam.unit = 0.8;
         cam.drift_half_extent = 512.;
-        // Preserve world bounds for path-search limits, with analytic occupancy.
-        let min_blocks = (0..6).map(|face| layout.tier(face).blocks).min().unwrap();
-        let h = libm::ceilf((WORLD_HALF + HALF_EXTENT/min_blocks as f32)/cam.unit) as i32;
+        // c1 cubes are visual detail, as in authored worlds and placed cubes:
+        // no collision, walking surface, or Space-snap target. Keep world bounds.
+        let h = libm::ceilf(WORLD_HALF/cam.unit) as i32;
         cam.solid = Solid { lo: [-h;3], dims: [(2*h) as usize;3], bits: Vec::new(),
-            fine: BTreeMap::new(), slabs: Vec::with_capacity(6) };
+            fine: BTreeMap::new() };
         cam.cubes.clear();
-        for face in 0..6 {
-            let count = layout.tier(face).blocks;
-            let half = HALF_EXTENT/count as f32;
-            let center = slideshow::center(face);
-            let extent = slideshow::BASES[face][2].map(|n| if n == 0. { HALF_EXTENT } else { half });
-            cam.solid.slabs.push([
-                core::array::from_fn(|a| (center[a]-extent[a])/cam.unit),
-                core::array::from_fn(|a| (center[a]+extent[a])/cam.unit),
-            ]);
-            for row in 0..count { for column in 0..count {
-                let offset = slideshow::rotate(face, [(2.*column as f32+1.)*half-HALF_EXTENT,
-                    (2.*row as f32+1.)*half-HALF_EXTENT, 0.]);
-                cam.cubes.push(CubeBounds {
-                    lo: core::array::from_fn(|a| (center[a]+offset[a]-half)/cam.unit),
-                    size: 2.*half/cam.unit, gap: 0.,
-                });
-            } }
-        }
         cam.server_spawn([0.;3]);
         cam
     }
@@ -2733,29 +2711,23 @@ mod tests {
 mod image_gallery_tests {
     use super::*;
     #[test]
-    fn six_slab_collision_matches_each_tier_without_a_dense_world_grid() {
+    fn c1_gallery_preserves_spawn_and_world_bounds_without_collision_or_snap() {
         use crate::slideshow::{self, contract::Layout};
-        let layout = Layout {tiers:[1,2,3,1,2,3]};
-        let camera = CubesWalkerCam::image_gallery(layout);
-        assert_eq!(camera.pose().0, [0.;3]);
-        assert_eq!(camera.pose().1.rotate(FORWARD), FORWARD);
-        assert!(camera.far_plane()>slideshow::WORLD_HALF*2.);
-        assert_eq!(camera.cubes.len(), (0..6).map(|f|layout.tier(f).blocks.pow(2) as usize).sum());
-        assert!(camera.solid.bits.is_empty() && camera.solid.fine.is_empty());
-        assert_eq!(camera.solid.slabs.len(),6);
-        assert!(!camera.solid.has([0.;3]));
-        for face in 0..6 {
-            let center = slideshow::center(face);
-            let n = slideshow::BASES[face][2];
-            let half = slideshow::HALF_EXTENT/layout.tier(face).blocks as f32;
-            for axis in 0..3 {
-                assert!(camera.solid.slabs[face][0][axis] >= camera.solid.lo[axis] as f32);
-                assert!(camera.solid.slabs[face][1][axis] <= (camera.solid.lo[axis]+camera.solid.dims[axis] as i32) as f32);
+        for tier in 1..=3 {
+            let layout = Layout {tiers:[tier;6]};
+            let camera = CubesWalkerCam::image_gallery(layout);
+            assert_eq!(camera.pose().0, [0.;3]);
+            assert_eq!(camera.pose().1.rotate(FORWARD), FORWARD);
+            assert!(camera.far_plane()>slideshow::WORLD_HALF*2.);
+            assert!(camera.cubes.is_empty());
+            assert!(camera.solid.bits.is_empty() && camera.solid.fine.is_empty());
+            assert_eq!(crate::subcubes::C1, slideshow::contract::C1);
+            for face in 0..6 {
+                let center = slideshow::center(face);
+                assert!(!camera.solid.has(center.map(|x|x/camera.unit)));
             }
-            assert!(camera.solid.has(center.map(|x|x/camera.unit)));
-            assert!(!camera.solid.has(core::array::from_fn(|a|(center[a]+n[a]*(half+0.1))/camera.unit)));
+            assert!(camera.portals.iter().all(Option::is_none));
         }
-        assert!(camera.portals.iter().all(Option::is_none));
     }
     #[test]
     fn gallery_replacement_preserves_flight_pose() {

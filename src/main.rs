@@ -1738,8 +1738,8 @@ impl CubeScene {
             if let Some(camera) = self.walker_camera.as_mut() { camera.replace_image_gallery(layout); }
         }
         if first {
-            // The scene has no cube render data; the walker owns its separate collision grid.
-            let asset = orchard::Asset { name: WORLD_ASSETS[world_topology::VOID].0, cubes: Vec::new(), radius: slideshow::DISTANCE + 2.*slideshow::HALF_EXTENT };
+            // The textured c1 grids share a retained mesh; c1 detail has no walking collision.
+            let asset = orchard::Asset { name: WORLD_ASSETS[world_topology::VOID].0, cubes: Vec::new(), radius: slideshow::RADIUS };
             let mut bytes = vec![0u8; 16];
             bytes[12..16].copy_from_slice(&subcubes::C1.to_le_bytes());
             self.network_world = Some(NetworkWorld { session, bytes, asset });

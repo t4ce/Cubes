@@ -349,11 +349,11 @@ mod tests {
         assert!(accept_chunk(&valid, 1, &mut output, &mut received));
     }
     #[test]
-    fn gallery_package_checks_version_tiers_dimensions_and_reserved_bytes() {
+    fn gallery_package_checks_version_tiers_dimensions_and_c1_placement() {
         let source = include_bytes!("../../TRUEOS-Blueprints/apps/cubesrv/slides/gallery.cga");
         let (layout, _) = crate::slideshow::contract::Layout::parse(source).unwrap();
         assert_eq!(layout.extent(), [layout.tile()*3, layout.tile()*2]);
-        for (offset,value) in [(0,0),(4,1),(4,2),(4,3),(4,5),(5,5),(6,0),(6,4),(12,1),(35,0)] {
+        for (offset,value) in [(0,0),(4,1),(4,2),(4,3),(4,4),(4,6),(5,5),(6,0),(6,4),(12,0),(12,2),(13,0),(14,1),(15,0),(35,0)] {
             let mut bad = source.to_vec(); bad[offset]=value;
             assert!(crate::slideshow::contract::Layout::parse(&bad).is_none());
         }
