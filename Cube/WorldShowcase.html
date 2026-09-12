@@ -272,8 +272,8 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
    <select id="portalFace" aria-label="Portal to inspect"></select>
    <div class="portal-view-buttons"><button id="portalBack" type="button">Back</button><button id="portalAngle" type="button">Angle</button></div>
    <div id="portalFocusNote" class="portal-focus-note">Inspect an actual portal to compare frames up close.</div>
-   <label class="checks"><input id="portalRunPreview" type="checkbox"><span>Show c4 passage guide</span><span>OFF BY DEFAULT</span></label>
-   <div class="field-note">A display-only c4 route bridge through the portal centre. Generated worlds carry the same large-cube route all the way to the outermost boundary slice.</div>
+   <label class="checks"><input id="portalRunPreview" type="checkbox"><span>Show full c4 passage</span><span>OFF BY DEFAULT</span></label>
+   <div class="field-note">The amber display-only cube touches the exact player spawn; the mint cube sets straight ahead. The optional green guide shows the full c4 route through the portal centre.</div>
    <div id="portalBalance" class="portal-balance" aria-label="Portal colour proportions"></div>
    <div id="portalBalanceNote" class="field-note"></div>
    <div id="portalCounts" class="portal-stats"></div>
@@ -349,7 +349,7 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
   <strong>Local branches</strong><span>With automatic paths on, each owned platform gets one link to existing generated terrain. In a blank world, the first cube grows an isolated platform; later platforms connect to earlier ones. With automatic paths off, the platforms remain and only the paths are hidden. Removing an empty-world anchor repairs only dependent links. World 27 offers all six colours plus Void.</span>
   <strong>Undo / redo</strong><span>Ctrl or Cmd + Z / Shift + Z. History is independent for every world. Ctrl or Cmd + Y also redoes.</span>
   <strong>Portal lab</strong><span>The Portals tab owns eight reusable presets: Sky, Underground, black-hole, white-hole, Island, City, Special, and Leave. Portal structure defaults by destination: pure-theme and Leave portals use Terraced, two-theme portals use Twin ring, and three-theme plus Special/Void portals use Tri ring. Any preset can override that structure; opening, depth, rotation, and flat-colour settings remain reusable.</span>
-  <strong>Portal inspection</strong><span>Choose a face, then Back or Angle to inspect that actual portal using the build camera. Back looks through the frame from its reverse side. The World tab or Home frames the whole scene. The optional passage guide previews the same route through the portal without adding terrain or counting toward the budget.</span>
+  <strong>Portal inspection</strong><span>Choose a face, then Back or Angle to inspect that actual portal using the build camera. Back looks through the frame from its reverse side. The World tab or Home frames the whole scene. Amber and mint guide cubes identify the authored player spawn and forward direction; the optional passage guide previews the full route. Guides add no terrain and do not count toward the budget.</span>
   <strong>Portal paths</strong><span>Portal frames remain round. Each outer face supplies one portal in its X, Y, or Z plane, with one plateau 15–25% of the way toward the world centre. Side plateaus seed between their horizontal and vertical perpendicular planes; top and bottom use XY or YZ. Generation stamps exactly six straight portal-to-plateau links—no cross-links and no separate portal bridge. Each is one continuous 2 × 1 c4 path from the outermost in-bounds world-grid slice to its platform edge, sharing the platform roll. Rendering, picking, and collision use those same c4 cells. Portal frames stay c2 and flush with the world boundary.</span>
   <strong>Save / import</strong><span>Exports store all 27 world recipes, eight portal presets, corrected cube tiers, the 512-c1 chunk size, c4 placement-grid addresses, and c1-world-space branch centerlines. Earlier projects are migrated by enlarging their world-space layout eightfold; v15 c2 portal designs are preserved without a second size increase. The old r3 (6) and r4 (12) labels become r2 (6) and r3 (12). Safe placed-platform recipes are kept; invalid local links are rebuilt. Imports are fully validated before the live project changes.</span>
  </div>
@@ -736,7 +736,23 @@ function portalInfo(world,d){
   // generated platform path starts here; there is no separately stamped
   // portal bridge to splice onto it later.
   const pathStart=new V3();pathStart[axis]=face==='center'?0:normal[axis]<0?h-PATH_CUBE_SIZE:-h;
-  infos.push({face,edge,pos,keepoutPos,normal,q,axis,transverse,circle:true,half,renderHalf,localHalf:shape.half,shape,settings,mix:portalMixIds(edge),pathProfile,runLo,runHi,mouth,pathStart});
+  // Two ghost marker centres are the complete arrival contract. The first is
+  // three c4 lengths past the frame's inner face, centred across the two-wide
+  // route and one c1 into its larger-gap side. The second is one c4 inward, so
+  // subtracting the two points gives the exact look direction without another
+  // connector-bounds heuristic in the runtime.
+  const spawnPoint=pos.clone().addScaledVector(normal,shape.half.z+3*PATH_CUBE_SIZE),spawnSupport=new V3();
+  if(face!=='center'){
+   const widthName=['x','y','z'][widthAxis],narrowName=transverse.find(a=>a!==widthName);
+   spawnPoint[widthName]=(runLo[widthName]+runHi[widthName])/2;
+   const runMiddle=(runLo[narrowName]+runHi[narrowName])/2;
+   const supportSign=Math.sign(pos[narrowName]-runMiddle)||-1;
+   const broadFace=supportSign<0?runLo[narrowName]:runHi[narrowName];
+   spawnPoint[narrowName]=broadFace;spawnSupport[narrowName]=supportSign;
+  }
+  const spawnMarker=spawnPoint.clone().addScaledVector(spawnSupport,PORTAL_UNIT/2);
+  const forwardMarker=spawnMarker.clone().addScaledVector(normal,PATH_CUBE_SIZE);
+  infos.push({face,edge,pos,keepoutPos,normal,q,axis,transverse,circle:true,half,renderHalf,localHalf:shape.half,shape,settings,mix:portalMixIds(edge),pathProfile,runLo,runHi,mouth,pathStart,spawnPoint,spawnSupport,spawnMarker,forwardMarker});
  }
  return infos;
 }
@@ -1391,12 +1407,12 @@ function renderPortals(){
   // theme cubes use exactly their palette colour, with no patchy white accents.
   if(o.edge.action==='leave')colours[0]=mixRGB(colours[0],[.97,.98,.95],.08);
   for(const c of painted.cells){const p=new V3(c.u,c.v,c.z).applyQuaternion(o.q).add(o.pos);instance(ports,p,cubeRenderSize(PORTAL_UNIT),colours[c.colour],o.q,o.settings.flatColours?-1:.04);}
-  portalSummaries.push({face:o.face,edge:{portalTheme:o.edge.portalTheme,targetWorldId:o.edge.targetWorldId,action:o.edge.action},target:o.edge.targetWorldId,action:o.edge.action,style:o.settings.style,cubes:painted.cells.length,dimensions:o.shape.half.toArray().map(x=>Math.round(x*20)/10),palette:painted.palette,counts:painted.counts,center:o.pos.toArray(),mouth:o.mouth.toArray(),pathStart:o.pathStart.toArray()});
+  portalSummaries.push({face:o.face,edge:{portalTheme:o.edge.portalTheme,targetWorldId:o.edge.targetWorldId,action:o.edge.action},target:o.edge.targetWorldId,action:o.edge.action,style:o.settings.style,cubes:painted.cells.length,dimensions:o.shape.half.toArray().map(x=>Math.round(x*20)/10),palette:painted.palette,counts:painted.counts,center:o.pos.toArray(),mouth:o.mouth.toArray(),pathStart:o.pathStart.toArray(),spawnPoint:o.spawnPoint.toArray(),spawnMarker:o.spawnMarker.toArray(),forwardMarker:o.forwardMarker.toArray(),spawnDirection:o.normal.toArray()});
  }
  renderEngine.setBatch('portals',ports);fillPortalLabels();updatePortalPreview();
 }
 function updatePortalPreview(){
- if(!renderEngine)return;const blocks=[],lines=[],o=currentPortals.find(o=>o.face===portalFace);
+ if(!renderEngine)return;const blocks=[],lines=[],markerLines=[],o=currentPortals.find(o=>o.face===portalFace);
  if(showPortalRun&&o&&o.face!=='center'){
   const colour=[.60,.72,.56],u=PATH_CUBE_SIZE,h=halfOf(data());
   for(let x=o.runLo.x;x<o.runHi.x;x+=u)for(let y=o.runLo.y;y<o.runHi.y;y+=u)for(let z=o.runLo.z;z<o.runHi.z;z+=u){
@@ -1404,7 +1420,16 @@ function updatePortalPreview(){
    const p=new V3(x+u/2,y+u/2,z+u/2);instance(blocks,p,cubeRenderSize(u),colour);wireCube(lines,p,u,colour,.48);
   }
  }
- renderEngine.setBatch('portalDemo',blocks,.19);renderEngine.setLines('portalDemoGrid',lines);
+ if(o){
+  // Draw the same c2 cubes that are exported as metadata. The amber cube's
+  // path-facing face is the reported spawn point; neither cube is geometry.
+  for(const [p,colour] of [[o.spawnMarker,[1,.58,.18]],[o.forwardMarker,[.30,.86,.68]]]){
+   instance(blocks,p,cubeRenderSize(PORTAL_UNIT),colour);
+   wireCube(markerLines,p,PORTAL_UNIT+.12,colour,.86);
+  }
+  line(markerLines,o.spawnMarker,o.forwardMarker,[.30,.86,.68],.95);
+ }
+ renderEngine.setBatch('portalDemo',blocks,.19);renderEngine.setLines('portalDemoGrid',lines);renderEngine.setLines('portalSpawnGuide',markerLines,true);
 }
 
 function updatePortalUI(){
@@ -1417,7 +1442,7 @@ function updatePortalUI(){
  if(select.dataset.signature!==signature){select.replaceChildren();select.dataset.signature=signature;for(const o of currentPortals){const option=document.createElement('option');option.value=o.face;option.textContent=o.face[0].toUpperCase()+o.face.slice(1)+' → '+(o.edge.action==='leave'?'Leave':'World '+pad(o.edge.targetWorldId))+' · '+portalPresetLabel(portalPresetKey(o.edge));select.append(option);}}
  if(!currentPortals.some(o=>o.face===portalFace))portalFace=currentPortals[0]?.face||'east';select.value=portalFace;
  const summary=portalSummaries.find(p=>p.face===portalFace)||portalSummaries[0];if(!summary)return;
- const names={terraced:'Terraced rim',twin:'Twin ring',tri:'Tri ring'};$('portalCounts').textContent=summary.cubes.toLocaleString()+' c2 cubes · '+summary.dimensions.join(' × ')+' c1';
+ const names={terraced:'Terraced rim',twin:'Twin ring',tri:'Tri ring'},spawn=summary.spawnPoint.map(Math.round),direction=summary.spawnDirection.map(Math.round);$('portalCounts').textContent=summary.cubes.toLocaleString()+' c2 cubes · '+summary.dimensions.join(' × ')+' c1 · spawn ['+spawn.join(', ')+'] · dir ['+direction.join(', ')+']';
  $('portalDesignNote').textContent=names[effectiveStyle]+' · '+(preset.styleOverride?'preset override':'automatic type default')+' · outermost frame layer stays flush to the world boundary. Live changes keep terrain and routes fixed.';
  const bar=$('portalBalance');bar.replaceChildren();bar.setAttribute('aria-label',summary.palette.map((p,i)=>p.name+': '+summary.counts[i]+' cubes').join('; '));
  summary.palette.forEach((p,i)=>{const part=document.createElement('span');part.style.flex=summary.counts[i];part.style.background=p.hex;part.title=p.name+': '+summary.counts[i]+' cubes ('+(100*summary.counts[i]/summary.cubes).toFixed(2)+'%)';bar.append(part);});

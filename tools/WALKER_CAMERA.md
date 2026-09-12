@@ -1,12 +1,16 @@
 # World walker camera
 
 `src/CubesWalkerCam.rs` replaces the flat world-plane controller in World View.
-Use **5 or F5** to enter/cycle worlds. Arrival is three c4 pathway cubes inward
-from the portal frame's inner face, centered across the connector's two-cube
-width and standing on its center-facing broad side (the side with more clearance).
-The view points straight inward, away from the portal. World cycling uses the
-north portal; Void uses its central portal and faces -Z. If there is no nearby
-support, arrival stays in drift.
+Use **5 or F5** to enter/cycle worlds. Every exported portal carries an explicit
+spawn/forward marker pair. The spawn probe is three c4 pathway cubes inward from
+the portal frame's inner face, centered across the connector's two-cube width and
+touching its center-facing broad side (the side with more clearance). The second
+marker is one c4 farther inward, so the view direction is the direct difference
+between two authored c1 coordinates. The first c2 marker's touching face directly
+encodes the foot point and its transverse offset encodes support. World cycling
+uses the north portal; Void uses its central pair and
+faces -Z. If there is no nearby support, arrival stays in drift. Markerless legacy
+assets retain the geometry-derived fallback.
 
 Key2 clicks use the selected sticker's equivalent Leave portal. Local sticker
 axes are ranked X/Y/Z: pure worlds use top; duo worlds use bottom/top; trio worlds
@@ -45,8 +49,9 @@ the empty opening, not while approaching along the connector or touching its rin
   path mode and resume when it closes; see `ASSET_PLACEMENT.md`.
 - Home: align the view to the current surface. R retains the world-cube control.
 
-Camera behavior is owned by Cubes; world imports contain only `.cubes` geometry
-and material records. Settings: 41.625-degree FOV (7.5% narrower), 0.003 rad/pixel look,
+Camera behavior is owned by Cubes; world imports contain `.cubes` geometry,
+materials, and the two point markers that define each portal arrival. Settings:
+41.625-degree FOV (7.5% narrower), 0.003 rad/pixel look,
 0.825-voxel eye height (10% higher), 14.5/29 voxels per second walking (normal/Shift), 1.8-voxel quarter-turn
 travel, 100% camera assist, 45-degree soft perch, and exponential camera smoothing.
 Stop to hold an edge, reverse to return, or move sideways along it. A one-cell

@@ -1,7 +1,6 @@
 //! CubeImage's 1×N×N beveled slab, projected across six inward world faces.
 use alloc::vec::Vec;
-#[path = "../../TRUEOS-Blueprints/crates/cubes-protocol/src/gallery.rs"]
-pub mod contract;
+pub use cubes_protocol::gallery as contract;
 #[path = "image_cube.rs"]
 #[allow(dead_code)]
 mod reference;

@@ -1498,6 +1498,7 @@ fn decode_world_v2(name: &'static str, bytes: &[u8]) -> Result<Asset, &'static s
         return Err("cubes-record");
     }
     let records: Vec<_> = crate::cube_format::records(bytes).collect();
+    let mut portal_markers = [[None; 2]; crate::cube_format::PORTAL_MARKER_FACES];
     for r in &records {
         if !crate::subcubes::SIDES.contains(&r.tier)
             || r.side < r.tier
@@ -1508,6 +1509,54 @@ fn decode_world_v2(name: &'static str, bytes: &[u8]) -> Result<Asset, &'static s
             || r.origin.iter().any(|&v| v < -1024 || v + r.side > 1024)
         {
             return Err("cubes-record");
+        }
+        if let Some((face, kind)) = crate::cube_format::portal_marker(bytes[4], r.part) {
+            if r.side != 2 || r.tier != 2 {
+                return Err("cubes-marker");
+            }
+            let slot = match kind {
+                crate::cube_format::PortalMarkerKind::Spawn => 0,
+                crate::cube_format::PortalMarkerKind::Forward => 1,
+            };
+            if portal_markers[face][slot].is_some() {
+                return Err("cubes-marker");
+            }
+            portal_markers[face][slot] = Some(r.origin.map(|v| v + 1));
+        }
+    }
+    // A marker pair is an explicit c1 point and an axis-aligned point one c4
+    // inward. Partial, duplicated, or reversed pairs are rejected rather than
+    // silently returning to connector-AABB spawn inference.
+    const INWARD: [[i32; 3]; 7] = [
+        [0, 0, 1],
+        [-1, 0, 0],
+        [0, 0, -1],
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, -1, 0],
+        [0, 0, 1],
+    ];
+    for (face, pair) in portal_markers.into_iter().enumerate() {
+        let [Some(spawn), Some(forward)] = pair else {
+            if pair != [None, None] {
+                return Err("cubes-marker");
+            }
+            continue;
+        };
+        if !(0..3).all(|axis| forward[axis] - spawn[axis] == INWARD[face][axis] * 8) {
+            return Err("cubes-marker");
+        }
+        let radial = (0..3).find(|&axis| INWARD[face][axis] != 0).unwrap();
+        let offsets: Vec<_> = (0..3)
+            .filter(|&axis| axis != radial && spawn[axis] != 0)
+            .map(|axis| spawn[axis])
+            .collect();
+        if if face < 6 {
+            offsets.len() != 1 || offsets[0].abs() != 1
+        } else {
+            !offsets.is_empty()
+        } {
+            return Err("cubes-marker");
         }
     }
     let mut order: Vec<_> = (0..count).collect();

@@ -9,6 +9,7 @@ APP = Path(__file__).resolve().parents[1]
 source = '''#![allow(dead_code)]
 extern crate alloc;
 extern crate self as libm;
+extern crate self as cubes_protocol;
 extern crate self as trueos_picasso;
 pub fn sqrtf(x:f32)->f32 {x.sqrt()}
 pub fn sinf(x:f32)->f32 {x.sin()}
@@ -21,6 +22,7 @@ pub fn roundf(x:f32)->f32 {x.round()}
 pub fn ceilf(x:f32)->f32 {x.ceil()}
 '''
 source += f'#[path="{APP}/src/slideshow.rs"] mod slideshow;\n'
+source += f'#[path="{APP.parent}/TRUEOS-Blueprints/crates/cubes-protocol/src/gallery.rs"] pub mod gallery;\n'
 source += f'#[path="{APP}/src/orchard.rs"] mod orchard;\n'
 source += f'#[path="{APP}/src/asset_brush.rs"] mod asset_brush;\n'
 source += f'#[path="{APP}/src/cube_format.rs"] mod cube_format;\n'

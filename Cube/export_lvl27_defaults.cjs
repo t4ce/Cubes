@@ -1,10 +1,15 @@
 #!/usr/bin/env node
 // Export the current default WorldShowcase generation as the runtime's compact
-// CUBES v2 assets: c1 coordinates, packed c4 terrain, and exact c2 portal frames.
+// CUBES v2 assets: c1 coordinates, packed c4 terrain, exact c2 portal frames,
+// and two metadata-only arrival markers per portal.
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const {createHash} = require('crypto');
+
+const PORTAL_MARKER_FACES = ['north', 'east', 'south', 'west', 'bottom', 'top', 'center'];
+const PORTAL_MARKER_FIRST = 17;
+const PORTAL_MARKER_LAST = 30;
 
 const html = fs.readFileSync(path.join(__dirname, 'WorldShowcase.html'), 'utf8');
 function between(start, end) {
@@ -97,6 +102,7 @@ function compact(entry) {
   }
   if (used.size !== occupied.size) throw new Error(`incomplete compaction in world ${entry.world.id}`);
   const api = context.globalThis.__api;
+  const markers = [];
   for (const portal of entry.portals) {
     const painted = api.balancedPortalCells(portal.shape, portal.mix, portal.settings.rotation);
     for (const cell of painted.cells) {
@@ -110,7 +116,28 @@ function compact(entry) {
       }
       records.push({x:xyz[0],y:xyz[1],z:xyz[2],tier:2,sourceTier:2,color,part:portal.face === 'center' ? 15 : 11});
     }
+    const face = PORTAL_MARKER_FACES.indexOf(portal.face);
+    if (face < 0) throw new Error(`unknown portal marker face ${portal.face}`);
+    const spawn = portal.spawnMarker.toArray(), forward = portal.forwardMarker.toArray();
+    const spawnPoint = portal.spawnPoint.toArray(), support = portal.spawnSupport.toArray();
+    if (!spawn.every((v, axis) => Math.abs(v - spawnPoint[axis] - support[axis]) < 1e-6)) {
+      throw new Error(`invalid portal marker support in world ${entry.world.id} ${portal.face}`);
+    }
+    const delta = forward.map((v, axis) => v - spawn[axis]);
+    if (!delta.every((v, axis) => Math.abs(v - portal.normal.toArray()[axis] * 8) < 1e-6)) {
+      throw new Error(`invalid portal marker direction in world ${entry.world.id} ${portal.face}`);
+    }
+    for (const [center, part] of [[spawn, PORTAL_MARKER_FIRST + face * 2], [forward, PORTAL_MARKER_FIRST + face * 2 + 1]]) {
+      const xyz = center.map(v => Math.round(v - 1));
+      if (center.some((v, axis) => Math.abs(v - 1 - xyz[axis]) > 1e-6)) throw new Error('off-grid portal marker');
+      markers.push({x:xyz[0],y:xyz[1],z:xyz[2],tier:2,sourceTier:2,part});
+    }
   }
+  // Marker records are appended so filtering them leaves every existing render
+  // cube ID stable. Their palette entry is irrelevant at runtime; reusing an
+  // existing terrain colour avoids adding a display-only material.
+  if (!records.length) throw new Error(`world ${entry.world.id} has no render records`);
+  for (const marker of markers) records.push({...marker,color:records[0].color});
   return records;
 }
 
@@ -138,13 +165,18 @@ function encode(entry) {
   const hulls = context.globalThis.__api.platformHulls(entry.geometry).map(h=>({...h,ranges:[],rgb:[0,0,0],count:0}));
   const byOwner = new Map(hulls.map(h=>[h.owner,h]));
   let id=0;
-  for(const r of records)for(let x=0;x<r.tier;x+=r.sourceTier)for(let y=0;y<r.tier;y+=r.sourceTier)for(let z=0;z<r.tier;z+=r.sourceTier,id++){
-    const v=entry.geometry.primary.get([r.x+x,r.y+y,r.z+z].join(','));
-    const h=r.part===0&&r.sourceTier===8?byOwner.get(v?.owner):null;
-    if(!h)continue;
-    const last=h.ranges[h.ranges.length-1];
-    if(last&&last[1]===id)last[1]++;else h.ranges.push([id,id+1]);
-    rgba(r.color).slice(0,3).forEach((c,a)=>h.rgb[a]+=c);h.count++;
+  for(const r of records){
+    // Metadata markers are not decoded into render/collision cubes and do not
+    // consume IDs in the platform-ownership sidecar.
+    if(r.part>=PORTAL_MARKER_FIRST&&r.part<=PORTAL_MARKER_LAST)continue;
+    for(let x=0;x<r.tier;x+=r.sourceTier)for(let y=0;y<r.tier;y+=r.sourceTier)for(let z=0;z<r.tier;z+=r.sourceTier,id++){
+      const v=entry.geometry.primary.get([r.x+x,r.y+y,r.z+z].join(','));
+      const h=r.part===0&&r.sourceTier===8?byOwner.get(v?.owner):null;
+      if(!h)continue;
+      const last=h.ranges[h.ranges.length-1];
+      if(last&&last[1]===id)last[1]++;else h.ranges.push([id,id+1]);
+      rgba(r.color).slice(0,3).forEach((c,a)=>h.rgb[a]+=c);h.count++;
+    }
   }
   for(const h of hulls){if(!h.count)throw new Error('empty platform hull');h.rgb=h.rgb.map(c=>Math.round(c/h.count));}
   return { output, hulls, decoded:id, records: records.length, palette: palette.length, source: entry.geometry.primary.size };

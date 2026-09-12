@@ -15,16 +15,23 @@ class OverlayBuildTests(unittest.TestCase):
             app.mkdir()
             for directory in ("src", "Cube"):
                 shutil.copytree(ROOT / directory, app / directory)
+            (app / "tools").mkdir()
+            shutil.copy2(ROOT / "tools/build_interface.rs", app / "tools/build_interface.rs")
             for name in ("build.rs", "Cargo.lock"):
                 shutil.copy2(ROOT / name, app / name)
             manifest = (ROOT / "Cargo.toml").read_text()
             # Blueprint rewrites path dependencies to the real workspace too.
-            for dependency in ("TRUEOS-Blueprints/api", "TRUEOS-Picasso", "PotatoStamps"):
+            for dependency in (
+                "TRUEOS-Blueprints/api",
+                "TRUEOS-Blueprints/crates/cubes-protocol",
+                "TRUEOS-Picasso",
+                "PotatoStamps",
+            ):
                 manifest = manifest.replace(f'"../{dependency}"', f'"{ROOT.parent / dependency}"')
             (app / "Cargo.toml").write_text(manifest)
             self.assertFalse((app.parent / "TRUEOS").exists())
             command = ["cargo", "check", "--offline", "--quiet", "--manifest-path",
-                       str(app / "Cargo.toml"), "--target-dir", str(ROOT / "target/overlay-check")]
+                       str(app / "Cargo.toml"), "--target-dir", str(Path(tmp) / "target")]
             result = subprocess.run(command, cwd=app, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             palette = app / "Cube/subcubes-materials.json"
@@ -36,9 +43,10 @@ class OverlayBuildTests(unittest.TestCase):
             palette.write_bytes(original)
             with (app / "Cube/cube.glb").open("ab") as asset:
                 asset.write(b"stale")
-            result = subprocess.run(command, cwd=app, capture_output=True, text=True)
+            fresh_command = command[:-1] + [str(Path(tmp) / "stale-cube-target")]
+            result = subprocess.run(fresh_command, cwd=app, capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("cube reference differs from baked HS/DS", result.stderr)
+            self.assertIn("run tools/prepare_image_cube.py", result.stderr)
 
 
 if __name__ == "__main__":

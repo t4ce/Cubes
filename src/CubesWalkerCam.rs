@@ -391,6 +391,7 @@ struct PortalOpening {
     inward: V,
     spawn: V,
     support: V,
+    direct_spawn: bool,
 }
 fn portal_inward(face: usize) -> V {
     match face {
@@ -402,6 +403,26 @@ fn portal_inward(face: usize) -> V {
         5 => [0., -1., 0.],
         _ => FORWARD,
     }
+}
+
+/// The c2 spawn marker's center is one c1 off the authored contact point. Its
+/// sole nonzero transverse coordinate therefore encodes the broad-face normal;
+/// the marker's opposite face is the exact foot position.
+fn marker_spawn_support(spawn: V, inward: V) -> Option<V> {
+    let radial = (0..3).find(|&a| inward[a].abs() > 0.5)?;
+    let mut support = None;
+    for axis in (0..3).filter(|&a| a != radial) {
+        if spawn[axis].abs() < EPS {
+            continue;
+        }
+        if support.is_some() || (spawn[axis].abs() - 0.25).abs() > EPS {
+            return None;
+        }
+        let mut normal = [0.; 3];
+        normal[axis] = spawn[axis].signum();
+        support = Some(normal);
+    }
+    support
 }
 
 pub struct CubesWalkerCam {
@@ -438,8 +459,9 @@ impl CubesWalkerCam {
     pub fn from_world(bytes: &[u8], void: bool) -> Self {
         Self::from_portal(bytes, void, None)
     }
-    /// Arrivals use the broad face of the 2×1 connector, three c4 cubes inward
-    /// from the frame. Without nearby support they stay in drift.
+    /// Authored marker pairs place arrivals on the broad face of the 2×1
+    /// connector, three c4 cubes inward from the frame, with a legacy geometry
+    /// fallback for markerless pages. Without nearby support they stay in drift.
     pub fn from_portal(bytes: &[u8], void: bool, arrival: Option<usize>) -> Self {
         let v2 = bytes[4] == 2;
         let unit = if v2 {
@@ -463,9 +485,25 @@ impl CubesWalkerCam {
         let mut frame_lows = [[f32::INFINITY; 3]; 7];
         let mut frame_highs = [[f32::NEG_INFINITY; 3]; 7];
         let mut connector_cube_size = [0.0f32; 7];
+        let mut spawn_markers: [Option<V>; crate::cube_format::PORTAL_MARKER_FACES] =
+            [None; crate::cube_format::PORTAL_MARKER_FACES];
+        let mut forward_markers: [Option<V>; crate::cube_format::PORTAL_MARKER_FACES] =
+            [None; crate::cube_format::PORTAL_MARKER_FACES];
         for r in &records {
             let p = origin(r);
             let size = r.side as f32 * factor;
+            if let Some((face, kind)) = crate::cube_format::portal_marker(bytes[4], r.part) {
+                let center = p.map(|x| x + size * 0.5);
+                match kind {
+                    crate::cube_format::PortalMarkerKind::Spawn => {
+                        spawn_markers[face] = Some(center)
+                    }
+                    crate::cube_format::PortalMarkerKind::Forward => {
+                        forward_markers[face] = Some(center)
+                    }
+                }
+                continue;
+            }
             for a in 0..3 {
                 lo[a] = lo[a].min(libm::floorf(p[a]) as i32);
                 hi[a] = hi[a].max(libm::ceilf(p[a] + size) as i32);
@@ -505,7 +543,13 @@ impl CubesWalkerCam {
             if !has_connector && !has_frame {
                 return None;
             }
-            let inward = portal_inward(face);
+            let marked = spawn_markers[face]
+                .zip(forward_markers[face])
+                .filter(|(spawn, forward)| dot(sub(*forward, *spawn), sub(*forward, *spawn)) > EPS);
+            let inward = marked
+                .map(|(spawn, forward)| norm(sub(forward, spawn)))
+                .unwrap_or_else(|| portal_inward(face));
+            let marker_support = marked.and_then(|(spawn, _)| marker_spawn_support(spawn, inward));
             let axis = (0..3).find(|&a| inward[a] != 0.).unwrap();
             let center = |lo: V, hi: V| core::array::from_fn(|a| (lo[a] + hi[a]) * 0.5);
             let connector_center = if has_connector {
@@ -586,6 +630,9 @@ impl CubesWalkerCam {
                     support[narrow] = toward_center.signum();
                 }
             }
+            if let Some(authored) = marker_support {
+                support = authored;
+            }
             let cube_size = if connector_cube_size[face] > 0. {
                 connector_cube_size[face]
             } else if v2 {
@@ -598,14 +645,21 @@ impl CubesWalkerCam {
                 inward,
                 half,
                 aperture_radius,
-                spawn: add(front, mul(inward, 3. * cube_size)),
+                spawn: marked
+                    .map(|(spawn, _)| {
+                        marker_support.map_or(spawn, |normal| sub(spawn, mul(normal, 0.25)))
+                    })
+                    .unwrap_or_else(|| add(front, mul(inward, 3. * cube_size))),
                 support,
+                direct_spawn: marker_support.is_some(),
             })
         });
-        let opening = portals[arrival.unwrap_or(if void { 6 } else { 0 })];
         let mut solid = Solid::new(lo, hi);
         let mut cubes = Vec::with_capacity(records.len());
         for r in &records {
+            if crate::cube_format::is_portal_marker(bytes[4], r.part) {
+                continue;
+            }
             if if v2 {
                 !crate::subcubes::walkable(r.tier)
             } else {
@@ -624,14 +678,19 @@ impl CubesWalkerCam {
             }
             Self::insert_bounds(&mut solid, p, size);
         }
+        let opening = portals[arrival.unwrap_or(if void { 6 } else { 0 })];
         let inward = portal_inward(arrival.unwrap_or(if void { 6 } else { 0 }));
         let mut target = opening.map_or([0., hi[1] as f32 + 1., 0.], |p| p.spawn);
         let support_up = opening.map_or(tangent(UP, inward), |p| p.support);
-        for _ in 0..1024 {
-            if !solid.has(target) {
-                break;
+        if opening.is_some_and(|p| p.direct_spawn) {
+            target = add(target, mul(support_up, SKIN));
+        } else {
+            for _ in 0..1024 {
+                if !solid.has(target) {
+                    break;
+                }
+                target = add(target, mul(support_up, 0.25));
             }
-            target = add(target, mul(support_up, 0.25));
         }
         let surface = solid
             .ray(target, mul(UP, -1.), (hi[1] - lo[1] + 2) as f32)
@@ -673,7 +732,9 @@ impl CubesWalkerCam {
         };
         if opening.is_some() {
             cam.up = support_up;
-            if let Some(hit) = cam.solid.ray(target, mul(support_up, -1.), 2.) {
+            if opening.is_some_and(|p| p.direct_spawn) {
+                cam.fly = false;
+            } else if let Some(hit) = cam.solid.ray(target, mul(support_up, -1.), 2.) {
                 cam.attach(hit);
             }
             cam.position = cam.camera_target();
@@ -2222,6 +2283,61 @@ mod tests {
         c.fly = false;
         c.look(0., -100000.);
         assert_eq!(c.pitch, 1.42);
+    }
+    #[test]
+    fn every_world_exports_one_explicit_spawn_and_forward_marker_per_portal() {
+        for (world, bytes) in crate::WORLD_PAGES.iter().enumerate() {
+            let expected_faces = if world == 26 { 7 } else { 6 };
+            let mut markers = [[None; 2]; crate::cube_format::PORTAL_MARKER_FACES];
+            let mut expanded = 0usize;
+            for r in crate::cube_format::records(bytes) {
+                expanded += (r.side / r.tier).pow(3) as usize;
+                let Some((face, kind)) = crate::cube_format::portal_marker(bytes[4], r.part) else {
+                    continue;
+                };
+                assert_eq!((r.side, r.tier), (2, 2));
+                let slot = match kind {
+                    crate::cube_format::PortalMarkerKind::Spawn => 0,
+                    crate::cube_format::PortalMarkerKind::Forward => 1,
+                };
+                assert!(markers[face][slot].is_none(), "world {} face {} duplicate marker", world + 1, face);
+                markers[face][slot] = Some([
+                    (r.origin[0] as f32 + 1.) * 0.25,
+                    (r.origin[1] as f32 + 1.) * 0.25,
+                    -(r.origin[2] as f32 + 1.) * 0.25,
+                ]);
+            }
+            assert_eq!(expanded, crate::cube_format::cubes(bytes).count() + expected_faces * 2);
+            for face in 0..crate::cube_format::PORTAL_MARKER_FACES {
+                if face >= expected_faces {
+                    assert_eq!(markers[face], [None; 2]);
+                    continue;
+                }
+                let [Some(spawn), Some(forward)] = markers[face] else {
+                    panic!("world {} face {} missing marker pair", world + 1, face);
+                };
+                close(sub(forward, spawn), mul(portal_inward(face), 2.));
+                let camera = CubesWalkerCam::from_portal(bytes, world == 26, Some(face));
+                let opening = camera.portals[face].unwrap();
+                close(opening.inward, portal_inward(face));
+                assert!((dot(sub(spawn, opening.front), opening.inward) - 6.).abs() < EPS);
+                assert!(!camera.solid.has(spawn));
+                if face < 6 {
+                    let support = marker_spawn_support(spawn, opening.inward).unwrap();
+                    close(support, opening.support);
+                    let contact = sub(spawn, mul(support, 0.25));
+                    close(opening.spawn, contact);
+                    close(camera.foot, add(contact, mul(support, SKIN)));
+                    let hit = camera.solid.ray(spawn, mul(support, -1.), 1.).unwrap();
+                    close(hit.point, contact);
+                    assert!((hit.distance - 0.25).abs() < EPS);
+                    assert!(opening.direct_spawn);
+                } else {
+                    close(opening.spawn, spawn);
+                    assert!(!opening.direct_spawn);
+                }
+            }
+        }
     }
     #[test]
     fn portal_arrivals_use_the_centered_broad_face_three_cubes_from_the_frame() {

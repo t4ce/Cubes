@@ -3,7 +3,7 @@
   "worlds": [
     {
       "filename": "world_01_sky.cubes",
-      "sha256": "cbcda9f607bfb6f6f71a79cc55f75608eb737cd4f91b8de6cefae0906bd41518",
+      "sha256": "47bbe4bf4f1a8b2e3299e1b2957a9d659686382d1065d6cdbc2e01c3ccd9973e",
       "decoded": 7766,
       "hulls": [
         {
@@ -336,7 +336,7 @@
     },
     {
       "filename": "world_02_underground.cubes",
-      "sha256": "25bf69278e123c43eaff280cfff8a76fb14cdd3e6e391718eab40a143414ad7a",
+      "sha256": "95f77c2adec30ac758add1d1e517399034cd539db038654f725e7ab992a5e63d",
       "decoded": 7659,
       "hulls": [
         {
@@ -657,7 +657,7 @@
     },
     {
       "filename": "world_03_black-hole.cubes",
-      "sha256": "49ccd4e133ef6c26e8686b50b126e6274f40b2bfd11ae42b2a77ef64892f2085",
+      "sha256": "f50616dff7978b236d6293d92677ec43d039cef24141e08d93b2f0c62241a6ce",
       "decoded": 7918,
       "hulls": [
         {
@@ -998,7 +998,7 @@
     },
     {
       "filename": "world_04_white-hole.cubes",
-      "sha256": "f97147537f6387f6d900878b01a5f2eca90226b78f7c5a97b2a7e60710d0a70a",
+      "sha256": "4feda8e43f0f6ec5503dccc7ffe6bcc51ba63151babbd0d68ce9305be40f0f55",
       "decoded": 7809,
       "hulls": [
         {
@@ -1331,7 +1331,7 @@
     },
     {
       "filename": "world_05_island.cubes",
-      "sha256": "7448a4a60824aa4ce19f737677a6be3848013b8515e4fe810f476cc19e3d3356",
+      "sha256": "9b02b8d065107b1818b236d7eb6f5b8fb0338885dbf6da12d006c78c7b24238f",
       "decoded": 7741,
       "hulls": [
         {
@@ -1660,7 +1660,7 @@
     },
     {
       "filename": "world_06_city.cubes",
-      "sha256": "3b9f5b25cbffd2e24f306ea2471d3aa3a1d89eb3bdca061937a10d79f3164561",
+      "sha256": "8e147563aff31b064987eef3f42891dc0de455db237489570cf697be783d469b",
       "decoded": 7679,
       "hulls": [
         {
@@ -1993,7 +1993,7 @@
     },
     {
       "filename": "world_07_sky_black-hole.cubes",
-      "sha256": "73f5b9a7e1ee8477b3053f2dac01cbcd2dd117b4530fffe43bbaa5c80b3bcea0",
+      "sha256": "32ccd542cfc5483ed6f67df2505872d901a542f8626114d22f5d8606402a74ca",
       "decoded": 6426,
       "hulls": [
         {
@@ -2378,7 +2378,7 @@
     },
     {
       "filename": "world_08_sky_white-hole.cubes",
-      "sha256": "de7729293532ff43d55f87dd505ae3068e683572450772f12c5bf0aeeeddacf1",
+      "sha256": "3bcff47a5ab7b0233c03f558afdd92ae3fd045e45eb11100f92d439903014b35",
       "decoded": 6404,
       "hulls": [
         {
@@ -2715,7 +2715,7 @@
     },
     {
       "filename": "world_09_sky_island.cubes",
-      "sha256": "5b3154742ed2c56a6a8774833d5926dceacb32ab372eccfc48fbe5e0c4f99274",
+      "sha256": "ee216eb2c77e449c0e7258e1d691f93738115d84e7e9c3753257c1a854157c88",
       "decoded": 6311,
       "hulls": [
         {
@@ -3044,7 +3044,7 @@
     },
     {
       "filename": "world_10_sky_city.cubes",
-      "sha256": "3f167f9921bb6db9565fff71342cabfc8ec11b88855f1563033803b7a7994cc8",
+      "sha256": "43e5e94a16d5f9c41591dc99ac25be0af5cfe524f61b688f652533ca058e2844",
       "decoded": 6399,
       "hulls": [
         {
@@ -3377,7 +3377,7 @@
     },
     {
       "filename": "world_11_underground_black-hole.cubes",
-      "sha256": "0ba2d4e40ebb0aaed5d6d51b874cc4b193ca9fba1f3e56656bc74283480edeae",
+      "sha256": "1d7c38fea5caa5808e7c55eba5fa4f2e49db3ef204f97779cf341fb8f7064bdc",
       "decoded": 6361,
       "hulls": [
         {
@@ -3710,7 +3710,7 @@
     },
     {
       "filename": "world_12_underground_white-hole.cubes",
-      "sha256": "181e7f7086d9e8dd63d6e2a92369c04ecdcbc1af9bb26e400688a5accec93b4b",
+      "sha256": "0d4768c600b3b946f0e1f468637f6dc541926de43e871c4e0e0db32cb026e352",
       "decoded": 6469,
       "hulls": [
         {
@@ -4107,7 +4107,7 @@
     },
     {
       "filename": "world_13_underground_island.cubes",
-      "sha256": "a419c082d47677e6126e980b4547d34811eb6161705ba5075bab130dfe6cafb6",
+      "sha256": "9dc846ad8df218488f2f4f855c8ceb9ce04116b98e55a24e11add53f7f9eff52",
       "decoded": 6405,
       "hulls": [
         {
@@ -4500,7 +4500,7 @@
     },
     {
       "filename": "world_14_underground_city.cubes",
-      "sha256": "77b310960d2b88133b97cd1c80d573f867aee668fc2cb17a3b9175d23c624e9f",
+      "sha256": "02ffb8297232a73ff60290c87c75dd461600a78d9eebc058c741e2ae2c365f8b",
       "decoded": 6582,
       "hulls": [
         {
@@ -4837,7 +4837,7 @@
     },
     {
       "filename": "world_15_black-hole_island.cubes",
-      "sha256": "93dcabf0bbe74d108146d9c5382238252cc3fbe407d4ebabf4061e753bd1665f",
+      "sha256": "8aaf86bd056c35c4903d7224d4370e3db9cbb96247fb1aecca7b312558a8ff04",
       "decoded": 6443,
       "hulls": [
         {
@@ -5178,7 +5178,7 @@
     },
     {
       "filename": "world_16_black-hole_city.cubes",
-      "sha256": "b83f3bbeb0b0fa73ab078066911a19cf2fd17f079c2204ae49d2860900d5a8ec",
+      "sha256": "9254f18e08063686cc691245c3c0543e7d4d479f11f262b0d2a2abdd5f5c4ce2",
       "decoded": 6406,
       "hulls": [
         {
@@ -5567,7 +5567,7 @@
     },
     {
       "filename": "world_17_white-hole_island.cubes",
-      "sha256": "ad8c016fb89eecbaca8a788c8628c4fd3cb68b2842b0270d7d39e07ae59adea8",
+      "sha256": "9da912aaafcf6dc7a5837950315439708b59869f99850e295db67198169a2877",
       "decoded": 6377,
       "hulls": [
         {
@@ -5904,7 +5904,7 @@
     },
     {
       "filename": "world_18_white-hole_city.cubes",
-      "sha256": "80b7d91438c5643af9910b4f59790bf917d02737331e9cfe8af5a8f20a14ee85",
+      "sha256": "98d95f4fda777d1d45d527bfb1405065c952d4dd7fa6023b788b41c59b2fdc90",
       "decoded": 6450,
       "hulls": [
         {
@@ -6241,7 +6241,7 @@
     },
     {
       "filename": "world_19_sky_black-hole_island.cubes",
-      "sha256": "6035ac409cb7354444e691f736f7449fc4d9a9a03f60afda0751a4bda107ffe1",
+      "sha256": "c83a0ac3f8e48b8d005794da5fe313a5c2ef0ee11d3b6252ca3032f426e16287",
       "decoded": 6993,
       "hulls": [
         {
@@ -6574,7 +6574,7 @@
     },
     {
       "filename": "world_20_sky_black-hole_city.cubes",
-      "sha256": "649d9124b2dc24a8ffdb3a65a38869f7e20319498aa9bd0f9ca508699d31af63",
+      "sha256": "be46b24b59d0c90a67e2869d60a185ff6d9c1c42d3abc83216f94a705203310a",
       "decoded": 7035,
       "hulls": [
         {
@@ -6907,7 +6907,7 @@
     },
     {
       "filename": "world_21_sky_white-hole_island.cubes",
-      "sha256": "793a8b6d337d53d7a5019e8022fff5341ee7d0f0278ced0403350c9478fa7c98",
+      "sha256": "d183f605bc50f9989edbfc77e2912cb55cdf5d4554ec4ef16a731c85a062be58",
       "decoded": 7068,
       "hulls": [
         {
@@ -7240,7 +7240,7 @@
     },
     {
       "filename": "world_22_sky_white-hole_city.cubes",
-      "sha256": "c52536595e0b1d67b8f804fb3e2f08fd31b5c9ae1896a7a3d6976960aef50845",
+      "sha256": "d2cd7993cd53b29aab64631c3dbc2c802b86aa594fba495318442bc43f6bea95",
       "decoded": 7144,
       "hulls": [
         {
@@ -7577,7 +7577,7 @@
     },
     {
       "filename": "world_23_underground_black-hole_island.cubes",
-      "sha256": "29ce55df08c597dd04ab8520fa1453b46014bf206c1568f0913eb39b89b7166f",
+      "sha256": "baedbe56cdf7971cf7cb1dbb5e8945dffd0791498bdc7c269ac5388c60b9474e",
       "decoded": 7180,
       "hulls": [
         {
@@ -7906,7 +7906,7 @@
     },
     {
       "filename": "world_24_underground_black-hole_city.cubes",
-      "sha256": "db736985408d019fcf2fbc9347c78b2ea829f8e0db076f770ab8fd357e227b88",
+      "sha256": "13917d0222cfb72375ddcc13d5abd58a1ef7eff05aa02430850e9d42369a9d3e",
       "decoded": 7169,
       "hulls": [
         {
@@ -8231,7 +8231,7 @@
     },
     {
       "filename": "world_25_underground_white-hole_island.cubes",
-      "sha256": "0e2697783ed72395623aa2bb38641510674018128ff89e09d4793707f5a2e8cf",
+      "sha256": "3983ef9715f59f1d889180c74cbb80aa44fd630ef823571e2ac7481eb6f1382f",
       "decoded": 7136,
       "hulls": [
         {
@@ -8624,7 +8624,7 @@
     },
     {
       "filename": "world_26_underground_white-hole_city.cubes",
-      "sha256": "3902ec4afecfd4d2b5decfeaa9b77942e72ce93eabd55b6852346939cecfedec",
+      "sha256": "d3988edab72201e373b26ba5893cbd560167d431067612f549abe077f61dc1cb",
       "decoded": 6973,
       "hulls": [
         {
@@ -8953,7 +8953,7 @@
     },
     {
       "filename": "world_27_void.cubes",
-      "sha256": "f803fa7fa855c6bb802199769877fcbb44d9547509275648f3965d6930f5d2a6",
+      "sha256": "d31213672527f4eaab1f2852f9919c78d34166d2dff920b48c52d38ff9a4429c",
       "decoded": 6533,
       "hulls": [
         {

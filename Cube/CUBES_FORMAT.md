@@ -135,10 +135,11 @@ neither operation changes relative positions or sizes.
 ## World geometry v2
 
 The lvl27 exporter writes version `2`. Existing v1 nature/network files remain
-readable. Cubes owns its camera, mining rules, input, and portal routing; files
-contain only cube geometry, palette colors, and semantic part identifiers. No
-HTML camera, controller, or editor settings are imported into the application.
-Cubes reconstructs the procedural cube vertices from these records.
+readable. Cubes owns its camera, mining rules, input, and portal routing. World
+files contain cube geometry, palette colors, semantic part identifiers, and two
+explicit point markers per portal for arrival placement. No general HTML camera,
+controller, or editor settings are imported into the application. Cubes
+reconstructs the procedural cube vertices from the geometry records.
 
 The 16-byte header and RGBA palette retain their layout, with these v2 meanings:
 version = `2`, record size = `12`, byte 11 = packing-axis limit `4`, grid unit =
@@ -162,8 +163,17 @@ avoids allocating a dense 2048³ c1 grid. The limit remains 16,384 records.
 
 Part ids: `0` terrain; `9/10` boundary portal connector; `11/12` boundary frame;
 `13/14` center connector; `15/16` center frame (even variants are accents).
-Frame cells retain the preview's c2 geometry and balanced destination palettes.
-The center identifier keeps Void's center opening separate from its six returns.
+Parts `17..30` are seven ordered spawn/forward pairs: north `17/18`, east
+`19/20`, south `21/22`, west `23/24`, bottom `25/26`, top `27/28`, and center
+`29/30`. Each marker is stored as a c2 record wholly in empty space. The first
+center is the spawn probe, exactly three c4 lengths inward from the frame's inner
+face and adjacent to the larger-gap broad side of an outer 2×1 path; its touching
+face is the exact player contact point and its transverse offset encodes support.
+The second is one c4 farther inward; `forward - spawn` is the exact arrival direction.
+Marker records are validated but filtered before rendering, picking, collision,
+portal animation, decoded cube IDs, and platform ownership. Frame cells retain
+the preview's c2 geometry and balanced destination palettes. The center
+identifier keeps Void's center opening separate from its six returns.
 
 Regenerate all defaults with `node Cube/export_lvl27_defaults.cjs` from the repository root
 (or `node export_lvl27_defaults.cjs` beside WorldShowcase). Terrain keeps

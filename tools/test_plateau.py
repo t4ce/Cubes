@@ -25,6 +25,7 @@ path = "lib.rs"
     assert palette == (APP.parent/'TRUEOS-Blueprints/crates/cubes-protocol/palette.rgba').read_bytes()
     source = '''#![allow(dead_code)]
 extern crate alloc;
+extern crate self as cubes_protocol;
 extern crate self as trueos;
 extern crate self as trueos_picasso;
 pub use tokio;
@@ -49,6 +50,7 @@ pub mod logl { pub mod level {pub const WARN:u8=1;} pub fn log(_:u8,_:core::fmt:
                          ('cube_format', APP/'src/cube_format.rs'), ('orchard', APP/'src/orchard.rs'),
                          ('slideshow', APP/'src/slideshow.rs'), ('floor', APP/'src/floor.rs'), ('asset_brush', APP/'src/asset_brush.rs')]:
         source += f'#[path="{path}"] pub mod {module};\n'
+    source += 'pub use plateau::gallery;\n'
     source += 'const WORLD_PAGES: &[&[u8]] = &[\n' + ''.join(f'include_bytes!("{p}"),\n' for p in sorted((APP/'Cube/lvl27').glob('*.cubes'))) + '];\n'
     editor = (APP/'Cube/WorldShowcase.html').read_text()
     start = editor.index('function moduleVoxels(')
