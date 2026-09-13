@@ -57,7 +57,10 @@ Grid spacing scales with pixel cubes, giving full effect widths from 6.4 to
 51.2 renderer units; terrain cubes remain c4. Positions are fixed on the six image directions at exactly twice the image
 radius: (±41,0,0), (0,0,±41), (0,±41,0) in renderer units. They do not vary
 with timer cycle or pixel size. Large effects can extend back toward the images.
-All effects keep their bottom-center anchor at their terrain cube's top.
+Each effect's canvas center is fixed in world space, half its full height above
+the terrain cube's top. Billboard rotation applies only to centered pixel offsets;
+roll/pitch cannot swing that center around the support. An upright canvas still
+rests on the support; a tilted canvas rotates freely around its fixed center.
 Size is a one-byte scene field; the same compressed asset/cache entry works at
 every size without resampling, rebaking or another download.
 After 500 ms, each plays one complete loop at exactly 500 ms/frame.

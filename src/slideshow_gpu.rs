@@ -221,8 +221,10 @@ fn scene_seeds(scene: Option<&crate::network::VfxScene>, palette: &[u16], world:
             // Match placed assets' tiny initial seed, avoiding degenerate GPU transforms.
             let scale=(pixel_side*0.5*growth).max(0.00101);
             let x=(pixel.x as f32+0.5-16.)*pixel_side;
-            let y=(31.5-pixel.y as f32)*pixel_side;
-            let translation=core::array::from_fn(|a| base[a]+if a==1 {0.8} else {0.}
+            let y=(15.5-pixel.y as f32)*pixel_side;
+            // Keep the canvas center fixed in world space. Camera roll/pitch
+            // rotates only centered pixel offsets, never the support-to-center lift.
+            let translation=core::array::from_fn(|a| base[a]+if a==1 {0.8+16.*pixel_side} else {0.}
                 +right[a]*x+up[a]*y);
             let color=*palette.get(pixel.palette as usize).ok_or(ERR_UNSUPPORTED)?;
             if color&0x8000==0 { return Err(ERR_UNSUPPORTED); }

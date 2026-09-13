@@ -193,6 +193,40 @@ fn billboard_pixel_spacing_tracks_viewport_right_and_up() {
 }
 
 #[test]
+fn billboard_center_stays_fixed_for_every_size_under_roll_pitch_and_yaw() {
+    for size in cubes_protocol::vfx::PIXEL_SIDES_C1 {
+        let mut scene=animation(&[(0,31,0),(31,0,1)]);
+        for slot in &mut scene.info.slots {slot.pixel_side_c1=size;}
+        for (right,up) in [
+            ([1.,0.,0.],[0.,1.,0.]),
+            ([0.,1.,0.],[-1.,0.,0.]), // quarter-turn roll
+            ([-1.,0.,0.],[0.,-1.,0.]), // inverted roll
+            ([1.,0.,0.],[0.,0.,1.]), // pitch
+            ([0.,0.,-1.],[0.,1.,0.]), // yaw
+            ([0.,0.,1.],[1.,0.,0.]), // combined rotation
+        ] {
+            let camera=RetainedCamera {view:[
+                right[0],up[0],0.,0., right[1],up[1],0.,0.,
+                right[2],up[2],0.,0., 13.,-7.,21.,1.
+            ],..Default::default()};
+            let seeds=scene_seeds(Some(&scene),&[0x801f,0xfc00],&[],&camera).unwrap();
+            for slot in 0..6 {
+                let base=seeds[27+slot];
+                let a=seeds[33+slot*2];let b=seeds[34+slot*2];
+                let unit=size as f32*0.2;
+                for axis in 0..3 {
+                    let center=base.translation[axis]+if axis==1 {0.8+16.*unit} else {0.};
+                    assert!(((a.translation[axis]+b.translation[axis])*0.5-center).abs()<0.0001);
+                    assert!((b.translation[axis]-a.translation[axis]
+                        -(right[axis]+up[axis])*31.*unit).abs()<0.0001);
+                }
+                assert_eq!(base.rotation,[1.,0.,0.,0.]);
+            }
+        }
+    }
+}
+
+#[test]
 fn all_cube_sizes_scale_pixels_and_spacing_without_scaling_terrain() {
     let camera=RetainedCamera::default();
     for size in cubes_protocol::vfx::PIXEL_SIDES_C1 {
