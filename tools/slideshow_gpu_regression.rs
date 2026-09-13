@@ -38,7 +38,7 @@ fn setup()->(Wall,Queue) {
     (Wall::new(device,slide(device,1,7)).unwrap(),queue)
 }
 fn draw(wall:&mut Wall, queue:Queue, now:u64)->Result<(),i32> {
-    wall.render(queue,wall.device.acquire_ui4_surface(1).unwrap(),RetainedCamera::default(),441,now,&[])
+    wall.render(queue,wall.device.acquire_ui4_surface(1).unwrap(),RetainedCamera::default(),441,now,&[],&[])
 }
 fn animation(pixels:&[(u8,u8,u8)])->crate::network::HolyFrame {
     crate::network::HolyFrame {session:1,gallery_revision:7,revision:3,index:0,
@@ -46,6 +46,23 @@ fn animation(pixels:&[(u8,u8,u8)])->crate::network::HolyFrame {
 }
 fn active_bytes(wall:&Wall)->Vec<u8> {
     driver(|d| d.buffers[&wall.cubes.seeds[wall.cubes.active].raw()][..wall.cubes.count as usize*64].to_vec())
+}
+#[test]
+fn navigation_overlay_has_separate_compact_slots_after_opaque_cubes() {
+    let (mut wall,queue)=setup();
+    let overlay = RetainedTransformSeed {translation:[0.,3.,0.],scale:[0.4;3],
+        rotation:[1.,0.,0.,0.],local_radius:1.74,draw_group:1,
+        flags:24576 | 512 | 4096 | (3<<10),..RetainedTransformSeed::default()};
+    wall.render(queue,wall.device.acquire_ui4_surface(1).unwrap(),
+        RetainedCamera::default(),441,0,&[],&[overlay,overlay]).unwrap();
+    assert_eq!(wall.cubes.count,29);
+    let bytes=active_bytes(&wall);
+    for (slot,row) in bytes[27*64..].chunks_exact(64).enumerate() {
+        assert_eq!(u32::from_le_bytes(row[56..60].try_into().unwrap()),1);
+        assert_eq!(u32::from_le_bytes(row[60..64].try_into().unwrap())>>16,slot as u32);
+    }
+    draw(&mut wall,queue,16).unwrap();
+    assert_eq!(wall.cubes.count,27);
 }
 #[test]
 fn terrain_and_holy_share_compact_slots_and_one_depth_tested_frame() {
@@ -56,7 +73,7 @@ fn terrain_and_holy_share_compact_slots_and_one_depth_tested_frame() {
     wall.replace_holy(animation(&[(3,4,0)])).unwrap();
     for now in [0,333,1033] {
         wall.render(queue,wall.device.acquire_ui4_surface(1).unwrap(),
-            RetainedCamera::default(),441,now,&terrain).unwrap();
+            RetainedCamera::default(),441,now,&terrain,&[]).unwrap();
         assert_eq!(wall.cubes.count,if now==1033 {29} else {28});
         let bytes=active_bytes(&wall);
         let last=&bytes[bytes.len()-64..];
@@ -182,9 +199,12 @@ fn seeds_preserve_landmark_bounds_sparse_pixel_positions_and_colors() {
         // Native Picasso requires contiguous group-local output slots, even when
         // authored IDs or visible pixels are sparse (resources.rs draw templates).
         let bytes = &d.buffers[&submission.cubes.seed_buffer];
-        for (slot, row) in bytes[..submission.cubes.seed_count as usize*64].chunks_exact(64).enumerate() {
+        let mut slots = [0u32;2];
+        for row in bytes[..submission.cubes.seed_count as usize*64].chunks_exact(64) {
+            let group = u32::from_le_bytes(row[56..60].try_into().unwrap()) as usize;
             let flags = u32::from_le_bytes(row[60..64].try_into().unwrap());
-            if flags >> 16 != slot as u32 { return ERR_UNSUPPORTED; }
+            if group >= slots.len() || flags >> 16 != slots[group] { return ERR_UNSUPPORTED; }
+            slots[group] += 1;
         }
         d.submissions.push(*submission);d.leased=false;
         unsafe{*out=TimelinePoint{value:d.submissions.len() as u64,physical_serial:1};}0})

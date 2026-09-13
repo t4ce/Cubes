@@ -647,7 +647,7 @@ impl CubeScene {
                             space: held(0x2c),
                             // R already opens the world cube. Home aligns the walk view.
                             align: held(0x4a),
-                            path_tab: self.mode.is_world() && !self.network_singleton && held(0x2b),
+                            path_tab: self.mode.is_world() && held(0x2b),
                         },
                         delta_seconds,
                     );
@@ -894,6 +894,24 @@ impl CubeScene {
             let surface = self.device.acquire_ui4_surface(self.frame.window_id())
                 .map_err(|code| CubeError::Vgpu("surface-acquire", code))?;
             let terrain = &self.network_world.as_ref().ok_or(CubeError::Contract)?.asset;
+            let target = self.walker_camera.as_ref()
+                .and_then(|c| c.path_target().or_else(|| c.landing_target()));
+            let landmark = target.filter(|t| t.center.iter().all(|v|
+                v.abs() <= slideshow::CENTER_HALF_EXTENT)).map(|t| [orchard::Cube {
+                    center: t.center, scale: t.scale, flags: 0xffff,
+                }]);
+            let sources = landmark.as_ref().map_or(terrain.cubes.as_slice(), |c| &c[..]);
+            let highlight = self.flight_target.update(target, elapsed_millis, sources, &MATERIAL_PALETTE_RGBA);
+            let mut overlays = self.flight_target.flags().and_then(|flags|
+                self.walker_camera.as_ref().map(|c| c.path_cubes(flags, 128))).unwrap_or_default();
+            if let Some(cube) = highlight { overlays.push(cube); }
+            // Same transparent material and back-to-front ordering as local worlds.
+            overlays.sort_by(|a,b| {
+                let depth = |p: [f32;3]| -(camera.view[2]*p[0]+camera.view[6]*p[1]
+                    +camera.view[10]*p[2]+camera.view[14]);
+                depth(b.center).total_cmp(&depth(a.center))
+            });
+            let overlay_seeds: Vec<_> = overlays.iter().map(|c| flight_target_seed(Some(*c), [0.;3])).collect();
             let (visible, _) = orchard::visible_when_limited(&mut self.visibility_scratch,
                 terrain, self.flycam.camera.position, &camera.view_projection,
                 slideshow_gpu::TERRAIN_BUDGET, |_| true);
@@ -907,7 +925,7 @@ impl CubeScene {
                 }
             }).collect();
             self.image_wall.as_mut().ok_or(CubeError::Contract)?
-                .render(self.queue, surface, camera, height, elapsed_millis, &seeds)
+                .render(self.queue, surface, camera, height, elapsed_millis, &seeds, &overlay_seeds)
                 .map_err(|code| CubeError::Vgpu("image-wall-submit", code))?;
             self.frame.publish(Damage::full(width, height))
                 .map_err(|error| CubeError::Ui4("frame-publish", error))?;

@@ -2740,6 +2740,19 @@ mod tests {
 mod image_gallery_tests {
     use super::*;
     #[test]
+    fn server_center_supports_tab_target_and_pathchain() {
+        let bytes = include_bytes!("../Cube/lvl27/world_01_sky.cubes");
+        let mut c = CubesWalkerCam::image_gallery_world(
+            crate::slideshow::contract::Layout {tiers:[1;6]}, bytes);
+        let goal = [1.6/c.unit, crate::slideshow::CENTER_HALF_EXTENT/c.unit, 1.6/c.unit];
+        c.view = look(norm(sub(goal,c.position)), UP);
+        c.rotation = c.view;
+        c.update(Input {path_tab:true,..Input::default()},0.016);
+        assert!(c.path_enabled());
+        assert!(c.path_target().is_some());
+        assert!(!c.path_cubes(24576|512|4096|(3<<10),128).is_empty());
+    }
+    #[test]
     fn server_gallery_retains_world1_collision_and_center_spawn() {
         let bytes = include_bytes!("../Cube/lvl27/world_01_sky.cubes");
         let world = CubesWalkerCam::from_world(bytes, false);

@@ -3,7 +3,7 @@
 The old flat panel and per-image-pixel normal/occlusion maps have been removed.
 Key 8 now displays six nearby real beveled c1 cube slabs at 10% of the standard
 world radius. A white 3×3×3 c4 landmark occupies the origin. An upright sparse
-48×48 c1 cube asset plays above it at 100 ms per frame, and the player connects
+48×48 c1 cube asset plays above it at 750 ms per frame, and the player connects
 on the +Z part of the top face looking toward it. The scene combines one retained textured mesh and PNG atlas (native PBR with
 nearest filtering) with ordinary cube-patch instances in one depth-tested frame.
 
@@ -45,7 +45,7 @@ until the rebuilt TRUEOS kernel, CubeSrv and Cubes are run together.
 Holy placement experiment: frame updates retain each cell's identity by its
 48×48 grid coordinate. The client uses the same `Reveal` implementation as placed
 assets: 333 ms admission delay, rate-limited starts, and 700 ms grow-and-bounce.
-Growth advances on every rendered frame; server announcements remain at 100 ms.
+Growth advances on every rendered frame; server announcements remain at 750 ms.
 Continuing cells keep their growth through color changes and sparse-list reorderings.
 Transparent cells disappear immediately; absence uses placement's 240 ms rearm
 policy. Brief pixels can disappear before admission, so this experiment changes
@@ -56,4 +56,13 @@ Key8 now receives world1 (`world_01_sky.cubes`) through the normal CUB1 world
 welcome/request/chunk exchange before publishing the gallery. The ordinary level
 decoder, walker terrain collision and nearest-first visibility selection supply
 the terrain; its cube instances share depth with the images, landmark and VFX.
-The center spawn and 100 ms Holy cadence are unchanged. Rebuild both apps.
+The center spawn and 750 ms Holy cadence are unchanged. Rebuild both apps.
+
+Key8 navigation uses the normal landing highlight in flight and the Tab target
+and pathchain when walking. These are rendered as a sorted transparent cube
+group after opaque terrain/Holy, sharing depth with the images. The landmark
+is also a highlight source. This requires the updated TRUEOS mixed-draw renderer.
+
+The textured shader's compiled clip-Y inversion is compensated by its viewport
+Y scale and front winding in TRUEOS. Cube geometry keeps its existing viewport
+convention, so both use the same unmodified world camera. Rebuild TRUEOS and Cubes.

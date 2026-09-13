@@ -37,9 +37,9 @@ impl Wall {
     }
     pub fn layout(&self) -> slideshow::contract::Layout { self.slide.layout }
     pub fn render(
-        &mut self, queue: Queue, surface: Ui4Surface, camera: RetainedCamera, height: u32, now: u64, terrain: &[RetainedTransformSeed],
+        &mut self, queue: Queue, surface: Ui4Surface, camera: RetainedCamera, height: u32, now: u64, terrain: &[RetainedTransformSeed], overlays: &[RetainedTransformSeed],
     ) -> Result<(), i32> {
-        self.cubes.animate(now, terrain)?;
+        self.cubes.animate(now, terrain, overlays)?;
         let point = self.device.submit_retained_frame_v4(
             queue, surface, self.mesh, self.cubes.mesh, self.vertices, self.indices,
             RetainedFrameSubmitV4 {
@@ -64,7 +64,8 @@ impl Drop for Wall {
 
 const CENTER_COUNT: usize = 27;
 const MAX_CUBES: usize = MAX_RETAINED_SCENE_INSTANCES;
-pub const TERRAIN_BUDGET: usize = MAX_CUBES-CENTER_COUNT-48*48;
+pub const OVERLAY_BUDGET: usize = 129;
+pub const TERRAIN_BUDGET: usize = MAX_CUBES-CENTER_COUNT-48*48-OVERLAY_BUDGET;
 const SEED_BYTES: usize = 64;
 /// Immutable 44-patch topology. Updates only upload TRS/color seeds.
 struct CubeInstances {
@@ -107,18 +108,24 @@ impl CubeInstances {
         let mut cubes = Self { device, vertices, indices, mesh, seeds, active:0, count:0,
             asset: AnimatedAsset::new() };
         cubes.replace(&[], &[])?;
-        cubes.animate(0, &[])?;
+        cubes.animate(0, &[], &[])?;
         Ok(cubes)
     }
     fn replace(&mut self, pixels: &[cubes_protocol::holy::Pixel], palette: &[u16]) -> Result<(), i32> {
         self.asset.replace(pixels, palette)
     }
-    fn animate(&mut self, now: u64, terrain: &[RetainedTransformSeed]) -> Result<(), i32> {
-        if terrain.len() > TERRAIN_BUDGET { return Err(ERR_UNSUPPORTED); }
+    fn animate(&mut self, now: u64, terrain: &[RetainedTransformSeed], overlays: &[RetainedTransformSeed]) -> Result<(), i32> {
+        if terrain.len() > TERRAIN_BUDGET || overlays.len() > OVERLAY_BUDGET { return Err(ERR_UNSUPPORTED); }
         let mut seeds = self.asset.frame(now);
         for seed in terrain {
             let mut seed = *seed;
             seed.flags = (seed.flags & 0xffff) | ((seeds.len() as u32)<<16);
+            seeds.push(seed);
+        }
+        for (slot, seed) in overlays.iter().enumerate() {
+            let mut seed = *seed;
+            seed.draw_group = 1;
+            seed.flags = (seed.flags & 0xffff) | ((slot as u32)<<16);
             seeds.push(seed);
         }
         let bytes = seed_bytes(&seeds);
@@ -158,7 +165,7 @@ impl AnimatedAsset {
     }
     fn frame(&mut self, now: u64) -> Vec<RetainedTransformSeed> {
         // Share placement's admission delay, rate cap, growth curve and rearm policy.
-        // Tick at display cadence, independently of the server's 100 ms updates.
+        // Tick at display cadence, independently of the server's 750 ms updates.
         self.reveal.begin_frame(now, 48*48);
         let mut visible = self.authored[..CENTER_COUNT].to_vec();
         for (&id, seed) in self.ids.iter().zip(&self.authored[CENTER_COUNT..]) {
