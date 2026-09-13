@@ -75,6 +75,15 @@ const IDLE_ORBIT_DELAY_MS: u64 = 3_000;
 const IDLE_ORBIT_RADIANS_PER_SECOND: f32 = 0.18;
 const _: () = assert!(render_limits::SEED_MAX == grid::MAX_SEED_COUNT);
 const _: () = assert!(render_limits::SEED_MAX <= trueos::vgpu::MAX_RETAINED_SCENE_INSTANCES);
+// VFX size selectors must stay aligned with the existing mining/placement tiers.
+const _: () = {
+    assert!(subcubes::SIDES.len() == cubes_protocol::vfx::PIXEL_SIDES_C1.len());
+    let mut i=0;
+    while i<subcubes::SIDES.len() {
+        assert!(subcubes::SIDES[i] == cubes_protocol::vfx::PIXEL_SIDES_C1[i] as i32);
+        i+=1;
+    }
+};
 const _: () = assert!(render_limits::FULL_MAX == asset_brush::FULL_WORLD_SEEDS);
 
 #[derive(Clone, Copy)]

@@ -193,6 +193,27 @@ fn billboard_pixel_spacing_tracks_viewport_right_and_up() {
 }
 
 #[test]
+fn all_cube_sizes_scale_pixels_and_spacing_without_scaling_terrain() {
+    let camera=RetainedCamera::default();
+    for size in cubes_protocol::vfx::PIXEL_SIDES_C1 {
+        let mut scene=animation(&[(0,31,0),(31,0,1)]);
+        for slot in &mut scene.info.slots {slot.pixel_side_c1=size;}
+        let seeds=scene_seeds(Some(&scene),&[0x801f,0xfc00],&[],&camera).unwrap();
+        assert_eq!(seeds.len(),45);
+        for slot in 0..6 {
+            let terrain=seeds[27+slot];
+            let a=seeds[33+slot*2];let b=seeds[34+slot*2];
+            let unit=size as f32*0.2;
+            assert_eq!(terrain.scale,[0.8;3]);
+            assert_eq!(a.scale,[unit*0.5;3]);
+            assert!((b.translation[0]-a.translation[0]-31.*unit).abs()<0.0001);
+            assert!((b.translation[1]-a.translation[1]-31.*unit).abs()<0.0001);
+            assert!((a.translation[1]-a.scale[1]-terrain.translation[1]-0.8).abs()<0.0001);
+        }
+    }
+}
+
+#[test]
 fn six_full_planes_fit_with_terrain_and_navigation_and_expire_locally() {
     let (mut wall,queue)=setup();
     let pixels:Vec<_>=(0..32).flat_map(|y|(0..32).map(move |x|(x,y,0))).collect();
