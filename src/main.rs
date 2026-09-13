@@ -21,7 +21,6 @@ mod platform_lod;
 mod render_limits;
 mod pointlist;
 mod network;
-mod world_client;
 use cubes_protocol as plateau;
 mod plateau_client;
 mod slideshow;
@@ -152,10 +151,7 @@ struct CubeScene {
     interface_cursor: Option<GridCursor>,
     carousel: carousel::Carousel,
     orchard_index: usize,
-    worlds: Vec<Option<world_client::Page>>,
-    world_client: world_client::Client,
-    pending_world: Option<(usize, Option<usize>)>,
-    failed_world: Option<(usize, Option<usize>)>,
+    worlds: orchard::Pages,
     world_index: usize,
     active_world: Option<world_portals::World>,
     world_cube: world_cube::Companion,
@@ -200,6 +196,7 @@ struct CubeScene {
     image_wall: Option<slideshow_gpu::Wall>,
     network_world: Option<NetworkWorld>,
     network_singleton: bool,
+    network_empty: bool,
     picker_camera: Option<FlyCam>,
     demo_camera: Option<FlyCam>,
     walker_camera: Option<walker_camera::CubesWalkerCam>,
@@ -368,7 +365,7 @@ impl CubeScene {
             ),
         );
         let carousel = carousel::Carousel::new(ASSET_GRID_ASSETS, ASSET_GROUPS);
-        let worlds = (0..plateau::worlds::COUNT).map(|_| None).collect();
+        let worlds = orchard::Pages::new(WORLD_ASSETS, false);
         let background = background::Background::start(
             frame
                 .background()
@@ -381,9 +378,6 @@ impl CubeScene {
             carousel,
             orchard_index: 0,
             worlds,
-            world_client: world_client::Client::new(),
-            pending_world: None,
-            failed_world: None,
             world_index: 0,
             visibility_scratch: orchard::VisibilityScratch::new(),
             world_markers: marker_lod::Reducer::new(),
@@ -448,6 +442,7 @@ impl CubeScene {
             image_wall: None,
             network_world: None,
             network_singleton: false,
+            network_empty: false,
             picker_camera: None,
             demo_camera: None,
             walker_camera: None,
@@ -472,8 +467,6 @@ impl CubeScene {
         self.previous_elapsed_millis = elapsed_millis;
         self.service_mode_hotkeys()?;
         self.service_network_world()?;
-        self.service_world_load()?;
-        if self.pending_world.is_some() { return Ok(()); }
         self.service_plateau()?;
         if self.mode == SceneMode::Interface || (self.mode == SceneMode::Plateau && self.plateau_menu) {
             return self.render_interface(elapsed_millis, delta_seconds);
@@ -841,7 +834,14 @@ impl CubeScene {
                     .normalized();
                     if flight.done(elapsed_millis) {
                         let (world, portal) = self.selected_entry.ok_or(CubeError::Contract)?;
-                        self.request_world(world, Some(portal))?;
+                        self.select_mode(
+                            modes::Selection {
+                                mode: SceneMode::World,
+                                page: Some(world),
+                            },
+                            Some(portal),
+                        )?;
+                        self.arrival_fade = Some(elapsed_millis);
                     }
                 }
             }
@@ -904,6 +904,17 @@ impl CubeScene {
             }
             let surface = self.device.acquire_ui4_surface(self.frame.window_id())
                 .map_err(|code| CubeError::Vgpu("surface-acquire", code))?;
+            if self.network_empty {
+                let point = self.device.submit_ui4_clear(self.queue, surface, 0)
+                    .map_err(|code| CubeError::Vgpu("empty-world-clear", code))?;
+                self.device.wait(self.queue, point.value)
+                    .map_err(|code| CubeError::Vgpu("empty-world-wait", code))?;
+                self.frame.publish(Damage::full(width, height))
+                    .map_err(|error| CubeError::Ui4("frame-publish", error))?;
+                self.previous_view_projection = camera.view_projection;
+                self.first_frame = false;
+                return Ok(());
+            }
             let terrain = &self.network_world.as_ref().ok_or(CubeError::Contract)?.asset;
             let target = self.walker_camera.as_ref()
                 .and_then(|c| c.path_target().or_else(|| c.landing_target()));
@@ -1005,7 +1016,7 @@ impl CubeScene {
         );
         if self.mode.is_world() {
             let metadata = if platform_lod::ENABLED && self.mode == SceneMode::World && !self.network_singleton {
-                self.worlds[self.world_index].as_ref().map(|p| p.metadata.clone())
+                Some(&WORLD_PLATFORM_HULLS[self.world_index])
             } else { None };
             self.platform_view.prepare(&self.active_world.as_ref().unwrap().scene, metadata, self.flycam.camera.position);
         }
@@ -1031,7 +1042,7 @@ impl CubeScene {
                         .as_ref()
                         .map_or(0, |world| world.asset.cubes.len())
                 } else {
-                    self.worlds[self.world_index].as_ref().unwrap().asset.cubes.len()
+                    self.worlds[self.world_index].cubes.len()
                 };
                 self.placed_reveal
                     .begin_frame(elapsed_millis, self.active_world.as_ref().unwrap().scene.cubes.len() - base);
@@ -1757,7 +1768,6 @@ impl CubeScene {
         let (asset_step, group_step) = self.carousel.key_input(
             navigation, self.mode == SceneMode::Orchard,
         );
-        if network_held { self.cancel_world_load(); }
         self.network.key(
             network_held,
             self.flycam.camera.position,
@@ -1788,15 +1798,10 @@ impl CubeScene {
             self.carousel.group_count(),
             self.worlds.len(),
         ) {
-            if selection.mode == SceneMode::World {
-                let (page, arrival) = self.failed_world.take().unwrap_or((selection.page.unwrap(), None));
-                self.request_world(page, arrival)?;
-                return Ok(());
-            }
-            self.cancel_world_load();
             self.network.disconnect();
             self.image_wall = None;
             self.network_singleton = false;
+            self.network_empty = false;
             self.network_world = None;
             if self.portal_trip.is_some() {
                 self.puzzle.cancel_travel(self.previous_elapsed_millis);
@@ -1838,6 +1843,15 @@ impl CubeScene {
         };
         let slide = match update {
             network::Update::Gallery(slide) => slide,
+            network::Update::Empty => {
+                self.network_empty = true;
+                self.flight_target.clear();
+                self.walker_camera = None;
+                self.flight = None;
+                self.portal_trip = None;
+                logl::log(level::INFO, format_args!("Cubes: Key8 server acknowledged empty world; Key8 returns to preview"));
+                return Ok(());
+            }
             network::Update::Snake {session,state} => {
                 if self.network_world.as_ref().is_some_and(|w|w.session==session) {
                     if let Some(wall)=self.image_wall.as_mut().filter(|w|w.gallery_revision()==state.gallery) {
@@ -1865,10 +1879,10 @@ impl CubeScene {
             }
 
         };
-        let first = self.network_world.as_ref().is_none_or(|world| world.session != slide.session);
+        let first = self.network_empty || self.network_world.as_ref().is_none_or(|world| world.session != slide.session);
         let session = slide.session;
         let terrain = if first {
-            match orchard::decode_world(plateau::worlds::NAMES[0], &slide.world) {
+            match orchard::decode_world(WORLD_ASSETS[0].0, &slide.world) {
                 Ok(asset) => Some((slide.world.clone(), asset)),
                 Err(error) => {
                     logl::log(level::WARN, format_args!("Cubes: server world1 rejected: {error}"));
@@ -1905,6 +1919,7 @@ impl CubeScene {
             let (bytes, asset) = terrain.ok_or(CubeError::Contract)?;
             self.network_world = Some(NetworkWorld { session, bytes, asset });
             self.network_singleton = true;
+            self.network_empty = false;
             self.asset_brush.disable();
             self.select_mode(modes::Selection {
                 mode: SceneMode::World, page: Some(0),
@@ -2229,57 +2244,20 @@ impl CubeScene {
                 self.present_portal_flight(flight, target, now);
                 if flight.done(now) {
                     let arrival = *arrival;
-                    self.request_world(destination, Some(arrival))?;
+                    self.select_mode(
+                        modes::Selection {
+                            mode: SceneMode::World,
+                            page: Some(destination),
+                        },
+                        Some(arrival),
+                    )?;
+                    self.arrival_fade = Some(now);
                     return Ok(());
                 }
             }
             _ => {}
         }
         self.portal_trip = Some(trip);
-        Ok(())
-    }
-
-    fn cancel_world_load(&mut self) {
-        self.world_client.cancel();
-        self.pending_world = None;
-        self.failed_world = None;
-    }
-    fn request_world(&mut self, index: usize, arrival: Option<usize>) -> Result<(), CubeError> {
-        if index >= self.worlds.len() { return Err(CubeError::Contract); }
-        self.cancel_world_load();
-        if self.portal_trip.is_some() { self.puzzle.cancel_travel(self.previous_elapsed_millis); }
-        self.portal_trip = None;
-        self.flight = None;
-        self.arrival_fade = None;
-        if self.worlds[index].is_some() { return self.install_world(index, arrival); }
-        self.pending_world = Some((index, arrival));
-        logl::log(level::INFO, format_args!("Cubes: Key5 loading world={} from cubesrv", index+1));
-        self.world_client.request(index);
-        Ok(())
-    }
-    fn service_world_load(&mut self) -> Result<(), CubeError> {
-        let Some(reply) = self.world_client.take_reply() else { return Ok(()); };
-        let Some((index, arrival)) = self.pending_world.filter(|p| p.0 == reply.index) else { return Ok(()); };
-        self.pending_world = None;
-        match reply.result {
-            Ok(page) => {
-                self.worlds[index] = Some(page);
-                self.install_world(index, arrival)?;
-            }
-            Err(error) => {
-                self.failed_world = Some((index, arrival));
-                logl::log(level::WARN, format_args!("Cubes: Key5 world={} failed: {error}; press Key5 to retry", index+1));
-            }
-        }
-        Ok(())
-    }
-    fn install_world(&mut self, index: usize, arrival: Option<usize>) -> Result<(), CubeError> {
-        self.network.disconnect();
-        self.image_wall = None;
-        self.network_singleton = false;
-        self.network_world = None;
-        self.select_mode(modes::Selection { mode: SceneMode::World, page: Some(index) }, arrival)?;
-        self.arrival_fade = Some(self.previous_elapsed_millis);
         Ok(())
     }
 
@@ -2322,6 +2300,9 @@ impl CubeScene {
         }
         if mode == SceneMode::Orchard {
             self.carousel.select_group(self.orchard_index).map_err(|_| CubeError::Contract)?;
+        }
+        if mode == SceneMode::World {
+            self.worlds.load_world(self.world_index).map_err(|_| CubeError::Contract)?;
         }
         if !mode.is_world() && !self.mode.is_world() {
             self.demo_camera = None;
@@ -2399,8 +2380,11 @@ impl CubeScene {
                 let network = self.network_world.as_ref().ok_or(CubeError::Contract)?;
                 (network.asset.name, network.bytes.as_slice(), &network.asset)
             } else {
-                let page = self.worlds[self.world_index].as_ref().ok_or(CubeError::Contract)?;
-                (page.asset.name, page.bytes.as_slice(), &page.asset)
+                (
+                    WORLD_ASSETS[self.world_index].0,
+                    WORLD_ASSETS[self.world_index].1,
+                    &self.worlds[self.world_index],
+                )
             };
             let mut camera = if self.network_singleton {
                 walker_camera::CubesWalkerCam::image_gallery_world(self.image_wall.as_ref().ok_or(CubeError::Contract)?.layout(), world_bytes)

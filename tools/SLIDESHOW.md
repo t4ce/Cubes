@@ -117,3 +117,23 @@ Nine worm slots follow the five snake slots. The terrain budget now reserves
 fourteen creature slots in total, preserving capacity for six full VFX planes
 and all navigation overlays. Unchanged worm and snake seeds retain their colors
 and transforms while either creature advances.
+
+## Key8 preview / empty toggle
+
+The first Key8 press connects to preview (world ID 1). After preview has been
+installed, each new press switches between preview and empty (world ID 2).
+Holding the key does not repeat. Swaps reuse the same UDP socket and native
+worker; no additional transport, runtime or indexed-world loader is created.
+
+An empty-world Hello receives the existing welcome envelope with world ID 2,
+zero bytes and zero chunks. Only that matching acknowledgement clears the client
+view. The server suppresses preview geometry, gallery, VFX, snake and worm traffic
+for empty peers. A periodic Hello keeps the peer alive while empty. The client
+uses the existing GPU surface-clear operation and removes its walker/targets;
+preview GPU resources remain cached but submit no geometry while empty.
+Returning to preview repeats the original binary world and gallery transfer.
+Key5 remains local. Rebuild both Cubes and CubeSrv for this extension.
+
+Host tests exercise preview → empty → preview repeatedly on one real UDP socket,
+including stale welcomes. GPU presentation and dual-VM host responsiveness still
+require a recoverable target test; host tests do not establish fault containment.

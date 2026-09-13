@@ -14,7 +14,7 @@ mod subcubes;
 #[test]
 fn every_bundled_world_loads_in_order_and_revisits_are_cached() {
     use modes::{ModeKeys, SceneMode};
-    let mut paths: Vec<_> = std::fs::read_dir("../TRUEOS-Blueprints/apps/cubesrv/worlds/lvl27")
+    let mut paths: Vec<_> = std::fs::read_dir("Cube/lvl27")
         .unwrap()
         .map(|p| p.unwrap().path())
         .filter(|p| p.extension().is_some_and(|e| e == "cubes"))

@@ -1,7 +1,7 @@
 //! Render-only platform replacement. Authored geometry still drives walking,
 //! picking, portals and placement. Filtering precedes per-cube visibility work.
 use crate::orchard::{Asset, Cube};
-use alloc::{vec::Vec, sync::Arc};
+use alloc::vec::Vec;
 
 pub const ENABLED: bool = true;
 pub const DETAIL_PLATFORMS: usize = 2;
@@ -19,9 +19,9 @@ pub struct Hull {
     pub hi: [f32; 3],
 }
 pub struct Metadata {
-    pub hulls: Vec<Hull>,
+    pub hulls: &'static [Hull],
     /// One-based platform ID per decoded cube; zero means retain independently.
-    pub owners: Vec<u8>,
+    pub owners: &'static [u8],
 }
 #[derive(Clone, Copy)]
 enum Item {
@@ -31,7 +31,7 @@ enum Item {
 pub struct View {
     asset: Asset,
     items: Vec<Item>,
-    metadata: Option<Arc<Metadata>>,
+    metadata: Option<&'static Metadata>,
     nearest: [usize; DETAIL_PLATFORMS],
     source_count: usize,
 }
@@ -49,7 +49,7 @@ impl View {
             source_count: usize::MAX,
         }
     }
-    pub fn prepare(&mut self, source: &Asset, metadata: Option<Arc<Metadata>>, eye: [f32; 3]) {
+    pub fn prepare(&mut self, source: &Asset, metadata: Option<&'static Metadata>, eye: [f32; 3]) {
         if metadata.is_none() {
             self.metadata = None;
             self.source_count = usize::MAX;
@@ -57,7 +57,7 @@ impl View {
         }
         let mut nearest = [usize::MAX; DETAIL_PLATFORMS];
         let mut distances = [f32::INFINITY; DETAIL_PLATFORMS];
-        if let Some(m) = metadata.as_ref() {
+        if let Some(m) = metadata {
             for (id, h) in m.hulls.iter().enumerate() {
                 let d: f32 = (0..3)
                     .map(|a| {
@@ -78,14 +78,14 @@ impl View {
                 }
             }
         }
-        let changed = self.metadata.as_ref().map(Arc::as_ptr) != metadata.as_ref().map(Arc::as_ptr)
+        let changed = self.metadata.map(|m| m as *const _) != metadata.map(|m| m as *const _)
             || self.nearest != nearest
             || self.source_count != source.cubes.len();
-        self.metadata = metadata.clone();
+        self.metadata = metadata;
         if changed {
             self.items.clear();
             for id in 0..source.cubes.len() {
-                let owner = metadata.as_ref()
+                let owner = metadata
                     .and_then(|m| m.owners.get(id))
                     .copied()
                     .unwrap_or(0);
@@ -93,7 +93,7 @@ impl View {
                     self.items.push(Item::Source(id));
                 }
             }
-            if let Some(m) = metadata.as_ref() {
+            if let Some(m) = metadata {
                 for id in 0..m.hulls.len() {
                     if !nearest.contains(&id) {
                         self.items.push(Item::Hull(id));
@@ -112,7 +112,7 @@ impl View {
             .extend(self.items.iter().map(|item| match *item {
                 Item::Source(id) => source.cubes[id],
                 Item::Hull(id) => {
-                    let cube = metadata.as_ref().unwrap().hulls[id].cube;
+                    let cube = metadata.unwrap().hulls[id].cube;
                     Cube {
                         scale: cube.scale * HULL_VISIBILITY_SCALE,
                         ..cube
@@ -128,7 +128,7 @@ impl View {
         }
     }
     pub fn counts(&self) -> Option<(usize, usize)> {
-        self.metadata.as_ref()
+        self.metadata
             .map(|m| (m.hulls.len(), m.hulls.len().min(DETAIL_PLATFORMS)))
     }
     pub fn source_id(&self, id: usize) -> Option<usize> {
@@ -151,7 +151,7 @@ impl View {
     /// asset itself carries a larger, culling-only envelope for animated hulls.
     pub fn hull(&self, id: usize) -> Option<(usize, Cube)> {
         let hull = self.hull_id(id)?;
-        self.metadata.as_ref()
+        self.metadata
             .and_then(|metadata| metadata.hulls.get(hull))
             .map(|metadata| (hull, metadata.cube))
     }
@@ -164,7 +164,7 @@ impl View {
         match self.items[id] {
             Item::Hull(_) => true,
             Item::Source(id) => self
-                .metadata.as_ref()
+                .metadata
                 .and_then(|m| m.owners.get(id))
                 .is_some_and(|&owner| owner != 0),
         }

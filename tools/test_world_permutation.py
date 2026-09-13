@@ -15,13 +15,12 @@ pub fn atan2f(y:f32,x:f32)->f32 {y.atan2(x)}
 pub fn floorf(x:f32)->f32 {x.floor()}
 pub fn roundf(x:f32)->f32 {x.round()}
 '''
-source += 'extern crate self as cubes_protocol; pub const COLORS: [[u8;4];6] = ' + str([list((APP.parent/'TRUEOS-Blueprints/crates/cubes-protocol/palette.rgba').read_bytes()[i:i+4]) for i in range(0,24,4)]) + ';\n'
 source += f'#[path="{APP}/src/cube_format.rs"] mod cube_format;\n'
 source += f'#[path="{APP}/src/SubCubes.rs"] mod subcubes;\n'
 for module in ('rubik', 'grid', 'picking', 'orchard', 'environment', 'world_topology', 'world_portals', 'world_cube', 'transition', 'asset_brush'):
     source += f'#[path="{APP}/src/{module}.rs"] mod {module};\n'
 source += 'const ASSETS: &[(&str, &[u8])] = &[\n'
-for path in sorted((APP/'../TRUEOS-Blueprints/apps/cubesrv/worlds/lvl27').glob('*.cubes')):
+for path in sorted((APP/'Cube/lvl27').glob('*.cubes')):
     source += f'("{path.name}",include_bytes!("{path}")),\n'
 source += '];\n'
 source += 'const BRUSH_ASSETS: &[(&str, &[u8])] = &[\n'

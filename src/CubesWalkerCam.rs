@@ -1204,12 +1204,21 @@ impl CubesWalkerCam {
         if !self.is_flying() { return self.path_cubes(marker.flags, budget); }
         let Some(target) = self.landing_target() else { return Vec::new(); };
         let scale = self.preview_dash_scale(target);
-        // Zero normals keep the flight line centered, without the surface
-        // clearance used by walking routes. End at the visible marker center.
-        let samples = [self.pose().0, marker.center].map(|point| Sample {
+        // Zero normals avoid the surface clearance used by walking routes.
+        // Start at the viewport's bottom center and end at the marker center.
+        let samples = [self.flight_line_start(marker.center, scale), marker.center].map(|point| Sample {
             point, normal: [0.; 3],
         });
         cubepathfind::dashes(&samples, scale, marker.flags, budget)
+    }
+    fn flight_line_start(&self, target: V, scale: f32) -> V {
+        let eye = self.pose().0;
+        let delta = sub(target, eye);
+        // Keep nearby dashes modest on screen and the anchor ahead of the
+        // near plane, without putting it beyond a close landing target.
+        let depth = (scale * 40.).min(libm::sqrtf(dot(delta, delta)) * 0.25).max(NEAR * 4.);
+        let half_height = depth * libm::sinf(FOV * 0.5) / libm::cosf(FOV * 0.5);
+        add(eye, self.rotation.rotate([0., -half_height, -depth]))
     }
     fn preview_dash_scale(&self, target: LandingTarget) -> f32 {
         // Stay above the shader's marker-size encoding, even for fine cells.
@@ -2755,8 +2764,30 @@ mod tests {
 mod image_gallery_tests {
     use super::*;
     #[test]
+    fn flight_line_origin_projects_to_bottom_center_after_yaw_pitch_and_roll() {
+        let mut c = CubesWalkerCam::image_gallery(crate::slideshow::contract::Layout {tiers:[1;6]});
+        for axis in [[1.,0.,0.], [0.,1.,0.], [0.,0.,1.], norm([1.,2.,3.])] {
+            for angle in [0., 0.7, 1.8, 3.] {
+                c.rotation = Q::from_axis_angle(axis, angle);
+                for distance in [0.5, 5., 100.] {
+                    let eye = c.pose().0;
+                    let target = add(eye, c.rotation.rotate([0.,0.,-distance]));
+                    let offset = sub(c.flight_line_start(target, 0.03), eye);
+                    let depth = dot(offset, c.rotation.rotate(FORWARD));
+                    let x = dot(offset, c.rotation.rotate([1.,0.,0.]));
+                    let y = dot(offset, c.rotation.rotate(UP));
+                    let tan_half = libm::sinf(FOV*0.5)/libm::cosf(FOV*0.5);
+                    assert!(depth > NEAR && depth < distance);
+                    // NDC bottom center is (0,-1), independent of aspect ratio.
+                    assert!((x/depth).abs() < 0.0001);
+                    assert!((y/(depth*tan_half)+1.).abs() < 0.0001);
+                }
+            }
+        }
+    }
+    #[test]
     fn server_rendered_world_matches_collision_and_target_metadata() {
-        let bytes=include_bytes!("../../TRUEOS-Blueprints/apps/cubesrv/worlds/lvl27/world_01_sky.cubes");
+        let bytes=include_bytes!("../Cube/lvl27/world_01_sky.cubes");
         let asset=crate::orchard::decode_world("world1",bytes).unwrap();
         let camera=CubesWalkerCam::image_gallery_world(
             crate::slideshow::contract::Layout {tiers:[1;6]},bytes);
@@ -2779,8 +2810,8 @@ mod image_gallery_tests {
         assert!(checked>2000); // actual terraces and pathways, not just the landmark
     }
     #[test]
-    fn local_and_server_flight_previews_draw_a_centered_line_to_the_marker() {
-        let bytes = include_bytes!("../../TRUEOS-Blueprints/apps/cubesrv/worlds/lvl27/world_01_sky.cubes");
+    fn local_and_server_flight_previews_draw_from_viewport_bottom_to_the_marker() {
+        let bytes = include_bytes!("../Cube/lvl27/world_01_sky.cubes");
         for mut c in [CubesWalkerCam::from_world(bytes, false),
             CubesWalkerCam::image_gallery_world(crate::slideshow::contract::Layout {tiers:[1;6]}, bytes)] {
             let bound = c.cubes.last().unwrap();
@@ -2797,7 +2828,7 @@ mod image_gallery_tests {
             let marker = indicator.update(Some(target), 700, &source, &[0;6]).unwrap();
             let cubes = c.preview_cubes(marker, 32);
             assert!(!cubes.is_empty() && cubes.len() <= 32);
-            let start = c.pose().0;
+            let start = c.flight_line_start(marker.center, c.preview_dash_scale(target));
             let direction = sub(marker.center, start);
             let total = dot(direction, direction);
             let mut previous = 0.;
@@ -2820,7 +2851,7 @@ mod image_gallery_tests {
     }
     #[test]
     fn vfx_locations_have_no_support_collision() {
-        let bytes=include_bytes!("../../TRUEOS-Blueprints/apps/cubesrv/worlds/lvl27/world_01_sky.cubes");
+        let bytes=include_bytes!("../Cube/lvl27/world_01_sky.cubes");
         let layout=crate::slideshow::contract::Layout {tiers:[1;6]};
         let camera=CubesWalkerCam::image_gallery_world(layout,bytes);
         let d=crate::slideshow::contract::GALLERY_DISTANCE_TWICE_C1;
@@ -2832,7 +2863,7 @@ mod image_gallery_tests {
     }
     #[test]
     fn server_center_supports_tab_target_and_pathchain() {
-        let bytes = include_bytes!("../../TRUEOS-Blueprints/apps/cubesrv/worlds/lvl27/world_01_sky.cubes");
+        let bytes = include_bytes!("../Cube/lvl27/world_01_sky.cubes");
         let mut c = CubesWalkerCam::image_gallery_world(
             crate::slideshow::contract::Layout {tiers:[1;6]}, bytes);
         let goal = [1.6/c.unit, crate::slideshow::CENTER_HALF_EXTENT/c.unit, 1.6/c.unit];
@@ -2856,7 +2887,7 @@ mod image_gallery_tests {
     }
     #[test]
     fn server_gallery_retains_world1_collision_and_center_spawn() {
-        let bytes = include_bytes!("../../TRUEOS-Blueprints/apps/cubesrv/worlds/lvl27/world_01_sky.cubes");
+        let bytes = include_bytes!("../Cube/lvl27/world_01_sky.cubes");
         let world = CubesWalkerCam::from_world(bytes, false);
         let layout = crate::slideshow::contract::Layout {tiers:[1;6]};
         let mut camera = CubesWalkerCam::image_gallery_world(layout, bytes);

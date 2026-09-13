@@ -39,7 +39,6 @@ opt-level=2
 serde_json="1"
 [dependencies]
 libm="0.2"
-cubes-protocol={{path="{ROOT.parent}/TRUEOS-Blueprints/crates/cubes-protocol"}}
 potato-stamps={{path="{ROOT.parent}/PotatoStamps"}}
 trueos-sdk={{package="trueos",path="{ROOT.parent}/TRUEOS-Blueprints/api"}}
 trueos-picasso={{path="{ROOT.parent}/TRUEOS-Picasso",default-features=false,features=["blueprint","test-std"]}}

@@ -233,7 +233,7 @@ fn tint(destination: Destination, face: usize, [u, v]: [f32; 2], accent: bool) -
 #[cfg(test)]
 mod tests {
     use super::*;
-    const BYTES: &[u8] = include_bytes!("../../TRUEOS-Blueprints/apps/cubesrv/worlds/lvl27/world_01_sky.cubes");
+    const BYTES: &[u8] = include_bytes!("../Cube/lvl27/world_01_sky.cubes");
     fn world(p: &Puzzle) -> World {
         let mut asset = crate::orchard::decode("world_01_sky.cubes", BYTES).unwrap();
         for c in &mut asset.cubes {

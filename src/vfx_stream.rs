@@ -166,7 +166,7 @@ mod tests {
         let mut worm=crate::server_worm::Worm::new(9,1);
         let mut snake=crate::server_snake::Snake::new(9,2);
         let mut stream=Stream::default();
-        let shared=Mutex::new(Shared {session:1,running:true,gallery_ready:None,vfx_ready:None,snake_ready:None,worm_ready:None,
+        let shared=Mutex::new(Shared {session:1,running:true,connected:true,world_id:1,empty_ready:false,gallery_ready:None,vfx_ready:None,snake_ready:None,worm_ready:None,
             error:None,position:[0.;3],orientation:[0.;3]});
         stream.observe(&packet(0x8d,&worm.state.encode()));
         stream.observe(&packet(0x8b,&snake.state.encode()));
@@ -194,7 +194,7 @@ mod tests {
     fn snake_packets_publish_only_changes_and_ignore_old_sessions() {
         let mut snake=crate::server_snake::Snake::new(9,1);
         let mut stream=Stream::default();
-        let shared=Mutex::new(Shared {session:1,running:true,gallery_ready:None,vfx_ready:None,snake_ready:None,worm_ready:None,
+        let shared=Mutex::new(Shared {session:1,running:true,connected:true,world_id:1,empty_ready:false,gallery_ready:None,vfx_ready:None,snake_ready:None,worm_ready:None,
             error:None,position:[0.;3],orientation:[0.;3]});
         stream.observe(&packet(0x8b,&snake.state.encode()));
         stream.publish(&shared,1,9);
@@ -219,7 +219,7 @@ mod tests {
         stream.observe(&packet(0x89,&info.encode()));
         let asset=Arc::new(vec![1,2,3]);
         stream.cache.insert(7,asset.clone());
-        let shared=Mutex::new(Shared {session:1,running:true,gallery_ready:None,vfx_ready:None,snake_ready:None,worm_ready:None,
+        let shared=Mutex::new(Shared {session:1,running:true,connected:true,world_id:1,empty_ready:false,gallery_ready:None,vfx_ready:None,snake_ready:None,worm_ready:None,
             error:None,position:[0.;3],orientation:[0.;3]});
         stream.publish(&shared,1,9);
         let published=shared.lock().unwrap().vfx_ready.take().unwrap();

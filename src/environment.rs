@@ -1,17 +1,36 @@
 //! Authored world colors and the environment's damped quaternion follower.
 
-// Theme colors are shared protocol data, independent of downloaded geometry.
-const fn theme_color(index: usize) -> u32 {
-    let c = cubes_protocol::COLORS[index];
-    ((c[0] as u32) << 16) | ((c[1] as u32) << 8) | c[2] as u32
+// Read the exported pure-world terrain colours. The exporter writes the first
+// terrain material as palette entry zero in each CUBES v2 asset. This keeps
+// runtime portal routing in sync without another hand-maintained RGB table.
+const fn terrain_color(bytes: &[u8]) -> u32 {
+    ((bytes[16] as u32) << 16) | ((bytes[17] as u32) << 8) | bytes[18] as u32
 }
 pub const THEMES: [(&str, u32); 6] = [
-    ("sky", theme_color(0)),
-    ("underground", theme_color(1)),
-    ("black-hole", theme_color(2)),
-    ("white-hole", theme_color(3)),
-    ("island", theme_color(4)),
-    ("city", theme_color(5)),
+    (
+        "sky",
+        terrain_color(include_bytes!("../Cube/lvl27/world_01_sky.cubes")),
+    ),
+    (
+        "underground",
+        terrain_color(include_bytes!("../Cube/lvl27/world_02_underground.cubes")),
+    ),
+    (
+        "black-hole",
+        terrain_color(include_bytes!("../Cube/lvl27/world_03_black-hole.cubes")),
+    ),
+    (
+        "white-hole",
+        terrain_color(include_bytes!("../Cube/lvl27/world_04_white-hole.cubes")),
+    ),
+    (
+        "island",
+        terrain_color(include_bytes!("../Cube/lvl27/world_05_island.cubes")),
+    ),
+    (
+        "city",
+        terrain_color(include_bytes!("../Cube/lvl27/world_06_city.cubes")),
+    ),
 ];
 pub const VOID_COLOR: u32 = THEMES[2].1;
 

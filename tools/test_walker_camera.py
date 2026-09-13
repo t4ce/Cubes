@@ -34,7 +34,7 @@ source += f'#[path="{APP}/src/cubepathfind.rs"] mod cubepathfind;\n'
 source += f'#[path="{APP}/src/flight_target.rs"] mod flight_target;\n'
 source += f'#[path="{APP}/src/floor.rs"] mod floor;\n'
 source += 'const WORLD_PAGES: &[&[u8]] = &[\n'
-for path in sorted((APP/'../TRUEOS-Blueprints/apps/cubesrv/worlds/lvl27').glob('*.cubes')):
+for path in sorted((APP/'Cube/lvl27').glob('*.cubes')):
     source += f'include_bytes!("{path}"),\n'
 source += '];\n'
 materials = json.loads((APP/'Cube/subcubes-materials.json').read_text())['materials']

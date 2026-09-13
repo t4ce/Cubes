@@ -175,7 +175,7 @@ portal animation, decoded cube IDs, and platform ownership. Frame cells retain
 the preview's c2 geometry and balanced destination palettes. The center
 identifier keeps Void's center opening separate from its six returns.
 
-Regenerate all defaults with `node worlds/export_lvl27_defaults.cjs` from `TRUEOS-Blueprints/apps/cubesrv`
+Regenerate all defaults with `node Cube/export_lvl27_defaults.cjs` from the repository root
 (or `node export_lvl27_defaults.cjs` beside WorldShowcase). Terrain keeps
 the existing deterministic compaction and Void's 4×4×4 c4 color fields; portal
 frames are exported individually from the geometry builder's default presets.

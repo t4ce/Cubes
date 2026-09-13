@@ -19,14 +19,14 @@ flags, malformed records and unsupported scales fail explicitly.
 
 ## Key 5: streamed lvl27 worlds
 
-`../TRUEOS-Blueprints/apps/cubesrv/worlds/lvl27/` contains the 27 standalone world exports. Key 5 enters this
+`Cube/lvl27/` contains the 27 standalone world exports. Key 5 enters this
 mode at World 1; every further Key-5 press advances one world and wraps after
 World 27. Holding the key does not repeat. Keys 1–4 neither advance nor reset
 this sequence: after visiting another mode, Key 5 selects the next world.
 Key 5 rotates world positions, cube orientations and the camera together by
 180 degrees around X, making +Y the upper side used by the shader's sun/sky.
 CPU visibility uses the same rotated positions. Keys 1–4 retain their original
-coordinate conventions. Key5 requests complete geometry and platform-LOD data from CubeSrv at `GET /worlds/{1..27}` on selection and caches validated pages for revisits. The app embeds no world geometry. Downloads run off the frame thread; the last frame remains visible until completion, other number keys cancel pending selection, and Key5 retries a failed selection. Portal and puzzle entries use the same loader. Worlds use
+coordinate conventions. World pages load only on selection and are cached for revisits. Worlds use
 immediate visibility admission, independent of Key 4's timed reveal. The demo
 camera is saved on entry and restored before switching back to Keys 1–4.
 World assets may contain up to 16,384 packed records, but the retained renderer

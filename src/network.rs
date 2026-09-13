@@ -26,10 +26,13 @@ pub struct Slide {
 #[path = "vfx_stream.rs"]
 mod vfx_stream;
 pub use vfx_stream::Scene as VfxScene;
-pub enum Update { Gallery(Slide), Vfx(VfxScene), Snake {session:u64, state:cubes_protocol::snake::State}, Worm {session:u64, state:cubes_protocol::worm::State} }
+pub enum Update { Empty, Gallery(Slide), Vfx(VfxScene), Snake {session:u64, state:cubes_protocol::snake::State}, Worm {session:u64, state:cubes_protocol::worm::State} }
 struct Shared {
     session: u64,
     running: bool,
+    connected: bool,
+    world_id: u8,
+    empty_ready: bool,
     gallery_ready: Option<Slide>,
     vfx_ready: Option<VfxScene>,
     snake_ready: Option<cubes_protocol::snake::State>,
@@ -52,6 +55,9 @@ impl Client {
             shared: Arc::new(Mutex::new(Shared {
                 session: 0,
                 running: false,
+                connected: false,
+                world_id: 1,
+                empty_ready: false,
                 gallery_ready: None,
                 vfx_ready: None,
                 snake_ready: None,
@@ -67,6 +73,8 @@ impl Client {
         let mut s = self.shared.lock().unwrap();
         s.session = s.session.wrapping_add(1);
         s.running = false;
+        s.connected = false;
+        s.empty_ready = false;
         s.gallery_ready = None;
         s.vfx_ready = None;
         s.snake_ready = None;
@@ -83,6 +91,19 @@ impl Client {
             if !pressed {
                 return;
             }
+            if s.running {
+                if !s.connected { return; }
+                s.world_id = if s.world_id == 1 { 2 } else { 1 };
+                s.empty_ready = false;
+                s.gallery_ready = None;
+                s.vfx_ready = None;
+                s.snake_ready = None;
+                s.worm_ready = None;
+                return;
+            }
+            s.connected = false;
+            s.world_id = 1;
+            s.empty_ready = false;
             s.running = true;
             s.session = s.session.wrapping_add(1);
             s.gallery_ready = None;
@@ -117,7 +138,9 @@ impl Client {
     }
     pub fn take_ready(&mut self) -> Option<Result<Update, &'static str>> {
         let mut shared = self.shared.lock().unwrap();
-        if let Some(slide) = shared.gallery_ready.take() { return Some(Ok(Update::Gallery(slide))); }
+        if core::mem::take(&mut shared.empty_ready) { return Some(Ok(Update::Empty)); }
+        if shared.world_id == 2 { return shared.error.take().map(Err); }
+        if let Some(slide) = shared.gallery_ready.take() { shared.connected = true; return Some(Ok(Update::Gallery(slide))); }
         if let Some(state) = shared.snake_ready.take() { return Some(Ok(Update::Snake {session:shared.session,state})); }
         if let Some(state) = shared.worm_ready.take() { return Some(Ok(Update::Worm {session:shared.session,state})); }
         if let Some(frame) = shared.vfx_ready.take() { return Some(Ok(Update::Vfx(frame))); }
@@ -220,11 +243,12 @@ async fn decode_texture(
     .map_err(|_| "slide texture timeout")?
     .map_err(|_| "slide texture decode failed")
 }
-fn world_info(bytes: &[u8]) -> Option<usize> {
+fn world_info_for(bytes: &[u8], world_id: u8) -> Option<usize> {
     let p = payload(bytes, 0x81)?;
-    if p.len() != 12 || p[4] != 1 { return None; }
+    if p.len() != 12 || p[4] != world_id { return None; }
     let len = u32::from_le_bytes(p[5..9].try_into().ok()?) as usize;
     let chunks = u16::from_le_bytes(p[9..11].try_into().ok()?) as usize;
+    if world_id == 2 { return (len == 0 && chunks == 0).then_some(0); }
     (len >= 16 && len <= MAX_ENCODED_BYTES && chunks == len.div_ceil(CHUNK_BYTES)).then_some(len)
 }
 fn accept_world_chunk(bytes: &[u8], encoded: &mut [u8], received: &mut [bool]) -> bool {
@@ -245,11 +269,11 @@ fn world_welcome_error(gallery_seen: bool, rejected_welcome: bool) -> &'static s
     else if gallery_seen { "gallery received without world welcome; rebuild and reload CubeSrv with world1 support" }
     else { "world welcome timeout: no valid gallery or world announcement received" }
 }
-async fn receive_world(socket: &UdpSocket, shared: &Mutex<Shared>, session: u64, username: &str)
+async fn receive_world(socket: &UdpSocket, shared: &Mutex<Shared>, session: u64, username: &str, world_id: u8)
     -> Result<Vec<u8>, &'static str>
 {
     let mut buffer = [0;1200];
-    let mut hello = vec![1];
+    let mut hello = vec![world_id];
     hello.extend_from_slice(username.as_bytes());
     let mut length = None;
     let mut gallery_seen = false;
@@ -261,7 +285,7 @@ async fn receive_world(socket: &UdpSocket, shared: &Mutex<Shared>, session: u64,
         while time::Instant::now() < deadline {
             let Ok(Ok(n)) = time::timeout(deadline.saturating_duration_since(time::Instant::now()),
                 socket.recv(&mut buffer)).await else { break; };
-            if let Some(len) = world_info(&buffer[..n]) { length=Some(len); break; }
+            if let Some(len) = world_info_for(&buffer[..n], world_id) { length=Some(len); break; }
             gallery_seen |= info(&buffer[..n]).is_some();
             rejected_welcome |= payload(&buffer[..n], 0x81).is_some();
         }
@@ -304,8 +328,39 @@ async fn stream(
         .connect((Ipv4Addr::LOCALHOST, SERVER_PORT))
         .await
         .map_err(|_| "cubesrv connect")?;
+    loop {
+        let world_id = {
+            let s = shared.lock().unwrap();
+            if s.session != session { return Ok(()); }
+            s.world_id
+        };
+        if world_id == 1 {
+            stream_preview(&socket, shared, session, device, username).await?;
+        } else {
+            receive_world(&socket, shared, session, username, 2).await?;
+            {
+                let mut s = shared.lock().unwrap();
+                if s.session != session { return Ok(()); }
+                if s.world_id == 2 { s.empty_ready = true; }
+            }
+            // Keep the existing peer alive without preview scene traffic.
+            let mut heartbeat = time::Instant::now();
+            while { let s=shared.lock().unwrap(); s.session == session && s.world_id == 2 } {
+                time::sleep(time::Duration::from_millis(25)).await;
+                if heartbeat.elapsed() >= time::Duration::from_secs(1) {
+                    receive_world(&socket, shared, session, username, 2).await?;
+                    heartbeat = time::Instant::now();
+                }
+            }
+        }
+    }
+}
+async fn stream_preview(
+    socket: &UdpSocket, shared: &Mutex<Shared>, session: u64,
+    device: trueos::vgpu::Device, username: &str,
+) -> Result<(), &'static str> {
     let mut buffer = [0u8; 1200];
-    let world = receive_world(&socket, shared, session, username).await?;
+    let world = receive_world(socket, shared, session, username, 1).await?;
     let mut shown = None;
     let mut vfx = vfx_stream::Stream::default();
     let mut sequence = 0u32;
@@ -313,7 +368,7 @@ async fn stream(
     loop {
         let (position, orientation) = {
             let s = shared.lock().unwrap();
-            if s.session != session {
+            if s.session != session || s.world_id != 1 {
                 return Ok(());
             }
             (s.position, s.orientation)
@@ -428,7 +483,7 @@ async fn stream(
                     return Err("gallery atlas dimensions");
                 }
                 let mut s = shared.lock().unwrap();
-                if s.session != session {
+                if s.session != session || s.world_id != 1 {
                     return Ok(());
                 }
                 s.gallery_ready = Some(Slide {
@@ -456,6 +511,64 @@ mod server;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_shared() -> Mutex<Shared> {
+        Mutex::new(Shared {session:1, running:true, connected:true, world_id:1, empty_ready:false,
+            gallery_ready:None, vfx_ready:None, snake_ready:None, worm_ready:None, error:None,
+            position:[0.;3], orientation:[0.,0.,-1.]})
+    }
+
+    #[test]
+    fn empty_welcome_requires_matching_id_and_zero_geometry() {
+        let empty=server::welcome(1,2,0,0,0);
+        assert_eq!(world_info_for(&empty,2),Some(0));
+        assert_eq!(world_info_for(&empty,1),None);
+        assert_eq!(world_info_for(&server::welcome(1,1,16,1,0),2),None);
+        assert_eq!(world_info_for(&server::welcome(1,2,16,1,0),2),None);
+        assert_eq!(world_info_for(&server::welcome(1,2,0,1,0),2),None);
+    }
+
+    #[test]
+    fn preview_empty_preview_reuses_one_udp_socket() {
+        runtime::current_thread_net().build().unwrap().block_on(async {
+            let server_socket=UdpSocket::bind((Ipv4Addr::LOCALHOST,0)).await.unwrap();
+            let client=UdpSocket::bind((Ipv4Addr::LOCALHOST,0)).await.unwrap();
+            client.connect(server_socket.local_addr().unwrap()).await.unwrap();
+            let original_peer=client.local_addr().unwrap();
+            let shared=test_shared();
+            let bytes=include_bytes!("../Cube/lvl27/world_01_sky.cubes");
+            let responder=trueos::tokio::spawn(async move {
+                let mut buf=[0;1200];
+                let mut selected=1;
+                loop {
+                    let (n,peer)=server_socket.recv_from(&mut buf).await.unwrap();
+                    assert_eq!(peer,original_peer);
+                    match server::decode(&buf[..n]).unwrap() {
+                        server::ClientPacket::Hello {world_id,..} => {
+                            selected=world_id;
+                            let len=if selected==2 {0} else {bytes.len()};
+                            // A delayed welcome from the previous world must not win.
+                            let stale=server::welcome(1,if selected==2 {1} else {2},0,0,0);
+                            server_socket.send_to(&stale,peer).await.unwrap();
+                            server_socket.send_to(&server::welcome(1,selected,len,len.div_ceil(CHUNK_BYTES) as u16,0),peer).await.unwrap();
+                        }
+                        server::ClientPacket::WorldRequest {chunk} => {
+                            assert_eq!(selected,1, "empty world must not request chunks");
+                            let packet=server::blob_chunk(server::BlobKind::World,1,chunk,bytes).unwrap();
+                            server_socket.send_to(&packet,peer).await.unwrap();
+                        }
+                        _ => panic!("unexpected packet"),
+                    }
+                }
+            });
+            for id in [1,2,1,2,1] {
+                let world=receive_world(&client,&shared,1,"test",id).await.unwrap();
+                if id==2 {assert!(world.is_empty());} else {assert_eq!(world,bytes);}
+            }
+            responder.abort();
+        });
+    }
+
 
     #[test]
     fn worm_wire_has_nine_slots_and_independent_messages() {
@@ -496,9 +609,9 @@ mod tests {
         welcome[4] = 1;
         welcome[5..9].copy_from_slice(&1030u32.to_le_bytes());
         welcome[9..11].copy_from_slice(&2u16.to_le_bytes());
-        assert_eq!(world_info(&packet(0x81,&welcome)),Some(1030));
+        assert_eq!(world_info_for(&packet(0x81,&welcome),1),Some(1030));
         welcome[4]=27;
-        assert_eq!(world_info(&packet(0x81,&welcome)),None);
+        assert_eq!(world_info_for(&packet(0x81,&welcome),1),None);
         let mut encoded = vec![0;1030];
         let mut received = vec![false;2];
         let chunk = |id, index: u16, count: u16, size| {

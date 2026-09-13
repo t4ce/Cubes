@@ -108,8 +108,9 @@ source cubes. This keeps render positions aligned with the walker's metadata
 interpretation; rotating the cube mesh alone does not orient its position.
 
 Local worlds and the Key8 server gallery use the same navigation preview code.
-In flight, a visible landing marker gets a straight dashed line from the camera
-to its center, using the walking route's small cube sizes and marker material.
+In flight, a visible landing marker gets a straight dashed line from the bottom
+center of the viewport to its center, using the walking route's small cube sizes
+and marker material. The starting point follows camera pitch, yaw and roll.
 Flight dashes have no surface offset and disappear with the landing marker.
 
 The walking preview samples the actual walking trajectory, then places at most 128
