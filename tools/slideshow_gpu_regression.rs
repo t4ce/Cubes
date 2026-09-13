@@ -42,10 +42,33 @@ fn draw(wall:&mut Wall, queue:Queue, now:u64)->Result<(),i32> {
 }
 fn animation(pixels:&[(u8,u8,u8)])->crate::network::HolyFrame {
     crate::network::HolyFrame {session:1,gallery_revision:7,revision:3,index:0,
+        anchor:[0,8,0],terrain:false,
         cubes:pixels.iter().map(|&(x,y,palette)| cubes_protocol::holy::Pixel{x,y,palette}).collect()}
 }
 fn active_bytes(wall:&Wall)->Vec<u8> {
     driver(|d| d.buffers[&wall.cubes.seeds[wall.cubes.active].raw()][..wall.cubes.count as usize*64].to_vec())
+}
+#[test]
+fn spawned_terrain_is_opaque_and_does_not_consume_navigation_slots() {
+    let (mut wall,queue)=setup();
+    let mut spawn=animation(&[(0,31,0)]);
+    spawn.terrain=true;
+    wall.replace_holy(spawn).unwrap();
+    let overlay=RetainedTransformSeed {scale:[0.4;3],rotation:[1.,0.,0.,0.],
+        local_radius:1.74,flags:24576|512|4096,draw_group:1,
+        ..RetainedTransformSeed::default()};
+    let terrain=vec![terrain_seed([40,8,0]);TERRAIN_BUDGET];
+    wall.render(queue,wall.device.acquire_ui4_surface(1).unwrap(),
+        RetainedCamera::default(),441,0,&terrain,&vec![overlay;OVERLAY_BUDGET]).unwrap();
+    assert!(wall.cubes.count as usize <= MAX_CUBES);
+    let bytes=active_bytes(&wall);
+    let opaque_count=CENTER_COUNT+1+TERRAIN_BUDGET+1;
+    let spawned=&bytes[(opaque_count-1)*64..opaque_count*64];
+    assert_eq!(u32::from_le_bytes(spawned[56..60].try_into().unwrap()),0);
+    assert_eq!(f32::from_le_bytes(spawned[4..8].try_into().unwrap()),1.6);
+    wall.replace_holy(animation(&[])).unwrap();
+    draw(&mut wall,queue,3000).unwrap();
+    assert_eq!(wall.cubes.count,27);
 }
 #[test]
 fn navigation_overlay_has_separate_compact_slots_after_opaque_cubes() {
@@ -74,7 +97,7 @@ fn terrain_and_holy_share_compact_slots_and_one_depth_tested_frame() {
     for now in [0,333,1033] {
         wall.render(queue,wall.device.acquire_ui4_surface(1).unwrap(),
             RetainedCamera::default(),441,now,&terrain,&[]).unwrap();
-        assert_eq!(wall.cubes.count,if now==1033 {29} else {28});
+        assert_eq!(wall.cubes.count,29);
         let bytes=active_bytes(&wall);
         let last=&bytes[bytes.len()-64..];
         assert_eq!(f32::from_le_bytes(last[..4].try_into().unwrap()),10.);
@@ -87,7 +110,7 @@ fn frames_replace_instances_without_rebuilding_either_mesh() {
     assert_eq!(wall.cubes.count,27);
     draw(&mut wall,queue,0).unwrap();
     let original=driver(|d| (d.creates,d.submissions[0]));
-    for (step, pixels) in [&[(0,47,0),(47,0,2)][..], &[(24,24,1)][..], &[][..]].into_iter().enumerate() {
+    for (step, pixels) in [&[(0,31,0),(31,0,2)][..], &[(24,24,1)][..], &[][..]].into_iter().enumerate() {
         wall.replace_holy(animation(pixels)).unwrap();
         let now = step as u64*2000;
         draw(&mut wall,queue,now).unwrap();
@@ -140,8 +163,8 @@ fn incomplete_upload_and_old_session_keep_the_displayed_frame() {
 }
 #[test]
 fn seeds_preserve_landmark_bounds_sparse_pixel_positions_and_colors() {
-    let frame=animation(&[(0,47,0),(47,0,1)]);
-    let seeds=cube_seeds(&frame.cubes,&[0x801f,0xfc00]).unwrap();
+    let frame=animation(&[(0,31,0),(31,0,1)]);
+    let seeds=cube_seeds(&frame.cubes,&[0x801f,0xfc00],frame.anchor).unwrap();
     assert_eq!(seeds.len(),29);
     for (i,seed) in seeds.iter().enumerate() {
         assert_eq!(seed.draw_group,0);
@@ -158,16 +181,16 @@ fn seeds_preserve_landmark_bounds_sparse_pixel_positions_and_colors() {
         assert!((lo+2.4).abs()<0.00001 && (hi-2.4).abs()<0.00001);
     }
     assert_eq!(seeds[27].scale,[0.1;3]);
-    assert!((seeds[27].translation[0]+4.7).abs()<0.00001);
+    assert!((seeds[27].translation[0]+3.1).abs()<0.00001);
     assert!((seeds[27].translation[1]-2.5).abs()<0.00001);
-    assert!((seeds[28].translation[1]-11.9).abs()<0.00001);
+    assert!((seeds[28].translation[1]-8.7).abs()<0.00001);
     assert_eq!(seeds[27].flags&0xffff,0x801f);
     assert_eq!(seeds[28].flags&0xffff,0xfc00);
     let bytes=seed_bytes(&seeds);
     assert_eq!(bytes.len(),29*64);
     assert_eq!(&bytes[27*64+60..28*64],&seeds[27].flags.to_le_bytes());
-    assert!(cube_seeds(&animation(&[(48,0,0)]).cubes,&[0xffff]).is_err());
-    assert!(cube_seeds(&frame.cubes,&[]).is_err());
+    assert!(cube_seeds(&animation(&[(32,0,0)]).cubes,&[0xffff],frame.anchor).is_err());
+    assert!(cube_seeds(&frame.cubes,&[],frame.anchor).is_err());
 }
 
 #[unsafe(no_mangle)] extern "C" fn trueos_cabi_vgpu_open(_:u64,out:*mut u64)->i32 {handle(out)}
@@ -204,6 +227,7 @@ fn seeds_preserve_landmark_bounds_sparse_pixel_positions_and_colors() {
             let group = u32::from_le_bytes(row[56..60].try_into().unwrap()) as usize;
             let flags = u32::from_le_bytes(row[60..64].try_into().unwrap());
             if group >= slots.len() || flags >> 16 != slots[group] { return ERR_UNSUPPORTED; }
+            if flags & 32768 != 0 && group != 0 { return ERR_UNSUPPORTED; }
             slots[group] += 1;
         }
         d.submissions.push(*submission);d.leased=false;

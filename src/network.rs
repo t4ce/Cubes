@@ -32,6 +32,8 @@ pub struct HolyFrame {
     pub revision: u32,
     pub index: u8,
     pub cubes: Vec<cubes_protocol::holy::Pixel>,
+    pub anchor: [i16; 3],
+    pub terrain: bool,
 }
 pub enum Update { Gallery(Slide), Holy(HolyFrame) }
 struct Shared {
@@ -181,14 +183,17 @@ fn accept_chunk(bytes: &[u8], revision: u32, encoded: &mut [u8], received: &mut 
     received[index] = true;
     true
 }
-fn holy_info(bytes: &[u8]) -> Option<(u32, u32, u8, usize)> {
+fn holy_info(bytes: &[u8]) -> Option<(u32, u32, u8, usize, [i16; 3], bool, u32)> {
     let p = payload(bytes, HOLY_INFO)?;
-    if p.len() != 15 { return None; }
+    if p.len() != 26 || p[21] > 1 { return None; }
     let size = u16::from_le_bytes(p[13..15].try_into().unwrap()) as usize;
     if size > cubes_protocol::holy::WIDTH as usize * cubes_protocol::holy::HEIGHT as usize * 3
         || size % 3 != 0 { return None; }
     Some((u32::from_le_bytes(p[4..8].try_into().unwrap()),
         u32::from_le_bytes(p[8..12].try_into().unwrap()), p[12], size))
+        .map(|(gallery, revision, frame, size)| (gallery, revision, frame, size,
+            core::array::from_fn(|axis| i16::from_le_bytes(p[15+axis*2..17+axis*2].try_into().unwrap())),
+            p[21] != 0, u32::from_le_bytes(p[22..26].try_into().unwrap())))
 }
 fn accept_holy_chunk(bytes: &[u8], revision: u32, frame: u8,
     encoded: &mut [u8], received: &mut [bool]) -> bool
@@ -341,9 +346,8 @@ async fn stream(
             }
             (s.position, s.orientation)
         };
-        let mut hello = vec![1];
-        hello.extend_from_slice(username.as_bytes());
-        socket.send(&packet(1, &hello)).await.map_err(|_| "cubesrv username")?;
+        // receive_world already joined. Telemetry sends one welcome/scene
+        // snapshot back; sending another Hello here builds an announcement backlog.
         sequence = sequence.wrapping_add(1);
         let mut body = sequence.to_le_bytes().to_vec();
         body.push(1); // Single shared session; the server chooses the slide.
@@ -471,10 +475,14 @@ async fn stream(
                 shown = Some(revision);
             }
         }
-        if let Some((gallery_revision, holy_revision, frame, encoded_len)) = pending_holy.take() {
+        if let Some((gallery_revision, holy_revision, frame, encoded_len, anchor, terrain, event)) = pending_holy.take() {
             if shown != Some(gallery_revision) {
-                pending_holy = Some((gallery_revision, holy_revision, frame, encoded_len));
-            } else if shown_holy != Some((holy_revision, frame)) {
+                pending_holy = Some((gallery_revision, holy_revision, frame, encoded_len, anchor, terrain, event));
+            } else if shown_holy.is_none_or(|(revision, old_event, old_phase)| {
+                server_event_newer(event, old_event)
+                    || (event == old_event && revision == holy_revision
+                        && vfx_phase(frame, terrain) > old_phase)
+            }) {
                 let mut encoded = vec![0; encoded_len];
                 let chunks = encoded_len.div_ceil(CHUNK_BYTES);
                 let mut received = vec![false; chunks];
@@ -512,15 +520,24 @@ async fn stream(
                     let mut s = shared.lock().unwrap();
                     if s.session != session { return Ok(()); }
                     s.holy_ready = Some(HolyFrame {
-                        session, gallery_revision, revision: holy_revision, index: frame, cubes,
+                        session, gallery_revision, revision: holy_revision, index: frame, cubes, anchor, terrain,
                     });
-                    shown_holy = Some((holy_revision, frame));
+                    shown_holy = Some((holy_revision, event, vfx_phase(frame, terrain)));
                 }
             }
         }
         // Heartbeats recover lost announcements and keep current telemetry flowing.
-        time::sleep(time::Duration::from_millis(cubes_protocol::holy::PERIOD_MS as u64)).await;
+        time::sleep(time::Duration::from_millis(25)).await;
     }
+}
+
+fn vfx_phase(frame: u8, terrain: bool) -> u16 {
+    if frame == u8::MAX { if terrain { 0 } else { 256 } }
+    else { frame as u16 + 1 }
+}
+fn server_event_newer(candidate: u32, current: u32) -> bool {
+    let distance = candidate.wrapping_sub(current);
+    distance != 0 && distance < (1 << 31)
 }
 
 #[cfg(test)]
@@ -642,9 +659,13 @@ mod tests {
     }
     #[test]
     fn sparse_holy_frames_are_revision_and_frame_pinned() {
-        let source = vec![1, 2, 3, 47, 47, 4, 9, 8, 7];
-        assert_eq!(holy_info(&server::holy_info(7, 11, 12, 3, source.len())),
-            Some((11, 12, 3, source.len())));
+        assert!(vfx_phase(255,false) > vfx_phase(15,true));
+        assert!(vfx_phase(0,true) > vfx_phase(255,true));
+        assert!(server_event_newer(2,1));
+        assert!(!server_event_newer(1,2));
+        let source = vec![1, 2, 3, 31, 31, 4, 9, 8, 7];
+        assert_eq!(holy_info(&server::holy_info(7, 11, 12, 3, source.len(), [40, 0, -56], true, 9)),
+            Some((11, 12, 3, source.len(), [40, 0, -56], true, 9)));
         let mut output = vec![0; source.len()];
         let mut received = vec![false; 1];
         let packet = server::holy_chunk(12, 3, 0, &source).unwrap();
@@ -654,7 +675,7 @@ mod tests {
         assert_eq!(output, source);
         assert_eq!(cubes_protocol::holy::decode_frame(&output).unwrap().collect::<Vec<_>>(), vec![
             cubes_protocol::holy::Pixel { x: 1, y: 2, palette: 3 },
-            cubes_protocol::holy::Pixel { x: 47, y: 47, palette: 4 },
+            cubes_protocol::holy::Pixel { x: 31, y: 31, palette: 4 },
             cubes_protocol::holy::Pixel { x: 9, y: 8, palette: 7 },
         ]);
     }

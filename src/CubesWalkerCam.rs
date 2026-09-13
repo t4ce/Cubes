@@ -829,6 +829,14 @@ impl CubesWalkerCam {
         self.cubes = replacement.cubes;
         self.navigation = Navigation::default();
     }
+    /// Server-owned c4 block. Shares the walker's solid and path-target bounds.
+    pub fn insert_server_terrain_cube(&mut self, anchor: [i16; 3]) {
+        let size = crate::slideshow::CENTER_CUBE_SIDE / self.unit;
+        let lo = anchor.map(|v| v as f32 * crate::slideshow::contract::C1 / self.unit - size * 0.5);
+        Self::insert_bounds(&mut self.solid, lo, size);
+        self.cubes.push(CubeBounds { lo, size, gap: 0. });
+        self.navigation = Navigation::default();
+    }
     pub fn server_spawn(&mut self, position: V) {
         self.navigation = Navigation::default();
         self.position = mul(position, 1. / self.unit);
@@ -2739,6 +2747,24 @@ mod tests {
 #[cfg(test)]
 mod image_gallery_tests {
     use super::*;
+    #[test]
+    fn temporary_server_cube_has_collision_then_disappears_without_moving_camera() {
+        let bytes = include_bytes!("../Cube/lvl27/world_01_sky.cubes");
+        let layout = crate::slideshow::contract::Layout {tiers:[1;6]};
+        let mut camera = CubesWalkerCam::image_gallery_world(layout,bytes);
+        let anchor=[40,8,0];
+        let center=anchor.map(|v| v as f32*crate::slideshow::contract::C1/camera.unit);
+        let before=camera.pose().0;
+        let count=camera.cubes.len();
+        assert!(!camera.solid.has(center));
+        camera.insert_server_terrain_cube(anchor);
+        assert!(camera.solid.has(center));
+        assert_eq!(camera.cubes.len(),count+1);
+        camera.replace_image_gallery_world(layout,bytes);
+        assert!(!camera.solid.has(center));
+        assert_eq!(camera.cubes.len(),count);
+        assert_eq!(camera.pose().0,before);
+    }
     #[test]
     fn server_center_supports_tab_target_and_pathchain() {
         let bytes = include_bytes!("../Cube/lvl27/world_01_sky.cubes");

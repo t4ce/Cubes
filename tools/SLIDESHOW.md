@@ -3,7 +3,7 @@
 The old flat panel and per-image-pixel normal/occlusion maps have been removed.
 Key 8 now displays six nearby real beveled c1 cube slabs at 10% of the standard
 world radius. A white 3×3×3 c4 landmark occupies the origin. An upright sparse
-48×48 c1 cube asset plays above it at 750 ms per frame, and the player connects
+32×32 c1 cube asset plays above a temporary server-spawned terrain block at 150 ms per frame, and the player connects
 on the +Z part of the top face looking toward it. The scene combines one retained textured mesh and PNG atlas (native PBR with
 nearest filtering) with ordinary cube-patch instances in one depth-tested frame.
 
@@ -42,21 +42,18 @@ internal-face removal, bounds, package validation, chunk reordering/duplicates
 and material submission. Native XeLP rendering and frame timing remain untested
 until the rebuilt TRUEOS kernel, CubeSrv and Cubes are run together.
 
-Holy placement experiment: frame updates retain each cell's identity by its
-48×48 grid coordinate. The client uses the same `Reveal` implementation as placed
-assets: 333 ms admission delay, rate-limited starts, and 700 ms grow-and-bounce.
-Growth advances on every rendered frame; server announcements remain at 750 ms.
-Continuing cells keep their growth through color changes and sparse-list reorderings.
-Transparent cells disappear immediately; absence uses placement's 240 ms rearm
-policy. Brief pixels can disappear before admission, so this experiment changes
-the visible animation. The center landmark remains full size. This shares the
-placement reveal behavior, not terrace editing, collision or visibility culling.
+The server spawns a c4 terrain block every 3 seconds within 5–10 blocks of the
+center. Its top is level with the landmark. After 500 ms, one 16-frame VFX loop
+plays above it, then both disappear. The block uses the world's terrain colour
+and walking collision. Complete VFX frames display immediately, without the
+placement growth delay. Opaque terrain and VFX use group zero; transparent
+navigation alone uses group one. Capacity reserves one extra opaque spawn slot.
 
 Key8 now receives world1 (`world_01_sky.cubes`) through the normal CUB1 world
 welcome/request/chunk exchange before publishing the gallery. The ordinary level
 decoder, walker terrain collision and nearest-first visibility selection supply
 the terrain; its cube instances share depth with the images, landmark and VFX.
-The center spawn and 750 ms Holy cadence are unchanged. Rebuild both apps.
+The player still starts on the central landmark. Rebuild both apps.
 
 Key8 navigation uses the normal landing highlight in flight and the Tab target
 and pathchain when walking. These are rendered as a sorted transparent cube
