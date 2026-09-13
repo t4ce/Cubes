@@ -10,8 +10,8 @@ pub const UNIT: f32 = C1 / TICKS_PER_C1 as f32;
 pub const MINING_SIDES: [i32; 9] = [1, 3, 6, 12, 18, 24, 36, 48, 96];
 pub const MINING_NAMES: [&str; 9] = ["R1/2", "C1/2", "c1", "c2", "r1", "c3", "r2", "r3", "c4"];
 /// Each tool splits its parent into 4³ children, or removes a child whole.
-pub const TOOLS: [i32; 2] = [64 * TICKS_PER_C1, 16 * TICKS_PER_C1];
-pub const TOOL_NAMES: [&str; 2] = ["64 c1 -> c4 (16 c1)", "c4 (16 c1) -> c3 (4 c1)"];
+pub const TOOLS: [i32; 3] = [64 * TICKS_PER_C1, 16 * TICKS_PER_C1, 4 * TICKS_PER_C1];
+pub const TOOL_NAMES: [&str; 3] = ["64 c1 -> c4 (16 c1)", "c4 (16 c1) -> c3 (4 c1)", "c3 (4 c1) -> c1"];
 pub const NO_TOOL: usize = TOOLS.len();
 pub const MINING_BASE_SIDE: i32 = 64 * TICKS_PER_C1;
 
@@ -295,6 +295,35 @@ mod tests {
                     d.mine(target);
                     assert_eq!(d.blocks, after);
                 }
+            }
+        }
+    }
+    #[test]
+    fn third_tool_removes_c1_and_rejects_larger_than_c3_in_all_colors() {
+        for material in 0..6 {
+            let parent = Block { min: [0; 3], side: 24, material };
+            let mut d = Demo { blocks: alloc::vec![parent], tool: 2 };
+            let origin = [UNIT, UNIT, -UNIT];
+            let direction = [0., 0., 1.];
+            let target = d.target_details(origin, direction).unwrap();
+            assert_eq!(target.cut.side, TICKS_PER_C1);
+            let preview = d.preview_blocks(Some(target));
+            assert_eq!(preview.len(), 63);
+            assert_eq!(d.blocks, [parent]);
+            d.mine(target);
+            assert_eq!(d.blocks, preview);
+            assert!(d.blocks.iter().all(|b| b.side == 6 && b.material == material));
+            let child = d.target_details(origin, direction).unwrap();
+            assert_eq!(child.cut, child.parent);
+            d.mine(child);
+            assert_eq!(d.blocks.len(), 62);
+            d.blocks = alloc::vec![Block { min: [0; 3], side: 6, material }];
+            let child = d.target_details(origin, direction).unwrap();
+            d.mine(child);
+            assert!(d.blocks.is_empty());
+            for side in [36, 48, 96, MINING_BASE_SIDE] {
+                d.blocks = alloc::vec![Block { min: [0; 3], side, material }];
+                assert!(d.target_details(origin, direction).is_none());
             }
         }
     }

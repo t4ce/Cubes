@@ -14,7 +14,7 @@ Palette RGB, roughness, and metallic values come from
 
 - Mouse: look; WASD: move; Shift: boost; Q/E: flight roll.
 - Space: push away / approach a walkable face; Home: align the walk view.
-- Wheel: cycle off → 64-to-16 → 16-to-4 → off (reverse wheel reverses).
+- Wheel: cycle off → 64-to-16 → 16-to-4 → 4-to-1 → off (reverse wheel reverses).
   Entry and reset start off.
 - Left click: commit the previewed removal.
 - Right click: restore all 66 blocks and the starting view.
@@ -34,11 +34,15 @@ Existing c3 cubes, including mined fragments, are removed whole without further
 subdivision. It uses the same centered pulsing opaque preview and
 parent-relative snapping as the first tool, with a 4-c1 removal volume.
 
+The third tool targets only c3 (4 c1) and c1, in every palette color. It splits
+c3 into a 4×4×4 grid of c1, removing one and retaining 63. Existing c1 cubes
+are removed whole. Larger cubes and other sizes cannot be targeted by this tool.
+
 The preview renders the retained chunks as opaque cubes and marks the selected
 child with a centered opaque cube pulsing sinusoidally between 75% and 95%
 of the child's linear size over two seconds, in its original material.
 The full child remains the removal volume (16 c1 for the
-first tool, 4 c1 for the second).
+first tool, 4 c1 for the second, 1 c1 for the third).
 It does not attach an extra cube outside the surface.
 Aiming away or disabling the tool restores the intact display. Preview never
 changes collision or stored blocks. Clicking removes exactly that previewed
