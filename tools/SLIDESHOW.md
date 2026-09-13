@@ -43,13 +43,17 @@ internal-face removal, bounds, package validation, chunk reordering/duplicates
 and material submission. Native XeLP rendering and frame timing remain untested
 until the rebuilt TRUEOS kernel, CubeSrv and Cubes are run together.
 
-The server spawns six c4 terrain blocks every 3 seconds: four cardinal positions
-5–10 blocks from the center, plus one directly above and one below at 7–10 blocks.
-The vertical clearance leaves room for the lower billboard above its own cube.
-Each cube independently rolls one effect from all 150 entries; duplicates reuse
-the cached asset. Slots are ordered +X, +Z, -X, -Z, above, below.
-All effects keep their bottom-center anchor at their terrain cube's top and
-billboard toward the viewport.
+The server spawns six c4 terrain blocks every 3 seconds: four cardinal positions,
+one above and one below. Each independently rolls one effect from all 150 entries.
+The size demo assigns +X=c1, +Z=c2, -X=r1, -Z=c3, above=r2, below=c4:
+pixel sides are 1, 2, 3, 4, 6, 8 c1 units. The renderer also supports r3 (12).
+Grid spacing scales with pixel cubes, giving full effect widths from 6.4 to
+51.2 renderer units; terrain cubes remain c4. Positions are fixed on the six image directions at exactly twice the image
+radius: (±41,0,0), (0,0,±41), (0,±41,0) in renderer units. They do not vary
+with timer cycle or pixel size. Large effects can extend back toward the images.
+All effects keep their bottom-center anchor at their terrain cube's top.
+Size is a one-byte scene field; the same compressed asset/cache entry works at
+every size without resampling, rebaking or another download.
 After 500 ms, each plays one complete loop (150 ms/frame or faster to fit 2.4 s).
 Each cube disappears with its effect. The blocks use world terrain colour and
 walking collision; local expiry still removes both when packets are lost.
