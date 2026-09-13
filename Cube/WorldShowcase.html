@@ -250,8 +250,8 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
   <div id="themeChips" class="theme-chips"></div>
   <details class="atlas-toggle"><summary>Open the 27-world atlas</summary><div id="atlas" class="atlas"></div><div class="small" style="margin-top:8px;font-size:9px">6 singles · 12 duals · 8 triples · 1 void<br>Level addresses are separate from chunk coordinates.</div></details>
   <div class="fixed-layout" aria-label="Fixed world layout: 9 by 9 by 9 chunks"><strong>9 × 9 × 9</strong><span>FIXED WORLD SIZE</span></div>
-  <div id="dimensionNote" class="dimension-note">4,608³ c1 units · 729 chunks · outer portals only</div>
-   <div id="cubeTierNote" class="generation-note" style="margin-top:10px;margin-bottom:0"><strong>Cube tiers</strong><br>c1 1 · c2 2 · r1 3 · c3 4 · r2 6 · c4 8 · r3 64<br><span style="font:9px var(--mono)">WORLD FIT · c4 576³ = 191,102,976 · r3 72³ = 373,248</span></div>
+  <div id="dimensionNote" class="dimension-note">9,216³ c1 units · 729 chunks · outer portals only</div>
+   <div id="cubeTierNote" class="generation-note" style="margin-top:10px;margin-bottom:0"><strong>Cube tiers</strong><br>c1 1 · c2 2 · r1 3 · c3 4 · r2 4 · c4 16 · r3 64<br><span style="font:9px var(--mono)">WORLD FIT · c4 576³ = 191,102,976 · r3 144³ = 2,985,984</span></div>
  </section>
  <nav class="sidebar-tabs" aria-label="Editor tabs"><button id="worldTabButton" class="active" type="button" aria-controls="worldTabPane" aria-selected="true">World</button><button id="portalTabButton" type="button" aria-controls="portalTabPane" aria-selected="false">Portals</button></nav>
  <div id="portalTabPane" class="tab-pane" hidden>
@@ -287,9 +287,9 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
   <div class="generation-note"><strong>Terraces, c4 paths &amp; cube tiers.</strong><br>Six seeded portal plateaus. Each stays small and directly paired.</div>
   <div class="platform-rolls" aria-label="Automatic per-platform rolls">
    <div class="eyebrow"><span>Per-platform rolls</span><span>SEEDED</span></div>
-   <div class="field-head"><span>Platform size</span><strong>16–19 c4</strong></div><div id="platformSizeNote" class="field-note">Six seeded portal plateaus · rolls 16 / 17 / 18 / 19 c4</div>
+   <div class="field-head"><span>Terrace size</span><strong>2 × 2 r3</strong></div><div id="platformSizeNote" class="field-note">Each terrace renders as four r3 cubes on a 2 × 2 c4 footprint.</div>
    <div class="roll-growth"><div class="field-head"><span>Small-cube growth</span><strong>250–500%</strong></div><div id="growthNote" class="field-note">Individual growth rolls · connected c3 shelves</div></div>
-  <div class="field-note" style="margin-top:9px"><strong style="color:var(--ink)">Seven-cube size tower</strong><br>Bottom → top: r3 · c4 · r2 · c3 · r1 · c2 · c1<br>One of each, 88 c1 tall. r3 is a 64 c1 cube per side; the tower follows each platform’s UP face.</div>
+  <div class="field-note" style="margin-top:9px"><strong style="color:var(--ink)">Seven-cube size tower</strong><br>Bottom → top: r3 · c4 · r2 · c3 · r1 · c2 · c1<br>One of each, 94 c1 tall. r2 and c3 intentionally share the 4 c1 size; the tower follows each platform’s UP face.</div>
   <label class="checks"><input id="showPlatformHulls" type="checkbox" checked><span>Platform hull indicators</span><span>LOD</span></label>
   <label class="checks"><input id="showTierTowers" type="checkbox" checked><span>Show cube-tier towers</span><span>DEMO</span></label>
   <div class="tower-controls"><select id="towerSelect" aria-label="Platform tower to inspect"></select><button id="inspectTower" type="button" disabled>Inspect tower</button></div>
@@ -326,7 +326,7 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
 <main id="view" class="view">
  <canvas id="canvas" tabindex="0" aria-label="3D cube world. Use the controls panel to generate and edit. Drag to orbit; scroll to zoom."></canvas>
  <div class="view-top"><div id="sceneKicker" class="scene-kicker">WORLD 01 / SINGLE THEME</div><h1 id="sceneTitle">Room to make a world.</h1><p id="sceneSubtitle">An empty volume. Six possible directions.</p></div>
- <div class="view-meta"><label class="guides-toggle"><input id="guidesInput" type="checkbox" checked>bounds</label><span id="sizeChip" class="meta-chip">4608 × 4608 × 4608</span><span id="stateChip" class="meta-chip">EMPTY</span></div>
+ <div class="view-meta"><label class="guides-toggle"><input id="guidesInput" type="checkbox" checked>bounds</label><span id="sizeChip" class="meta-chip">9216 × 9216 × 9216</span><span id="stateChip" class="meta-chip">EMPTY</span></div>
  <div id="portalLabels"></div><div id="towerLabels" aria-hidden="true"></div>
  <div id="emptyCard" class="empty-card" hidden></div>
  <div class="view-actions"><button id="frameButton" title="Frame the whole world (Home)" aria-label="Frame whole world"><svg viewBox="0 0 20 20"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4M6 6l8 8M14 6l-8 8"/></svg></button><button id="topButton" title="Top view" aria-label="Top view"><svg viewBox="0 0 20 20"><path d="m3 7 7-4 7 4-7 4zM3 7v7l7 4 7-4V7M10 11v7"/></svg></button></div>
@@ -341,17 +341,17 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
  <div class="eyebrow">FIELD NOTES / GENERATION &amp; BUILD</div><h2 id="helpTitle">Make a little world.<br>Give it room to grow.</h2>
  <div class="help-grid">
   <strong>Build camera</strong><span>Drag to orbit. Scroll to zoom. Right-drag to pan. Home frames the world. Alt-drag also orbits while placing or removing.</span>
-  <strong>World layout</strong><span>Each world remains 9 × 9 × 9 chunks. Each chunk is 64 × 64 × 64 c4 cells, or 512³ c1 units. The full world is 4608³ c1 units. Cube tier sizes themselves are unchanged.</span>
+  <strong>World layout</strong><span>Each world remains 9 × 9 × 9 chunks. Each chunk is 64 × 64 × 64 c4 cells, or 1024³ c1 units. The full world is 9216³ c1 units.</span>
   <strong>Place / remove</strong><span>Place a c1 control cube at the center of a new platform. Placement addresses snap to the c4 terrain grid; the control is centered on the actual footprint. Its platform, growth, and local branch belong to it. With tower demos visible, click the tower to select or remove the same owner. Keys 1 / 2 / 3 choose Select / Place / Remove. Deleting an owner does not remove other platforms or the main network.</span>
   <strong>Platform size</strong><span>Platforms and paths both use c4 cubes (8 c1 per side) on the same lattice. The six generated portal plateaus independently roll 16 / 17 / 18 / 19 c4 across. Each side plateau is seeded horizontal or vertical, using only the two planes perpendicular to its portal face. Top and bottom use XY or YZ. The attached 2 × 1 connector shares the same roll. Placed platforms keep their pinned rolls when the world regenerates.</span>
-  <strong>Cube-size towers</strong><span>Seven cubes, one per tier: bottom to top r3 (64 c1 per side), c4 (8), r2 (6), c3 (4), r1 (3), c2 (2), c1 (1). Each tower is 88 c1 tall and centered on its platform. Inspect tower zooms in and labels each cube. These display-only rulers do not affect routes, collision, or budgets; toggle them off to reveal manual control cubes.</span>
+  <strong>Cube-size towers</strong><span>Seven cubes, one per tier: bottom to top r3 (64 c1 per side), c4 (16), r2 (4), c3 (4), r1 (3), c2 (2), c1 (1). Each tower is 94 c1 tall and centered on its platform. Inspect tower zooms in and labels each cube. These display-only rulers do not affect routes, collision, or budgets; toggle them off to reveal manual control cubes.</span>
   <strong>Small-cube growth</strong><span>Optional growth is off by default. Each platform retains its independent 250–500% roll. When enabled, it adds connected c3 (4 c1) shelves, exactly half the side length of the c4 terrain cubes. No extra cube tiers are introduced.</span>
   <strong>Local branches</strong><span>With automatic paths on, each owned platform gets one link to existing generated terrain. In a blank world, the first cube grows an isolated platform; later platforms connect to earlier ones. With automatic paths off, the platforms remain and only the paths are hidden. Removing an empty-world anchor repairs only dependent links. World 27 offers all six colours plus Void.</span>
   <strong>Undo / redo</strong><span>Ctrl or Cmd + Z / Shift + Z. History is independent for every world. Ctrl or Cmd + Y also redoes.</span>
   <strong>Portal lab</strong><span>The Portals tab owns eight reusable presets: Sky, Underground, black-hole, white-hole, Island, City, Special, and Leave. Portal structure defaults by destination: pure-theme and Leave portals use Terraced, two-theme portals use Twin ring, and three-theme plus Special/Void portals use Tri ring. Any preset can override that structure; opening, depth, rotation, and flat-colour settings remain reusable.</span>
   <strong>Portal inspection</strong><span>Choose a face, then Back or Angle to inspect that actual portal using the build camera. Back looks through the frame from its reverse side. The World tab or Home frames the whole scene. Amber and mint guide cubes identify the authored player spawn and forward direction; the optional passage guide previews the full route. Guides add no terrain and do not count toward the budget.</span>
   <strong>Portal paths</strong><span>Portal frames remain round. Each outer face supplies one portal in its X, Y, or Z plane, with one plateau 15–25% of the way toward the world centre. Side plateaus seed between their horizontal and vertical perpendicular planes; top and bottom use XY or YZ. Generation stamps exactly six straight portal-to-plateau links—no cross-links and no separate portal bridge. Each is one continuous 2 × 1 c4 path from the outermost in-bounds world-grid slice to its platform edge, sharing the platform roll. Rendering, picking, and collision use those same c4 cells. Portal frames stay c2 and flush with the world boundary.</span>
-  <strong>Save / import</strong><span>Exports store all 27 world recipes, eight portal presets, corrected cube tiers, the 512-c1 chunk size, c4 placement-grid addresses, and c1-world-space branch centerlines. Earlier projects are migrated by enlarging their world-space layout eightfold; v15 c2 portal designs are preserved without a second size increase. The old r3 (6) and r4 (12) labels become r2 (6) and r3 (64). Safe placed-platform recipes are kept; invalid local links are rebuilt. Imports are fully validated before the live project changes.</span>
+  <strong>Save / import</strong><span>Exports store all 27 world recipes, eight portal presets, corrected cube tiers, the 1024-c1 chunk size, c4 placement-grid addresses, and c1-world-space branch centerlines. Earlier projects are migrated by enlarging their world-space layout eightfold; v15 c2 portal designs are preserved without a second size increase. The old r3 (6) and r4 (12) labels become r2 (6) and r3 (64). Safe placed-platform recipes are kept; invalid local links are rebuilt. Imports are fully validated before the live project changes.</span>
  </div>
  <button id="closeHelp" class="primary">Back to making</button><p class="dialog-footer">All 27 worlds start completely empty. Generation is explicit. Control cubes and their owned platforms survive regeneration. Remove a control cube to remove its platform, growth, and branch; the generated main network is separate. 16 is a soft budget, not a hard cap. JSON includes generation recipes, eight reusable portal presets, cube colours, pinned owned-platform rolls, and saved local branch centerlines—not a game-specific loader.</p>
 </section></div>
@@ -607,7 +607,7 @@ if(voidPureReturnCount!==6) throw new Error(`Expected 6 Void→pure portals, got
  * c2 frame cubes surround a reserved, centered c4 route passage.
  * Design settings affect only frame meshes; the maximum keep-out envelope and
  * path sockets are fixed, so live experiments do not rebuild the terrain. */
-const CUBE_TIERS=Object.freeze({c1:1,c2:2,r1:3,c3:4,r2:6,c4:8,r3:64});
+const CUBE_TIERS=Object.freeze({c1:1,c2:2,r1:3,c3:4,r2:4,c4:16,r3:64});
 const CUBE_TIER_ORDER=Object.freeze(['r3','c4','r2','c3','r1','c2','c1']);
 const PORTAL_LEGACY_UNIT=.4,PORTAL_UNIT=CUBE_TIERS.c2,PORTAL_SCALE=PORTAL_UNIT/PORTAL_LEGACY_UNIT;
 const PATH_CUBE_SIZE=CUBE_TIERS.c4,PORTAL_MAX_RADIUS=6.8*PORTAL_SCALE,PORTAL_MAX_DEPTH=1.4*PORTAL_SCALE,PORTAL_RUN=PATH_CUBE_SIZE*4;
@@ -776,8 +776,8 @@ function portalFrameBlocked(o,lo,hi,padding=0,allowPassage=false){
  * An authoring address is one c4 cell. Platforms and paths share that lattice.
  * Optional growth uses c3 cubes. Exact picking uses sparse c4-sized buckets.
  * Fresh levels contain no generated terrain, cubes, growth, or paths. */
-// A chunk is still 64 terrain cubes across; a terrain cube is now c4 (8 c1).
-// Expand distances, not the tier definitions. No dense 4608³ voxel array is built.
+// A chunk is still 64 terrain cubes across; a terrain cube is now c4 (16 c1).
+// Expand distances, not the tier definitions. No dense 9216³ voxel array is built.
 const SLOT=CUBE_TIERS.c4,CHUNK_CELLS=64,CHUNK=CHUNK_CELLS*SLOT;
 const DETAIL_UNIT=CUBE_TIERS.c3,CONTROL_UNIT=CUBE_TIERS.c1,SOFT_CAP=16,MAX_MODULES=128;
 // Seven named sizes were specified for the new clean hierarchy. The platform
@@ -785,6 +785,7 @@ const DETAIL_UNIT=CUBE_TIERS.c3,CONTROL_UNIT=CUBE_TIERS.c1,SOFT_CAP=16,MAX_MODUL
 const ASSET_CUBE_TIERS=Object.freeze(CUBE_TIER_ORDER.map(name=>({name,size:CUBE_TIERS[name]})));
 const WORLD_C1_SIZE=4*CHUNK;
 const PLATFORM_MIN=16,PLATFORM_MAX=19,PLATFORM_SIZE_MAX=19,GROWTH_MIN=250,GROWTH_MAX=500;
+const TERRACE_CUBES=2,TERRACE_SIZE_C4=TERRACE_CUBES*CUBE_TIERS.r3/SLOT;
 const buildStats={baseBuilds:0,platformBuilds:0,branchBuilds:0,compositions:0};
 const DEFAULT_SPAN=9,WORLD_LAYOUTS=Object.freeze([9]);
 const FACE_NORMAL={north:new V3(0,0,1),south:new V3(0,0,-1),east:new V3(-1,0,0),west:new V3(1,0,0),top:new V3(0,-1,0),bottom:new V3(0,1,0),center:new V3(0,0,1)};
@@ -816,7 +817,6 @@ function overlapsBox(lo,hi,p,half,padding=0){return ['x','y','z'].every(a=>hi[a]
 function softRandom(key){const r=rng(key);return (r()+r()+r())/3;}
 function platformProfile(d,m){
  const key=d.config.seed+'|platform-roll-v7|'+d.id+'|'+m.variant+'|'+cellOrigin(d,m.cell).toArray().map(v=>v/SLOT).join(',');
- // Every generated plateau stays within the four smallest c4 footprints.
  const rollSize=m.kind==='manual'&&m.platform?m.platform.rollSize:PLATFORM_MIN+Math.round(softRandom(key+'|size')*(PLATFORM_MAX-PLATFORM_MIN));
  const growthPercent=m.kind==='manual'&&m.platform?m.platform.growthPercent:GROWTH_MIN+Math.round(softRandom(key+'|growth')*(GROWTH_MAX-GROWTH_MIN));
  const boosted=false,size=Math.min(PLATFORM_MAX,rollSize);
@@ -1584,12 +1584,29 @@ function renderTierPaths(world,d,seed){
  renderEngine.setBatch('tierPaths',[]);
  return [...currentGeometry.primary.values()].filter(v=>['path','branch'].includes(v.kind)).length;
 }
+function renderTerraces(world,d,out,seed){
+ let count=0;const side=CUBE_TIERS.r3;
+ for(const m of d.modules){
+ const b=platformBounds(d,m),up=platformUp(d,m),fixedTheme=validCubeTheme(world,m.theme)?m.theme:null;
+ const colourAt=p=>hexRGB(world.kind==='special'?voidTerrainColour(p):PALETTES[fixedTheme??world.themes[themeIndexAt(world,p,seed)]]);
+  const centre=platformCenter(d,m);
+  if(up.y>0){
+   for(let x=0;x<2;x++)for(let z=0;z<2;z++){const p=new V3(centre.x+(x-.5)*side,b.hi.y-side/2,centre.z+(z-.5)*side);instance(out,p,cubeRenderSize(side),colourAt(p));count++;}
+  }else if(up.z<0){
+   for(let x=0;x<2;x++)for(let y=0;y<2;y++){const p=new V3(centre.x+(x-.5)*side,centre.y+(y-.5)*side,b.lo.z-side/2);instance(out,p,cubeRenderSize(side),colourAt(p));count++;}
+  }else{
+   for(let y=0;y<2;y++)for(let z=0;z<2;z++){const p=new V3(b.lo.x-side/2,centre.y+(y-.5)*side,centre.z+(z-.5)*side);instance(out,p,cubeRenderSize(side),colourAt(p));count++;}
+  }
+ }
+ return count;
+}
 
 function updateScene(){
  const w=world(),d=data(),seed=hashSeed(d.config.seed);
  currentGeometry=buildGeometry(w,d,{reuseBase:currentGeometry.base,reuseOwned:currentGeometry.ownedPlatforms,syncBranches:true});currentPortals=portalInfo(w,d);
- const terrain=[];let surfaceCount=0;
+ const terrain=[];let surfaceCount=renderTerraces(w,d,terrain,seed);
  for(const v of currentGeometry.blocks){
+  if(v.kind==='platform')continue;
   if(v.kind==='manual'&&showTierTowers)continue;
   if(v.size===SLOT&&SIX.every(a=>currentGeometry.primary.get(voxelKey(v.x+a[0]*SLOT,v.y+a[1]*SLOT,v.z+a[2]*SLOT))?.size===SLOT))continue;
   const p=new V3(v.x+v.size*.5,v.y+v.size*.5,v.z+v.size*.5),id=v.theme??w.themes[themeIndexAt(w,p,seed)];
@@ -1660,8 +1677,9 @@ function setManualPlatformPlane(plane){
 }
 function updateGenerationNotes(){
  const profiles=data().modules.map(m=>platformProfile(data(),m));
- $('platformSizeNote').textContent=profiles.length?`This world: ${Math.min(...profiles.map(p=>p.size))}–${Math.max(...profiles.map(p=>p.size))} c4 across (${Math.min(...profiles.map(p=>p.worldSize))}–${Math.max(...profiles.map(p=>p.worldSize))} c1)`:'Six seeded portal plateaus · rolls 16 / 17 / 18 / 19 c4';
+ $('platformSizeNote').textContent=profiles.length?`This world: ${profiles.length} terraces · 4 r3 cubes each · ${Math.min(...profiles.map(p=>p.worldSize))} c1 footprint`:'Six seeded portal terraces · 4 r3 cubes each';
  $('growthNote').textContent=data().config.growthEnabled===false?'Growth is off; each platform keeps its roll.':profiles.length?`This world: ${Math.min(...profiles.map(p=>p.growthPercent))}–${Math.max(...profiles.map(p=>p.growthPercent))}% · connected c3 shelves`:'Individual growth rolls · connected c3 shelves';
+ $('cubeTierNote').innerHTML=$('cubeTierNote').innerHTML.replaceAll('c4 (8)',`c4 (${CUBE_TIERS.c4})`).replaceAll('c2 (2)',`c2 (${CUBE_TIERS.c2})`);
 }
 function updateCubePalette(){
  const group=$('cubeColours');if(!group)return;
