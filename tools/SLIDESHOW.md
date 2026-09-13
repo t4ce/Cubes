@@ -87,3 +87,19 @@ is also a highlight source. This requires the updated TRUEOS mixed-draw renderer
 The textured shader's compiled clip-Y inversion is compensated by its viewport
 Y scale and front winding in TRUEOS. Cube geometry keeps its existing viewport
 convention, so both use the same unmodified world camera. Rebuild TRUEOS and Cubes.
+
+### Server snake
+
+Key8 receives the five-c1-cube center snake through the same UDP connection as
+VFX. Its 200 ms updates replace one stable tail slot with the new head; surviving
+slots keep both transforms and colors. The client requests a snapshot on join
+or a sequence gap and publishes each complete replacement atomically. Sprite
+asset downloads continue to process snake packets.
+
+Snake seeds occupy five reserved slots after the center landmark, before VFX.
+They are axis-aligned, full-size c1 cubes in four fixed shades of theme 1's color.
+The renderer compares each inactive seed buffer with its cached contents and
+uploads only dirty row ranges; idle snake frames require no seed upload when
+nothing else changes. The normal two-buffer upload still preserves the last
+complete frame after an upload error. The terrain budget reserves five slots so
+six full VFX planes, the snake and all navigation markers fit together.

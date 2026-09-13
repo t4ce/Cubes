@@ -1199,10 +1199,25 @@ impl CubesWalkerCam {
         }
     }
     pub fn path_target(&self) -> Option<LandingTarget> { self.navigation.target }
+    /// Shared navigation overlay for local worlds and the server gallery.
+    pub fn preview_cubes(&self, marker: crate::orchard::Cube, budget: usize) -> Vec<crate::orchard::Cube> {
+        if !self.is_flying() { return self.path_cubes(marker.flags, budget); }
+        let Some(target) = self.landing_target() else { return Vec::new(); };
+        let scale = self.preview_dash_scale(target);
+        // Zero normals keep the flight line centered, without the surface
+        // clearance used by walking routes. End at the visible marker center.
+        let samples = [self.pose().0, marker.center].map(|point| Sample {
+            point, normal: [0.; 3],
+        });
+        cubepathfind::dashes(&samples, scale, marker.flags, budget)
+    }
+    fn preview_dash_scale(&self, target: LandingTarget) -> f32 {
+        // Stay above the shader's marker-size encoding, even for fine cells.
+        (target.scale * 0.16).min(self.solid.grid_step() * self.unit * 0.18).max(0.002)
+    }
     pub fn path_cubes(&self, flags: u32, budget: usize) -> Vec<crate::orchard::Cube> {
         let Some(target) = self.navigation.target else { return Vec::new(); };
-        // Stay above the shader's marker-size encoding, even for fine cells.
-        let scale = (target.scale * 0.16).min(self.solid.grid_step() * self.unit * 0.18).max(0.002);
+        let scale = self.preview_dash_scale(target);
         cubepathfind::dashes(&self.navigation.samples, scale, flags, budget)
     }
     fn invalidate_path(&mut self) {
@@ -2740,6 +2755,46 @@ mod tests {
 mod image_gallery_tests {
     use super::*;
     #[test]
+    fn local_and_server_flight_previews_draw_a_centered_line_to_the_marker() {
+        let bytes = include_bytes!("../Cube/lvl27/world_01_sky.cubes");
+        for mut c in [CubesWalkerCam::from_world(bytes, false),
+            CubesWalkerCam::image_gallery_world(crate::slideshow::contract::Layout {tiers:[1;6]}, bytes)] {
+            let bound = c.cubes.last().unwrap();
+            let goal = add(bound.lo, [bound.size * 0.5; 3]);
+            c.fly = true;
+            c.position = add(goal, [0., bound.size * 0.5 + 30., 0.]);
+            c.foot = c.position;
+            c.rotation = look([0., -1., 0.], [0., 0., 1.]);
+            c.view = c.rotation;
+            let target = c.landing_target().unwrap();
+            let source = [crate::orchard::Cube {center:target.center, scale:target.scale, flags:4}];
+            let mut indicator = crate::flight_target::Indicator::default();
+            indicator.update(Some(target), 0, &source, &[0;6]);
+            let marker = indicator.update(Some(target), 700, &source, &[0;6]).unwrap();
+            let cubes = c.preview_cubes(marker, 32);
+            assert!(!cubes.is_empty() && cubes.len() <= 32);
+            let start = c.pose().0;
+            let direction = sub(marker.center, start);
+            let total = dot(direction, direction);
+            let mut previous = 0.;
+            for cube in cubes {
+                let t = dot(sub(cube.center, start), direction) / total;
+                assert!(t > previous && t < 1.);
+                assert!(dot(sub(cube.center, add(start, mul(direction, t))),
+                    sub(cube.center, add(start, mul(direction, t)))) < 0.000001);
+                assert_eq!(cube.flags, marker.flags);
+                assert_eq!(cube.scale, c.preview_dash_scale(target));
+                previous = t;
+            }
+            assert!(previous > 0.9);
+            assert!(c.preview_cubes(marker, 0).is_empty());
+            c.rotation = look([0., 1., 0.], [0., 0., 1.]);
+            assert!(c.preview_cubes(marker, 32).is_empty());
+            c.fly = false;
+            assert!(c.preview_cubes(marker, 32).is_empty());
+        }
+    }
+    #[test]
     fn vfx_locations_have_no_support_collision() {
         let bytes=include_bytes!("../Cube/lvl27/world_01_sky.cubes");
         let layout=crate::slideshow::contract::Layout {tiers:[1;6]};
@@ -2763,6 +2818,17 @@ mod image_gallery_tests {
         assert!(c.path_enabled());
         assert!(c.path_target().is_some());
         assert!(!c.path_cubes(24576|512|4096|(3<<10),128).is_empty());
+        let target = c.path_target().unwrap();
+        let marker = crate::orchard::Cube {center:target.center, scale:target.scale,
+            flags:crate::flight_target::FLAGS};
+        let shared = c.preview_cubes(marker, 128);
+        let walking = c.path_cubes(marker.flags, 128);
+        assert_eq!(shared.len(), walking.len());
+        for (a,b) in shared.iter().zip(walking.iter()) {
+            assert_eq!(a.center, b.center);
+            assert_eq!(a.scale, b.scale);
+            assert_eq!(a.flags, b.flags);
+        }
     }
     #[test]
     fn server_gallery_retains_world1_collision_and_center_spawn() {

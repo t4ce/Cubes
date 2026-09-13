@@ -911,8 +911,8 @@ impl CubeScene {
                 }]);
             let sources = landmark.as_ref().map_or(terrain.cubes.as_slice(), |c| &c[..]);
             let highlight = self.flight_target.update(target, elapsed_millis, sources, &MATERIAL_PALETTE_RGBA);
-            let mut overlays = self.flight_target.flags().and_then(|flags|
-                self.walker_camera.as_ref().map(|c| c.path_cubes(flags, 128))).unwrap_or_default();
+            let mut overlays = highlight.and_then(|marker|
+                self.walker_camera.as_ref().map(|c| c.preview_cubes(marker, 128))).unwrap_or_default();
             if let Some(cube) = highlight { overlays.push(cube); }
             // Same transparent material and back-to-front ordering as local worlds.
             overlays.sort_by(|a,b| {
@@ -983,8 +983,8 @@ impl CubeScene {
         } else { &[] };
         let flight_cube = self.flight_target.update(target, elapsed_millis, target_cubes, &MATERIAL_PALETTE_RGBA);
         let path_cubes = if self.mode.is_world() && self.portal_trip.is_none() {
-            self.flight_target.flags().and_then(|flags| self.walker_camera.as_ref()
-                .map(|c| c.path_cubes(flags, 128))).unwrap_or_default()
+            flight_cube.and_then(|marker| self.walker_camera.as_ref()
+                .map(|c| c.preview_cubes(marker, 128))).unwrap_or_default()
         } else { Vec::new() };
         let ghost_target = if self.mode.is_world() && self.portal_trip.is_none()
             && !self.walker_camera.as_ref().is_some_and(|c| c.path_enabled()) {
@@ -1829,6 +1829,14 @@ impl CubeScene {
         };
         let slide = match update {
             network::Update::Gallery(slide) => slide,
+            network::Update::Snake {session,state} => {
+                if self.network_world.as_ref().is_some_and(|w|w.session==session) {
+                    if let Some(wall)=self.image_wall.as_mut().filter(|w|w.gallery_revision()==state.gallery) {
+                        wall.replace_snake(state);
+                    }
+                }
+                return Ok(());
+            }
             network::Update::Vfx(scene) => {
                 let current_session=self.network_world.as_ref().map(|w|w.session);
                 if let Some(wall)=self.image_wall.as_mut().filter(|wall|

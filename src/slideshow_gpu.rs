@@ -11,13 +11,14 @@ pub struct Wall {
     slide: Slide,
     cubes: CubeInstances,
     scene: Option<crate::network::VfxScene>,
+    snake: Option<cubes_protocol::snake::State>,
 }
 impl Wall {
     pub fn new(device: Device, slide: Slide) -> Result<Self, i32> {
         let cubes = CubeInstances::new(device)?;
         let geometry = slideshow::geometry(slide.layout);
         let (vertices, indices, mesh) = upload(device, &geometry)?;
-        Ok(Self { device, vertices, indices, mesh, slide, cubes, scene: None })
+        Ok(Self { device, vertices, indices, mesh, slide, cubes, scene: None, snake: None })
     }
     pub fn replace_vfx(&mut self, scene: crate::network::VfxScene) -> Result<(), i32> {
         if scene.session!=self.slide.session || scene.info.gallery_revision!=self.slide.revision { return Ok(()); }
@@ -28,10 +29,14 @@ impl Wall {
         Ok(())
     }
     pub fn gallery_revision(&self) -> u32 { self.slide.revision }
+    pub fn replace_snake(&mut self, state: cubes_protocol::snake::State) {
+        if state.gallery==self.slide.revision && state.valid() { self.snake=Some(state); }
+    }
     pub fn replace(&mut self, slide: Slide) -> Result<(), i32> {
         if self.slide.layout == slide.layout {
             if self.slide.revision != slide.revision || self.slide.session != slide.session {
                 self.scene = None;
+                self.snake = None;
             }
             self.slide = slide;
         } else { *self = Self::new(self.device, slide)?; }
@@ -41,7 +46,13 @@ impl Wall {
     pub fn render(
         &mut self, queue: Queue, surface: Ui4Surface, camera: RetainedCamera, height: u32, _now: u64, terrain: &[RetainedTransformSeed], overlays: &[RetainedTransformSeed],
     ) -> Result<(), i32> {
-        let seeds = scene_seeds(self.scene.as_ref(), &self.slide.palette, &self.slide.world, &camera)?;
+        let mut seeds = scene_seeds(self.scene.as_ref(), &self.slide.palette, &self.slide.world, &camera)?;
+        if let Some(snake)=self.snake {
+            // Stable slots precede changing sprite populations; only the old
+            // tail slot gets a new transform on each server step.
+            seeds.splice(CENTER_COUNT..CENTER_COUNT, snake_seeds(snake));
+            for (i,seed) in seeds.iter_mut().enumerate() {seed.flags=(seed.flags&0xffff)|((i as u32)<<16);}
+        }
         self.cubes.animate(seeds, terrain, overlays)?;
         let point = self.device.submit_retained_frame_v4(
             queue, surface, self.mesh, self.cubes.mesh, self.vertices, self.indices,
@@ -69,7 +80,7 @@ const CENTER_COUNT: usize = 27;
 const MAX_CUBES: usize = MAX_RETAINED_SCENE_INSTANCES;
 pub const OVERLAY_BUDGET: usize = 129;
 pub const TERRAIN_BUDGET: usize = MAX_CUBES - CENTER_COUNT
-    - cubes_protocol::vfx::INSTANCES * cubes_protocol::vfx::CELLS - OVERLAY_BUDGET;
+    - cubes_protocol::vfx::INSTANCES * cubes_protocol::vfx::CELLS - OVERLAY_BUDGET - cubes_protocol::snake::SEGMENTS;
 const SEED_BYTES: usize = 64;
 /// Immutable 44-patch topology. Updates only upload TRS/color seeds.
 struct CubeInstances {
@@ -80,6 +91,7 @@ struct CubeInstances {
     seeds: [Buffer;2],
     active: usize,
     count: u32,
+    uploaded: [Vec<u8>;2],
 }
 impl CubeInstances {
     fn new(device: Device) -> Result<Self, i32> {
@@ -108,7 +120,7 @@ impl CubeInstances {
                 return Err(error);
             }
         };
-        let mut cubes = Self { device, vertices, indices, mesh, seeds, active:0, count:0 };
+        let mut cubes = Self { device, vertices, indices, mesh, seeds, active:0, count:0, uploaded: [Vec::new(),Vec::new()] };
         cubes.animate(landmark_seeds(), &[], &[])?;
         Ok(cubes)
     }
@@ -127,15 +139,53 @@ impl CubeInstances {
             seeds.push(seed);
         }
         let bytes = seed_bytes(&seeds);
+        if self.uploaded[self.active]==bytes {
+            self.count=seeds.len() as u32;
+            return Ok(());
+        }
         // Publish only a complete upload; failure leaves the displayed frame intact.
         let next = 1-self.active;
-        if self.device.write_buffer(self.seeds[next], 0, &bytes)? != bytes.len() {
-            return Err(ERR_IO);
+        // Keep unchanged rows untouched, including the four surviving snake
+        // segments. Coalesce adjacent dirty rows into bounded buffer writes.
+        let previous=&self.uploaded[next];
+        let mut row=0;
+        while row<seeds.len() {
+            let start=row*SEED_BYTES;
+            if previous.get(start..start+SEED_BYTES)==Some(&bytes[start..start+SEED_BYTES]) {row+=1;continue;}
+            row+=1;
+            while row<seeds.len() {
+                let p=row*SEED_BYTES;
+                if previous.get(p..p+SEED_BYTES)==Some(&bytes[p..p+SEED_BYTES]) {break;}
+                row+=1;
+            }
+            let end=row*SEED_BYTES;
+            match self.device.write_buffer(self.seeds[next], start, &bytes[start..end]) {
+                Ok(n) if n==end-start => {},
+                result => {
+                    // A failed upload may have partially modified the inactive
+                    // buffer. Invalidate its cache before retrying.
+                    self.uploaded[next].clear();
+                    return Err(result.err().unwrap_or(ERR_IO));
+                }
+            }
         }
+        self.uploaded[next]=bytes;
         self.active = next;
         self.count = seeds.len() as u32;
         Ok(())
     }
+}
+fn snake_seeds(state:cubes_protocol::snake::State) -> [RetainedTransformSeed;cubes_protocol::snake::SEGMENTS] {
+    // Theme 1 (sky), in four fixed brightness shades. Slot colors never age.
+    let color=cubes_protocol::COLORS[0];
+    core::array::from_fn(|slot| {
+        let brightness=[10u32,7,5,3][slot%4];
+        let rgb=(0..3).map(|a| ((color[a] as u32*31*brightness+1275)/2550)<<(a*5)).sum::<u32>();
+        let translation=state.cells[slot].map(|v|(v as f32+0.5)*slideshow::contract::C1);
+        RetainedTransformSeed {translation,previous_translation:translation,
+            scale:[slideshow::contract::C1*0.5;3],rotation:[1.,0.,0.,0.],
+            local_radius:1.74,flags:0x8000|rgb,..RetainedTransformSeed::default()}
+    })
 }
 impl Drop for CubeInstances {
     fn drop(&mut self) {

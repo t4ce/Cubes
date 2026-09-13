@@ -26,12 +26,12 @@ The trigger activates only when the camera crosses the frame's inner face inside
 the empty opening, not while approaching along the connector or touching its ring.
 
 - Mouse: look; WASD or arrows: walk; either Shift: twice normal walking speed.
-- Key4/Key5, attached to a surface: Tab toggles path preview. Aim at a cube
+- Key4/Key5/Key8, attached to a surface: Tab toggles path preview. Aim at a cube
   to reuse the flight landing highlight and show a dashed surface route.
   Space locks a ready route and follows it at 58 voxels/s (twice Shift speed).
   The view follows travel; WASD/arrows cancel it, and Tab cancels and exits
   path mode. Opening the picker or changing modes also cancels travel.
-  Tab does nothing in flight, Key7 or the network image wall.
+  Tab does nothing in flight or Key7.
 - Flight speed is twice the original; Shift retains the 2.8× flight boost.
 - Space held at an outside edge, or pressed during its turn: push off 18 voxels
   at twice current walking speed while turning the view back toward the edge.
@@ -101,7 +101,12 @@ The `surface-path` log reports searching, ready, travelling, unreachable or
 limited states. Retargeting, geometry edits and mode changes discard stale paths.
 Standing partway through a step/turn requires finishing it before previewing.
 
-The preview samples the actual walking trajectory, then places at most 128
+Local worlds and the Key8 server gallery use the same navigation preview code.
+In flight, a visible landing marker gets a straight dashed line from the camera
+to its center, using the walking route's small cube sizes and marker material.
+Flight dashes have no surface offset and disappear with the landing marker.
+
+The walking preview samples the actual walking trajectory, then places at most 128
 separated beveled cubes along its full length, with four times the original
 spacing for one quarter the cube density. Their material and opacity match
 the destination indicator. They stay above the marker-size encoding and reserve

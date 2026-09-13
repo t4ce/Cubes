@@ -19,11 +19,20 @@ impl Scene {
 
 #[derive(Default)]
 pub struct Stream {
+    snake: cubes_protocol::snake::Replica,
+    snake_published: Option<(u32,u32,u32)>,
+    snake_requested: Option<time::Instant>,
     pending: Option<(vfx::Scene,time::Instant)>,
     cache: BTreeMap<u32,Arc<Vec<u8>>>,
 }
 impl Stream {
     pub fn observe(&mut self, bytes: &[u8]) {
+        if let Some(state)=payload(bytes,0x8b).and_then(cubes_protocol::snake::State::parse) {
+            self.snake.snapshot(state);
+        }
+        if let Some(step)=payload(bytes,0x8c).and_then(cubes_protocol::snake::Step::parse) {
+            self.snake.step(step);
+        }
         let Some(info)=payload(bytes,0x89).and_then(vfx::Scene::parse) else { return; };
         if let Some((old,received))=self.pending {
             if !info.newer_than(old) { return; }
@@ -34,7 +43,17 @@ impl Stream {
         }
         self.pending=Some((info,time::Instant::now()));
     }
-    fn publish(&self, shared: &Mutex<Shared>, session: u64, gallery: u32) {
+    fn publish(&mut self, shared: &Mutex<Shared>, session: u64, gallery: u32) {
+        if let Some(snake)=self.snake.state.filter(|s|s.gallery==gallery) {
+            let identity=(snake.gallery,snake.epoch,snake.tick);
+            if self.snake_published!=Some(identity) {
+                let mut state=shared.lock().unwrap();
+                if state.session==session {
+                    state.snake_ready=Some(snake);
+                    self.snake_published=Some(identity);
+                }
+            }
+        }
         let Some((info,received))=self.pending else { return; };
         if info.gallery_revision!=gallery { return; }
         let scene=Scene { session,info,received,
@@ -46,6 +65,11 @@ impl Stream {
     pub async fn service(&mut self,socket:&UdpSocket,shared:&Mutex<Shared>,session:u64,gallery:u32)
         -> Result<(), &'static str>
     {
+        if (self.snake.state.is_none() || self.snake.needs_snapshot)
+            && self.snake_requested.is_none_or(|t|t.elapsed()>=time::Duration::from_millis(200)) {
+            socket.send(&packet(8,&[])).await.map_err(|_| "snake snapshot request")?;
+            self.snake_requested=Some(time::Instant::now());
+        }
         for _ in 0..4 {
             if !self.fetch_one(socket,shared,session,gallery).await? { break; }
         }
@@ -114,6 +138,27 @@ fn accept_chunk(packet: &[u8],revision:u32,bytes:&mut [u8],received:&mut [bool])
 mod tests {
     use super::*;
     #[test]
+    fn snake_packets_publish_only_changes_and_ignore_old_sessions() {
+        let mut snake=crate::server_snake::Snake::new(9,1);
+        let mut stream=Stream::default();
+        let shared=Mutex::new(Shared {session:1,running:true,gallery_ready:None,vfx_ready:None,snake_ready:None,
+            error:None,position:[0.;3],orientation:[0.;3]});
+        stream.observe(&packet(0x8b,&snake.state.encode()));
+        stream.publish(&shared,1,9);
+        assert_eq!(shared.lock().unwrap().snake_ready.take(),Some(snake.state));
+        stream.publish(&shared,1,9);
+        assert!(shared.lock().unwrap().snake_ready.is_none());
+        let step=snake.step(0);
+        stream.observe(&packet(0x8c,&step.encode()));
+        stream.publish(&shared,2,9);
+        assert!(shared.lock().unwrap().snake_ready.is_none());
+        stream.publish(&shared,1,9);
+        assert_eq!(shared.lock().unwrap().snake_ready.take(),Some(snake.state));
+        stream.observe(&packet(0x8c,&step.encode()));
+        stream.publish(&shared,1,9);
+        assert!(shared.lock().unwrap().snake_ready.is_none());
+    }
+    #[test]
     fn repeated_slots_share_cached_bytes_and_stale_events_do_not_rewind() {
         let slot=vfx::Slot {revision:7,bytes:20,anchor:[40,8,0],frames:3,period_ms:150,pixel_side_c1:1};
         let info=vfx::Scene {gallery_revision:9,event:4,age_ms:500,slots:[slot;vfx::INSTANCES]};
@@ -121,7 +166,7 @@ mod tests {
         stream.observe(&packet(0x89,&info.encode()));
         let asset=Arc::new(vec![1,2,3]);
         stream.cache.insert(7,asset.clone());
-        let shared=Mutex::new(Shared {session:1,running:true,gallery_ready:None,vfx_ready:None,
+        let shared=Mutex::new(Shared {session:1,running:true,gallery_ready:None,vfx_ready:None,snake_ready:None,
             error:None,position:[0.;3],orientation:[0.;3]});
         stream.publish(&shared,1,9);
         let published=shared.lock().unwrap().vfx_ready.take().unwrap();

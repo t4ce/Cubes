@@ -12,6 +12,7 @@ struct Driver {
     meshes: BTreeMap<u64,RetainedMeshDescriptor>,
     creates: usize,
     writes: usize,
+    write_ranges: Vec<(u64,usize,usize)>,
     short_write: bool,
     busy: bool,
     leased: bool,
@@ -267,8 +268,46 @@ fn compressed_pixels_grow_across_frames_then_shrink_without_moving_or_retransmis
 }
 
 #[test]
+fn snake_keeps_survivor_transforms_and_four_theme_shades_without_idle_uploads() {
+    let (mut wall,queue)=setup();
+    let mut snake=crate::server_snake::Snake::new(wall.slide.revision,8);
+    wall.replace_snake(snake.state);
+    draw(&mut wall,queue,0).unwrap();
+    let seeds=snake_seeds(snake.state);
+    let colors:std::collections::BTreeSet<_>=seeds.iter().map(|s|s.flags).collect();
+    assert_eq!(colors.len(),4);
+    let theme=cubes_protocol::COLORS[0];
+    let full=0x8000|(0..3).map(|a|((theme[a] as u32*31+127)/255)<<(a*5)).sum::<u32>();
+    assert_eq!(seeds[0].flags,full);
+    assert!(seeds.iter().all(|s|s.scale==[0.1;3] && s.rotation==[1.,0.,0.,0.]));
+    for _ in 0..40 {
+        let before=active_bytes(&wall);
+        let writes=driver(|d|d.writes);
+        draw(&mut wall,queue,0).unwrap();
+        assert_eq!(driver(|d|d.writes),writes);
+        let step=snake.step(123);
+        driver(|d|d.write_ranges.clear());
+        wall.replace_snake(snake.state);
+        draw(&mut wall,queue,0).unwrap();
+        let after=active_bytes(&wall);
+        assert_eq!(wall.cubes.count,32);
+        for slot in 0..5 {
+            let row=(CENTER_COUNT+slot)*64;
+            if slot!=step.slot as usize {assert_eq!(&before[row..row+64],&after[row..row+64]);}
+            assert_eq!(&before[row+60..row+64],&after[row+60..row+64]);
+        }
+        // Once both buffers are initialized, uploads touch only snake rows.
+        if step.tick>1 {
+            driver(|d|for &(_,offset,len) in &d.write_ranges {
+                assert!(offset>=CENTER_COUNT*64 && offset+len<=(CENTER_COUNT+5)*64);
+            });
+        }
+    }
+}
+#[test]
 fn six_full_planes_fit_with_terrain_and_navigation_and_expire_locally() {
     let (mut wall,queue)=setup();
+    wall.replace_snake(crate::server_snake::Snake::new(wall.slide.revision,1).state);
     let pixels:Vec<_>=(0..32).flat_map(|y|(0..32).map(move |x|(x,y,0))).collect();
     wall.replace_vfx(animation(&pixels)).unwrap();
     let overlay=RetainedTransformSeed {scale:[0.4;3],rotation:[1.,0.,0.,0.],
@@ -279,10 +318,10 @@ fn six_full_planes_fit_with_terrain_and_navigation_and_expire_locally() {
     assert_eq!(wall.cubes.count as usize,MAX_CUBES);
     let mut scene=animation(&pixels);scene.info.age_ms=499;
     wall.replace_vfx(scene).unwrap();draw(&mut wall,queue,0).unwrap();
-    assert_eq!(wall.cubes.count,27);
+    assert_eq!(wall.cubes.count,32);
     let mut scene=animation(&pixels);scene.info.age_ms=2000;
     wall.replace_vfx(scene).unwrap();draw(&mut wall,queue,0).unwrap();
-    assert_eq!(wall.cubes.count,27);
+    assert_eq!(wall.cubes.count,32);
 }
 
 #[unsafe(no_mangle)] extern "C" fn trueos_cabi_vgpu_open(_:u64,out:*mut u64)->i32 {handle(out)}
@@ -293,6 +332,7 @@ fn six_full_planes_fit_with_terrain_and_navigation_and_expire_locally() {
 #[unsafe(no_mangle)] extern "C" fn trueos_cabi_vgpu_buffer_write(_:u64,id:u64,offset:usize,data:*const u8,len:usize)->isize {
     driver(|d| {
         d.writes+=1;
+        d.write_ranges.push((id,offset,len));
         let count=if d.short_write {len/2} else {len};
         d.buffers.get_mut(&id).unwrap()[offset..offset+count].copy_from_slice(unsafe{core::slice::from_raw_parts(data,count)});
         count as isize
