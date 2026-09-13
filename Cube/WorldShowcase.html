@@ -251,7 +251,7 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
   <details class="atlas-toggle"><summary>Open the 27-world atlas</summary><div id="atlas" class="atlas"></div><div class="small" style="margin-top:8px;font-size:9px">6 singles · 12 duals · 8 triples · 1 void<br>Level addresses are separate from chunk coordinates.</div></details>
   <div class="fixed-layout" aria-label="Fixed world layout: 9 by 9 by 9 chunks"><strong>9 × 9 × 9</strong><span>FIXED WORLD SIZE</span></div>
   <div id="dimensionNote" class="dimension-note">9,216³ c1 units · 729 chunks · outer portals only</div>
-   <div id="cubeTierNote" class="generation-note" style="margin-top:10px;margin-bottom:0"><strong>Cube tiers</strong><br>c1 1 · c2 2 · r1 3 · c3 4 · r2 4 · c4 16 · r3 64<br><span style="font:9px var(--mono)">WORLD FIT · c4 576³ = 191,102,976 · r3 144³ = 2,985,984</span></div>
+   <div id="cubeTierNote" class="generation-note" style="margin-top:10px;margin-bottom:0"><strong>Cube tiers</strong><br>c1 1 · c2 1 · r1 1 · c3 1 · r2 4 · c4 16 · r3 64<br><span style="font:9px var(--mono)">WORLD FIT · c4 576³ = 191,102,976 · r3 144³ = 2,985,984</span></div>
  </section>
  <nav class="sidebar-tabs" aria-label="Editor tabs"><button id="worldTabButton" class="active" type="button" aria-controls="worldTabPane" aria-selected="true">World</button><button id="portalTabButton" type="button" aria-controls="portalTabPane" aria-selected="false">Portals</button></nav>
  <div id="portalTabPane" class="tab-pane" hidden>
@@ -289,7 +289,7 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
    <div class="eyebrow"><span>Per-platform rolls</span><span>SEEDED</span></div>
    <div class="field-head"><span>Terrace size</span><strong>2 × 2 r3</strong></div><div id="platformSizeNote" class="field-note">Each terrace renders as four r3 cubes on a 2 × 2 c4 footprint.</div>
    <div class="roll-growth"><div class="field-head"><span>Small-cube growth</span><strong>250–500%</strong></div><div id="growthNote" class="field-note">Individual growth rolls · connected c3 shelves</div></div>
-  <div class="field-note" style="margin-top:9px"><strong style="color:var(--ink)">Seven-cube size tower</strong><br>Bottom → top: r3 · c4 · r2 · c3 · r1 · c2 · c1<br>One of each, 94 c1 tall. r2 and c3 intentionally share the 4 c1 size; the tower follows each platform’s UP face.</div>
+  <div class="field-note" style="margin-top:9px"><strong style="color:var(--ink)">Seven-cube size tower</strong><br>Bottom → top: r3 · c4 · r2 · c3 · r1 · c2 · c1<br>One of each, 88 c1 tall. c1, c2, r1, and c3 intentionally share the 1 c1 size; the tower follows each platform’s UP face.</div>
   <label class="checks"><input id="showPlatformHulls" type="checkbox" checked><span>Platform hull indicators</span><span>LOD</span></label>
   <label class="checks"><input id="showTierTowers" type="checkbox" checked><span>Show cube-tier towers</span><span>DEMO</span></label>
   <div class="tower-controls"><select id="towerSelect" aria-label="Platform tower to inspect"></select><button id="inspectTower" type="button" disabled>Inspect tower</button></div>
@@ -344,7 +344,7 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
   <strong>World layout</strong><span>Each world remains 9 × 9 × 9 chunks. Each chunk is 64 × 64 × 64 c4 cells, or 1024³ c1 units. The full world is 9216³ c1 units.</span>
   <strong>Place / remove</strong><span>Place a c1 control cube at the center of a new platform. Placement addresses snap to the c4 terrain grid; the control is centered on the actual footprint. Its platform, growth, and local branch belong to it. With tower demos visible, click the tower to select or remove the same owner. Keys 1 / 2 / 3 choose Select / Place / Remove. Deleting an owner does not remove other platforms or the main network.</span>
   <strong>Platform size</strong><span>Platforms and paths both use c4 cubes (8 c1 per side) on the same lattice. The six generated portal plateaus independently roll 16 / 17 / 18 / 19 c4 across. Each side plateau is seeded horizontal or vertical, using only the two planes perpendicular to its portal face. Top and bottom use XY or YZ. The attached 2 × 1 connector shares the same roll. Placed platforms keep their pinned rolls when the world regenerates.</span>
-  <strong>Cube-size towers</strong><span>Seven cubes, one per tier: bottom to top r3 (64 c1 per side), c4 (16), r2 (4), c3 (4), r1 (3), c2 (2), c1 (1). Each tower is 94 c1 tall and centered on its platform. Inspect tower zooms in and labels each cube. These display-only rulers do not affect routes, collision, or budgets; toggle them off to reveal manual control cubes.</span>
+  <strong>Cube-size towers</strong><span>Seven cubes, one per tier: bottom to top r3 (64 c1 per side), c4 (16), r2 (4), c3 (1), r1 (1), c2 (1), c1 (1). Each tower is 88 c1 tall and centered on its platform. Inspect tower zooms in and labels each cube. These display-only rulers do not affect routes, collision, or budgets; toggle them off to reveal manual control cubes.</span>
   <strong>Small-cube growth</strong><span>Optional growth is off by default. Each platform retains its independent 250–500% roll. When enabled, it adds connected c3 (4 c1) shelves, exactly half the side length of the c4 terrain cubes. No extra cube tiers are introduced.</span>
   <strong>Local branches</strong><span>With automatic paths on, each owned platform gets one link to existing generated terrain. In a blank world, the first cube grows an isolated platform; later platforms connect to earlier ones. With automatic paths off, the platforms remain and only the paths are hidden. Removing an empty-world anchor repairs only dependent links. World 27 offers all six colours plus Void.</span>
   <strong>Undo / redo</strong><span>Ctrl or Cmd + Z / Shift + Z. History is independent for every world. Ctrl or Cmd + Y also redoes.</span>
@@ -607,7 +607,7 @@ if(voidPureReturnCount!==6) throw new Error(`Expected 6 Void→pure portals, got
  * c2 frame cubes surround a reserved, centered c4 route passage.
  * Design settings affect only frame meshes; the maximum keep-out envelope and
  * path sockets are fixed, so live experiments do not rebuild the terrain. */
-const CUBE_TIERS=Object.freeze({c1:1,c2:2,r1:3,c3:4,r2:4,c4:16,r3:64});
+const CUBE_TIERS=Object.freeze({c1:1,c2:1,r1:1,c3:1,r2:4,c4:16,r3:64});
 const CUBE_TIER_ORDER=Object.freeze(['r3','c4','r2','c3','r1','c2','c1']);
 const PORTAL_LEGACY_UNIT=.4,PORTAL_UNIT=CUBE_TIERS.c2,PORTAL_SCALE=PORTAL_UNIT/PORTAL_LEGACY_UNIT;
 const PATH_CUBE_SIZE=CUBE_TIERS.c4,PORTAL_MAX_RADIUS=6.8*PORTAL_SCALE,PORTAL_MAX_DEPTH=1.4*PORTAL_SCALE,PORTAL_RUN=PATH_CUBE_SIZE*4;
@@ -1516,7 +1516,7 @@ function updateViewHeading(){
  }else{
   $('sceneKicker').textContent='WORLD '+pad(w.id)+' / '+(w.kind==='special'?'SPECIAL WORLD':w.kind.toUpperCase()+' THEME');
   $('sceneTitle').textContent=count?'A small world, taking shape.':'Room to make a world.';
-  $('sceneSubtitle').textContent=count?currentGeometry.edges.length+' main links + '+currentGeometry.localLinks+' local branches · '+d.modules.filter(m=>m.kind==='generated').length+' tier towers · '+d.modules.filter(m=>m.kind==='manual').length+' control cubes · '+w.themes.map(id=>themeFor(id).name).join(' + '):w.kind==='special'?'An empty void. Six returns. A centered leave portal.':'An empty volume. Six possible directions.';
+  $('sceneSubtitle').textContent=count?currentGeometry.edges.length+' main links + '+currentGeometry.localLinks+' local branches · '+assetTowerSummaries.length+' center towers · '+d.modules.filter(m=>m.kind==='manual').length+' control cubes · '+w.themes.map(id=>themeFor(id).name).join(' + '):w.kind==='special'?'An empty void. Six returns. A centered leave portal.':'An empty volume. Six possible directions.';
  }
 }
 function focusPortal(face=portalFace,back=false){
@@ -1555,24 +1555,19 @@ function focusTierTower(key=$('towerSelect')?.value){
 function updateTowerUI(){
  const select=$('towerSelect');if(!select)return;
  const old=towerFocus||select.value;select.replaceChildren();
- for(const [i,t] of assetTowerSummaries.entries()){const o=document.createElement('option');o.value=t.key;o.textContent='Platform '+(i+1)+' · '+(t.kind==='manual'?'placed':'generated');select.append(o);}
+ for(const [i,t] of assetTowerSummaries.entries()){const o=document.createElement('option');o.value=t.key;o.textContent='Center tower '+(i+1);select.append(o);}
  if(assetTowerSummaries.some(t=>t.key===old))select.value=old;
  $('inspectTower').disabled=!assetTowerSummaries.length;select.disabled=!assetTowerSummaries.length;
  $('showTierTowers').checked=showTierTowers;
 }
 
 function renderAssetScaleTowers(world,d,seed){
- const out=[];assetTowerSummaries=[];
- for(const m of d.modules){
-  const surface=platformTowerSurface(d,m),up=platformUp(d,m),id=cubeTheme(world,d,m);
-  const labelOffset=new V3(up.x?0:up.x===0?CUBE_TIERS.r3*.65:0,up.y?0:up.y===0?CUBE_TIERS.r3*.65:0,up.z?0:up.z===0?CUBE_TIERS.r3*.65:0);
-  let offset=0;const tiers=[];
-  for(let i=0;i<ASSET_CUBE_TIERS.length;i++){
-   const tier=ASSET_CUBE_TIERS[i],center=surface.clone().addScaledVector(up,offset+tier.size/2),col=hexRGB(TIER_COLOURS[tier.name]);
-   instance(out,center,cubeRenderSize(tier.size),col);tiers.push({name:tier.name,size:tier.size,bottom:offset,top:offset+tier.size,center:center.toArray()});offset+=tier.size;
-  }
-  assetTowerSummaries.push({key:cellKey(m.cell),kind:m.kind,base:surface.toArray(),up:up.toArray(),height:Object.values(CUBE_TIERS).reduce((a,b)=>a+b,0),labelOffset,tiers});
- }
+ const out=[];assetTowerSummaries=[];const height=Object.values(CUBE_TIERS).reduce((a,b)=>a+b,0),positions=[[-80,-40],[0,-40],[80,-40],[-80,40],[0,40],[80,40]];
+ positions.forEach(([x,z],towerIndex)=>{
+  const surface=new V3(x,0,z),up=new V3(0,1,0),labelOffset=new V3(CUBE_TIERS.r3*.65,0,CUBE_TIERS.r3*.65),tiers=[];let offset=0;
+  for(const tier of ASSET_CUBE_TIERS){const center=surface.clone().addScaledVector(up,offset+tier.size/2),col=hexRGB(TIER_COLOURS[tier.name]);instance(out,center,cubeRenderSize(tier.size),col);tiers.push({name:tier.name,size:tier.size,bottom:offset,top:offset+tier.size,center:center.toArray()});offset+=tier.size;}
+  assetTowerSummaries.push({key:'center-tower-'+towerIndex,kind:'center',base:surface.toArray(),up:up.toArray(),height,labelOffset,tiers});
+ });
  if(towerFocus&&!assetTowerSummaries.some(t=>t.key===towerFocus))towerFocus=null;
  renderEngine.setBatch('assetScaleDemo',showTierTowers?out:[]);updateTowerLabels();return showTierTowers?assetTowerSummaries.length:0;
 }
