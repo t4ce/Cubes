@@ -25,7 +25,7 @@ plus eased shrink-out within each compressed lifetime. Growth is capped at
 700 ms or half the lifetime; shrink-out at 150 ms or half the lifetime.
 Short VFX runs bypass placement's admission delay/queue. Unchanged pixels keep
 their progress across frame boundaries, with no extra downloads or post-expiry
-geometry. This is render-only scaling, not alpha blending; supports stay full-sized.
+geometry. This is render-only scaling, not alpha blending.
 GPU seeds still update for billboarding and growth; meshes remain resident. Same-tier replacements
 reuse the mesh; changed-tier replacements create the new mesh before releasing the old one.
 Failures preserve the old scene. Another numbered mode disconnects and releases
@@ -49,31 +49,26 @@ internal-face removal, bounds, package validation, chunk reordering/duplicates
 and material submission. Native XeLP rendering and frame timing remain untested
 until the rebuilt TRUEOS kernel, CubeSrv and Cubes are run together.
 
-Each batch spawns six c4 terrain blocks: four cardinal positions,
-one above and one below. Each independently rolls one effect from all 150 entries.
-The size demo assigns +X=c1, +Z=c2, -X=r1, -Z=c3, above=r2, below=c4:
-pixel sides are 1, 2, 3, 4, 6, 8 c1 units. The renderer also supports r3 (12).
+Each batch plays six VFX at fixed locations: four cardinal positions,
+one above and one below. No temporary terrain cubes or collision are created. Each independently rolls one effect from all 150 entries.
+Each slot independently rolls c1, c2, r1 or c3 per batch (pixel sides 1, 2, 3, 4
+c1 units); duplicates are allowed. Larger presets remain supported but are not rolled.
 Grid spacing scales with pixel cubes, giving full effect widths from 6.4 to
-51.2 renderer units; terrain cubes remain c4. Positions are fixed on the six image directions at exactly twice the image
+25.6 renderer units. Positions are fixed on the six image directions at exactly twice the image
 radius: (±41,0,0), (0,0,±41), (0,±41,0) in renderer units. They do not vary
 with timer cycle or pixel size. Large effects can extend back toward the images.
-Each effect's canvas center is fixed in world space, half its full height above
-the terrain cube's top. Billboard rotation applies only to centered pixel offsets;
-roll/pitch cannot swing that center around the support. An upright canvas still
-rests on the support; a tilted canvas rotates freely around its fixed center.
-Size is a one-byte scene field; the same compressed asset/cache entry works at
-every size without resampling, rebaking or another download.
+Each effect's canvas center is its exact server coordinate, without an upward
+support offset. Billboard rotation applies only to centered pixel offsets.
 After 500 ms, each plays one complete loop at exactly 400 ms/frame.
 The next batch's first frame is one second after the longest loop expires.
-New terrain bases appear halfway through that gap, retaining their 500 ms lead-in.
+The next effects are announced halfway through that gap, retaining their 500 ms preparation lead-in.
 No strip is accelerated or cut off to fit a fixed cycle. Rebuild both apps:
 snapshot age is now u32 (120-byte body) for long sequences.
-Each cube disappears with its effect. The blocks use world terrain colour and
-walking collision; local expiry still removes both when packets are lost.
+Each effect expires locally even when packets are lost; it adds no walking collision.
 Only VFX positions and rotations follow camera right/up; terrain stays upright.
 Opaque terrain and VFX use group zero; navigation alone uses group one.
-Capacity reserves 6×1024 pixels, six terrain cubes, 27 landmark cubes and 129
-navigation slots, leaving 26462 nearest-world terrain seeds within the 32768 limit.
+Capacity reserves 6×1024 pixels, 27 landmark cubes and 129
+navigation slots, leaving 26468 nearest-world terrain seeds within the 32768 limit.
 Rebuild TRUEOS as well as both apps: the SDK and native row limits changed;
 other Cubes modes keep their existing 8192-seed UI budget.
 The former standalone Holy path and per-frame downloads are removed.

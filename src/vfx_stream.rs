@@ -14,9 +14,7 @@ pub struct Scene {
 }
 impl Scene {
     pub fn age_ms(&self) -> u64 { self.info.age_ms as u64+self.received.elapsed().as_millis() as u64 }
-    pub fn terrain(&self) -> [Option<[i16;3]>;cubes_protocol::vfx::TERRAIN_CUBES] {
-        self.info.terrain(self.age_ms())
-    }
+
 }
 
 #[derive(Default)]
@@ -135,7 +133,8 @@ mod tests {
         assert_eq!(stream.pending.unwrap().0,info);
         old.age_ms=950;stream.observe(&packet(0x89,&old.encode()));
         stream.publish(&shared,1,9);
-        assert_eq!(shared.lock().unwrap().vfx_ready.take().unwrap().terrain(),[None;cubes_protocol::vfx::TERRAIN_CUBES]);
+        let expired=shared.lock().unwrap().vfx_ready.take().unwrap();
+        assert!(expired.info.slots.iter().all(|s|s.frame(expired.age_ms()).is_none()));
         stream.publish(&shared,2,9);
         assert!(shared.lock().unwrap().vfx_ready.is_none());
     }

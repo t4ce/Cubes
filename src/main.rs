@@ -209,7 +209,6 @@ struct NetworkWorld {
     session: u64,
     bytes: Vec<u8>,
     asset: orchard::Asset,
-    spawned: [Option<[i16; 3]>;cubes_protocol::vfx::TERRAIN_CUBES],
 }
 
 fn main() {
@@ -903,18 +902,6 @@ impl CubeScene {
             }
             let surface = self.device.acquire_ui4_surface(self.frame.window_id())
                 .map_err(|code| CubeError::Vgpu("surface-acquire", code))?;
-            // Expire collision from the same local playback clock, even during
-            // packet loss or an in-progress asset fetch.
-            if let (Some(wall),Some(world),Some(walker)) =
-                (&self.image_wall,&mut self.network_world,&mut self.walker_camera)
-            {
-                let spawned=wall.spawned();
-                if world.spawned!=spawned {
-                    walker.replace_image_gallery_world(wall.layout(),&world.bytes);
-                    for anchor in spawned.into_iter().flatten() { walker.insert_server_terrain_cube(anchor); }
-                    world.spawned=spawned;
-                }
-            }
             let terrain = &self.network_world.as_ref().ok_or(CubeError::Contract)?.asset;
             let target = self.walker_camera.as_ref()
                 .and_then(|c| c.path_target().or_else(|| c.landing_target()));
@@ -1891,7 +1878,7 @@ impl CubeScene {
         }
         if first {
             let (bytes, asset) = terrain.ok_or(CubeError::Contract)?;
-            self.network_world = Some(NetworkWorld { session, bytes, asset, spawned: [None;cubes_protocol::vfx::TERRAIN_CUBES] });
+            self.network_world = Some(NetworkWorld { session, bytes, asset });
             self.network_singleton = true;
             self.asset_brush.disable();
             self.select_mode(modes::Selection {

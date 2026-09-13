@@ -27,9 +27,6 @@ impl Wall {
         self.scene=Some(scene);
         Ok(())
     }
-    pub fn spawned(&self) -> [Option<[i16;3]>;cubes_protocol::vfx::TERRAIN_CUBES] {
-        self.scene.as_ref().map_or([None;cubes_protocol::vfx::TERRAIN_CUBES], |s| s.terrain())
-    }
     pub fn gallery_revision(&self) -> u32 { self.slide.revision }
     pub fn replace(&mut self, slide: Slide) -> Result<(), i32> {
         if self.slide.layout == slide.layout {
@@ -72,7 +69,7 @@ const CENTER_COUNT: usize = 27;
 const MAX_CUBES: usize = MAX_RETAINED_SCENE_INSTANCES;
 pub const OVERLAY_BUDGET: usize = 129;
 pub const TERRAIN_BUDGET: usize = MAX_CUBES - CENTER_COUNT
-    - cubes_protocol::vfx::INSTANCES * cubes_protocol::vfx::CELLS - cubes_protocol::vfx::TERRAIN_CUBES - OVERLAY_BUDGET;
+    - cubes_protocol::vfx::INSTANCES * cubes_protocol::vfx::CELLS - OVERLAY_BUDGET;
 const SEED_BYTES: usize = 64;
 /// Immutable 44-patch topology. Updates only upload TRS/color seeds.
 struct CubeInstances {
@@ -192,21 +189,13 @@ fn billboard(camera: &RetainedCamera) -> ([f32;3],[f32;3],[f32;4]) {
     // Preserve the placed cube mesh's original 180-degree X orientation.
     (right,up,[q[3],q[2],-q[1],-q[0]])
 }
-fn scene_seeds(scene: Option<&crate::network::VfxScene>, palette: &[u16], world: &[u8],
+fn scene_seeds(scene: Option<&crate::network::VfxScene>, palette: &[u16], _world: &[u8],
     camera: &RetainedCamera) -> Result<Vec<RetainedTransformSeed>,i32>
 {
     let mut seeds=landmark_seeds();
     let Some(scene)=scene.filter(|s|s.info.event!=0) else { return Ok(seeds); };
     let age=scene.age_ms();
     let (right,up,rotation)=billboard(camera);
-    for anchor in scene.info.terrain(age).into_iter().flatten() {
-        let mut terrain=terrain_seed(anchor);
-        if let Some(rgb)=world.get(16..19) {
-            terrain.flags=0x8000|((rgb[0] as u32*31+127)/255)
-                |(((rgb[1] as u32*31+127)/255)<<5)|(((rgb[2] as u32*31+127)/255)<<10);
-        }
-        seeds.push(terrain);
-    }
     for (slot,asset) in scene.info.slots.iter().zip(&scene.assets) {
         let Some(frame)=slot.frame(age) else { continue; };
         let Some(asset)=asset else { continue; };
@@ -223,9 +212,8 @@ fn scene_seeds(scene: Option<&crate::network::VfxScene>, palette: &[u16], world:
             let x=(pixel.x as f32+0.5-16.)*pixel_side;
             let y=(15.5-pixel.y as f32)*pixel_side;
             // Keep the canvas center fixed in world space. Camera roll/pitch
-            // rotates only centered pixel offsets, never the support-to-center lift.
-            let translation=core::array::from_fn(|a| base[a]+if a==1 {0.8+16.*pixel_side} else {0.}
-                +right[a]*x+up[a]*y);
+            // rotates only centered pixel offsets around the server's exact anchor.
+            let translation=core::array::from_fn(|a| base[a]+right[a]*x+up[a]*y);
             let color=*palette.get(pixel.palette as usize).ok_or(ERR_UNSUPPORTED)?;
             if color&0x8000==0 { return Err(ERR_UNSUPPORTED); }
             seeds.push(RetainedTransformSeed {translation,previous_translation:translation,
