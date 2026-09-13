@@ -1,4 +1,6 @@
 //! Safe entry to the puzzle's origin-centered, -Y-up orbit camera.
+/// Compensate for the app's 2× magnification with twice the old orbit distance.
+pub const PUZZLE_RADIUS: f32 = 15.0;
 pub fn puzzle_position(position: [f32; 3]) -> [f32; 3] {
     let horizontal2 = position[0] * position[0] + position[2] * position[2];
     let radius2 = horizontal2 + position[1] * position[1];
@@ -6,7 +8,7 @@ pub fn puzzle_position(position: [f32; 3]) -> [f32; 3] {
     // makes look-at's forward cross world-up zero. Both need a valid orbit
     // position before constructing the camera or its previous-frame matrix.
     if !radius2.is_finite() || horizontal2 <= 1e-8 {
-        [0.0, 0.0, -7.5]
+        [0.0, 0.0, -PUZZLE_RADIUS]
     } else {
         position
     }
@@ -28,7 +30,7 @@ mod tests {
     #[test]
     fn room_or_sphere_to_puzzle_has_a_valid_camera_before_first_render() {
         assert_valid_look_at(puzzle_position([0.0; 3]));
-        assert_eq!(puzzle_position([0.0; 3]), [0.0, 0.0, -7.5]);
+        assert_eq!(puzzle_position([0.0; 3]), [0.0, 0.0, -PUZZLE_RADIUS]);
     }
 
     #[test]

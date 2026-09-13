@@ -12,7 +12,10 @@ reopens the picker at the last group and asset. [Key4](PLATEAU.md) uses the same
 picker and placement flow for a persisted personal plateau. The separate
 R-toggle Rubik companion is unchanged.
 
-All exported assets retain their authored c1 sizes and colours. The existing
+Exported assets are placed at one sixth of their authored size: each base cell
+is R1/2 (1/6 c1, about 0.03333 renderer units). Relative cube sizes, colours,
+and proportions are preserved; the ghost and placement grid use this scale.
+The existing
 Key7 cube group can also be selected, retaining each cube's tier and material.
 The base snaps to the aimed face and its up axis follows that face's normal.
 Collision, portal clearance, world bounds and overlap checks still apply.

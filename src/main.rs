@@ -416,7 +416,7 @@ impl CubeScene {
             },
             active_world: None,
             world_cube: world_cube::Companion::default(),
-            orbit: [core::f32::consts::PI, 0.0, 7.5],
+            orbit: [core::f32::consts::PI, 0.0, camera_entry::PUZZLE_RADIUS],
             look_target: [0.0; 3],
             last_camera_activity_millis: 0,
             finished_at: None,
@@ -571,9 +571,9 @@ impl CubeScene {
                     logl::log(
                         level::INFO,
                         format_args!(
-                            "Cubes: Key7 mining tool={} side={} c1 grid=1 c1",
+                            "Cubes: Key7 mining tool={} side={} c1 snap=16 c1 (4x4x4)",
                             self.mining.tool_name(),
-                            self.mining.tool_side().unwrap_or(0)
+                            self.mining.tool_side().unwrap_or(0) / subcubes::TICKS_PER_C1
                         ),
                     );
                 }
@@ -993,7 +993,28 @@ impl CubeScene {
         } else if self.mode == SceneMode::MaterialShowcase {
             &self.mining_asset.cubes[..]
         } else { &[] };
-        let flight_cube = self.flight_target.update(target, elapsed_millis, target_cubes, &MATERIAL_PALETTE_RGBA);
+        let flight_cube = if self.mode == SceneMode::MaterialShowcase {
+            let preview = self.mining_target();
+            self.mining_asset.cubes = self.mining.preview_blocks(preview).into_iter().map(|b| {
+                let (center, scale) = b.pose();
+                orchard::Cube { center, scale, flags: rubik::MATERIAL_SHOWCASE_FLAG | b.material }
+            }).collect();
+            if self.mining.tool_side().is_some() {
+                self.flight_target.clear();
+                preview.map(|t| {
+                    let (center, scale) = t.cut.pose();
+                    orchard::Cube {
+                        center,
+                        scale: scale * flight_target::PREVIEW_SCALE,
+                        flags: flight_target::FLAGS | t.cut.material,
+                    }
+                })
+            } else {
+                self.flight_target.update(target, elapsed_millis, &self.mining_asset.cubes, &MATERIAL_PALETTE_RGBA)
+            }
+        } else {
+            self.flight_target.update(target, elapsed_millis, target_cubes, &MATERIAL_PALETTE_RGBA)
+        };
         let path_cubes = if self.mode.is_world() && self.portal_trip.is_none() {
             flight_cube.and_then(|marker| self.walker_camera.as_ref()
                 .map(|c| c.preview_cubes(marker, 128))).unwrap_or_default()
@@ -1650,9 +1671,12 @@ impl CubeScene {
     fn render_interface(&mut self, now: u64, delta: f32) -> Result<(), CubeError> {
         let (width, height) = (self.frame.width(), self.frame.height());
         let def = cube_interface::definition(self.interface.page);
-        let camera = interface_gpu::camera(
+        let mut camera = interface_gpu::camera(
             width, height, self.interface.layout.width, self.interface.layout.height, def.tier,
         );
+        if let Projection::Perspective { ref mut yfov, .. } = camera.projection {
+            *yfov = scaled_camera_fov(*yfov);
+        }
         self.flycam.camera = camera;
         let retained = camera.retained(width, height, self.previous_view_projection);
         let routes = self.frame.input_routes()
@@ -2152,7 +2176,7 @@ impl CubeScene {
         let start = if reverse {
             let outward: [f32; 3] = core::array::from_fn(|i| cell[i] + normal[i] * 2.);
             let length = libm::sqrtf(outward.iter().map(|x| x * x).sum::<f32>()).max(0.1);
-            outward.map(|v| v * 7.5 / length)
+            outward.map(|v| v * camera_entry::PUZZLE_RADIUS / length)
         } else {
             self.flycam.camera.position
         };
@@ -2230,7 +2254,7 @@ impl CubeScene {
                         self.orbit = [
                             libm::atan2f(p[0], p[2]),
                             libm::atan2f(p[1], libm::sqrtf(p[0] * p[0] + p[2] * p[2])),
-                            7.5,
+                            camera_entry::PUZZLE_RADIUS,
                         ];
                         self.look_target = [0.; 3];
                         return Ok(());
@@ -2353,8 +2377,9 @@ impl CubeScene {
         self.arrival_fade = None;
         if mode == SceneMode::StaticCube {
             let p = camera_entry::puzzle_position(self.flycam.camera.position);
-            self.flycam.camera.position = p;
-            let radius = libm::sqrtf(p.iter().map(|x| x * x).sum::<f32>()).max(7.5);
+            let previous_radius = libm::sqrtf(p.iter().map(|x| x * x).sum::<f32>());
+            let radius = previous_radius.max(camera_entry::PUZZLE_RADIUS);
+            self.flycam.camera.position = p.map(|v| v * radius / previous_radius);
             self.orbit = [
                 libm::atan2f(p[0], p[2]),
                 libm::atan2f(p[1], libm::sqrtf(p[0] * p[0] + p[2] * p[2])),
@@ -2368,7 +2393,7 @@ impl CubeScene {
                 level::INFO,
                 format_args!(
                     "Cubes: Key7 rows={:?} c1={} renderer units",
-                    subcubes::NAMES,
+                    subcubes::MINING_NAMES,
                     subcubes::C1
                 ),
             );
@@ -2505,7 +2530,7 @@ impl CubeScene {
                     SceneMode::Interface => "3 custom-menu Key3=confirm/info/slider pointer=hover/press actions=preview-only",
                     SceneMode::RenderLimits => "9 render limits upper=full-geometry lower=retained-seeds click/drag=16-steps Key5=world",
                     SceneMode::MaterialShowcase =>
-                        "7 mining 7 tiers x 6 materials mouse-look WASD=walk/fly Shift=boost Space=push/approach Home=align wheel=none/c1/c2/c3/c4 LMB=mine RMB=reset grid=c1",
+                        "7 mining 10 sizes x 6 materials mouse-look WASD=walk/fly Shift=boost Space=push/approach Home=align wheel=off/64-to-16 LMB=remove-preview RMB=reset snap=4x4x4",
                 },
                 if mode == SceneMode::Orchard {
                     self.carousel.drawn.len()
@@ -2521,8 +2546,8 @@ impl CubeScene {
         Ok(())
     }
 
-    fn mining_target(&self) -> Option<subcubes::Block> {
-        self.mining.target(
+    fn mining_target(&self) -> Option<subcubes::MiningTarget> {
+        self.mining.target_details(
             self.flycam.camera.position,
             self.flycam.camera.rotation.rotate([0., 0., -1.]),
         )
@@ -2597,7 +2622,7 @@ impl CubeScene {
             );
         }
         self.flycam.camera.projection = Projection::Perspective {
-            yfov: match mode {
+            yfov: scaled_camera_fov(match mode {
                 SceneMode::InteractiveGrid => ROOM_YFOV,
                 SceneMode::StaticCube => PUZZLE_YFOV,
                 SceneMode::Sphere => ROOM_YFOV,
@@ -2605,7 +2630,7 @@ impl CubeScene {
                 SceneMode::World | SceneMode::Plateau => walker_camera::FOV,
                 SceneMode::MaterialShowcase => walker_camera::FOV,
                 SceneMode::RenderLimits | SceneMode::Interface => PUZZLE_YFOV,
-            },
+            }),
             znear: if matches!(mode, SceneMode::World | SceneMode::Plateau | SceneMode::MaterialShowcase) {
                 walker_camera::NEAR
             } else {
@@ -2712,13 +2737,20 @@ fn orbit_up(yaw: f32, pitch: f32) -> [f32; 3] {
     ]
 }
 
+/// Half-size cubes have the previous projected size at the same depth.
+/// Auto-fit modes use their original FOV; Key2 compensates with a larger orbit.
+/// Picking and LOD use the resulting projection.
+fn scaled_camera_fov(yfov: f32) -> f32 {
+    2.0 * libm::atanf(libm::tanf(yfov * 0.5) * 0.5)
+}
+
 fn default_camera() -> Camera {
-    let position = [0.0, 0.0, -7.5];
+    let position = [0.0, 0.0, -camera_entry::PUZZLE_RADIUS];
     Camera {
         position,
         rotation: look_at_camera_rotation(position, [0.0; 3], [0.0, -1.0, 0.0]),
         projection: Projection::Perspective {
-            yfov: PUZZLE_YFOV,
+            yfov: scaled_camera_fov(PUZZLE_YFOV),
             znear: 0.1,
             zfar: Some(100.0),
             aspect_ratio: None,

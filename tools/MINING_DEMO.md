@@ -1,39 +1,45 @@
 # Cubes Key7 mining demo
 
-Key7 shows six material columns and seven size rows, from c1 at the front to r3
-at the back: c1=1, c2=2, r1=3, c3=4, r2=6, c4=8, r3=12 c1. Each c1 is 0.2
-renderer units. All 42 cubes start on the same base plane.
+Key7 has ten sizes in total: the existing eight plus C1/2 and R1/2.
+Six palette columns contain nine size rows: R1/2=1/6, C1/2=1/2, c1=1,
+c2=2, r1=3, c3=4, r2=6, r3=12, c4=16 c1. Each c1 is 0.2 renderer units.
+A 2×2×2 group of C1/2 fills c1; a 3×3×3 group of R1/2 fills C1/2.
+Coordinates use exact integer sixth-c1 ticks.
 
-Columns use the imported `Cube/subcubes-materials.json` baseline: red, orange,
-yellow, green, blue, violet, with each record's RGB, roughness and metallic values.
-Every size and mined fragment retains its material ID. All Key7 surfaces are
-opaque (alpha 1). See `README.md` for rebaking after a palette re-export.
+The nine display rows contain 54 cubes. Below them is the existing 6×2×1
+floor of twelve 64×64×64 c1 cubes, centered at y=-32 c1 with its top at y=0.
+Each depth row contains red, orange, yellow, green, blue, and violet once.
+Palette RGB, roughness, and metallic values come from
+`Cube/subcubes-materials.json`.
 
 - Mouse: look; WASD: move; Shift: boost; Q/E: flight roll.
 - Space: push away / approach a walkable face; Home: align the walk view.
-- Wheel: cycle none → c1 → c2 → c3 → c4 → none (reverse wheel reverses).
-  Entry and reset start with no tool; left click then does nothing.
-- Left click: remove the selected tool volume, extending inward from the aimed face.
-- Right click: restore all 42 blocks and the starting view.
+- Wheel: toggle off ↔ 64-c1 mining mode. Entry and reset start off.
+- Left click: commit the previewed removal.
+- Right click: restore all 66 blocks and the starting view.
 
-Mining is deliberately blind for now: no swatch, cut wireframe, c1 grid or
-screen-space outline. Tool selection and ray-based cuts still work on all six faces,
-including edges, corners, existing cavities, and fragments. Each cut removes only
-its intersection with existing geometry. `src/SubCubes.rs` packs each affected
-block's remaining c1 cells in descending tier order, preserving its material.
-This is deterministic greedy packing, not a global minimum-piece solver. Separate
-blocks are not merged. Unaffected blocks remain intact.
+This first mining pass targets intact 64-c1 cubes and 16-c1 (c4) cubes.
+A 64-c1 cube is divided into 4×4×4 children of side 16 c1. The ray selects
+one child on the hit face, snapped relative to that parent. A 16-c1 cube is
+removed whole, whether it is an existing display cube or a child exposed by
+previous mining. Other sizes block selection through them but cannot be mined
+in this mode.
 
-Flight uses the same landing indicator as Key5: one half-size beveled cube on
-the aimed walkable face, in its material at 35% opacity. It springs into view
-and disappears on attachment or loss of target. This indicates the Space
-destination, independently of the mining tool or cut size.
+The preview renders the parent as 63 opaque children and marks the selected
+child with a centered half-size cube at 35% opacity, matching the flycam
+marker's size proportion. The full 16-c1 child remains the removal volume.
+It does not attach an extra cube outside the surface.
+Aiming away or disabling the tool restores the intact display. Preview never
+changes collision or stored blocks. Clicking removes exactly that transparent
+child and retains the other 63 with their original material. Targeting an
+existing 16-c1 cube shows the same half-size marker and removes that whole cube
+without further subdivision. No intermediate
+sizes are added. With no tool selected, the normal animated flycam marker
+returns for Space-to-snap. Enabling the mining tool hides that flight marker.
 
-Only c3, r2, c4, and r3 affect walking, flight collision, or Space approach. c1,
-c2, and r1 remain visible and mineable but the camera passes through them. Key5
-uses the same size policy; compacted terrain retains its constituent c4 identity.
-Placement uses the assets' c1 scale. Mining stays local to Key7 and resets upon
-reentry. Camera and behavior belong to Cubes, not the exported geometry files.
+The support cubes and tiers at least c3 remain walkable; the smaller display
+tiers are visible but non-solid. Mining stays local to Key7 and resets on
+reentry. The shared world/VFX size grid is unchanged.
 
 Host checks:
 
@@ -41,6 +47,4 @@ Host checks:
 cargo check
 python3 tools/test_world_permutation.py
 python3 tools/test_walker_camera.py
-rustc --edition=2024 --test tools/test_world_cycle.rs -o /tmp/cubes-world-cycle
-/tmp/cubes-world-cycle
 ```

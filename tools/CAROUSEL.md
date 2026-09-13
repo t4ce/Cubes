@@ -22,8 +22,8 @@ preview has no exported files, and the two extra portal assets form Other assets
 Build validation rejects duplicates, unknown filenames and ungrouped assets.
 No generator camera or animation controller is imported into Cubes.
 
-One additional runtime group, `Key7 cubes: 7 sizes x 6 materials`, follows the
-exported groups. Its 42 entries come directly from `SubCubes::Demo`, each once
+One additional runtime group, `Key7 cubes: 9 sizes x 6 materials`, follows the
+exported groups. Its 54 display entries come directly from `SubCubes::Demo`, each once
 per loop. These single cubes retain their Key7 scale and palette material finish;
 they do not use the asset fit-to-box normalization. W/S includes this
 group; wheel and A/D browse its cubes with the same five-slot opacity and frame.

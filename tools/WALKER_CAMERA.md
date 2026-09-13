@@ -51,7 +51,8 @@ the empty opening, not while approaching along the connector or touching its rin
 
 Camera behavior is owned by Cubes; world imports contain `.cubes` geometry,
 materials, and the two point markers that define each portal arrival. Settings:
-41.625-degree FOV (7.5% narrower), 0.003 rad/pixel look,
+41.625-degree base FOV, rendered at approximately 21.522 degrees by the app's
+shared 2× camera magnification; 0.003 rad/pixel look,
 0.825-voxel eye height (10% higher), 14.5/29 voxels per second walking (normal/Shift), 1.8-voxel quarter-turn
 travel, 100% camera assist, 45-degree soft perch, and exponential camera smoothing.
 Stop to hold an edge, reverse to return, or move sideways along it. A one-cell

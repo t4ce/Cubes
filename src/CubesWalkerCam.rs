@@ -864,12 +864,12 @@ impl CubesWalkerCam {
     }
     pub fn replace_mining_blocks(&mut self, blocks: &[crate::subcubes::Block]) {
         self.navigation = Navigation::default();
-        self.solid = Solid::new([-32; 3], [32; 3]);
+        self.solid = Solid::new([-64; 3], [64; 3]);
         self.cubes.clear();
         self.portals = [None; 7];
-        for b in blocks.iter().filter(|b| crate::subcubes::walkable(b.side)) {
-            let lo = b.min.map(|v| v as f32 * 0.25);
-            let size = b.side as f32 * 0.25;
+        for b in blocks.iter().filter(|b| b.walkable()) {
+            let lo = b.min.map(|v| v as f32 / crate::subcubes::TICKS_PER_C1 as f32 * 0.25);
+            let size = b.side as f32 / crate::subcubes::TICKS_PER_C1 as f32 * 0.25;
             Self::insert_bounds(&mut self.solid, lo, size);
             self.cubes.push(CubeBounds {
                 lo,
@@ -2703,7 +2703,7 @@ mod tests {
     }
     #[test]
     fn flight_target_tracks_all_six_faces_and_is_absent_while_attached() {
-        let block = crate::subcubes::Block {min: [-4; 3], side: 8, material: 4};
+        let block = crate::subcubes::Block {min: [-24; 3], side: 48, material: 4};
         let mut cam = CubesWalkerCam::mining_demo(&[block]);
         for axis in 0..3 {
             for sign in [-1., 1.] {
@@ -2726,10 +2726,10 @@ mod tests {
     fn all_seven_tiers_match_camera_collision_and_snap_candidates() {
         let demo = crate::subcubes::Demo::new();
         let c = CubesWalkerCam::mining_demo(&demo.blocks);
-        assert_eq!(c.cubes.len(), 24);
+        assert_eq!(c.cubes.len(), 36);
         for b in &demo.blocks {
-            let center = b.min.map(|v| (v as f32 + b.side as f32 * 0.5) * 0.25);
-            assert_eq!(c.solid.has(center), crate::subcubes::walkable(b.side));
+            let center = b.min.map(|v| (v as f32 + b.side as f32 * 0.5) / 6. * 0.25);
+            assert_eq!(c.solid.has(center), b.walkable());
         }
         let mut bytes = alloc::vec![0u8;20];
         bytes[..4].copy_from_slice(b"CUBE");

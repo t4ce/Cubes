@@ -2,8 +2,8 @@
 extern crate alloc;
 use crate::orchard::{self, Cube};
 use alloc::vec::Vec;
-/// Legacy asset base cells are already c1 (0.2 renderer units).
-pub const PLACEMENT_SCALE: f32 = 1.0;
+/// Map authored c1 base cells to R1/2, the smallest sixth-c1 tier.
+pub const PLACEMENT_SCALE: f32 = 1.0 / crate::subcubes::TICKS_PER_C1 as f32;
 pub const GHOST_SEEDS: usize = 768;
 pub const FULL_WORLD_SEEDS: usize = 3840;
 pub const MAX_PLACED_CUBES: usize = 16_384;
@@ -51,7 +51,7 @@ impl Brush {
     }
 
 }
-/// Preserve authored cube sizes and color, placing the base on the selected face.
+/// Preserve relative cube sizes and color on the smaller placement grid.
 pub fn place(bytes: &[u8], point: [f32; 3], normal: [f32; 3]) -> Vec<Cube> {
     let unit = f32::from_le_bytes(bytes[12..16].try_into().unwrap()) * PLACEMENT_SCALE;
     let records = &bytes[16 + 4 * bytes[10] as usize..];

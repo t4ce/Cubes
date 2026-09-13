@@ -154,7 +154,9 @@ cursor movement expands the nearby seeds with a screen-space circle whose area
 is 10% of the current viewport. Another Key 1 press returns to the room;
 from other modes Key 1 enters the room. Key 3 is unassigned.
 
-Key 7 places each imported material at all seven size tiers (42 initial cubes),
+Key 7 places each imported material at nine size tiers (54 display cubes),
+plus a 6×2×1 floor of twelve 64×64×64 c1 support cubes below them (one of each
+material per depth row),
 using the shared texture-free GGX/Smith/Schlick path at alpha 1. Its material ID
 travels with each cube and mining fragment, independent of draw order and
 visibility compaction. See `MINING_DEMO.md` for the walk/fly camera and tools.

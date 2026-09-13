@@ -32,15 +32,16 @@ source += r'''
 fn all_catalog_assets_place_on_grid() {
     for &(name,bytes) in BRUSH_ASSETS {
         let asset=orchard::decode(name,bytes).unwrap();
+        let unit=f32::from_le_bytes(bytes[12..16].try_into().unwrap())*asset_brush::PLACEMENT_SCALE;
         for axis in 0..3 { for sign in [-1.,1.] {
             let mut n=[0.;3];n[axis]=sign;
             let pieces=asset_brush::place(bytes,[0.;3],n);
             assert_eq!(pieces.len(),asset.cubes.len());
             for c in pieces {
-                let half=roundf(c.scale*40.)*0.025;
+                let half=roundf(c.scale*2./unit)*unit*0.5;
                 assert!(c.center[axis]*sign-half > -0.0001);
                 for a in 0..3 {
-                    let lo=(c.center[a]-half)*20.;
+                    let lo=(c.center[a]-half)/unit;
                     assert!((lo-roundf(lo)).abs()<0.001);
                 }
             }

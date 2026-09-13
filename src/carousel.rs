@@ -93,14 +93,17 @@ impl Carousel {
             palette: crate::subcubes::Demo::new()
                 .blocks
                 .iter()
+                // The Key7 support cube belongs to mining, not to the material
+                // sampler exposed by this carousel group.
+                .filter(|block| crate::subcubes::MINING_SIDES.contains(&block.side))
                 .map(|block| {
                     let (_, scale) = block.pose();
-                    let tier = crate::subcubes::SIDES
+                    let tier = crate::subcubes::MINING_SIDES
                         .iter()
                         .position(|&side| side == block.side)
                         .unwrap();
                     orchard::Asset {
-                        name: crate::subcubes::NAMES[tier],
+                        name: crate::subcubes::MINING_NAMES[tier],
                         cubes: alloc::vec![Cube {
                             center: [0.; 3],
                             scale,
@@ -128,7 +131,7 @@ impl Carousel {
     }
     pub fn name(&self) -> &'static str {
         if self.group == self.groups.len() {
-            return "Key7 cubes: 7 sizes x 6 materials";
+            return "Key7 cubes: 9 sizes x 6 materials";
         }
         self.groups[self.group].0
     }
@@ -209,13 +212,14 @@ impl Carousel {
             return crate::asset_brush::place(self.sources[id].1, point, normal);
         }
         // The existing Key7 group is also selectable. Preserve its real tier
-        // and material, snapping the base and both tangents to the c1 lattice.
+        // and material, using the finer lattice for the two sub-c1 sizes.
         let original = self.asset(id).cubes[0];
-        let side = libm::roundf(original.scale * 2. / C1) as i32;
+        let unit = if original.scale * 2. < C1 * 0.75 { crate::subcubes::UNIT } else { C1 };
+        let side = libm::roundf(original.scale * 2. / unit) as i32;
         alloc::vec![Cube {
-            center: core::array::from_fn(|a| libm::roundf(point[a]/C1)*C1
-                + if normal[a].abs()>0.5 { normal[a]*side as f32*C1*0.5 }
-                  else { (side%2) as f32*C1*0.5 }),
+            center: core::array::from_fn(|a| libm::roundf(point[a]/unit)*unit
+                + if normal[a].abs()>0.5 { normal[a]*side as f32*unit*0.5 }
+                  else { (side%2) as f32*unit*0.5 }),
             scale: original.scale,
             flags: material_flags | (original.flags & 7),
         }]
@@ -434,9 +438,10 @@ mod tests {
         let mut c = Carousel::new(crate::ASSETS, crate::GROUPS);
         assert_eq!(c.group_count(), crate::GROUPS.len() + 1);
         c.select_group(c.group_count() - 1).unwrap();
-        let reference = crate::subcubes::Demo::new();
+        let mut reference = crate::subcubes::Demo::new();
+        reference.blocks.retain(|b| crate::subcubes::MINING_SIDES.contains(&b.side));
         assert_eq!(c.group_len(), reference.blocks.len());
-        assert_eq!(c.group_len(), 42);
+        assert_eq!(c.group_len(), 54);
         for (index, block) in reference.blocks.iter().enumerate() {
             assert_eq!(c.selected, index);
             let cube = c.asset(c.slots[2].asset).cubes[0];

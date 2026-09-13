@@ -5,6 +5,8 @@ use crate::{
 };
 
 pub const APPEAR_MS: u64 = 700;
+/// Linear size of the marker relative to the cube it previews.
+pub const PREVIEW_SCALE: f32 = 0.5;
 // Existing whole-cube transparent material encoding; class 3 is 35% alpha.
 pub const FLAGS: u32 = 24576 | 512 | 4096 | (3 << 10);
 
@@ -61,7 +63,7 @@ impl Indicator {
         let target = self.target?;
         let material = self.material?;
         let scale = target.scale
-            * 0.5
+            * PREVIEW_SCALE
             * physical(now.saturating_sub(self.started) as f32 / APPEAR_MS as f32);
         // Sub-millimetre seeds mean marker dots to the shader, not tiny cubes.
         if scale < 0.001 {

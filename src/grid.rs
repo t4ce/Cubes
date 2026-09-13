@@ -10,7 +10,7 @@ pub const CUBE_GRID_AXIS: usize = 3;
 pub const CUBE_GRID_COUNT: usize = CUBE_GRID_AXIS * CUBE_GRID_AXIS * CUBE_GRID_AXIS;
 /// The Key-1 sphere uses 1,024 seeds in a single retained draw group.
 pub const SPHERE_COUNT: usize = 1024;
-pub const MATERIAL_SHOWCASE_COUNT: usize = 42;
+pub const MATERIAL_SHOWCASE_COUNT: usize = 66;
 pub const SPHERE_RADIUS: f32 = 6.0;
 /// The expanding cursor circle covers 10% of the current viewport area.
 pub const SPHERE_CURSOR_AREA_FRACTION: f32 = 0.10;
