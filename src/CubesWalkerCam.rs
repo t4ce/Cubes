@@ -845,8 +845,11 @@ impl CubesWalkerCam {
         self.push_off = None;
         self.approach = None;
     }
-    pub fn server_structure(blocks: &[crate::subcubes::Block], point: V, normal: V) -> Self {
+    pub fn server_structure(blocks: &[crate::subcubes::Block], point: V, normal: V, side_c1: u32) -> Self {
         let mut cam = Self::mining_demo(blocks);
+        // Empty world volume is not dense collision storage: retain only the
+        // structure's occupancy while using the server extent for flight/clipping.
+        cam.drift_half_extent = side_c1 as f32 * crate::subcubes::C1 * 0.5 / cam.unit;
         cam.attach(Hit { point: mul(point, 1./cam.unit), normal, distance: 0. });
         cam.forward = FORWARD;
         cam.reset_view();
@@ -2754,7 +2757,10 @@ mod tests {
             assert_eq!(blocks.iter().map(|b|b.min[axis]).min(),Some(-576));
             assert_eq!(blocks.iter().map(|b|b.min[axis]+b.side).max(),Some(576));
         }
-        let mut cam = CubesWalkerCam::server_structure(&blocks,[0.,96.*crate::subcubes::C1,0.],UP);
+        let mut cam = CubesWalkerCam::server_structure(&blocks,[0.,96.*crate::subcubes::C1,0.],UP,9216);
+        assert_eq!(cam.drift_half_extent,1152.);
+        assert!(cam.far_plane() > 9216.*crate::subcubes::C1*libm::sqrtf(3.));
+        assert_eq!(cam.solid.bits.len(),128usize.pow(3)/64);
         assert_eq!(cam.cubes.len(),27);
         assert!(!cam.fly);
         assert!(cam.portals.iter().all(Option::is_none));

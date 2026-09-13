@@ -571,9 +571,10 @@ impl CubeScene {
                     logl::log(
                         level::INFO,
                         format_args!(
-                            "Cubes: Key7 mining tool={} side={} c1 snap=16 c1 (4x4x4)",
+                            "Cubes: Key7 mining tool={} side={} c1 snap={} c1 (4x4x4)",
                             self.mining.tool_name(),
-                            self.mining.tool_side().unwrap_or(0) / subcubes::TICKS_PER_C1
+                            self.mining.tool_side().unwrap_or(0) / subcubes::TICKS_PER_C1,
+                            self.mining.tool_side().unwrap_or(0) / (4 * subcubes::TICKS_PER_C1)
                         ),
                     );
                 }
@@ -990,14 +991,19 @@ impl CubeScene {
             }).collect();
             if self.mining.tool_side().is_some() {
                 self.flight_target.clear();
-                preview.map(|t| {
+                if let Some(t) = preview {
                     let (center, scale) = t.cut.pose();
-                    orchard::Cube {
+                    // Two-second sine pulse, 75–95% of the removal cube's size.
+                    let phase = (elapsed_millis % 2000) as f32 / 2000. * core::f32::consts::TAU;
+                    let pulse = 0.85 + 0.10 * libm::sinf(phase);
+                    // Submit the removal marker with the opaque scene geometry.
+                    self.mining_asset.cubes.push(orchard::Cube {
                         center,
-                        scale: scale * flight_target::PREVIEW_SCALE,
-                        flags: flight_target::FLAGS | t.cut.material,
-                    }
-                })
+                        scale: scale * pulse,
+                        flags: rubik::MATERIAL_SHOWCASE_FLAG | t.cut.material,
+                    });
+                }
+                None
             } else {
                 self.flight_target.update(target, elapsed_millis, &self.mining_asset.cubes, &MATERIAL_PALETTE_RGBA)
             }
@@ -1892,7 +1898,7 @@ impl CubeScene {
                     .map_err(|error| CubeError::Ui4("empty-world-pointer", error))?;
                 self.flight_target.clear();
                 let walker = walker_camera::CubesWalkerCam::server_structure(&blocks,
-                    world.spawn.map(|v|v as f32 * subcubes::UNIT), world.normal.map(|v|v as f32));
+                    world.spawn.map(|v|v as f32 * subcubes::UNIT), world.normal.map(|v|v as f32), world.side_c1);
                 let (position, rotation) = walker.pose();
                 self.flycam.camera.position = position;
                 self.flycam.camera.rotation = rotation;
@@ -2548,7 +2554,7 @@ impl CubeScene {
                     SceneMode::Interface => "3 custom-menu Key3=confirm/info/slider pointer=hover/press actions=preview-only",
                     SceneMode::RenderLimits => "9 render limits upper=full-geometry lower=retained-seeds click/drag=16-steps Key5=world",
                     SceneMode::MaterialShowcase =>
-                        "7 mining 10 sizes x 6 materials mouse-look WASD=walk/fly Shift=boost Space=push/approach Home=align wheel=off/64-to-16 LMB=remove-preview RMB=reset snap=4x4x4",
+                        "7 mining 10 sizes x 6 materials mouse-look WASD=walk/fly Shift=boost Space=push/approach Home=align wheel=off/64-to-16/16-to-4 LMB=remove-preview RMB=reset snap=4x4x4",
                 },
                 if mode == SceneMode::Orchard {
                     self.carousel.drawn.len()

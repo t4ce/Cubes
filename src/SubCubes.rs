@@ -7,11 +7,11 @@ pub const SIDES: [i32; 7] = [1, 2, 3, 4, 6, 8, 12];
 pub const TICKS_PER_C1: i32 = 6;
 pub const UNIT: f32 = C1 / TICKS_PER_C1 as f32;
 /// Display tiers, in sixth-c1 ticks; c4 remains 16 c1.
-pub const MINING_SIDES: [i32; 9] = [1, 3, 6, 12, 18, 24, 36, 72, 96];
+pub const MINING_SIDES: [i32; 9] = [1, 3, 6, 12, 18, 24, 36, 48, 96];
 pub const MINING_NAMES: [&str; 9] = ["R1/2", "C1/2", "c1", "c2", "r1", "c3", "r2", "r3", "c4"];
-/// First mining pass: split the largest blocks or remove whole c4 children.
-pub const TOOLS: [i32; 1] = [384];
-pub const TOOL_NAMES: [&str; 1] = ["64 c1 -> c4 (16 c1)"];
+/// Each tool splits its parent into 4³ children, or removes a child whole.
+pub const TOOLS: [i32; 2] = [64 * TICKS_PER_C1, 16 * TICKS_PER_C1];
+pub const TOOL_NAMES: [&str; 2] = ["64 c1 -> c4 (16 c1)", "c4 (16 c1) -> c3 (4 c1)"];
 pub const NO_TOOL: usize = TOOLS.len();
 pub const MINING_BASE_SIDE: i32 = 64 * TICKS_PER_C1;
 
@@ -51,8 +51,10 @@ impl Block {
         self.side % TICKS_PER_C1 == 0 && walkable(self.side / TICKS_PER_C1)
     }
     fn children(self) -> Vec<Block> {
-        let side = if self.side == MINING_BASE_SIDE {
-            Some(16 * TICKS_PER_C1)
+        let side = if matches!(self.side, 96 | 48) {
+            Some(self.side / 2)
+        } else if TOOLS.contains(&self.side) {
+            Some(self.side / 4)
         } else {
             MINING_SIDES
                 .into_iter()
@@ -76,6 +78,18 @@ impl Block {
             }
         }
         blocks
+    }
+    /// Split only the branch containing the cut, retaining intact siblings.
+    fn without(self, cut: Block, out: &mut Vec<Block>) {
+        if self == cut { return; }
+        for child in self.children() {
+            if (0..3).all(|a| cut.min[a] >= child.min[a]
+                && cut.min[a] + cut.side <= child.min[a] + child.side) {
+                child.without(cut, out);
+            } else {
+                out.push(child);
+            }
+        }
     }
 }
 
@@ -168,10 +182,10 @@ impl Demo {
         if parent.side == selected / 4 {
             return Some(MiningTarget { parent, cut: parent });
         }
-        if parent.side != selected {
+        if parent.side != selected && !(selected == 96 && parent.side == 48) {
             return None;
         }
-        let side = parent.children()[0].side;
+        let side = selected / 4;
         let min = core::array::from_fn(|a| {
             let p = origin[a] + direction[a] * (distance + 0.0001) - parent.min[a] as f32;
             let cell = ((p / side as f32) as i32).clamp(0, parent.side / side - 1);
@@ -192,7 +206,7 @@ impl Demo {
         for &block in &self.blocks {
             if let Some(t) = target.filter(|t| t.parent == block) {
                 if t.cut != block {
-                    out.extend(block.children().into_iter().filter(|b| *b != t.cut));
+                    block.without(t.cut, &mut out);
                 }
             } else {
                 out.push(block);
@@ -206,7 +220,14 @@ impl Demo {
         let valid = if target.parent.side == selected / 4 {
             target.cut == target.parent
         } else {
-            target.parent.side == selected && target.parent.children().contains(&target.cut)
+            (target.parent.side == selected || (selected == 96 && target.parent.side == 48))
+                && target.cut.side == selected / 4
+                && target.cut.material == target.parent.material
+                && (0..3).all(|a| {
+                    let offset = target.cut.min[a] - target.parent.min[a];
+                    offset >= 0 && offset + target.cut.side <= target.parent.side
+                        && offset % target.cut.side == 0
+                })
         };
         if !valid || !self.blocks.contains(&target.parent) {
             return;
@@ -267,7 +288,7 @@ mod tests {
                     assert!(preview.iter().all(|b| b.material == 5 && *b != target.cut));
                     let n = side / target.cut.side;
                     assert_eq!(n, 4);
-                    assert_eq!(preview.len(), (n * n * n - 1) as usize);
+                    assert_eq!(preview.len(), if tool == 1 { 14 } else { 63 });
                     d.mine(target);
                     assert_eq!(d.blocks, preview);
                     let after = d.blocks.clone();
@@ -275,6 +296,48 @@ mod tests {
                     assert_eq!(d.blocks, after);
                 }
             }
+        }
+    }
+    #[test]
+    fn second_tool_splits_c4_and_removes_c3_whole_in_every_color() {
+        for material in 0..6 {
+            let parent = Block { min: [0; 3], side: 16 * TICKS_PER_C1, material };
+            let mut d = Demo { blocks: alloc::vec![parent], tool: 1 };
+            let origin = [UNIT, UNIT, -UNIT];
+            let direction = [0., 0., 1.];
+            let target = d.target_details(origin, direction).unwrap();
+            assert_eq!(target.cut.side, 4 * TICKS_PER_C1);
+            let preview = d.preview_blocks(Some(target));
+            assert_eq!(preview.len(), 14);
+            assert_eq!(preview.iter().filter(|b| b.side == 48).count(), 7);
+            assert_eq!(preview.iter().filter(|b| b.side == 24).count(), 7);
+            assert_eq!(d.blocks, [parent]);
+            // Switching to the first tool must reject this subdivision target.
+            d.tool = 0;
+            d.mine(target);
+            assert_eq!(d.blocks, [parent]);
+            d.tool = 1;
+            d.mine(target);
+            assert_eq!(d.blocks, preview);
+            let child = d.target_details(origin, direction).unwrap();
+            assert_eq!(child.cut, child.parent);
+            d.mine(child);
+            assert_eq!(d.blocks.len(), 13);
+            assert!(d.blocks.iter().all(|b| matches!(b.side, 24 | 48) && b.material == material));
+            // Continue along the same ray into the next intact r3 chunk.
+            let r3 = d.target_details(origin, direction).unwrap();
+            assert_eq!(r3.parent.side, 48);
+            assert_eq!(r3.cut.side, 24);
+            let before = d.blocks.clone();
+            d.mine(r3);
+            assert_eq!(d.blocks.len(), before.len() + 6);
+            assert_eq!(before.iter().map(|b| b.side.pow(3)).sum::<i32>()
+                - d.blocks.iter().map(|b| b.side.pow(3)).sum::<i32>(), 24i32.pow(3));
+            d.blocks = alloc::vec![Block { min: [0; 3], side: 4 * TICKS_PER_C1, material }];
+            let standalone = d.target_details(origin, direction).unwrap();
+            assert_eq!(standalone.cut, standalone.parent);
+            d.mine(standalone);
+            assert!(d.blocks.is_empty());
         }
     }
     #[test]

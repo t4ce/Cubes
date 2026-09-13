@@ -126,8 +126,8 @@ Holding the key does not repeat. Swaps reuse the same UDP socket and native
 worker; no additional transport, runtime or indexed-world loader is created.
 
 World 2 is authored by CubeSrv in `apps/cubesrv/structure.rs`. Its welcome
-announces 464 bytes in one world chunk, containing the actual 27 cubes and spawn.
-The shared `cubes-protocol::world` CSW1 snapshot uses sixth-c1 integer coordinates,
+announces 468 bytes in one world chunk, containing the actual 27 cubes, spawn and extent.
+The shared `cubes-protocol::world` CSW2 snapshot uses sixth-c1 integer coordinates,
 cube sizes, palette indices, and a surface contact point with an outward normal.
 The client validates and installs the complete snapshot; it never generates a
 local replacement. Old zero-byte welcomes are rejected as incompatible.
@@ -135,6 +135,9 @@ The server suppresses preview geometry, gallery, VFX, snake and worm traffic
 for world 2 peers. A periodic Hello keeps the peer alive without reloading geometry.
 The server defines a centered 3×3×3 structure of 64-c1 cubes, all using palette
 entry 0 (red). Its extent is -96..96 c1 on each axis.
+The virtual world itself is 9216 c1 per axis (144 largest cubes across), centered
+at the origin with bounds -4608..4608 c1. The rest is empty. This server-supplied
+extent controls flight limits and the camera far plane, not dense occupancy allocation.
 The walker starts on the center of the top face, with normal walking, flight,
 and 8×8 large-face landing targets. No gallery, creatures, terrain, or portals
 are added. Preview GPU resources remain cached but submit no geometry while

@@ -2,7 +2,7 @@
 
 Key7 has ten sizes in total: the existing eight plus C1/2 and R1/2.
 Six palette columns contain nine size rows: R1/2=1/6, C1/2=1/2, c1=1,
-c2=2, r1=3, c3=4, r2=6, r3=12, c4=16 c1. Each c1 is 0.2 renderer units.
+c2=2, r1=3, c3=4, r2=6, r3=8, c4=16 c1. Each c1 is 0.2 renderer units.
 A 2×2×2 group of C1/2 fills c1; a 3×3×3 group of R1/2 fills C1/2.
 Coordinates use exact integer sixth-c1 ticks.
 
@@ -14,7 +14,8 @@ Palette RGB, roughness, and metallic values come from
 
 - Mouse: look; WASD: move; Shift: boost; Q/E: flight roll.
 - Space: push away / approach a walkable face; Home: align the walk view.
-- Wheel: toggle off ↔ 64-c1 mining mode. Entry and reset start off.
+- Wheel: cycle off → 64-to-16 → 16-to-4 → off (reverse wheel reverses).
+  Entry and reset start off.
 - Left click: commit the previewed removal.
 - Right click: restore all 66 blocks and the starting view.
 
@@ -25,14 +26,24 @@ removed whole, whether it is an existing display cube or a child exposed by
 previous mining. Other sizes block selection through them but cannot be mined
 in this mode.
 
-The preview renders the parent as 63 opaque children and marks the selected
-child with a centered half-size cube at 35% opacity, matching the flycam
-marker's size proportion. The full 16-c1 child remains the removal volume.
+The second tool targets c4 (16 c1), r3 (8 c1), and c3 (4 c1), in every color.
+Its cut still snaps to the 4×4×4 grid of c3 inside c4, but storage and preview
+split only the affected branch: seven intact r3 cubes plus seven c3 cubes
+remain after one cut. An r3 is a 2×2×2 group of c3; cutting it leaves seven c3.
+Existing c3 cubes, including mined fragments, are removed whole without further
+subdivision. It uses the same centered pulsing opaque preview and
+parent-relative snapping as the first tool, with a 4-c1 removal volume.
+
+The preview renders the retained chunks as opaque cubes and marks the selected
+child with a centered opaque cube pulsing sinusoidally between 75% and 95%
+of the child's linear size over two seconds, in its original material.
+The full child remains the removal volume (16 c1 for the
+first tool, 4 c1 for the second).
 It does not attach an extra cube outside the surface.
 Aiming away or disabling the tool restores the intact display. Preview never
-changes collision or stored blocks. Clicking removes exactly that transparent
-child and retains the other 63 with their original material. Targeting an
-existing 16-c1 cube shows the same half-size marker and removes that whole cube
+changes collision or stored blocks. Clicking removes exactly that previewed
+child and retains the other chunks with their original material. Targeting an
+existing child cube shows the same pulsing marker and removes that whole cube
 without further subdivision. No intermediate
 sizes are added. With no tool selected, the normal animated flycam marker
 returns for Space-to-snap. Enabling the mining tool hides that flight marker.

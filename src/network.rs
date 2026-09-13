@@ -534,8 +534,8 @@ mod tests {
 
     #[test]
     fn world_two_welcome_requires_matching_id_and_geometry() {
-        let empty=server::welcome(1,2,464,1,0);
-        assert_eq!(world_info_for(&empty,2),Some(464));
+        let empty=server::welcome(1,2,468,1,0);
+        assert_eq!(world_info_for(&empty,2),Some(468));
         assert_eq!(world_info_for(&empty,1),None);
         assert_eq!(world_info_for(&server::welcome(1,1,16,1,0),2),None);
         assert_eq!(world_info_for(&server::welcome(1,2,0,0,0),2),None);
@@ -582,6 +582,8 @@ mod tests {
                     let decoded=cubes_protocol::world::World::parse(&world).unwrap();
                     assert_eq!(decoded,structure::world());
                     assert_eq!(decoded.cubes.len(),27);
+                    assert_eq!(decoded.side_c1,9216);
+                    assert_eq!(decoded.side_c1/64,144);
                     assert_eq!(decoded.spawn,[0,576,0]);
                     assert!(decoded.cubes.iter().all(|c|c.side==384 && c.material==0));
                 } else {assert_eq!(world,bytes);}
