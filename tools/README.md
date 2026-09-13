@@ -25,6 +25,14 @@ a general-purpose cube-generation or arbitrary-asset shader API.
 See [WORLD_WELD.md](WORLD_WELD.md) for the opt-in Key5 **J** experiment that closes
 matching opaque neighbors and suppresses their internal faces.
 
+Large structural cubes bypass the vertex shader's center-behind-eye rejection:
+half-scales of 6.3 and above include the 64-c1 cubes (half-scale 6.399).
+Their patches reach normal triangle clipping even when the camera is close
+to a face and the cube center is behind the eye. Smaller cubes and marker
+seeds retain the existing rejection. This applies across the shared cube
+pipeline; CPU visibility tests still run. Rebuild TRUEOS to load the rebaked
+shader bundle; host compilation does not verify the on-device visual result.
+
 ## Checks and bake
 
 Run from Cubes:

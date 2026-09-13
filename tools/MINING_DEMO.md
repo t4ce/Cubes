@@ -36,6 +36,10 @@ existing 16-c1 cube shows the same half-size marker and removes that whole cube
 without further subdivision. No intermediate
 sizes are added. With no tool selected, the normal animated flycam marker
 returns for Space-to-snap. Enabling the mining tool hides that flight marker.
+On intact 64-c1 cubes, flycam targeting divides each face into 8×8 landing
+areas, each 8 c1 wide. The half-size flight marker follows the selected area;
+Space approaches its surface center. Mining still uses the separate 4×4×4
+grid of 16-c1 removal cubes.
 
 The support cubes and tiers at least c3 remain walkable; the smaller display
 tiers are visible but non-solid. Mining stays local to Key7 and resets on

@@ -845,6 +845,15 @@ impl CubesWalkerCam {
         self.push_off = None;
         self.approach = None;
     }
+    pub fn server_structure(blocks: &[crate::subcubes::Block], point: V, normal: V) -> Self {
+        let mut cam = Self::mining_demo(blocks);
+        cam.attach(Hit { point: mul(point, 1./cam.unit), normal, distance: 0. });
+        cam.forward = FORWARD;
+        cam.reset_view();
+        cam.position = cam.camera_target();
+        cam.rotation = cam.view;
+        cam
+    }
     pub fn mining_demo(blocks: &[crate::subcubes::Block]) -> Self {
         let mut bytes = [0u8; 28];
         bytes[10] = 1;
@@ -1098,10 +1107,45 @@ impl CubesWalkerCam {
         if !self.is_flying() {
             return None;
         }
-        let hit = self.snap_target()?;
+        let hit = self.landing_hit()?;
         self.highlight_hit(hit)
     }
+    /// A 64-c1 face has 8×8 landing areas, each 8 c1 wide.
+    fn large_landing_area(&self, hit: Hit) -> Option<(V, f32, f32)> {
+        let inside = sub(hit.point, mul(hit.normal, EPS));
+        let cube = self.cubes.iter().find(|c|
+            (0..3).all(|a| inside[a] >= c.lo[a] && inside[a] < c.lo[a] + c.size))?;
+        if (cube.size * self.unit / crate::subcubes::C1 - 64.).abs() > 0.001 {
+            return None;
+        }
+        let size = cube.size / 8.;
+        let point = core::array::from_fn(|a| {
+            if hit.normal[a].abs() > 0.5 {
+                cube.lo[a] + if hit.normal[a] > 0. { cube.size } else { 0. }
+            } else {
+                let cell = libm::floorf((hit.point[a] - cube.lo[a]) / size).clamp(0., 7.);
+                cube.lo[a] + (cell + 0.5) * size
+            }
+        });
+        Some((point, size, cube.gap))
+    }
+    fn landing_hit(&self) -> Option<Hit> {
+        let mut hit = self.snap_target()?;
+        if let Some((point, _, _)) = self.large_landing_area(hit) {
+            hit.point = point;
+            let delta = sub(point, self.position);
+            hit.distance = libm::sqrtf(dot(delta, delta));
+        }
+        Some(hit)
+    }
     fn highlight_hit(&self, hit: Hit) -> Option<LandingTarget> {
+        if let Some((point, size, gap)) = self.large_landing_area(hit) {
+            return Some(LandingTarget {
+                center: mul(sub(point, mul(hit.normal, size * 0.5)), self.unit),
+                scale: (size - gap) * self.unit * 0.5,
+                normal: hit.normal,
+            });
+        }
         let inside = sub(hit.point, mul(hit.normal, EPS));
         let cube = self
             .cubes
@@ -1321,7 +1365,7 @@ impl CubesWalkerCam {
             }
         }
         if space_pressed && self.fly {
-            if let Some(hit) = self.snap_target() {
+            if let Some(hit) = self.landing_hit() {
                 self.push_off = None;
                 self.approach = Some(hit);
             }
@@ -2700,6 +2744,56 @@ mod tests {
                 c.foot
             );
         }
+    }
+    #[test]
+    fn empty_world_contains_only_centered_large_red_cubes_and_spawns_on_top() {
+        let blocks = crate::subcubes::empty_world_blocks();
+        assert_eq!(blocks.len(),27);
+        assert!(blocks.iter().all(|b| b.side == crate::subcubes::MINING_BASE_SIDE && b.material == 0));
+        for axis in 0..3 {
+            assert_eq!(blocks.iter().map(|b|b.min[axis]).min(),Some(-576));
+            assert_eq!(blocks.iter().map(|b|b.min[axis]+b.side).max(),Some(576));
+        }
+        let mut cam = CubesWalkerCam::server_structure(&blocks,[0.,96.*crate::subcubes::C1,0.],UP);
+        assert_eq!(cam.cubes.len(),27);
+        assert!(!cam.fly);
+        assert!(cam.portals.iter().all(Option::is_none));
+        close(cam.foot,[0.,24.+SKIN,0.]);
+        assert!(cam.solid.has([0.,23.9,0.]));
+        assert!(!cam.solid.has(cam.position));
+        for _ in 0..30 { cam.update(Input::default(),0.02); }
+        assert!(!cam.fly);
+        close(cam.foot,[0.,24.+SKIN,0.]);
+    }
+    #[test]
+    fn large_cube_flight_preview_and_landing_share_eight_by_eight_face_cells() {
+        let block = crate::subcubes::Block {min: [-192;3], side:384, material:4};
+        let mut cam = CubesWalkerCam::mining_demo(&[block]);
+        for axis in 0..3 { for sign in [-1.,1.] { for u in 0..8 { for v in 0..8 {
+            let mut normal = [0.;3]; normal[axis] = sign;
+            let mut expected = [-8.;3];
+            expected[axis] = sign*8.;
+            expected[(axis+1)%3] += (u as f32+0.5)*2.;
+            expected[(axis+2)%3] += (v as f32+0.5)*2.;
+            cam.position = add(expected, mul(normal, 5.));
+            cam.position[(axis+1)%3] += 0.4;
+            cam.foot = cam.position;
+            cam.rotation = look(mul(normal,-1.), tangent(UP,normal));
+            cam.fly = true;
+            let hit = cam.landing_hit().unwrap();
+            close(hit.point, expected);
+            let preview = cam.landing_target().unwrap();
+            close(preview.center, mul(sub(expected,normal),cam.unit));
+            assert!((preview.scale - (2.-0.0025)*cam.unit*0.5).abs()<1e-6);
+        }}}}
+        // Space commits the same cell center and completes the approach there.
+        cam.space_held = false;
+        let expected = cam.landing_hit().unwrap();
+        cam.update(Input {space:true,..Input::default()},0.02);
+        close(cam.approach.unwrap().point,expected.point);
+        for _ in 0..100 { cam.update(Input::default(),0.02); }
+        assert!(!cam.fly);
+        close(cam.foot,add(expected.point,mul(expected.normal,SKIN)));
     }
     #[test]
     fn flight_target_tracks_all_six_faces_and_is_absent_while_attached() {

@@ -15,6 +15,20 @@ pub const TOOL_NAMES: [&str; 1] = ["64 c1 -> c4 (16 c1)"];
 pub const NO_TOOL: usize = TOOLS.len();
 pub const MINING_BASE_SIDE: i32 = 64 * TICKS_PER_C1;
 
+/// Camera regression fixture; production world geometry comes from CubeSrv.
+#[cfg(test)]
+pub fn empty_world_blocks() -> Vec<Block> {
+    let mut blocks = Vec::with_capacity(27);
+    for x in -1..=1 { for y in -1..=1 { for z in -1..=1 {
+        blocks.push(Block {
+            min: [x,y,z].map(|v| v * MINING_BASE_SIDE - MINING_BASE_SIDE/2),
+            side: MINING_BASE_SIDE,
+            material: 0,
+        });
+    }}}
+    blocks
+}
+
 pub fn walkable(side: i32) -> bool {
     matches!(side, 4 | 6 | 8 | 12 | 16 | 64)
 }

@@ -11,6 +11,22 @@ from bake_patch_cube import ROOT, PALETTE, geometry, load_palette, replace, srgb
 
 
 class PatchCubeTests(unittest.TestCase):
+    def test_large_cube_center_rejection_does_not_drop_visible_corners(self):
+        from itertools import product
+        # Includes sharp welded corners, a stricter bound than the bevel mesh.
+        corners = list(product((-1, 1), repeat=3))
+        for scale in [6.399, 6.4, 12.8]:
+            for row in [(0,0,1), (1,2,3), (-2,1,-3), (1,1,1)]:
+                radius = scale * sum(abs(v) for v in row)
+                for center_w in [-radius*1.01, -radius*.99, -scale*.1, 0, scale]:
+                    has_visible_corner = any(center_w + scale*sum(a*b for a,b in zip(row,p)) > 0
+                                             for p in corners)
+                    retained = center_w > 0 or scale >= 6.3
+                    self.assertFalse(has_visible_corner and not retained)
+        for scale in [0.0001, 0.016, 0.099, 1.599, 3.199]:
+            self.assertFalse(-1.0 > 0 or scale >= 6.3)
+        # Regression: a large cube centered behind the eye still has front faces.
+        self.assertGreater(-1.0 + 6.399, 0)
     def test_picking_planes_match_reference_bevel(self):
         from itertools import product
         _, triangles = geometry(ROOT / "Cube/cube.glb")
@@ -75,6 +91,7 @@ class PatchCubeTests(unittest.TestCase):
             self.assertIn("uint id = compacted.ids[gl_InstanceIndex]", vs)
             self.assertIn("uint base = id * 13u", vs)
             self.assertIn("clip.w > 0.0", vs)
+            self.assertIn("clip.w > 0.0 || scale >= 6.3", vs)
             self.assertEqual(ds.count("alpha=0.35"), 1)
             self.assertIn("if (sticker >= 0 && (flags & 32u) == 0u) alpha=0.35", ds)
             self.assertIn("if ((flags & 64u) != 0u && sticker >= 0) material = int(cubie);", ds)

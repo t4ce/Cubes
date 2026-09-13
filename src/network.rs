@@ -26,13 +26,14 @@ pub struct Slide {
 #[path = "vfx_stream.rs"]
 mod vfx_stream;
 pub use vfx_stream::Scene as VfxScene;
-pub enum Update { Empty, Gallery(Slide), Vfx(VfxScene), Snake {session:u64, state:cubes_protocol::snake::State}, Worm {session:u64, state:cubes_protocol::worm::State} }
+pub enum Update { World(cubes_protocol::world::World), Gallery(Slide), Vfx(VfxScene), Snake {session:u64, state:cubes_protocol::snake::State}, Worm {session:u64, state:cubes_protocol::worm::State} }
 struct Shared {
     session: u64,
     running: bool,
     connected: bool,
     world_id: u8,
     empty_ready: bool,
+    structure: Option<cubes_protocol::world::World>,
     gallery_ready: Option<Slide>,
     vfx_ready: Option<VfxScene>,
     snake_ready: Option<cubes_protocol::snake::State>,
@@ -58,6 +59,7 @@ impl Client {
                 connected: false,
                 world_id: 1,
                 empty_ready: false,
+                structure: None,
                 gallery_ready: None,
                 vfx_ready: None,
                 snake_ready: None,
@@ -75,6 +77,7 @@ impl Client {
         s.running = false;
         s.connected = false;
         s.empty_ready = false;
+        s.structure = None;
         s.gallery_ready = None;
         s.vfx_ready = None;
         s.snake_ready = None;
@@ -137,7 +140,12 @@ impl Client {
     }
     pub fn take_ready(&mut self) -> Option<Result<Update, &'static str>> {
         let mut shared = self.shared.lock().unwrap();
-        if core::mem::take(&mut shared.empty_ready) { shared.connected = true; return Some(Ok(Update::Empty)); }
+        if core::mem::take(&mut shared.empty_ready) {
+            if let Some(world) = shared.structure.clone() {
+                shared.connected = true;
+                return Some(Ok(Update::World(world)));
+            }
+        }
         if shared.world_id == 2 { return shared.error.take().map(Err); }
         if let Some(slide) = shared.gallery_ready.take() { shared.connected = true; return Some(Ok(Update::Gallery(slide))); }
         if let Some(state) = shared.snake_ready.take() { return Some(Ok(Update::Snake {session:shared.session,state})); }
@@ -247,12 +255,11 @@ fn world_info_for(bytes: &[u8], world_id: u8) -> Option<usize> {
     if p.len() != 12 || p[4] != world_id { return None; }
     let len = u32::from_le_bytes(p[5..9].try_into().ok()?) as usize;
     let chunks = u16::from_le_bytes(p[9..11].try_into().ok()?) as usize;
-    if world_id == 2 { return (len == 0 && chunks == 0).then_some(0); }
     (len >= 16 && len <= MAX_ENCODED_BYTES && chunks == len.div_ceil(CHUNK_BYTES)).then_some(len)
 }
-fn accept_world_chunk(bytes: &[u8], encoded: &mut [u8], received: &mut [bool]) -> bool {
+fn accept_world_chunk(bytes: &[u8], world_id: u8, encoded: &mut [u8], received: &mut [bool]) -> bool {
     let Some(p) = payload(bytes, 0x83) else { return false; };
-    if p.len() < 5 || p[0] != 1 { return false; }
+    if p.len() < 5 || p[0] != world_id { return false; }
     let index = u16::from_le_bytes([p[1],p[2]]) as usize;
     if u16::from_le_bytes([p[3],p[4]]) as usize != received.len()
         || index >= received.len() || received[index] { return false; }
@@ -306,7 +313,7 @@ async fn receive_world(socket: &UdpSocket, shared: &Mutex<Shared>, session: u64,
             while !received[start..end].iter().all(|v| *v) && time::Instant::now() < deadline {
                 let Ok(Ok(n)) = time::timeout(deadline.saturating_duration_since(time::Instant::now()),
                     socket.recv(&mut buffer)).await else { break; };
-                accept_world_chunk(&buffer[..n], &mut encoded, &mut received);
+                accept_world_chunk(&buffer[..n], world_id, &mut encoded, &mut received);
             }
             if received[start..end].iter().all(|v| *v) { break; }
         }
@@ -336,18 +343,23 @@ async fn stream(
         if world_id == 1 {
             stream_preview(&socket, shared, session, device, username).await?;
         } else {
-            receive_world(&socket, shared, session, username, 2).await?;
+            let bytes = receive_world(&socket, shared, session, username, 2).await?;
+            let world = cubes_protocol::world::World::parse(&bytes).ok_or("invalid server world")?;
             {
                 let mut s = shared.lock().unwrap();
                 if s.session != session { return Ok(()); }
-                if s.world_id == 2 { s.empty_ready = true; }
+                if s.world_id == 2 { s.structure = Some(world); s.empty_ready = true; }
             }
             // Keep the existing peer alive without preview scene traffic.
             let mut heartbeat = time::Instant::now();
             while { let s=shared.lock().unwrap(); s.session == session && s.world_id == 2 } {
                 time::sleep(time::Duration::from_millis(25)).await;
                 if heartbeat.elapsed() >= time::Duration::from_secs(1) {
-                    receive_world(&socket, shared, session, username, 2).await?;
+                    let mut hello = vec![2];
+                    hello.extend_from_slice(username.as_bytes());
+                    socket.send(&packet(1, &hello)).await.map_err(|_| "world heartbeat")?;
+                    let mut buffer = [0;1200];
+                    let _ = time::timeout(time::Duration::from_millis(200), socket.recv(&mut buffer)).await;
                     heartbeat = time::Instant::now();
                 }
             }
@@ -508,22 +520,25 @@ async fn stream_preview(
 mod server;
 
 #[cfg(test)]
+#[path = "../../TRUEOS-Blueprints/apps/cubesrv/structure.rs"]
+mod structure;
+#[cfg(test)]
 mod tests {
     use super::*;
 
     fn test_shared() -> Mutex<Shared> {
-        Mutex::new(Shared {session:1, running:true, connected:true, world_id:1, empty_ready:false,
+        Mutex::new(Shared {session:1, running:true, connected:true, world_id:1, empty_ready:false, structure:None,
             gallery_ready:None, vfx_ready:None, snake_ready:None, worm_ready:None, error:None,
             position:[0.;3], orientation:[0.,0.,-1.]})
     }
 
     #[test]
-    fn empty_welcome_requires_matching_id_and_zero_geometry() {
-        let empty=server::welcome(1,2,0,0,0);
-        assert_eq!(world_info_for(&empty,2),Some(0));
+    fn world_two_welcome_requires_matching_id_and_geometry() {
+        let empty=server::welcome(1,2,464,1,0);
+        assert_eq!(world_info_for(&empty,2),Some(464));
         assert_eq!(world_info_for(&empty,1),None);
         assert_eq!(world_info_for(&server::welcome(1,1,16,1,0),2),None);
-        assert_eq!(world_info_for(&server::welcome(1,2,16,1,0),2),None);
+        assert_eq!(world_info_for(&server::welcome(1,2,0,0,0),2),None);
         assert_eq!(world_info_for(&server::welcome(1,2,0,1,0),2),None);
     }
 
@@ -545,15 +560,16 @@ mod tests {
                     match server::decode(&buf[..n]).unwrap() {
                         server::ClientPacket::Hello {world_id,..} => {
                             selected=world_id;
-                            let len=if selected==2 {0} else {bytes.len()};
+                            let len=if selected==2 {structure::world().encode().len()} else {bytes.len()};
                             // A delayed welcome from the previous world must not win.
                             let stale=server::welcome(1,if selected==2 {1} else {2},0,0,0);
                             server_socket.send_to(&stale,peer).await.unwrap();
                             server_socket.send_to(&server::welcome(1,selected,len,len.div_ceil(CHUNK_BYTES) as u16,0),peer).await.unwrap();
                         }
                         server::ClientPacket::WorldRequest {chunk} => {
-                            assert_eq!(selected,1, "empty world must not request chunks");
-                            let packet=server::blob_chunk(server::BlobKind::World,1,chunk,bytes).unwrap();
+                            let world2=structure::world().encode();
+                            let source=if selected==2 {world2.as_slice()} else {bytes.as_slice()};
+                            let packet=server::blob_chunk(server::BlobKind::World,selected,chunk,source).unwrap();
                             server_socket.send_to(&packet,peer).await.unwrap();
                         }
                         _ => panic!("unexpected packet"),
@@ -562,7 +578,13 @@ mod tests {
             });
             for id in [2,1,2,1,2,1] {
                 let world=receive_world(&client,&shared,1,"test",id).await.unwrap();
-                if id==2 {assert!(world.is_empty());} else {assert_eq!(world,bytes);}
+                if id==2 {
+                    let decoded=cubes_protocol::world::World::parse(&world).unwrap();
+                    assert_eq!(decoded,structure::world());
+                    assert_eq!(decoded.cubes.len(),27);
+                    assert_eq!(decoded.spawn,[0,576,0]);
+                    assert!(decoded.cubes.iter().all(|c|c.side==384 && c.material==0));
+                } else {assert_eq!(world,bytes);}
             }
             responder.abort();
         });
@@ -620,12 +642,14 @@ mod tests {
             body.extend_from_slice(&vec![7;size]);
             packet(0x83,&body)
         };
-        assert!(!accept_world_chunk(&chunk(27,1,2,6),&mut encoded,&mut received));
-        assert!(!accept_world_chunk(&chunk(1,1,3,6),&mut encoded,&mut received));
-        assert!(!accept_world_chunk(&chunk(1,1,2,5),&mut encoded,&mut received));
-        assert!(accept_world_chunk(&chunk(1,1,2,6),&mut encoded,&mut received));
-        assert!(!accept_world_chunk(&chunk(1,1,2,6),&mut encoded,&mut received));
-        assert!(accept_world_chunk(&chunk(1,0,2,1024),&mut encoded,&mut received));
+        assert!(!accept_world_chunk(&chunk(27,1,2,6),1,&mut encoded,&mut received));
+        assert!(!accept_world_chunk(&chunk(2,1,2,6),1,&mut encoded,&mut received));
+        assert!(!accept_world_chunk(&chunk(1,1,2,6),2,&mut encoded,&mut received));
+        assert!(!accept_world_chunk(&chunk(1,1,3,6),1,&mut encoded,&mut received));
+        assert!(!accept_world_chunk(&chunk(1,1,2,5),1,&mut encoded,&mut received));
+        assert!(accept_world_chunk(&chunk(1,1,2,6),1,&mut encoded,&mut received));
+        assert!(!accept_world_chunk(&chunk(1,1,2,6),1,&mut encoded,&mut received));
+        assert!(accept_world_chunk(&chunk(1,0,2,1024),1,&mut encoded,&mut received));
         assert!(received.iter().all(|v| *v));
         assert!(encoded.iter().all(|v| *v == 7));
     }

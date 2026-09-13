@@ -239,8 +239,13 @@ void main() {
     vec4 center = model * vec4(seed, 1.0);
     vec4 clip = camera.viewProjection * center;
     // Before tessellation, Position.w is the positive uniform cube scale.
-    // Tiny positive scales encode flat seed markers; zero culls behind the eye.
-    gl_Position = vec4(center.xyz, clip.w > 0.0 ? length(model[0].xyz) : 0.0);
+    // Large structural cubes can straddle the eye plane while their center
+    // is behind it. Retain their patches for normal triangle clipping.
+    // 64 c1 has half-scale 6.399; 6.3 leaves room for its decorative gap.
+    float scale = length(model[0].xyz);
+    bool visible = clip.w > 0.0 || scale >= 6.3;
+    // Tiny flat markers retain the old center test; zero is an inactive seed.
+    gl_Position = vec4(center.xyz, visible ? scale : 0.0);
 }
 ''')
     (out / "cube.tesc").write_text('''#version 450

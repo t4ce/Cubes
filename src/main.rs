@@ -895,7 +895,7 @@ impl CubeScene {
                 (width, height),
             )
             .map_err(|error| CubeError::Ui4("background-update", error))?;
-        if self.network_singleton && self.mode.is_world() {
+        if self.network_singleton && !self.network_empty && self.mode.is_world() {
             match self.frame.begin_gpu_frame() {
                 Ok(()) => {},
                 Err(Ui4Error::Busy) => return Ok(()),
@@ -903,17 +903,6 @@ impl CubeScene {
             }
             let surface = self.device.acquire_ui4_surface(self.frame.window_id())
                 .map_err(|code| CubeError::Vgpu("surface-acquire", code))?;
-            if self.network_empty {
-                let point = self.device.submit_ui4_clear(self.queue, surface, 0)
-                    .map_err(|code| CubeError::Vgpu("empty-world-clear", code))?;
-                self.device.wait(self.queue, point.value)
-                    .map_err(|code| CubeError::Vgpu("empty-world-wait", code))?;
-                self.frame.publish(Damage::full(width, height))
-                    .map_err(|error| CubeError::Ui4("frame-publish", error))?;
-                self.previous_view_projection = camera.view_projection;
-                self.first_frame = false;
-                return Ok(());
-            }
             let terrain = &self.network_world.as_ref().ok_or(CubeError::Contract)?.asset;
             let target = self.walker_camera.as_ref()
                 .and_then(|c| c.path_target().or_else(|| c.landing_target()));
@@ -962,7 +951,7 @@ impl CubeScene {
         }
         let palette_visible = if self.mode == SceneMode::StaticCube { self.palette_selection.visible } else { 0 };
         let palette_count = palette_visible.count_ones() as usize;
-        let companion = self.world_cube.visible(self.mode == SceneMode::World);
+        let companion = self.world_cube.visible(self.mode == SceneMode::World && !self.network_empty);
         let flight_slot = usize::from(self.mode.is_world()
             || matches!(self.mode, SceneMode::MaterialShowcase | SceneMode::StaticCube));
         let puzzle_hover = self.cursors.iter().rev().find_map(|cursor| {
@@ -1057,6 +1046,8 @@ impl CubeScene {
                 let asset = self.platform_view.asset(&self.active_world.as_ref().unwrap().scene);
                 let base = if self.mode == SceneMode::Plateau {
                     self.plateau_base_count()
+                } else if self.network_empty {
+                    self.active_world.as_ref().unwrap().scene.cubes.len()
                 } else if self.network_singleton {
                     self.network_world
                         .as_ref()
@@ -1111,7 +1102,8 @@ impl CubeScene {
         };
         if self.mode.is_world() {
             let source = &self.platform_view.asset(&self.active_world.as_ref().unwrap().scene).cubes;
-            let base = self.active_world.as_ref().unwrap().scene.cubes.len() - self.asset_brush.worlds[self.world_index].len();
+            let base = self.active_world.as_ref().unwrap().scene.cubes.len()
+                - if self.network_empty { 0 } else { self.asset_brush.worlds[self.world_index].len() };
             self.world_markers.prepare_with_solids(
                 source,
                 visible,
@@ -1131,8 +1123,9 @@ impl CubeScene {
                 baked_materials::WELD_COLORS,
                 |id| {
                     self.mode == SceneMode::World
-                        // The VS drops seeds whose center is behind the eye. Such a
-                        // submitted neighbor must not cause a visible cap to disappear.
+                        // Conservatively avoid behind-eye centers as weld coverage.
+                        // Small cubes are rejected there by VS; large cubes may straddle
+                        // the eye plane, but retaining their neighbor's cap is safe.
                         && (camera.view_projection[3] * source[id].center[0]
                             + camera.view_projection[7] * source[id].center[1]
                             + camera.view_projection[11] * source[id].center[2]
@@ -1867,7 +1860,7 @@ impl CubeScene {
         };
         let slide = match update {
             network::Update::Gallery(slide) => slide,
-            network::Update::Empty => {
+            network::Update::World(world) => {
                 self.pending_empty_entry = false;
                 if !self.mode.is_world() && self.demo_camera.is_none() {
                     self.demo_camera = Some(self.flycam);
@@ -1876,15 +1869,40 @@ impl CubeScene {
                 self.network_singleton = true;
                 self.network_empty = true;
                 self.asset_brush.disable();
-                self.active_world = None;
+                let blocks: Vec<_> = world.cubes.iter().map(|c| subcubes::Block {
+                    min: c.min, side: c.side as i32, material: c.material as u32,
+                }).collect();
+                let asset = orchard::Asset {
+                    name: "empty-structure",
+                    cubes: blocks.iter().map(|&b| {
+                        let (center, scale) = b.pose();
+                        orchard::Cube { center, scale, flags: rubik::MATERIAL_SHOWCASE_FLAG | b.material }
+                    }).collect(),
+                    radius: blocks.iter().flat_map(|b| (0..3).map(move |a| b.min[a].abs().max((b.min[a]+b.side).abs())))
+                        .max().unwrap_or(0) as f32 * subcubes::UNIT * 1.74,
+                };
+                // This server snapshot has no portals or extra geometry.
+                let mut header = [0u8;16];
+                header[4] = 1;
+                header[12..16].copy_from_slice(&subcubes::C1.to_le_bytes());
+                self.active_world = Some(world_portals::World::new(
+                    world_topology::VOID, &asset, &header, &self.puzzle));
+                self.placed_reveal.reset();
                 self.frame.set_center_snapped_mouse(true)
                     .map_err(|error| CubeError::Ui4("empty-world-pointer", error))?;
                 self.flight_target.clear();
-                self.walker_camera = None;
+                let walker = walker_camera::CubesWalkerCam::server_structure(&blocks,
+                    world.spawn.map(|v|v as f32 * subcubes::UNIT), world.normal.map(|v|v as f32));
+                let (position, rotation) = walker.pose();
+                self.flycam.camera.position = position;
+                self.flycam.camera.rotation = rotation;
+                self.walker_camera = Some(walker);
                 self.flight = None;
                 self.portal_trip = None;
                 self.set_mode_projection(SceneMode::World);
-                logl::log(level::INFO, format_args!("Cubes: server acknowledged empty world; Key8 returns to preview"));
+                self.previous_view_projection = self.flycam.camera.retained(
+                    self.frame.width(), self.frame.height(), [0.;16]).view_projection;
+                logl::log(level::INFO, format_args!("Cubes: server world 2 loaded, {} cubes and server surface spawn; Key8 returns to preview", blocks.len()));
                 return Ok(());
             }
             network::Update::Snake {session,state} => {

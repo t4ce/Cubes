@@ -125,12 +125,20 @@ installed, each new press switches between preview and empty (world ID 2).
 Holding the key does not repeat. Swaps reuse the same UDP socket and native
 worker; no additional transport, runtime or indexed-world loader is created.
 
-An empty-world Hello receives the existing welcome envelope with world ID 2,
-zero bytes and zero chunks. Only that matching acknowledgement clears the client
-view. The server suppresses preview geometry, gallery, VFX, snake and worm traffic
-for empty peers. A periodic Hello keeps the peer alive while empty. The client
-uses the existing GPU surface-clear operation and removes its walker/targets;
-preview GPU resources remain cached but submit no geometry while empty.
+World 2 is authored by CubeSrv in `apps/cubesrv/structure.rs`. Its welcome
+announces 464 bytes in one world chunk, containing the actual 27 cubes and spawn.
+The shared `cubes-protocol::world` CSW1 snapshot uses sixth-c1 integer coordinates,
+cube sizes, palette indices, and a surface contact point with an outward normal.
+The client validates and installs the complete snapshot; it never generates a
+local replacement. Old zero-byte welcomes are rejected as incompatible.
+The server suppresses preview geometry, gallery, VFX, snake and worm traffic
+for world 2 peers. A periodic Hello keeps the peer alive without reloading geometry.
+The server defines a centered 3×3×3 structure of 64-c1 cubes, all using palette
+entry 0 (red). Its extent is -96..96 c1 on each axis.
+The walker starts on the center of the top face, with normal walking, flight,
+and 8×8 large-face landing targets. No gallery, creatures, terrain, or portals
+are added. Preview GPU resources remain cached but submit no geometry while
+this structure is shown. Geometry and the top-face spawn both come from the server.
 Returning to preview repeats the original binary world and gallery transfer.
 Key5 remains local. Rebuild both Cubes and CubeSrv for this extension.
 
@@ -141,5 +149,5 @@ require a recoverable target test; host tests do not establish fault containment
 Key2 click/Space world entry now requests server empty explicitly after its entry
 animation, regardless of which cubie/portal was selected. A fresh connection
 starts with world ID 2; an existing worker is reused. The frame enters empty only
-after acknowledgement, without requiring local terrain or a preview gallery.
+after the validated world transfer, without requiring local terrain or a preview gallery.
 Key8 can then switch to preview. Number-key navigation cancels a pending entry.
