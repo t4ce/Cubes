@@ -20,6 +20,8 @@ path = "lib.rs"
 ''')
     (root / 'lib.rs').write_text(f'''extern crate alloc;
 use cubes_protocol as plateau;
+#[path="{APP.parent}/TRUEOS-Blueprints/crates/cubes-protocol/src/vfx.rs"] mod vfx_contract;
+#[path="{APP.parent}/TRUEOS-Blueprints/apps/cubesrv/spawn.rs"] mod vfx_spawn;
 #[path="{APP}/src/network.rs"] mod network;
 #[path="{APP}/src/slideshow.rs"] mod slideshow;
 #[path="{APP}/src/reveal.rs"] mod reveal;

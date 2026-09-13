@@ -10,38 +10,31 @@ pub struct Wall {
     mesh: RetainedMesh,
     slide: Slide,
     cubes: CubeInstances,
-    spawned_terrain: Option<RetainedTransformSeed>,
+    scene: Option<crate::network::VfxScene>,
 }
 impl Wall {
     pub fn new(device: Device, slide: Slide) -> Result<Self, i32> {
         let cubes = CubeInstances::new(device)?;
         let geometry = slideshow::geometry(slide.layout);
         let (vertices, indices, mesh) = upload(device, &geometry)?;
-        Ok(Self { device, vertices, indices, mesh, slide, cubes, spawned_terrain: None })
+        Ok(Self { device, vertices, indices, mesh, slide, cubes, scene: None })
     }
-    pub fn replace_holy(&mut self, frame: crate::network::HolyFrame) -> Result<(), i32> {
-        if frame.session != self.slide.session || frame.gallery_revision != self.slide.revision {
-            return Ok(());
+    pub fn replace_vfx(&mut self, scene: crate::network::VfxScene) -> Result<(), i32> {
+        if scene.session!=self.slide.session || scene.info.gallery_revision!=self.slide.revision { return Ok(()); }
+        for bytes in scene.assets.iter().flatten() {
+            if cubes_protocol::vfx::Sequence::parse(bytes).is_none() { return Err(ERR_UNSUPPORTED); }
         }
-        self.cubes.replace(&frame.cubes, &self.slide.palette, frame.anchor)?;
-        self.spawned_terrain = frame.terrain.then(|| {
-            let mut seed = terrain_seed(frame.anchor);
-            // World palette entry zero is the authored terrain material.
-            if let Some(rgb) = self.slide.world.get(16..19) {
-                seed.flags = 0x8000 | ((rgb[0] as u32 * 31 + 127) / 255)
-                    | (((rgb[1] as u32 * 31 + 127) / 255) << 5)
-                    | (((rgb[2] as u32 * 31 + 127) / 255) << 10);
-            }
-            seed
-        });
+        self.scene=Some(scene);
         Ok(())
+    }
+    pub fn spawned(&self) -> [Option<[i16;3]>;4] {
+        self.scene.as_ref().map_or([None;4], |s| s.terrain())
     }
     pub fn gallery_revision(&self) -> u32 { self.slide.revision }
     pub fn replace(&mut self, slide: Slide) -> Result<(), i32> {
         if self.slide.layout == slide.layout {
             if self.slide.revision != slide.revision || self.slide.session != slide.session {
-                self.cubes.replace(&[], &[], [0; 3])?;
-                self.spawned_terrain = None;
+                self.scene = None;
             }
             self.slide = slide;
         } else { *self = Self::new(self.device, slide)?; }
@@ -49,11 +42,10 @@ impl Wall {
     }
     pub fn layout(&self) -> slideshow::contract::Layout { self.slide.layout }
     pub fn render(
-        &mut self, queue: Queue, surface: Ui4Surface, camera: RetainedCamera, height: u32, now: u64, terrain: &[RetainedTransformSeed], overlays: &[RetainedTransformSeed],
+        &mut self, queue: Queue, surface: Ui4Surface, camera: RetainedCamera, height: u32, _now: u64, terrain: &[RetainedTransformSeed], overlays: &[RetainedTransformSeed],
     ) -> Result<(), i32> {
-        let mut terrain = terrain.to_vec();
-        if let Some(cube) = self.spawned_terrain { terrain.push(cube); }
-        self.cubes.animate(now, &terrain, overlays)?;
+        let seeds = scene_seeds(self.scene.as_ref(), &self.slide.palette, &self.slide.world, &camera)?;
+        self.cubes.animate(seeds, terrain, overlays)?;
         let point = self.device.submit_retained_frame_v4(
             queue, surface, self.mesh, self.cubes.mesh, self.vertices, self.indices,
             RetainedFrameSubmitV4 {
@@ -80,7 +72,7 @@ const CENTER_COUNT: usize = 27;
 const MAX_CUBES: usize = MAX_RETAINED_SCENE_INSTANCES;
 pub const OVERLAY_BUDGET: usize = 129;
 pub const TERRAIN_BUDGET: usize = MAX_CUBES - CENTER_COUNT
-    - cubes_protocol::holy::WIDTH as usize * cubes_protocol::holy::HEIGHT as usize - OVERLAY_BUDGET - 1;
+    - cubes_protocol::vfx::INSTANCES * cubes_protocol::vfx::CELLS - cubes_protocol::vfx::TERRAIN_CUBES - OVERLAY_BUDGET;
 const SEED_BYTES: usize = 64;
 /// Immutable 44-patch topology. Updates only upload TRS/color seeds.
 struct CubeInstances {
@@ -91,7 +83,6 @@ struct CubeInstances {
     seeds: [Buffer;2],
     active: usize,
     count: u32,
-    asset: AnimatedAsset,
 }
 impl CubeInstances {
     fn new(device: Device) -> Result<Self, i32> {
@@ -120,18 +111,13 @@ impl CubeInstances {
                 return Err(error);
             }
         };
-        let mut cubes = Self { device, vertices, indices, mesh, seeds, active:0, count:0,
-            asset: AnimatedAsset::new() };
-        cubes.replace(&[], &[], [0; 3])?;
-        cubes.animate(0, &[], &[])?;
+        let mut cubes = Self { device, vertices, indices, mesh, seeds, active:0, count:0 };
+        cubes.animate(landmark_seeds(), &[], &[])?;
         Ok(cubes)
     }
-    fn replace(&mut self, pixels: &[cubes_protocol::holy::Pixel], palette: &[u16], anchor: [i16; 3]) -> Result<(), i32> {
-        self.asset.replace(pixels, palette, anchor)
-    }
-    fn animate(&mut self, now: u64, terrain: &[RetainedTransformSeed], overlays: &[RetainedTransformSeed]) -> Result<(), i32> {
-        if terrain.len() > TERRAIN_BUDGET + 1 || overlays.len() > OVERLAY_BUDGET { return Err(ERR_UNSUPPORTED); }
-        let mut seeds = self.asset.frame(now);
+    fn animate(&mut self, mut seeds: Vec<RetainedTransformSeed>, terrain: &[RetainedTransformSeed], overlays: &[RetainedTransformSeed]) -> Result<(), i32> {
+        if terrain.len()>TERRAIN_BUDGET || overlays.len()>OVERLAY_BUDGET
+            || seeds.len()+terrain.len()+overlays.len()>MAX_CUBES { return Err(ERR_UNSUPPORTED); }
         for seed in terrain {
             let mut seed = *seed;
             seed.flags = (seed.flags & 0xffff) | ((seeds.len() as u32)<<16);
@@ -154,31 +140,6 @@ impl CubeInstances {
         Ok(())
     }
 }
-/// One persistent grid asset. Sparse frame ordering is never an instance identity.
-struct AnimatedAsset {
-    authored: Vec<RetainedTransformSeed>,
-}
-impl AnimatedAsset {
-    fn new() -> Self {
-        Self { authored: Vec::new() }
-    }
-    fn replace(&mut self, pixels: &[cubes_protocol::holy::Pixel], palette: &[u16], anchor: [i16; 3]) -> Result<(), i32> {
-        let authored = cube_seeds(pixels, palette, anchor)?;
-        let mut occupied = [false; cubes_protocol::holy::WIDTH as usize * cubes_protocol::holy::HEIGHT as usize];
-        for pixel in pixels {
-            let id = pixel.y as usize * cubes_protocol::holy::WIDTH as usize + pixel.x as usize;
-            if occupied[id] { return Err(ERR_UNSUPPORTED); }
-            occupied[id] = true;
-        }
-        self.authored = authored;
-        Ok(())
-    }
-    fn frame(&mut self, _now: u64) -> Vec<RetainedTransformSeed> {
-        // The server already applies the 500 ms delay. Each authored frame must
-        // appear whole; per-pixel admission would hide short-lived VFX pixels.
-        self.authored.clone()
-    }
-}
 impl Drop for CubeInstances {
     fn drop(&mut self) {
         for buffer in self.seeds { let _ = self.device.destroy_buffer(buffer); }
@@ -195,42 +156,76 @@ fn terrain_seed(anchor: [i16; 3]) -> RetainedTransformSeed {
         local_radius: 1.74, flags: 0xffff, ..RetainedTransformSeed::default()
     }
 }
-fn cube_seeds(pixels: &[cubes_protocol::holy::Pixel], palette: &[u16], anchor: [i16; 3])
-    -> Result<Vec<RetainedTransformSeed>, i32>
-{
-    if pixels.len() > cubes_protocol::holy::WIDTH as usize * cubes_protocol::holy::HEIGHT as usize {
-        return Err(ERR_UNSUPPORTED);
-    }
-    let mut seeds = Vec::with_capacity(CENTER_COUNT+pixels.len());
-    let mut push = |translation: [f32;3], half: f32, color: u16| {
-        seeds.push(RetainedTransformSeed {
-            translation, previous_translation: translation, scale:[half;3],
-            // Same orientation and bounding radius as placed cube assets.
-            rotation:[1.,0.,0.,0.], local_radius:1.74,
-            flags: color as u32 | ((seeds.len() as u32)<<16),
-            ..RetainedTransformSeed::default()
-        });
-    };
+fn landmark_seeds() -> Vec<RetainedTransformSeed> {
+    let mut seeds=Vec::with_capacity(CENTER_COUNT);
     for x in -1..=1 { for y in -1..=1 { for z in -1..=1 {
-        push([x,y,z].map(|v| v as f32*slideshow::CENTER_CUBE_SIDE),
-            slideshow::CENTER_CUBE_SIDE*0.5, 0xffff);
+        seeds.push(terrain_seed([x*8,y*8,z*8]));
     } } }
-    for pixel in pixels {
-        if pixel.x >= cubes_protocol::holy::WIDTH || pixel.y >= cubes_protocol::holy::HEIGHT {
-            return Err(ERR_UNSUPPORTED);
-        }
-        let color = *palette.get(pixel.palette as usize).ok_or(ERR_UNSUPPORTED)?;
-        if color & 0x8000 == 0 { return Err(ERR_UNSUPPORTED); }
-        push([
-            anchor[0] as f32 * slideshow::contract::C1
-                + (pixel.x as f32 + 0.5 - cubes_protocol::holy::WIDTH as f32 / 2.)
-                * slideshow::contract::C1,
-            (anchor[1] as f32 + 4.) * slideshow::contract::C1
-                + (cubes_protocol::holy::HEIGHT as f32 - pixel.y as f32 - 0.5)
-                    * slideshow::contract::C1,
-            anchor[2] as f32 * slideshow::contract::C1,
-        ], slideshow::contract::C1*0.5, color);
+    for (i,s) in seeds.iter_mut().enumerate() { s.flags |= (i as u32)<<16; }
+    seeds
+}
+
+/// View matrix rows are world-space camera right/up/back. A common basis keeps
+/// all 24 planes parallel to the viewport and their original pixel order.
+fn billboard(camera: &RetainedCamera) -> ([f32;3],[f32;3],[f32;4]) {
+    let m=&camera.view;
+    let mut right=[m[0],m[4],m[8]];
+    let mut up=[m[1],m[5],m[9]];
+    if right.iter().map(|v|v*v).sum::<f32>()<0.5 {
+        right=[1.,0.,0.]; up=[0.,1.,0.];
     }
+    let back=[right[1]*up[2]-right[2]*up[1],right[2]*up[0]-right[0]*up[2],right[0]*up[1]-right[1]*up[0]];
+    let trace=right[0]+up[1]+back[2];
+    let q=if trace>0. {
+        let s=libm::sqrtf(trace+1.)*2.;
+        [(up[2]-back[1])/s,(back[0]-right[2])/s,(right[1]-up[0])/s,0.25*s]
+    } else if right[0]>up[1] && right[0]>back[2] {
+        let s=libm::sqrtf(1.+right[0]-up[1]-back[2])*2.;
+        [0.25*s,(up[0]+right[1])/s,(back[0]+right[2])/s,(up[2]-back[1])/s]
+    } else if up[1]>back[2] {
+        let s=libm::sqrtf(1.+up[1]-right[0]-back[2])*2.;
+        [(up[0]+right[1])/s,0.25*s,(back[1]+up[2])/s,(back[0]-right[2])/s]
+    } else {
+        let s=libm::sqrtf(1.+back[2]-right[0]-up[1])*2.;
+        [(back[0]+right[2])/s,(back[1]+up[2])/s,0.25*s,(right[1]-up[0])/s]
+    };
+    // Preserve the placed cube mesh's original 180-degree X orientation.
+    (right,up,[q[3],q[2],-q[1],-q[0]])
+}
+fn scene_seeds(scene: Option<&crate::network::VfxScene>, palette: &[u16], world: &[u8],
+    camera: &RetainedCamera) -> Result<Vec<RetainedTransformSeed>,i32>
+{
+    let mut seeds=landmark_seeds();
+    let Some(scene)=scene.filter(|s|s.info.event!=0) else { return Ok(seeds); };
+    let age=scene.age_ms();
+    let (right,up,rotation)=billboard(camera);
+    for anchor in scene.info.terrain(age).into_iter().flatten() {
+        let mut terrain=terrain_seed(anchor);
+        if let Some(rgb)=world.get(16..19) {
+            terrain.flags=0x8000|((rgb[0] as u32*31+127)/255)
+                |(((rgb[1] as u32*31+127)/255)<<5)|(((rgb[2] as u32*31+127)/255)<<10);
+        }
+        seeds.push(terrain);
+    }
+    for (i,(slot,asset)) in scene.info.slots.iter().zip(&scene.assets).enumerate() {
+        let Some(frame)=slot.frame(age) else { continue; };
+        let Some(asset)=asset else { continue; };
+        let sequence=cubes_protocol::vfx::Sequence::parse(asset).ok_or(ERR_UNSUPPORTED)?;
+        let base=slot.anchor.map(|v|v as f32*slideshow::contract::C1);
+        for pixel in sequence.pixels(frame) {
+            let x=(pixel.x as f32+0.5-16.)*slideshow::contract::C1;
+            let y=(31.5-pixel.y as f32)*slideshow::contract::C1;
+            let normal=cubes_protocol::vfx::FACE_NORMALS[i%cubes_protocol::vfx::FACES];
+            let translation=core::array::from_fn(|a| base[a]+normal[a] as f32*0.8
+                +right[a]*x+up[a]*y);
+            let color=*palette.get(pixel.palette as usize).ok_or(ERR_UNSUPPORTED)?;
+            if color&0x8000==0 { return Err(ERR_UNSUPPORTED); }
+            seeds.push(RetainedTransformSeed {translation,previous_translation:translation,
+                scale:[0.1;3],rotation,local_radius:1.74,flags:color as u32,
+                ..RetainedTransformSeed::default()});
+        }
+    }
+    for (i,s) in seeds.iter_mut().enumerate() { s.flags=(s.flags&0xffff)|((i as u32)<<16); }
     Ok(seeds)
 }
 fn seed_bytes(seeds: &[RetainedTransformSeed]) -> Vec<u8> {
@@ -327,37 +322,19 @@ fn frame(camera: RetainedCamera, _height: u32, textures: [u64; 5]) -> RetainedFr
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn pixels(points: &[(u8,u8,u8)]) -> Vec<cubes_protocol::holy::Pixel> {
-        points.iter().map(|&(x,y,palette)| cubes_protocol::holy::Pixel {x,y,palette}).collect()
-    }
     #[test]
-    fn complete_frames_replace_immediately_and_reject_duplicates_atomically() {
-        let mut asset = AnimatedAsset::new();
-        asset.replace(&pixels(&[(3,4,0)]), &[0xffff,0x801f], [40,8,0]).unwrap();
-        assert_eq!(asset.frame(0).len(), CENTER_COUNT+1);
-        assert_eq!(asset.frame(0)[CENTER_COUNT].scale, [0.1;3]);
-        asset.replace(&pixels(&[(1,2,0),(3,4,1)]), &[0xffff,0x801f], [40,8,0]).unwrap();
-        let after = asset.frame(433);
-        assert_eq!(after.len(), CENTER_COUNT+2);
-        assert_eq!(after[CENTER_COUNT+1].flags & 0xffff, 0x801f);
-        assert!(asset.replace(&pixels(&[(3,4,0),(3,4,0)]), &[0xffff], [0;3]).is_err());
-        assert_eq!(asset.frame(433)[CENTER_COUNT].flags, after[CENTER_COUNT].flags);
-    }
-    #[test]
-    fn transient_pixels_are_visible_for_their_full_frame() {
-        let mut asset = AnimatedAsset::new();
-        asset.replace(&pixels(&[(0,0,0)]), &[0xffff], [0;3]).unwrap();
-        assert_eq!(asset.frame(0).len(), CENTER_COUNT+1);
-        asset.replace(&[], &[], [0; 3]).unwrap();
-        assert_eq!(asset.frame(100).len(), CENTER_COUNT);
-        asset.replace(&pixels(&[(0,0,0)]), &[0xffff], [0;3]).unwrap();
-        assert_eq!(asset.frame(200).len(), CENTER_COUNT+1);
-        assert_eq!(asset.frame(533).len(), CENTER_COUNT+1);
-        assert_eq!(asset.frame(1233)[CENTER_COUNT].scale, [0.1;3]);
-        asset.replace(&[], &[], [0; 3]).unwrap();
-        assert_eq!(asset.frame(1300).len(), CENTER_COUNT);
-        asset.replace(&pixels(&[(0,0,0)]), &[0xffff], [0;3]).unwrap();
-        assert_eq!(asset.frame(1600).len(), CENTER_COUNT+1);
+    fn billboard_follows_yaw_pitch_and_preserves_cube_rotation_length() {
+        let mut camera=RetainedCamera::default();
+        for angle in [0.,0.5,1.57,3.14] {
+            let (s,c)=(libm::sinf(angle),libm::cosf(angle));
+            camera.view=[c,0.,s,0., 0.,1.,0.,0., -s,0.,c,0., 0.,0.,0.,1.];
+            let (right,up,q)=billboard(&camera);
+            assert_eq!(right,[c,0.,-s]); assert_eq!(up,[0.,1.,0.]);
+            assert!((q.iter().map(|v|v*v).sum::<f32>()-1.).abs()<0.00001);
+        }
+        camera.view=[1.,0.,0.,0., 0.,0.,1.,0., 0.,-1.,0.,0., 0.,0.,0.,1.];
+        let (right,up,_)=billboard(&camera);
+        assert_eq!(right,[1.,0.,0.]); assert_eq!(up,[0.,0.,-1.]);
     }
     #[test]
     fn gallery_uses_one_draw_one_atlas_and_nearest_filtering() {

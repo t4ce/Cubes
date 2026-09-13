@@ -10,8 +10,6 @@ const MAGIC: &[u8; 4] = b"CUB1";
 const HEADER: usize = 8;
 const INFO: u8 = 0x85;
 const CHUNK: u8 = 0x86;
-const HOLY_INFO: u8 = 0x87;
-const HOLY_CHUNK: u8 = 0x88;
 const CHUNK_BYTES: usize = 1024;
 const MAX_ENCODED_BYTES: usize = 4 * 1024 * 1024;
 const WINDOW: usize = 32;
@@ -25,22 +23,15 @@ pub struct Slide {
     pub revision: u32,
     pub spawn: [f32; 3],
 }
-#[derive(Debug)]
-pub struct HolyFrame {
-    pub session: u64,
-    pub gallery_revision: u32,
-    pub revision: u32,
-    pub index: u8,
-    pub cubes: Vec<cubes_protocol::holy::Pixel>,
-    pub anchor: [i16; 3],
-    pub terrain: bool,
-}
-pub enum Update { Gallery(Slide), Holy(HolyFrame) }
+#[path = "vfx_stream.rs"]
+mod vfx_stream;
+pub use vfx_stream::Scene as VfxScene;
+pub enum Update { Gallery(Slide), Vfx(VfxScene) }
 struct Shared {
     session: u64,
     running: bool,
     gallery_ready: Option<Slide>,
-    holy_ready: Option<HolyFrame>,
+    vfx_ready: Option<VfxScene>,
     error: Option<&'static str>,
     position: [f32; 3],
     orientation: [f32; 3],
@@ -60,7 +51,7 @@ impl Client {
                 session: 0,
                 running: false,
                 gallery_ready: None,
-                holy_ready: None,
+                vfx_ready: None,
                 error: None,
                 position: [0.; 3],
                 orientation: [0., 0., -1.],
@@ -73,7 +64,7 @@ impl Client {
         s.session = s.session.wrapping_add(1);
         s.running = false;
         s.gallery_ready = None;
-        s.holy_ready = None;
+        s.vfx_ready = None;
         s.error = None;
     }
     pub fn key(&mut self, held: bool, position: [f32; 3], orientation: [f32; 3]) {
@@ -89,7 +80,7 @@ impl Client {
             s.running = true;
             s.session = s.session.wrapping_add(1);
             s.gallery_ready = None;
-            s.holy_ready = None;
+            s.vfx_ready = None;
             s.error = None;
             s.session
         };
@@ -119,7 +110,7 @@ impl Client {
     pub fn take_ready(&mut self) -> Option<Result<Update, &'static str>> {
         let mut shared = self.shared.lock().unwrap();
         if let Some(slide) = shared.gallery_ready.take() { return Some(Ok(Update::Gallery(slide))); }
-        if let Some(frame) = shared.holy_ready.take() { return Some(Ok(Update::Holy(frame))); }
+        if let Some(frame) = shared.vfx_ready.take() { return Some(Ok(Update::Vfx(frame))); }
         shared.error.take().map(Err)
     }
 }
@@ -180,34 +171,6 @@ fn accept_chunk(bytes: &[u8], revision: u32, encoded: &mut [u8], received: &mut 
         return false;
     }
     encoded[start..end].copy_from_slice(&p[6..]);
-    received[index] = true;
-    true
-}
-fn holy_info(bytes: &[u8]) -> Option<(u32, u32, u8, usize, [i16; 3], bool, u32)> {
-    let p = payload(bytes, HOLY_INFO)?;
-    if p.len() != 26 || p[21] > 1 { return None; }
-    let size = u16::from_le_bytes(p[13..15].try_into().unwrap()) as usize;
-    if size > cubes_protocol::holy::WIDTH as usize * cubes_protocol::holy::HEIGHT as usize * 3
-        || size % 3 != 0 { return None; }
-    Some((u32::from_le_bytes(p[4..8].try_into().unwrap()),
-        u32::from_le_bytes(p[8..12].try_into().unwrap()), p[12], size))
-        .map(|(gallery, revision, frame, size)| (gallery, revision, frame, size,
-            core::array::from_fn(|axis| i16::from_le_bytes(p[15+axis*2..17+axis*2].try_into().unwrap())),
-            p[21] != 0, u32::from_le_bytes(p[22..26].try_into().unwrap())))
-}
-fn accept_holy_chunk(bytes: &[u8], revision: u32, frame: u8,
-    encoded: &mut [u8], received: &mut [bool]) -> bool
-{
-    let Some(p) = payload(bytes, HOLY_CHUNK) else { return false; };
-    if p.len() < 7 || u32::from_le_bytes(p[..4].try_into().unwrap()) != revision || p[4] != frame {
-        return false;
-    }
-    let index = u16::from_le_bytes(p[5..7].try_into().unwrap()) as usize;
-    if index >= received.len() || received[index] { return false; }
-    let start = index * CHUNK_BYTES;
-    let end = (start + CHUNK_BYTES).min(encoded.len());
-    if p.len() != 7 + end - start { return false; }
-    encoded[start..end].copy_from_slice(&p[7..]);
     received[index] = true;
     true
 }
@@ -334,8 +297,7 @@ async fn stream(
     let mut buffer = [0u8; 1200];
     let world = receive_world(&socket, shared, session, username).await?;
     let mut shown = None;
-    let mut shown_holy = None;
-    let mut pending_holy = None;
+    let mut vfx = vfx_stream::Stream::default();
     let mut sequence = 0u32;
     let mut missed = 0;
     loop {
@@ -368,9 +330,7 @@ async fn stream(
             .await
             {
                 Ok(Ok(n)) => {
-                    if let Some(value) = holy_info(&buffer[..n]) {
-                        pending_holy = Some(value);
-                    }
+                    vfx.observe(&buffer[..n]);
                     if let Some(value) = info(&buffer[..n]) {
                         break Some(value);
                     }
@@ -420,9 +380,7 @@ async fn stream(
                         .await
                         {
                             Ok(Ok(n)) => {
-                                if let Some(value) = holy_info(&buffer[..n]) {
-                                    pending_holy = Some(value);
-                                }
+                                vfx.observe(&buffer[..n]);
                                 accept_chunk(&buffer[..n], revision, &mut encoded, &mut received);
                             }
                             _ => break,
@@ -475,69 +433,10 @@ async fn stream(
                 shown = Some(revision);
             }
         }
-        if let Some((gallery_revision, holy_revision, frame, encoded_len, anchor, terrain, event)) = pending_holy.take() {
-            if shown != Some(gallery_revision) {
-                pending_holy = Some((gallery_revision, holy_revision, frame, encoded_len, anchor, terrain, event));
-            } else if shown_holy.is_none_or(|(revision, old_event, old_phase)| {
-                server_event_newer(event, old_event)
-                    || (event == old_event && revision == holy_revision
-                        && vfx_phase(frame, terrain) > old_phase)
-            }) {
-                let mut encoded = vec![0; encoded_len];
-                let chunks = encoded_len.div_ceil(CHUNK_BYTES);
-                let mut received = vec![false; chunks];
-                let mut failed = false;
-                for _ in 0..8 {
-                    if shared.lock().unwrap().session != session { return Ok(()); }
-                    for chunk in 0..chunks {
-                        if !received[chunk] {
-                            let mut body = holy_revision.to_le_bytes().to_vec();
-                            body.push(frame);
-                            body.extend_from_slice(&(chunk as u16).to_le_bytes());
-                            socket.send(&packet(6, &body)).await.map_err(|_| "cubesrv holy send")?;
-                        }
-                    }
-                    let deadline = time::Instant::now() + time::Duration::from_millis(200);
-                    while !received.iter().all(|value| *value) {
-                        match time::timeout(
-                            deadline.saturating_duration_since(time::Instant::now()),
-                            socket.recv(&mut buffer),
-                        ).await {
-                            Ok(Ok(n)) => {
-                                if let Some(value) = holy_info(&buffer[..n]) { pending_holy = Some(value); }
-                                accept_holy_chunk(&buffer[..n], holy_revision, frame, &mut encoded, &mut received);
-                            }
-                            _ => break,
-                        }
-                        if time::Instant::now() >= deadline { break; }
-                    }
-                    if received.iter().all(|value| *value) { break; }
-                }
-                if !received.iter().all(|value| *value) { failed = true; }
-                if !failed {
-                    let cubes = cubes_protocol::holy::decode_frame(&encoded)
-                        .ok_or("holy frame contract")?.collect();
-                    let mut s = shared.lock().unwrap();
-                    if s.session != session { return Ok(()); }
-                    s.holy_ready = Some(HolyFrame {
-                        session, gallery_revision, revision: holy_revision, index: frame, cubes, anchor, terrain,
-                    });
-                    shown_holy = Some((holy_revision, event, vfx_phase(frame, terrain)));
-                }
-            }
-        }
+        if let Some(gallery) = shown { vfx.service(&socket,shared,session,gallery).await?; }
         // Heartbeats recover lost announcements and keep current telemetry flowing.
         time::sleep(time::Duration::from_millis(25)).await;
     }
-}
-
-fn vfx_phase(frame: u8, terrain: bool) -> u16 {
-    if frame == u8::MAX { if terrain { 0 } else { 256 } }
-    else { frame as u16 + 1 }
-}
-fn server_event_newer(candidate: u32, current: u32) -> bool {
-    let distance = candidate.wrapping_sub(current);
-    distance != 0 && distance < (1 << 31)
 }
 
 #[cfg(test)]
@@ -657,26 +556,5 @@ mod tests {
         assert_eq!(output, source);
         assert!(received.iter().all(|v| *v));
     }
-    #[test]
-    fn sparse_holy_frames_are_revision_and_frame_pinned() {
-        assert!(vfx_phase(255,false) > vfx_phase(15,true));
-        assert!(vfx_phase(0,true) > vfx_phase(255,true));
-        assert!(server_event_newer(2,1));
-        assert!(!server_event_newer(1,2));
-        let source = vec![1, 2, 3, 31, 31, 4, 9, 8, 7];
-        assert_eq!(holy_info(&server::holy_info(7, 11, 12, 3, source.len(), [40, 0, -56], true, 9)),
-            Some((11, 12, 3, source.len(), [40, 0, -56], true, 9)));
-        let mut output = vec![0; source.len()];
-        let mut received = vec![false; 1];
-        let packet = server::holy_chunk(12, 3, 0, &source).unwrap();
-        assert!(!accept_holy_chunk(&packet, 11, 3, &mut output, &mut received));
-        assert!(!accept_holy_chunk(&packet, 12, 2, &mut output, &mut received));
-        assert!(accept_holy_chunk(&packet, 12, 3, &mut output, &mut received));
-        assert_eq!(output, source);
-        assert_eq!(cubes_protocol::holy::decode_frame(&output).unwrap().collect::<Vec<_>>(), vec![
-            cubes_protocol::holy::Pixel { x: 1, y: 2, palette: 3 },
-            cubes_protocol::holy::Pixel { x: 31, y: 31, palette: 4 },
-            cubes_protocol::holy::Pixel { x: 9, y: 8, palette: 7 },
-        ]);
-    }
+
 }

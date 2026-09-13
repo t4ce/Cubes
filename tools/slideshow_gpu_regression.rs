@@ -40,10 +40,17 @@ fn setup()->(Wall,Queue) {
 fn draw(wall:&mut Wall, queue:Queue, now:u64)->Result<(),i32> {
     wall.render(queue,wall.device.acquire_ui4_surface(1).unwrap(),RetainedCamera::default(),441,now,&[],&[])
 }
-fn animation(pixels:&[(u8,u8,u8)])->crate::network::HolyFrame {
-    crate::network::HolyFrame {session:1,gallery_revision:7,revision:3,index:0,
-        anchor:[0,8,0],terrain:false,
-        cubes:pixels.iter().map(|&(x,y,palette)| cubes_protocol::holy::Pixel{x,y,palette}).collect()}
+fn animation(pixels:&[(u8,u8,u8)])->crate::network::VfxScene {
+    use cubes_protocol::vfx::{Scene,Slot};
+    let mut bytes=b"VFX1".to_vec();
+    bytes.extend_from_slice(&[1,32,32,10,150,0,3,0,255,0,0,0,255,0,0,0,255]);
+    for &(x,y,p) in pixels {bytes.extend_from_slice(&[x,y,p,0,10]);}
+    let asset=std::sync::Arc::new(bytes);
+    crate::network::VfxScene {session:1, received:trueos::time::Instant::now(),
+        info:Scene {gallery_revision:7,event:1,age_ms:500,
+            slots:core::array::from_fn(|i|Slot {revision:3,bytes:asset.len() as u32,
+                anchor:[[40,8,0],[0,8,40],[-40,8,0],[0,8,-40]][i/6],frames:10,period_ms:150})},
+        assets:core::array::from_fn(|_|Some(asset.clone()))}
 }
 fn active_bytes(wall:&Wall)->Vec<u8> {
     driver(|d| d.buffers[&wall.cubes.seeds[wall.cubes.active].raw()][..wall.cubes.count as usize*64].to_vec())
@@ -51,9 +58,8 @@ fn active_bytes(wall:&Wall)->Vec<u8> {
 #[test]
 fn spawned_terrain_is_opaque_and_does_not_consume_navigation_slots() {
     let (mut wall,queue)=setup();
-    let mut spawn=animation(&[(0,31,0)]);
-    spawn.terrain=true;
-    wall.replace_holy(spawn).unwrap();
+    let spawn=animation(&[(0,31,0)]);
+    wall.replace_vfx(spawn).unwrap();
     let overlay=RetainedTransformSeed {scale:[0.4;3],rotation:[1.,0.,0.,0.],
         local_radius:1.74,flags:24576|512|4096,draw_group:1,
         ..RetainedTransformSeed::default()};
@@ -62,11 +68,11 @@ fn spawned_terrain_is_opaque_and_does_not_consume_navigation_slots() {
         RetainedCamera::default(),441,0,&terrain,&vec![overlay;OVERLAY_BUDGET]).unwrap();
     assert!(wall.cubes.count as usize <= MAX_CUBES);
     let bytes=active_bytes(&wall);
-    let opaque_count=CENTER_COUNT+1+TERRAIN_BUDGET+1;
-    let spawned=&bytes[(opaque_count-1)*64..opaque_count*64];
+    let spawned=&bytes[CENTER_COUNT*64..(CENTER_COUNT+1)*64];
     assert_eq!(u32::from_le_bytes(spawned[56..60].try_into().unwrap()),0);
     assert_eq!(f32::from_le_bytes(spawned[4..8].try_into().unwrap()),1.6);
-    wall.replace_holy(animation(&[])).unwrap();
+    let mut expired=animation(&[]);expired.info.age_ms=2000;
+    wall.replace_vfx(expired).unwrap();
     draw(&mut wall,queue,3000).unwrap();
     assert_eq!(wall.cubes.count,27);
 }
@@ -88,16 +94,16 @@ fn navigation_overlay_has_separate_compact_slots_after_opaque_cubes() {
     assert_eq!(wall.cubes.count,27);
 }
 #[test]
-fn terrain_and_holy_share_compact_slots_and_one_depth_tested_frame() {
+fn terrain_and_vfx_share_compact_slots_and_one_depth_tested_frame() {
     let (mut wall,queue)=setup();
     let terrain = [RetainedTransformSeed {translation:[10.,0.,0.], scale:[0.8;3],
         rotation:[1.,0.,0.,0.],local_radius:1.74,flags:0xffff,
         ..RetainedTransformSeed::default()}];
-    wall.replace_holy(animation(&[(3,4,0)])).unwrap();
+    wall.replace_vfx(animation(&[(3,4,0)])).unwrap();
     for now in [0,333,1033] {
         wall.render(queue,wall.device.acquire_ui4_surface(1).unwrap(),
             RetainedCamera::default(),441,now,&terrain,&[]).unwrap();
-        assert_eq!(wall.cubes.count,29);
+        assert_eq!(wall.cubes.count,56);
         let bytes=active_bytes(&wall);
         let last=&bytes[bytes.len()-64..];
         assert_eq!(f32::from_le_bytes(last[..4].try_into().unwrap()),10.);
@@ -111,12 +117,12 @@ fn frames_replace_instances_without_rebuilding_either_mesh() {
     draw(&mut wall,queue,0).unwrap();
     let original=driver(|d| (d.creates,d.submissions[0]));
     for (step, pixels) in [&[(0,31,0),(31,0,2)][..], &[(24,24,1)][..], &[][..]].into_iter().enumerate() {
-        wall.replace_holy(animation(pixels)).unwrap();
+        wall.replace_vfx(animation(pixels)).unwrap();
         let now = step as u64*2000;
         draw(&mut wall,queue,now).unwrap();
         draw(&mut wall,queue,now+333).unwrap();
         draw(&mut wall,queue,now+1033).unwrap();
-        assert_eq!(wall.cubes.count,27+pixels.len() as u32);
+        assert_eq!(wall.cubes.count,31+24*pixels.len() as u32);
         assert_eq!(&active_bytes(&wall)[..27*64],&center);
         driver(|d| {
             assert_eq!(d.creates,original.0);
@@ -136,20 +142,20 @@ fn frames_replace_instances_without_rebuilding_either_mesh() {
 #[test]
 fn incomplete_upload_and_old_session_keep_the_displayed_frame() {
     let (mut wall,queue)=setup();
-    wall.replace_holy(animation(&[(2,3,0)])).unwrap();
+    wall.replace_vfx(animation(&[(2,3,0)])).unwrap();
     draw(&mut wall,queue,0).unwrap();
     draw(&mut wall,queue,333).unwrap();
     draw(&mut wall,queue,1033).unwrap();
     let before=active_bytes(&wall);
     driver(|d| d.short_write=true);
-    wall.replace_holy(animation(&[(5,6,1),(7,8,2)])).unwrap();
+    wall.replace_vfx(animation(&[(5,6,1),(7,8,2)])).unwrap();
     assert_eq!(draw(&mut wall,queue,1100),Err(ERR_IO));
     assert!(!driver(|d|d.leased));
     driver(|d| d.short_write=false);
     assert_eq!(active_bytes(&wall),before);
     let writes=driver(|d|d.writes);
     let mut old=animation(&[]);old.session=0;
-    wall.replace_holy(old).unwrap();
+    wall.replace_vfx(old).unwrap();
     assert_eq!(driver(|d|d.writes),writes);
     assert_eq!(active_bytes(&wall),before);
     driver(|d| d.busy=true);
@@ -162,35 +168,48 @@ fn incomplete_upload_and_old_session_keep_the_displayed_frame() {
     assert_eq!(wall.cubes.count,27);
 }
 #[test]
-fn seeds_preserve_landmark_bounds_sparse_pixel_positions_and_colors() {
-    let frame=animation(&[(0,31,0),(31,0,1)]);
-    let seeds=cube_seeds(&frame.cubes,&[0x801f,0xfc00],frame.anchor).unwrap();
-    assert_eq!(seeds.len(),29);
-    for (i,seed) in seeds.iter().enumerate() {
-        assert_eq!(seed.draw_group,0);
-        assert_eq!(seed.flags>>16,i as u32);
-        assert_eq!(seed.previous_translation,seed.translation);
-        assert_eq!(seed.rotation,[1.,0.,0.,0.]);
+fn billboard_pixel_spacing_tracks_viewport_right_and_up() {
+    let scene=animation(&[(0,31,0),(31,0,1)]);
+    let camera=RetainedCamera {view:[
+        0.,0.,1.,0., 0.,1.,0.,0., -1.,0.,0.,0., 0.,0.,0.,1.
+    ],..Default::default()};
+    let seeds=scene_seeds(Some(&scene),&[0x801f,0xfc00],&[],&camera).unwrap();
+    assert_eq!(seeds.len(),79);
+    for slot in 0..24 {
+        let terrain=seeds[27+slot/6];
+        assert_eq!(terrain.rotation,[1.,0.,0.,0.]);
+        let a=seeds[31+slot*2];let b=seeds[32+slot*2];
+        let n=cubes_protocol::vfx::FACE_NORMALS[slot%6];
+        // First pixel is at local (-3.1,0.1) relative to the face's bottom-center anchor.
+        let expected=core::array::from_fn::<_,3,_>(|axis|
+            terrain.translation[axis]+n[axis] as f32*0.8+[0.,0.1,3.1][axis]);
+        for axis in 0..3 {assert!((a.translation[axis]-expected[axis]).abs()<0.00001);}
+        assert!((b.translation[0]-a.translation[0]).abs()<0.00001);
+        assert!((b.translation[1]-a.translation[1]-6.2).abs()<0.00001);
+        assert!((b.translation[2]-a.translation[2]+6.2).abs()<0.00001);
+        assert_ne!(a.rotation,terrain.rotation);
+        assert_eq!(a.flags&0xffff,0x801f);assert_eq!(b.flags&0xffff,0xfc00);
     }
-    for seed in &seeds[..27] {
-        assert_eq!(seed.scale,[0.8;3]);assert_eq!(seed.flags&0xffff,0xffff);
-    }
-    for axis in 0..3 {
-        let lo=seeds[..27].iter().map(|s|s.translation[axis]-s.scale[axis]).fold(f32::INFINITY,f32::min);
-        let hi=seeds[..27].iter().map(|s|s.translation[axis]+s.scale[axis]).fold(f32::NEG_INFINITY,f32::max);
-        assert!((lo+2.4).abs()<0.00001 && (hi-2.4).abs()<0.00001);
-    }
-    assert_eq!(seeds[27].scale,[0.1;3]);
-    assert!((seeds[27].translation[0]+3.1).abs()<0.00001);
-    assert!((seeds[27].translation[1]-2.5).abs()<0.00001);
-    assert!((seeds[28].translation[1]-8.7).abs()<0.00001);
-    assert_eq!(seeds[27].flags&0xffff,0x801f);
-    assert_eq!(seeds[28].flags&0xffff,0xfc00);
-    let bytes=seed_bytes(&seeds);
-    assert_eq!(bytes.len(),29*64);
-    assert_eq!(&bytes[27*64+60..28*64],&seeds[27].flags.to_le_bytes());
-    assert!(cube_seeds(&animation(&[(32,0,0)]).cubes,&[0xffff],frame.anchor).is_err());
-    assert!(cube_seeds(&frame.cubes,&[],frame.anchor).is_err());
+}
+
+#[test]
+fn twenty_four_full_planes_fit_with_terrain_and_navigation_and_expire_locally() {
+    let (mut wall,queue)=setup();
+    let pixels:Vec<_>=(0..32).flat_map(|y|(0..32).map(move |x|(x,y,0))).collect();
+    wall.replace_vfx(animation(&pixels)).unwrap();
+    let overlay=RetainedTransformSeed {scale:[0.4;3],rotation:[1.,0.,0.,0.],
+        local_radius:1.74,flags:24576|512|4096,draw_group:1,..Default::default()};
+    wall.render(queue,wall.device.acquire_ui4_surface(1).unwrap(),
+        RetainedCamera::default(),441,0,&vec![terrain_seed([40,8,0]);TERRAIN_BUDGET],
+        &vec![overlay;OVERLAY_BUDGET]).unwrap();
+    assert_eq!(wall.cubes.count as usize,MAX_CUBES);
+    let mut scene=animation(&pixels);scene.info.age_ms=499;
+    wall.replace_vfx(scene).unwrap();draw(&mut wall,queue,0).unwrap();
+    assert_eq!(wall.cubes.count,31);
+    let mut scene=animation(&pixels);scene.info.age_ms=2000;
+    wall.replace_vfx(scene).unwrap();draw(&mut wall,queue,0).unwrap();
+    assert_eq!(wall.cubes.count,27);
+    assert_eq!(wall.spawned(),[None;4]);
 }
 
 #[unsafe(no_mangle)] extern "C" fn trueos_cabi_vgpu_open(_:u64,out:*mut u64)->i32 {handle(out)}
@@ -219,6 +238,7 @@ fn seeds_preserve_landmark_bounds_sparse_pixel_positions_and_colors() {
 #[unsafe(no_mangle)] extern "C" fn trueos_cabi_vgpu_retained_frame_submit_v4(_:u64,_:u64,submit:*const RetainedFrameSubmitV4,out:*mut TimelinePoint)->i32 {
     driver(|d|{assert!(d.leased);if d.busy{return ERR_BUSY;}
         let submission = unsafe { &*submit };
+        if submission.cubes.seed_count as usize>MAX_RETAINED_SCENE_INSTANCES { return ERR_UNSUPPORTED; }
         // Native Picasso requires contiguous group-local output slots, even when
         // authored IDs or visible pixels are sparse (resources.rs draw templates).
         let bytes = &d.buffers[&submission.cubes.seed_buffer];

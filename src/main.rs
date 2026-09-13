@@ -200,7 +200,7 @@ struct NetworkWorld {
     session: u64,
     bytes: Vec<u8>,
     asset: orchard::Asset,
-    spawned: Option<[i16; 3]>,
+    spawned: [Option<[i16; 3]>;4],
 }
 
 fn main() {
@@ -894,6 +894,18 @@ impl CubeScene {
             }
             let surface = self.device.acquire_ui4_surface(self.frame.window_id())
                 .map_err(|code| CubeError::Vgpu("surface-acquire", code))?;
+            // Expire collision from the same local playback clock, even during
+            // packet loss or an in-progress asset fetch.
+            if let (Some(wall),Some(world),Some(walker)) =
+                (&self.image_wall,&mut self.network_world,&mut self.walker_camera)
+            {
+                let spawned=wall.spawned();
+                if world.spawned!=spawned {
+                    walker.replace_image_gallery_world(wall.layout(),&world.bytes);
+                    for anchor in spawned.into_iter().flatten() { walker.insert_server_terrain_cube(anchor); }
+                    world.spawned=spawned;
+                }
+            }
             let terrain = &self.network_world.as_ref().ok_or(CubeError::Contract)?.asset;
             let target = self.walker_camera.as_ref()
                 .and_then(|c| c.path_target().or_else(|| c.landing_target()));
@@ -1821,34 +1833,16 @@ impl CubeScene {
         };
         let slide = match update {
             network::Update::Gallery(slide) => slide,
-            network::Update::Holy(frame) => {
-                let current_session = self.network_world.as_ref().map(|world| world.session);
-                let Some(wall) = self.image_wall.as_mut().filter(|wall|
-                    current_session == Some(frame.session)
-                        && wall.gallery_revision() == frame.gallery_revision)
-                else { return Ok(()); };
-                let index = frame.index;
-                let revision = frame.revision;
-                let cubes = frame.cubes.len();
-                let spawned = frame.terrain.then_some(frame.anchor);
-                if let Err(error) = wall.replace_holy(frame) {
-                    logl::log(level::WARN, format_args!("Cubes: Holy frame replacement failed error={error}"));
-                } else {
-                    if let Some(world) = self.network_world.as_mut() {
-                        if world.spawned != spawned {
-                            if let Some(camera) = self.walker_camera.as_mut() {
-                                camera.replace_image_gallery_world(wall.layout(), &world.bytes);
-                                if let Some(anchor) = spawned {
-                                    camera.insert_server_terrain_cube(anchor);
-                                }
-                            }
-                            world.spawned = spawned;
-                        }
-                    }
-                    logl::log(level::DEBUG, format_args!("Cubes: VFX revision={revision} frame={index} cubes={cubes}"));
+            network::Update::Vfx(scene) => {
+                let current_session=self.network_world.as_ref().map(|w|w.session);
+                if let Some(wall)=self.image_wall.as_mut().filter(|wall|
+                    current_session==Some(scene.session) && wall.gallery_revision()==scene.info.gallery_revision)
+                {
+                    wall.replace_vfx(scene).map_err(|code|CubeError::Vgpu("VFX scene",code))?;
                 }
                 return Ok(());
             }
+
         };
         let first = self.network_world.as_ref().is_none_or(|world| world.session != slide.session);
         let session = slide.session;
@@ -1888,7 +1882,7 @@ impl CubeScene {
         }
         if first {
             let (bytes, asset) = terrain.ok_or(CubeError::Contract)?;
-            self.network_world = Some(NetworkWorld { session, bytes, asset, spawned: None });
+            self.network_world = Some(NetworkWorld { session, bytes, asset, spawned: [None;4] });
             self.network_singleton = true;
             self.asset_brush.disable();
             self.select_mode(modes::Selection {
