@@ -8,7 +8,7 @@ import sys
 import tempfile
 
 APP = Path(__file__).resolve().parents[1]
-worlds = sorted((APP / "Cube/lvl27").glob("*.cubes"))
+worlds = sorted((APP / "../TRUEOS-Blueprints/apps/cubesrv/worlds/lvl27").glob("*.cubes"))
 expected = [1,2,4,8,16,32,5,9,17,33,6,10,18,34,20,36,24,40,21,37,25,41,22,38,26,42,0]
 assert len(worlds) == len(expected) == 27
 program = r'''#![allow(dead_code)]
@@ -18,6 +18,7 @@ pub fn sinf(x:f32)->f32 {x.sin()}
 pub fn cosf(x:f32)->f32 {x.cos()}
 pub fn atan2f(y:f32,x:f32)->f32 {y.atan2(x)}
 '''
+program += 'extern crate self as cubes_protocol; pub const COLORS: [[u8;4];6] = ' + str([list((APP.parent/'TRUEOS-Blueprints/crates/cubes-protocol/palette.rgba').read_bytes()[i:i+4]) for i in range(0,24,4)]) + ';\n'
 program += f'#[path="{APP}/src/environment.rs"] mod environment;\n'
 program += f'#[path="{APP}/src/world_look.rs"] mod world_look;\n'
 program += 'use environment::*;\n#[test] fn authored_world_palettes_and_presets_match() {\n'

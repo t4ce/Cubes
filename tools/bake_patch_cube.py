@@ -154,7 +154,7 @@ def weld_colors(materials):
         return sum(((v * 31 + 127) // 255) << (a * 5) for a, v in enumerate(rgb))
     colors = {packed([int(m["rgb"][a] * 255 + 0.5) for a in "rgb"]) for m in materials}
     for i, name in enumerate(("sky", "underground", "black-hole", "white-hole", "island", "city"), 1):
-        path = ROOT / "Cube/lvl27" / f"world_{i:02}_{name}.cubes"
+        path = ROOT / "../TRUEOS-Blueprints/apps/cubesrv/worlds/lvl27" / f"world_{i:02}_{name}.cubes"
         colors.add(packed(path.read_bytes()[16:19]))
     if len(colors) > 16:
         raise ValueError("world weld color IDs exceed four bits")

@@ -21,13 +21,13 @@ for module, file in [('orchard','orchard'), ('asset_brush','asset_brush'),
                      ('subcubes','SubCubes'), ('cube_format','cube_format'),
                      ('marker_lod','marker_lod'), ('platform_lod','platform_lod')]:
     source += f'#[path="{APP}/src/{file}.rs"] mod {module};\n'
-manifest = json.loads((APP/'Cube/lvl27/platform-hulls.json').read_text())
+manifest = json.loads((APP/'../TRUEOS-Blueprints/apps/cubesrv/worlds/lvl27/platform-hulls.json').read_text())
 assert len(manifest['worlds']) == 27
 with tempfile.TemporaryDirectory(prefix='cubes-platform-lod-') as temporary:
     root = Path(temporary)
-    source += 'static WORLDS: &[(&str, &[u8], platform_lod::Metadata)] = &[\n'
+    source += 'static WORLDS: std::sync::LazyLock<Vec<(&str, &[u8], alloc::sync::Arc<platform_lod::Metadata>)>> = std::sync::LazyLock::new(|| vec![\n'
     for world in manifest['worlds']:
-        path = APP/'Cube/lvl27'/world['filename']
+        path = APP/'../TRUEOS-Blueprints/apps/cubesrv/worlds/lvl27'/world['filename']
         raw = path.read_bytes()
         assert hashlib.sha256(raw).hexdigest() == world['sha256']
         unit = struct.unpack_from('<f', raw, 12)[0]
@@ -43,21 +43,21 @@ with tempfile.TemporaryDirectory(prefix='cubes-platform-lod-') as temporary:
             hulls.append(f'platform_lod::Hull {{cube: orchard::Cube {{center: {orient(h["center"])}, scale: {h["side"]*unit*.5}, flags: {flags}}}, lo: {lo}, hi: {hi}}}')
         owner_path = root/f'{world["filename"]}.owners'
         owner_path.write_bytes(owners)
-        source += f'({json.dumps(world["filename"])},include_bytes!("{path}"),platform_lod::Metadata {{hulls: &[{",".join(hulls)}],owners:include_bytes!("{owner_path}")}}),\n'
-    source += '];\n'
+        source += f'({json.dumps(world["filename"])},include_bytes!("{path}"),alloc::sync::Arc::new(platform_lod::Metadata {{hulls: vec![{",".join(hulls)}],owners:include_bytes!("{owner_path}").to_vec()}})),\n'
+    source += ']);\n'
     source += r'''
 #[test]
 fn every_world_keeps_two_complete_platforms_and_one_proxy_per_remainder() {
     let mut before = 0; let mut after = 0;
     let mut view = platform_lod::View::new();
-    for (name, bytes, m) in WORLDS {
+    for (name, bytes, m) in WORLDS.iter() {
         let mut asset = orchard::decode(name, bytes).unwrap();
         for cube in &mut asset.cubes { cube.center = orchard::world_from_demo(cube.center); }
         let records: Vec<_> = cube_format::cubes(bytes).collect();
         assert_eq!(records.len(), m.owners.len());
         // Move to every platform, reusing the same view across all world switches.
         for target in 0..m.hulls.len() {
-            view.prepare(&asset, Some(m), m.hulls[target].cube.center);
+            view.prepare(&asset, Some(m.clone()), m.hulls[target].cube.center);
             let mut originals = vec![false;asset.cubes.len()];
             let mut kept = vec![0;m.hulls.len()]; let mut proxies = 0;
             for id in 0..view.asset(&asset).cubes.len() {
@@ -92,19 +92,19 @@ fn cached_view_updates_portals_and_preserves_placed_ids_and_disabled_mode() {
     let mut asset = orchard::decode(name, bytes).unwrap();
     for cube in &mut asset.cubes { cube.center = orchard::world_from_demo(cube.center); }
     let mut view = platform_lod::View::new(); let eye=m.hulls[0].cube.center;
-    view.prepare(&asset, Some(m), eye);
+    view.prepare(&asset, Some(m.clone()), eye);
     let portal=m.owners.iter().position(|&o| o==0).unwrap();
     asset.cubes[portal].scale=0.123;
-    view.prepare(&asset,Some(m),eye);
+    view.prepare(&asset,Some(m.clone()),eye);
     let rendered=(0..view.asset(&asset).cubes.len()).find(|&id| view.source_id(id)==Some(portal)).unwrap();
     assert_eq!(view.asset(&asset).cubes[rendered].scale,0.123);
     let base=asset.cubes.len(); asset.cubes.push(asset.cubes[portal]);
-    view.prepare(&asset,Some(m),eye);
+    view.prepare(&asset,Some(m.clone()),eye);
     assert!((0..view.asset(&asset).cubes.len()).any(|id| view.source_id(id)==Some(base)));
     view.prepare(&asset,None,eye);
     assert!(core::ptr::eq(view.asset(&asset),&asset), "disabled path must not copy all cubes");
     assert_eq!(view.source_id(base),Some(base)); assert!(!view.solid(base));
-    view.prepare(&asset,Some(m),eye);
+    view.prepare(&asset,Some(m.clone()),eye);
     assert!(view.asset(&asset).cubes.len()<asset.cubes.len());
 }
 #[test]
@@ -123,7 +123,7 @@ fn only_replacement_items_have_stable_hull_ids() {
     let (name,bytes,m)=&WORLDS[0];
     let mut asset=orchard::decode(name,bytes).unwrap();
     for cube in &mut asset.cubes { cube.center=orchard::world_from_demo(cube.center); }
-    let mut view=platform_lod::View::new(); view.prepare(&asset,Some(m),m.hulls[0].cube.center);
+    let mut view=platform_lod::View::new(); view.prepare(&asset,Some(m.clone()),m.hulls[0].cube.center);
     let mut found=vec![false;m.hulls.len()];
     for id in 0..view.asset(&asset).cubes.len() {
         match view.hull_id(id) {
@@ -164,7 +164,7 @@ fn rotated_hull_corners_stay_inside_visibility_envelope() {
     let (name,bytes,m)=&WORLDS[0];
     let mut asset=orchard::decode(name,bytes).unwrap();
     for cube in &mut asset.cubes { cube.center=orchard::world_from_demo(cube.center); }
-    let mut view=platform_lod::View::new(); view.prepare(&asset,Some(m),m.hulls[0].cube.center);
+    let mut view=platform_lod::View::new(); view.prepare(&asset,Some(m.clone()),m.hulls[0].cube.center);
     let rotate=|q:[f32;4],p:[f32;3]| {
         let cross=|a:[f32;3],b:[f32;3]| [
             a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]

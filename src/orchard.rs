@@ -768,7 +768,7 @@ mod tests {
     #[test]
     fn network_world_decode_matches_key5_and_cached_revisits_do_not_rotate_twice() {
         static SOURCES: &[(&str,&[u8])] = &[
-            ("world1",include_bytes!("../Cube/lvl27/world_01_sky.cubes")),
+            ("world1",include_bytes!("../../TRUEOS-Blueprints/apps/cubesrv/worlds/lvl27/world_01_sky.cubes")),
             ("legacy",include_bytes!("../Cube/plant_pine.cubes")),
         ];
         let mut pages=Pages::new(SOURCES,false);

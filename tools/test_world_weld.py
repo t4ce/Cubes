@@ -109,7 +109,7 @@ pub fn roundf(x:f32)->f32{x.round()}
             source += f'#[path="{ROOT}/src/{file}.rs"] mod {module};\n'
         colors = weld_colors(load_palette(PALETTE)[1])
         source += f'const COLORS: &[u32] = &{colors};\n'
-        paths = sorted((ROOT/'Cube/lvl27').glob('*.cubes'))
+        paths = sorted((ROOT/'../TRUEOS-Blueprints/apps/cubesrv/worlds/lvl27').glob('*.cubes'))
         source += 'const WORLDS: &[(&str,&[u8])] = &[\n' + ''.join(f'("{p.name}",include_bytes!("{p}")),\n' for p in paths) + '];\n'
         source += r'''
 #[test]

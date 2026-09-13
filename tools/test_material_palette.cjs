@@ -14,7 +14,7 @@ for (const mutate of [d => d.materials.pop(), d => d.materials[0].id = 'blue', d
   d => d.materials[0].rgb.r = NaN, d => d.materials[0].roughness = -1, d => d.materials[0].metallic = 2]) {
   const bad = structuredClone(document); mutate(bad); assert.throws(() => parse(bad));
 }
-const html = fs.readFileSync(path.join(root, 'Cube/WorldShowcase.html'), 'utf8');
+const html = fs.readFileSync(path.join(root, '../TRUEOS-Blueprints/apps/cubesrv/worlds/WorldShowcase.html'), 'utf8');
 function between(start, end) {const a = html.indexOf(start); return html.slice(a, html.indexOf(end, a));}
 function worldModel(materials) {
   const context = {MATERIAL_PALETTE: materials};

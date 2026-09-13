@@ -2756,7 +2756,7 @@ mod image_gallery_tests {
     use super::*;
     #[test]
     fn server_rendered_world_matches_collision_and_target_metadata() {
-        let bytes=include_bytes!("../Cube/lvl27/world_01_sky.cubes");
+        let bytes=include_bytes!("../../TRUEOS-Blueprints/apps/cubesrv/worlds/lvl27/world_01_sky.cubes");
         let asset=crate::orchard::decode_world("world1",bytes).unwrap();
         let camera=CubesWalkerCam::image_gallery_world(
             crate::slideshow::contract::Layout {tiers:[1;6]},bytes);
@@ -2780,7 +2780,7 @@ mod image_gallery_tests {
     }
     #[test]
     fn local_and_server_flight_previews_draw_a_centered_line_to_the_marker() {
-        let bytes = include_bytes!("../Cube/lvl27/world_01_sky.cubes");
+        let bytes = include_bytes!("../../TRUEOS-Blueprints/apps/cubesrv/worlds/lvl27/world_01_sky.cubes");
         for mut c in [CubesWalkerCam::from_world(bytes, false),
             CubesWalkerCam::image_gallery_world(crate::slideshow::contract::Layout {tiers:[1;6]}, bytes)] {
             let bound = c.cubes.last().unwrap();
@@ -2820,7 +2820,7 @@ mod image_gallery_tests {
     }
     #[test]
     fn vfx_locations_have_no_support_collision() {
-        let bytes=include_bytes!("../Cube/lvl27/world_01_sky.cubes");
+        let bytes=include_bytes!("../../TRUEOS-Blueprints/apps/cubesrv/worlds/lvl27/world_01_sky.cubes");
         let layout=crate::slideshow::contract::Layout {tiers:[1;6]};
         let camera=CubesWalkerCam::image_gallery_world(layout,bytes);
         let d=crate::slideshow::contract::GALLERY_DISTANCE_TWICE_C1;
@@ -2832,7 +2832,7 @@ mod image_gallery_tests {
     }
     #[test]
     fn server_center_supports_tab_target_and_pathchain() {
-        let bytes = include_bytes!("../Cube/lvl27/world_01_sky.cubes");
+        let bytes = include_bytes!("../../TRUEOS-Blueprints/apps/cubesrv/worlds/lvl27/world_01_sky.cubes");
         let mut c = CubesWalkerCam::image_gallery_world(
             crate::slideshow::contract::Layout {tiers:[1;6]}, bytes);
         let goal = [1.6/c.unit, crate::slideshow::CENTER_HALF_EXTENT/c.unit, 1.6/c.unit];
@@ -2856,7 +2856,7 @@ mod image_gallery_tests {
     }
     #[test]
     fn server_gallery_retains_world1_collision_and_center_spawn() {
-        let bytes = include_bytes!("../Cube/lvl27/world_01_sky.cubes");
+        let bytes = include_bytes!("../../TRUEOS-Blueprints/apps/cubesrv/worlds/lvl27/world_01_sky.cubes");
         let world = CubesWalkerCam::from_world(bytes, false);
         let layout = crate::slideshow::contract::Layout {tiers:[1;6]};
         let mut camera = CubesWalkerCam::image_gallery_world(layout, bytes);

@@ -21,7 +21,7 @@ trueos-redb = {{ path = "{APP.parent}/TRUEOS-Blueprints/crates/trueos-redb", fea
 [lib]
 path = "lib.rs"
 ''')
-    palette = b''.join(p.read_bytes()[16:20] for p in sorted((APP/'Cube/lvl27').glob('*.cubes'))[:6])
+    palette = b''.join(p.read_bytes()[16:20] for p in sorted((APP/'../TRUEOS-Blueprints/apps/cubesrv/worlds/lvl27').glob('*.cubes'))[:6])
     assert palette == (APP.parent/'TRUEOS-Blueprints/crates/cubes-protocol/palette.rgba').read_bytes()
     source = '''#![allow(dead_code)]
 extern crate alloc;
@@ -46,16 +46,21 @@ pub mod logl { pub mod level {pub const WARN:u8=1;} pub fn log(_:u8,_:core::fmt:
                          ('protocol', SERVER/'protocol.rs'), ('plateau_client', APP/'src/plateau_client.rs'),
                          ('cam', APP.parent/'TRUEOS-Picasso/src/cam.rs'),
                          ('walker_camera', APP/'src/CubesWalkerCam.rs'), ('subcubes', APP/'src/SubCubes.rs'),
-                         ('cubepathfind', APP/'src/cubepathfind.rs'),
+                         ('cubepathfind', APP/'src/cubepathfind.rs'), ('flight_target', APP/'src/flight_target.rs'),
                          ('cube_format', APP/'src/cube_format.rs'), ('orchard', APP/'src/orchard.rs'),
                          ('slideshow', APP/'src/slideshow.rs'), ('floor', APP/'src/floor.rs'), ('asset_brush', APP/'src/asset_brush.rs')]:
         source += f'#[path="{path}"] pub mod {module};\n'
-    source += 'pub use plateau::gallery;\n'
-    source += 'const WORLD_PAGES: &[&[u8]] = &[\n' + ''.join(f'include_bytes!("{p}"),\n' for p in sorted((APP/'Cube/lvl27').glob('*.cubes'))) + '];\n'
-    editor = (APP/'Cube/WorldShowcase.html').read_text()
+    source += 'pub use plateau::{gallery, worlds, snake, worm, COLORS};\n'
+    source += f'#[path="{APP.parent}/TRUEOS-Blueprints/crates/cubes-protocol/src/chain.rs"] mod chain;\n'
+    source += 'const WORLD_PAGES: &[&[u8]] = &[\n' + ''.join(f'include_bytes!("{p}"),\n' for p in sorted((APP/'../TRUEOS-Blueprints/apps/cubesrv/worlds/lvl27').glob('*.cubes'))) + '];\n'
+    editor = (APP/'../TRUEOS-Blueprints/apps/cubesrv/worlds/WorldShowcase.html').read_text()
     start = editor.index('function moduleVoxels(')
     function = editor[start:editor.index('\nfunction ', start+1)]
     js = "const SLOT=8; const cellOrigin=()=>({x:0,y:-88,z:0}); const cellKey=()=>''; const platformProfile=()=>({size:16});\n" + function
+    js += "\nconst SIDE_FACES=['north','east','south','west'];\n"
+    for name in ['verticalPlateauRollAxis', 'platformPlaneRoll']:
+        start = editor.index('function '+name+'(')
+        js += editor[start:editor.index('\nfunction ', start+1)] + '\n'
     js += "\nconst cells=[]; moduleVoxels({}, {}, {kind:'manual',cell:[0,0,0]}, (x,y,z)=>cells.push([x,y,z])); process.stdout.write(JSON.stringify(cells));"
     fixture = subprocess.check_output(['node', '-e', js], text=True)
     source += f'const EDITOR_TERRACE: &str = {json.dumps(fixture)};\n'
