@@ -63,7 +63,7 @@ roll/pitch cannot swing that center around the support. An upright canvas still
 rests on the support; a tilted canvas rotates freely around its fixed center.
 Size is a one-byte scene field; the same compressed asset/cache entry works at
 every size without resampling, rebaking or another download.
-After 500 ms, each plays one complete loop at exactly 500 ms/frame.
+After 500 ms, each plays one complete loop at exactly 400 ms/frame.
 The next batch's first frame is one second after the longest loop expires.
 New terrain bases appear halfway through that gap, retaining their 500 ms lead-in.
 No strip is accelerated or cut off to fit a fixed cycle. Rebuild both apps:
