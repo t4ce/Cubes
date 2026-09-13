@@ -33,6 +33,20 @@ pub(crate) fn bounce_uniform(t: f32) -> f32 {
     }
 }
 
+/// Render-only envelope for a finite VFX pixel lifetime. Reuses placement's
+/// bounce curve without its visibility queue/delay, which would hide short runs.
+/// Fade fits inside the authored lifetime: no extra cubes after expiry.
+pub const VFX_SHRINK_MS: u64 = 150;
+pub(crate) fn lifetime_scale(age_ms: u64, lifetime_ms: u64) -> f32 {
+    if lifetime_ms==0 || age_ms>=lifetime_ms { return 0.; }
+    let grow=GROWTH_MS.min(lifetime_ms/2).max(1);
+    let shrink=VFX_SHRINK_MS.min(lifetime_ms/2).max(1);
+    let growth=bounce_uniform(age_ms as f32/grow as f32);
+    let remaining=(lifetime_ms-age_ms) as f32/shrink as f32;
+    let t=remaining.min(1.);
+    growth*t*t*(3.-2.*t)
+}
+
 #[derive(Clone, Copy, Default)]
 enum Phase {
     #[default]
@@ -175,6 +189,25 @@ mod tests {
         let drawn = ids.iter().copied().filter(|&id| reveal.admit(id)).collect();
         reveal.end_frame();
         drawn
+    }
+
+    #[test]
+    fn finite_vfx_lifetimes_grow_bounce_and_shrink_without_a_placement_delay() {
+        assert_eq!(lifetime_scale(0,1500),0.);
+        assert_eq!(lifetime_scale(350,1500),bounce_uniform(0.5));
+        assert_eq!(lifetime_scale(700,1500),1.);
+        assert_eq!(lifetime_scale(1350,1500),1.);
+        assert_eq!(lifetime_scale(1425,1500),0.5);
+        assert_eq!(lifetime_scale(1500,1500),0.);
+        // A one-frame pixel still completes grow-in and shrink-out.
+        assert!(lifetime_scale(25,150)>0.);
+        assert_eq!(lifetime_scale(75,150),1.);
+        assert!(lifetime_scale(125,150)<1.);
+        assert_eq!(lifetime_scale(150,150),0.);
+        for duration in [1,50,100,150,300,700,1500,2400] {
+            for age in 0..=duration+10 {assert!((0. ..=1.).contains(&lifetime_scale(age,duration)));}
+        }
+        assert_eq!(lifetime_scale(0,0),0.);
     }
 
     #[test]

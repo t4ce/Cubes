@@ -20,7 +20,13 @@ asking the native media API to decode its atlas. `src/slideshow_gpu.rs` owns
 mesh buffers and texture lifetime. `src/vfx_stream.rs` caches immutable VFX1 pixel-lifetime assets by revision.
 Six server-timed slots evaluate these locally; unchanged pixels survive across
 N frames without retransmission. Transparent pixels end their lifetimes.
-GPU seeds still update for billboarding; meshes remain resident. Same-tier replacements
+VFX pixels use the same bounded grow-in/two-bounce curve as Key4/Key5 placement,
+plus eased shrink-out within each compressed lifetime. Growth is capped at
+700 ms or half the lifetime; shrink-out at 150 ms or half the lifetime.
+Short VFX runs bypass placement's admission delay/queue. Unchanged pixels keep
+their progress across frame boundaries, with no extra downloads or post-expiry
+geometry. This is render-only scaling, not alpha blending; supports stay full-sized.
+GPU seeds still update for billboarding and growth; meshes remain resident. Same-tier replacements
 reuse the mesh; changed-tier replacements create the new mesh before releasing the old one.
 Failures preserve the old scene. Another numbered mode disconnects and releases
 the gallery. The v8 package describes integer c1 cube grids, their 10%-radius
@@ -43,7 +49,7 @@ internal-face removal, bounds, package validation, chunk reordering/duplicates
 and material submission. Native XeLP rendering and frame timing remain untested
 until the rebuilt TRUEOS kernel, CubeSrv and Cubes are run together.
 
-The server spawns six c4 terrain blocks every 3 seconds: four cardinal positions,
+Each batch spawns six c4 terrain blocks: four cardinal positions,
 one above and one below. Each independently rolls one effect from all 150 entries.
 The size demo assigns +X=c1, +Z=c2, -X=r1, -Z=c3, above=r2, below=c4:
 pixel sides are 1, 2, 3, 4, 6, 8 c1 units. The renderer also supports r3 (12).
@@ -54,7 +60,11 @@ with timer cycle or pixel size. Large effects can extend back toward the images.
 All effects keep their bottom-center anchor at their terrain cube's top.
 Size is a one-byte scene field; the same compressed asset/cache entry works at
 every size without resampling, rebaking or another download.
-After 500 ms, each plays one complete loop (150 ms/frame or faster to fit 2.4 s).
+After 500 ms, each plays one complete loop at exactly 300 ms/frame.
+The next batch's first frame is one second after the longest loop expires.
+New terrain bases appear halfway through that gap, retaining their 500 ms lead-in.
+No strip is accelerated or cut off to fit a fixed cycle. Rebuild both apps:
+snapshot age is now u32 (120-byte body) for long sequences.
 Each cube disappears with its effect. The blocks use world terrain colour and
 walking collision; local expiry still removes both when packets are lost.
 Only VFX positions and rotations follow camera right/up; terrain stays upright.

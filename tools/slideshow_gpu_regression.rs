@@ -47,7 +47,7 @@ fn animation(pixels:&[(u8,u8,u8)])->crate::network::VfxScene {
     for &(x,y,p) in pixels {bytes.extend_from_slice(&[x,y,p,0,10]);}
     let asset=std::sync::Arc::new(bytes);
     crate::network::VfxScene {session:1, received:trueos::time::Instant::now(),
-        info:Scene {gallery_revision:7,event:1,age_ms:500,
+        info:Scene {gallery_revision:7,event:1,age_ms:1200,
             slots:core::array::from_fn(|i|Slot {revision:3,bytes:asset.len() as u32,
                 anchor:[[40,8,0],[0,8,40],[-40,8,0],[0,8,-40],[0,56,0],[0,-56,0]][i],frames:10,period_ms:150,pixel_side_c1:1})},
         assets:core::array::from_fn(|_|Some(asset.clone()))}
@@ -211,6 +211,30 @@ fn all_cube_sizes_scale_pixels_and_spacing_without_scaling_terrain() {
             assert!((a.translation[1]-a.scale[1]-terrain.translation[1]-0.8).abs()<0.0001);
         }
     }
+}
+
+#[test]
+fn compressed_pixels_grow_across_frames_then_shrink_without_moving_or_retransmission() {
+    let mut scene=animation(&[(0,31,0)]);
+    let asset=scene.assets[0].as_ref().unwrap().clone();
+    let mut last_position=None;
+    for (age,expected) in [(500,0.00101),(850,0.1*crate::reveal::bounce_uniform(0.5)),
+                            (1200,0.1),(1850,0.1),(1925,0.05)] {
+        scene.info.age_ms=age;
+        scene.received=trueos::time::Instant::now();
+        let seeds=scene_seeds(Some(&scene),&[0x801f],&[],&RetainedCamera::default()).unwrap();
+        assert_eq!(seeds.len(),39);
+        let pixel=seeds[33];
+        assert!((pixel.scale[0]-expected).abs()<0.001);
+        assert_eq!(pixel.scale,[pixel.scale[0];3]);
+        assert_eq!(seeds[27].scale,[0.8;3]); // supports are not animated
+        assert_eq!(pixel.draw_group,0);assert_eq!(pixel.flags&0xffff,0x801f);
+        if let Some(position)=last_position {assert_eq!(pixel.translation,position);}
+        last_position=Some(pixel.translation);
+        assert!(std::sync::Arc::ptr_eq(&asset,scene.assets[0].as_ref().unwrap()));
+    }
+    scene.info.age_ms=2000;
+    assert_eq!(scene_seeds(Some(&scene),&[0x801f],&[],&RetainedCamera::default()).unwrap().len(),27);
 }
 
 #[test]

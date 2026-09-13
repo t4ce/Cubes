@@ -213,7 +213,13 @@ fn scene_seeds(scene: Option<&crate::network::VfxScene>, palette: &[u16], world:
         let sequence=cubes_protocol::vfx::Sequence::parse(asset).ok_or(ERR_UNSUPPORTED)?;
         let base=slot.anchor.map(|v|v as f32*slideshow::contract::C1);
         let pixel_side=slot.pixel_side_c1 as f32*slideshow::contract::C1;
-        for pixel in sequence.pixels(frame) {
+        for run in sequence.lifetimes().filter(|r|r.first<=frame && frame<r.end) {
+            let pixel=run.pixel;
+            let start=cubes_protocol::vfx::DELAY_MS as u64+run.first as u64*slot.period_ms as u64;
+            let lifetime=(run.end-run.first) as u64*slot.period_ms as u64;
+            let growth=crate::reveal::lifetime_scale(age.saturating_sub(start),lifetime);
+            // Match placed assets' tiny initial seed, avoiding degenerate GPU transforms.
+            let scale=(pixel_side*0.5*growth).max(0.00101);
             let x=(pixel.x as f32+0.5-16.)*pixel_side;
             let y=(31.5-pixel.y as f32)*pixel_side;
             let translation=core::array::from_fn(|a| base[a]+if a==1 {0.8} else {0.}
@@ -221,7 +227,7 @@ fn scene_seeds(scene: Option<&crate::network::VfxScene>, palette: &[u16], world:
             let color=*palette.get(pixel.palette as usize).ok_or(ERR_UNSUPPORTED)?;
             if color&0x8000==0 { return Err(ERR_UNSUPPORTED); }
             seeds.push(RetainedTransformSeed {translation,previous_translation:translation,
-                scale:[pixel_side*0.5;3],rotation,local_radius:1.74,flags:color as u32,
+                scale:[scale;3],rotation,local_radius:1.74,flags:color as u32,
                 ..RetainedTransformSeed::default()});
         }
     }
