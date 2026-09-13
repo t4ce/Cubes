@@ -84,33 +84,32 @@ impl Client {
     pub fn key(&mut self, held: bool, position: [f32; 3], orientation: [f32; 3]) {
         let pressed = held && !self.held;
         self.held = held;
-        let session = {
+        let world_id = {
             let mut s = self.shared.lock().unwrap();
             s.position = position;
             s.orientation = orientation;
-            if !pressed {
-                return;
-            }
-            if s.running {
-                if !s.connected { return; }
-                s.world_id = if s.world_id == 1 { 2 } else { 1 };
-                s.empty_ready = false;
-                s.gallery_ready = None;
-                s.vfx_ready = None;
-                s.snake_ready = None;
-                s.worm_ready = None;
-                return;
-            }
-            s.connected = false;
-            s.world_id = 1;
-            s.empty_ready = false;
-            s.running = true;
-            s.session = s.session.wrapping_add(1);
+            if !pressed || (s.running && !s.connected) { return; }
+            if s.running && s.world_id == 1 { 2 } else { 1 }
+        };
+        self.connect_world(world_id);
+    }
+    /// Explicit entry is independent of Key8's toggle and held-key state.
+    pub fn connect_empty(&mut self) { self.connect_world(2); }
+    fn connect_world(&mut self, world_id: u8) {
+        let session = {
+            let mut s = self.shared.lock().unwrap();
+            let already_empty = s.running && s.connected && s.world_id == 2 && world_id == 2;
+            s.world_id = world_id;
+            s.empty_ready = already_empty;
             s.gallery_ready = None;
             s.vfx_ready = None;
             s.snake_ready = None;
             s.worm_ready = None;
             s.error = None;
+            if s.running { return; }
+            s.connected = false;
+            s.running = true;
+            s.session = s.session.wrapping_add(1);
             s.session
         };
         let shared = self.shared.clone();
@@ -138,7 +137,7 @@ impl Client {
     }
     pub fn take_ready(&mut self) -> Option<Result<Update, &'static str>> {
         let mut shared = self.shared.lock().unwrap();
-        if core::mem::take(&mut shared.empty_ready) { return Some(Ok(Update::Empty)); }
+        if core::mem::take(&mut shared.empty_ready) { shared.connected = true; return Some(Ok(Update::Empty)); }
         if shared.world_id == 2 { return shared.error.take().map(Err); }
         if let Some(slide) = shared.gallery_ready.take() { shared.connected = true; return Some(Ok(Update::Gallery(slide))); }
         if let Some(state) = shared.snake_ready.take() { return Some(Ok(Update::Snake {session:shared.session,state})); }
@@ -561,7 +560,7 @@ mod tests {
                     }
                 }
             });
-            for id in [1,2,1,2,1] {
+            for id in [2,1,2,1,2,1] {
                 let world=receive_world(&client,&shared,1,"test",id).await.unwrap();
                 if id==2 {assert!(world.is_empty());} else {assert_eq!(world,bytes);}
             }

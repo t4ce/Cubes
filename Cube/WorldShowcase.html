@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="An offline, build-only generator for 27 cubic worlds. Fixed 4×4×4 chunks, balanced circle portals, and a live portal design lab.">
+<meta name="description" content="An offline, build-only generator for 27 cubic worlds. Fixed 9×9×9 chunks, balanced circle portals, and a live portal design lab.">
 <title>Little Worlds — Enlarged c4 World v16</title>
 <style>:root{--paper:#fafaf5;--canvas:#eef0e7;--ink:#293b33;--muted:#7e877f;--line:#e0e5da;--green:#426b50;--soft:#e8efe3;--purple:#77698a;--red:#bd695e;--mono:ui-monospace,SFMono-Regular,Consolas,monospace}
 *{box-sizing:border-box}
@@ -249,8 +249,8 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
   <div class="world-line"><button class="step" id="prevWorld" aria-label="Previous world">‹</button><select id="worldSelect" aria-label="Select world"></select><button class="step" id="nextWorld" aria-label="Next world">›</button></div>
   <div id="themeChips" class="theme-chips"></div>
   <details class="atlas-toggle"><summary>Open the 27-world atlas</summary><div id="atlas" class="atlas"></div><div class="small" style="margin-top:8px;font-size:9px">6 singles · 12 duals · 8 triples · 1 void<br>Level addresses are separate from chunk coordinates.</div></details>
-  <div class="fixed-layout" aria-label="Fixed world layout: 4 by 4 by 4 chunks"><strong>4 × 4 × 4</strong><span>FIXED WORLD SIZE</span></div>
-  <div id="dimensionNote" class="dimension-note">2,048³ c1 units · 64 chunks · outer portals only</div>
+  <div class="fixed-layout" aria-label="Fixed world layout: 9 by 9 by 9 chunks"><strong>9 × 9 × 9</strong><span>FIXED WORLD SIZE</span></div>
+  <div id="dimensionNote" class="dimension-note">4,608³ c1 units · 729 chunks · outer portals only</div>
    <div id="cubeTierNote" class="generation-note" style="margin-top:10px;margin-bottom:0"><strong>Cube tiers</strong><br>c1 1 · c2 2 · r1 3 · c3 4 · r2 6 · c4 8 · r3 12<br><span style="font:9px var(--mono)">WORLD FIT · c4 256³ = 16,777,216 · r3 170³ = 4,913,000 (+8 c1 / axis)</span></div>
  </section>
  <nav class="sidebar-tabs" aria-label="Editor tabs"><button id="worldTabButton" class="active" type="button" aria-controls="worldTabPane" aria-selected="true">World</button><button id="portalTabButton" type="button" aria-controls="portalTabPane" aria-selected="false">Portals</button></nav>
@@ -289,7 +289,7 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
    <div class="eyebrow"><span>Per-platform rolls</span><span>SEEDED</span></div>
    <div class="field-head"><span>Platform size</span><strong>16–19 c4</strong></div><div id="platformSizeNote" class="field-note">Six seeded portal plateaus · rolls 16 / 17 / 18 / 19 c4</div>
    <div class="roll-growth"><div class="field-head"><span>Small-cube growth</span><strong>250–500%</strong></div><div id="growthNote" class="field-note">Individual growth rolls · connected c3 shelves</div></div>
-  <div class="field-note" style="margin-top:9px"><strong style="color:var(--ink)">Seven-cube size tower</strong><br>Bottom → top: r3 · c4 · r2 · c3 · r1 · c2 · c1<br>One of each, 36 c1 tall. Platforms use one c4 deck; paths are one c4 high and two c4 wide.</div>
+  <div class="field-note" style="margin-top:9px"><strong style="color:var(--ink)">Seven-cube size tower</strong><br>Bottom → top: r3 · c4 · r2 · c3 · r1 · c2 · c1<br>One of each, 36 c1 tall. The tower follows each platform’s UP face, so wall platforms read as wall-mounted hints.</div>
   <label class="checks"><input id="showPlatformHulls" type="checkbox" checked><span>Platform hull indicators</span><span>LOD</span></label>
   <label class="checks"><input id="showTierTowers" type="checkbox" checked><span>Show cube-tier towers</span><span>DEMO</span></label>
   <div class="tower-controls"><select id="towerSelect" aria-label="Platform tower to inspect"></select><button id="inspectTower" type="button" disabled>Inspect tower</button></div>
@@ -321,19 +321,19 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
   <div class="history"><button id="undoButton" disabled title="Undo (Ctrl / Cmd Z)">↶ Undo</button><button id="redoButton" disabled title="Redo (Ctrl / Cmd Shift Z)">↷ Redo</button><button id="deleteButton" disabled title="Remove this cube, its platform, growth, and path">Delete platform</button></div>
  </section>
  </div>
- <div class="sidebar-foot">Nothing is generated on opening.<br>Edits stay in this tab. Export your project to keep them.<br><span style="opacity:.7">4³ chunks · c1/c2/r1/c3/r2/c4/r3 tiers · c4 paths · c2 portals</span></div>
+ <div class="sidebar-foot">A first pass is ready on opening.<br>Edits stay in this tab. Export your project to keep them.<br><span style="opacity:.7">9³ chunks · c1/c2/r1/c3/r2/c4/r3 tiers · c4 paths · c2 portals</span></div>
 </aside>
 <main id="view" class="view">
  <canvas id="canvas" tabindex="0" aria-label="3D cube world. Use the controls panel to generate and edit. Drag to orbit; scroll to zoom."></canvas>
  <div class="view-top"><div id="sceneKicker" class="scene-kicker">WORLD 01 / SINGLE THEME</div><h1 id="sceneTitle">Room to make a world.</h1><p id="sceneSubtitle">An empty volume. Six possible directions.</p></div>
- <div class="view-meta"><label class="guides-toggle"><input id="guidesInput" type="checkbox" checked>bounds</label><span id="sizeChip" class="meta-chip">2048 × 2048 × 2048</span><span id="stateChip" class="meta-chip">EMPTY</span></div>
+ <div class="view-meta"><label class="guides-toggle"><input id="guidesInput" type="checkbox" checked>bounds</label><span id="sizeChip" class="meta-chip">4608 × 4608 × 4608</span><span id="stateChip" class="meta-chip">EMPTY</span></div>
  <div id="portalLabels"></div><div id="towerLabels" aria-hidden="true"></div>
- <div id="emptyCard" class="empty-card"><h2>An empty world, on purpose.</h2><p>No ground. No filler. Just a little space to make something.</p><button id="startGenerate" class="primary">Make a first pass</button><span class="tiny">OR PLANT A PLATFORM</span></div>
+ <div id="emptyCard" class="empty-card" hidden></div>
  <div class="view-actions"><button id="frameButton" title="Frame the whole world (Home)" aria-label="Frame whole world"><svg viewBox="0 0 20 20"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4M6 6l8 8M14 6l-8 8"/></svg></button><button id="topButton" title="Top view" aria-label="Top view"><svg viewBox="0 0 20 20"><path d="m3 7 7-4 7 4-7 4zM3 7v7l7 4 7-4V7M10 11v7"/></svg></button></div>
  <div class="view-bottom"><div class="left"><div id="voxelStats">0 SURFACE VOXELS · 6 PORTALS</div><div id="selectionStatus">ORIGIN [0, 0, 0]</div></div><div class="right" id="sessionNote">a small place, in three dimensions</div></div>
  <div id="hintBar" class="hint-bar">Drag to orbit &nbsp; · &nbsp; Scroll to zoom &nbsp; · &nbsp; Click a portal to select its world</div>
  <div id="toast" class="toast" role="status" aria-live="polite"></div>
- <div id="loading" class="loading"><span>PREPARING AN EMPTY WORLD…</span></div>
+ <div id="loading" class="loading"><span>PREPARING THE WORLD…</span></div>
 </main>
 </div>
 </div>
@@ -341,7 +341,7 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
  <div class="eyebrow">FIELD NOTES / GENERATION &amp; BUILD</div><h2 id="helpTitle">Make a little world.<br>Give it room to grow.</h2>
  <div class="help-grid">
   <strong>Build camera</strong><span>Drag to orbit. Scroll to zoom. Right-drag to pan. Home frames the world. Alt-drag also orbits while placing or removing.</span>
-  <strong>World layout</strong><span>Each world remains 4 × 4 × 4 chunks. Each chunk is 64 × 64 × 64 c4 cells, or 512³ c1 units. The full world is now 2048³ c1 units: eight times the previous side length. Cube tier sizes themselves are unchanged.</span>
+  <strong>World layout</strong><span>Each world remains 9 × 9 × 9 chunks. Each chunk is 64 × 64 × 64 c4 cells, or 512³ c1 units. The full world is 4608³ c1 units. Cube tier sizes themselves are unchanged.</span>
   <strong>Place / remove</strong><span>Place a c1 control cube at the center of a new platform. Placement addresses snap to the c4 terrain grid; the control is centered on the actual footprint. Its platform, growth, and local branch belong to it. With tower demos visible, click the tower to select or remove the same owner. Keys 1 / 2 / 3 choose Select / Place / Remove. Deleting an owner does not remove other platforms or the main network.</span>
   <strong>Platform size</strong><span>Platforms and paths both use c4 cubes (8 c1 per side) on the same lattice. The six generated portal plateaus independently roll 16 / 17 / 18 / 19 c4 across. Each side plateau is seeded horizontal or vertical, using only the two planes perpendicular to its portal face. Top and bottom use XY or YZ. The attached 2 × 1 connector shares the same roll. Placed platforms keep their pinned rolls when the world regenerates.</span>
   <strong>Cube-size towers</strong><span>Seven cubes, one per tier: bottom to top r3 (12), c4 (8), r2 (6), c3 (4), r1 (3), c2 (2), c1 (1). Each tower is 36 c1 tall and centered on its platform. Inspect tower zooms in and labels each cube. These display-only rulers do not affect routes, collision, or budgets; toggle them off to reveal manual control cubes.</span>
@@ -356,10 +356,20 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
  <button id="closeHelp" class="primary">Back to making</button><p class="dialog-footer">All 27 worlds start completely empty. Generation is explicit. Control cubes and their owned platforms survive regeneration. Remove a control cube to remove its platform, growth, and branch; the generated main network is separate. 16 is a soft budget, not a hard cap. JSON includes generation recipes, eight reusable portal presets, cube colours, pinned owned-platform rolls, and saved local branch centerlines—not a game-specific loader.</p>
 </section></div>
 <input id="importInput" type="file" accept=".json,application/json" hidden>
-<script src="material-palette.js"></script>
 <script>
 (async()=>{
-const MATERIAL_PALETTE=await window.SubCubesPalette.ready;
+// The six shared materials are intentionally inlined here. They are stable
+// showcase data, so opening this offline page never needs a palette request or
+// a file-picker fallback.
+const MATERIALS=[
+ {id:'red',name:'City',rgb:{r:.869,g:.245,b:.318},roughness:.547,metallic:0},
+ {id:'orange',name:'Underground',rgb:{r:.971,g:.607843,b:.258824},roughness:.318,metallic:.143},
+ {id:'yellow',name:'white-hole',rgb:{r:.866667,g:.764706,b:.224},roughness:.253,metallic:.469},
+ {id:'green',name:'Island',rgb:{r:.237,g:.706,b:.22},roughness:1,metallic:.518},
+ {id:'blue',name:'Sky',rgb:{r:.269,g:.535,b:1},roughness:.131,metallic:0},
+ {id:'violet',name:'black-hole',rgb:{r:.603922,g:.314,b:.709804},roughness:1,metallic:0}
+].map(m=>Object.freeze({...m,rgb:Object.freeze({...m.rgb}),hex:'#'+Object.values(m.rgb).map(n=>Math.round(n*255).toString(16).padStart(2,'0')).join('')}));
+const MATERIAL_PALETTE=Object.freeze({materials:Object.freeze(MATERIALS),byId:Object.freeze(Object.fromEntries(MATERIALS.map(m=>[m.id,m]))),fingerprint:JSON.stringify(MATERIALS)});
 /* Little Worlds — dependency-free math and WebGL2 renderer.
    The bevelled cube mesh is read from the GLB in the supplied prototype. */
 'use strict';
@@ -767,7 +777,7 @@ function portalFrameBlocked(o,lo,hi,padding=0,allowPassage=false){
  * Optional growth uses c3 cubes. Exact picking uses sparse c4-sized buckets.
  * Fresh levels contain no generated terrain, cubes, growth, or paths. */
 // A chunk is still 64 terrain cubes across; a terrain cube is now c4 (8 c1).
-// Expand distances, not the tier definitions. No dense 2048³ voxel array is built.
+// Expand distances, not the tier definitions. No dense 4608³ voxel array is built.
 const SLOT=CUBE_TIERS.c4,CHUNK_CELLS=64,CHUNK=CHUNK_CELLS*SLOT;
 const DETAIL_UNIT=CUBE_TIERS.c3,CONTROL_UNIT=CUBE_TIERS.c1,SOFT_CAP=16,MAX_MODULES=128;
 // Seven named sizes were specified for the new clean hierarchy. The platform
@@ -776,7 +786,7 @@ const ASSET_CUBE_TIERS=Object.freeze(CUBE_TIER_ORDER.map(name=>({name,size:CUBE_
 const WORLD_C1_SIZE=4*CHUNK;
 const PLATFORM_MIN=16,PLATFORM_MAX=19,PLATFORM_SIZE_MAX=19,GROWTH_MIN=250,GROWTH_MAX=500;
 const buildStats={baseBuilds:0,platformBuilds:0,branchBuilds:0,compositions:0};
-const DEFAULT_SPAN=4,WORLD_LAYOUTS=Object.freeze([4]);
+const DEFAULT_SPAN=9,WORLD_LAYOUTS=Object.freeze([9]);
 const FACE_NORMAL={north:new V3(0,0,1),south:new V3(0,0,-1),east:new V3(-1,0,0),west:new V3(1,0,0),top:new V3(0,-1,0),bottom:new V3(0,1,0),center:new V3(0,0,1)};
 const PALETTES=Object.freeze(Object.fromEntries([...WORLD_THEMES,SPECIAL_THEME].map(t=>[t.id,t.color])));
 function themeFor(id){return id==='S'?SPECIAL_THEME:id==='L'?LEAVE_PORTAL:themeById.get(id);}
@@ -846,9 +856,32 @@ function platformBounds(d,m,platformSize=null){
 }
 function platformPlaneRoll(m){if(m?.kind!=='manual')return null;return m.platformPlane==='xy'?'x':m.platformPlane==='yz'?'z':null;}
 function platformCenter(d,m){const b=platformBounds(d,m);return new V3((b.lo.x+b.hi.x)/2,(b.lo.y+b.hi.y)/2,(b.lo.z+b.hi.z)/2);}
+function platformUp(d,m){
+ // The display tower is a small orientation cue, not terrain. Its stack axis
+ // follows the platform's outward face: flat decks rise in world Y, while
+ // the two wall planes project out through their thin axis.
+ if(m?.kind==='manual'){
+  if(m.platformPlane==='xy')return new V3(0,0,-1);
+  if(m.platformPlane==='yz')return new V3(-1,0,0);
+ }
+ const roll=verticalPlateauRollAxis(d,m?.portalFace);
+ if(roll==='x')return new V3(0,0,-1);
+ if(roll==='z')return new V3(-1,0,0);
+ return new V3(0,1,0);
+}
+function platformTowerSurface(d,m){
+ const b=platformBounds(d,m),up=platformUp(d,m),p=platformCenter(d,m);
+ if(up.x<0)return new V3(b.lo.x,p.y,p.z);
+ if(up.z<0)return new V3(p.x,p.y,b.lo.z);
+ return new V3(p.x,b.hi.y,p.z);
+}
 function platformAssetBounds(d,m){
- const p=platformCenter(d,m),r=CUBE_TIERS.r3/2,height=Object.values(CUBE_TIERS).reduce((a,b)=>a+b,0);
- return {lo:p.clone().add(new V3(-r,0,-r)),hi:p.clone().add(new V3(r,height,r))};
+ const p=platformTowerSurface(d,m),up=platformUp(d,m),r=CUBE_TIERS.r3/2,height=Object.values(CUBE_TIERS).reduce((a,b)=>a+b,0),end=p.clone().addScaledVector(up,height),lo=new V3(),hi=new V3();
+ for(const a of ['x','y','z']){
+  if(up[a]){lo[a]=Math.min(p[a],end[a]);hi[a]=Math.max(p[a],end[a]);}
+  else{lo[a]=p[a]-r;hi[a]=p[a]+r;}
+ }
+ return {lo,hi};
 }
 function assetSocketBlocked(sockets,p){
  const u=PATH_CUBE_SIZE;
@@ -1325,7 +1358,7 @@ function validateProject(json){
  if(json.version>=3)for(const [key,value] of [['chunkSize',modern?CHUNK:64],['platformCellSize',modern?SLOT:1],['detailCellSize',modern?DETAIL_UNIT:.5]])if(json[key]!==value)throw new Error('Unsupported '+key+' in this project.');
  const result=json.levels.map(raw=>{
   if(!raw||!Number.isInteger(raw.id)||raw.id<1||raw.id>27||ids.has(raw.id))throw new Error('Invalid or duplicate world ID.');ids.add(raw.id);
-  const permitted=native?WORLD_LAYOUTS:json.version>=3?[3,4]:[1,3];if(!permitted.includes(raw.spanChunks))throw new Error('Unsupported world layout.');
+  const permitted=native?[...WORLD_LAYOUTS,4]:json.version>=3?[3,4]:[1,3];if(!permitted.includes(raw.spanChunks))throw new Error('Unsupported world layout.');
   if(!Array.isArray(raw.modules)||raw.modules.length>MAX_MODULES)throw new Error('Invalid object list (maximum 128 per level).');
   const world=WORLDS[raw.id-1],out=makeData(world),c=raw.config;
   if(!c||typeof c.seed!=='string'||c.seed.length>96||typeof c.autoPaths!=='boolean')throw new Error('Invalid generation settings.');
@@ -1510,13 +1543,13 @@ function updateTowerLabels(){
   parent.replaceChildren();parent.dataset.key=tower.key;
   for(const tier of tower.tiers){const el=document.createElement('div');el.className='tower-label';el.textContent=tier.name+' · '+tier.size+' c1';el.style.borderLeftColor=TIER_COLOURS[tier.name];parent.append(el);}
  }
- tower.tiers.forEach((tier,i)=>{const p=project(V3.from(tier.center).add(new V3(tier.size*.6,0,0))),el=parent.children[i];el.hidden=!p||p.x<0||p.x>canvas.clientWidth||p.y<0||p.y>canvas.clientHeight;if(p){el.style.left=p.x+10+'px';el.style.top=p.y+'px';}});
+ tower.tiers.forEach((tier,i)=>{const p=project(V3.from(tier.center).add(tower.labelOffset)),el=parent.children[i];el.hidden=!p||p.x<0||p.x>canvas.clientWidth||p.y<0||p.y>canvas.clientHeight;if(p){el.style.left=p.x+10+'px';el.style.top=p.y+'px';}});
 }
 function focusTierTower(key=$('towerSelect')?.value){
  const tower=assetTowerSummaries.find(t=>t.key===key)||assetTowerSummaries[0];if(!tower)return false;
  towerFocus=tower.key;portalFocus=null;showTierTowers=true;$('showTierTowers').checked=true;
  renderAssetScaleTowers(world(),data(),hashSeed(data().config.seed));
- orbit.target.copy(V3.from(tower.base).add(new V3(0,tower.height/2,0)));orbit.yaw=.76;orbit.pitch=.16;orbit.radius=105;setOrbitCamera();
+ orbit.target.copy(V3.from(tower.base).addScaledVector(V3.from(tower.up),tower.height/2));orbit.yaw=.76;orbit.pitch=.16;orbit.radius=105;setOrbitCamera();
  $('emptyCard').hidden=true;updateTowerUI();updateViewHeading();updateTowerLabels();return true;
 }
 function updateTowerUI(){
@@ -1531,13 +1564,14 @@ function updateTowerUI(){
 function renderAssetScaleTowers(world,d,seed){
  const out=[];assetTowerSummaries=[];
  for(const m of d.modules){
-  const p=platformCenter(d,m),id=cubeTheme(world,d,m),base=hexRGB(PALETTES[id]||themeFor(id).color);
-  let y=p.y;const tiers=[];
+  const surface=platformTowerSurface(d,m),up=platformUp(d,m),id=cubeTheme(world,d,m);
+  const labelOffset=new V3(up.x?0:up.x===0?CUBE_TIERS.r3*.65:0,up.y?0:up.y===0?CUBE_TIERS.r3*.65:0,up.z?0:up.z===0?CUBE_TIERS.r3*.65:0);
+  let offset=0;const tiers=[];
   for(let i=0;i<ASSET_CUBE_TIERS.length;i++){
-   const tier=ASSET_CUBE_TIERS[i],center=new V3(p.x,y+tier.size/2,p.z),col=hexRGB(TIER_COLOURS[tier.name]);
-   instance(out,center,cubeRenderSize(tier.size),col);tiers.push({name:tier.name,size:tier.size,bottom:y,top:y+tier.size,center:center.toArray()});y+=tier.size;
+   const tier=ASSET_CUBE_TIERS[i],center=surface.clone().addScaledVector(up,offset+tier.size/2),col=hexRGB(TIER_COLOURS[tier.name]);
+   instance(out,center,cubeRenderSize(tier.size),col);tiers.push({name:tier.name,size:tier.size,bottom:offset,top:offset+tier.size,center:center.toArray()});offset+=tier.size;
   }
-  assetTowerSummaries.push({key:cellKey(m.cell),kind:m.kind,base:p.toArray(),height:y-p.y,tiers});
+  assetTowerSummaries.push({key:cellKey(m.cell),kind:m.kind,base:surface.toArray(),up:up.toArray(),height:Object.values(CUBE_TIERS).reduce((a,b)=>a+b,0),labelOffset,tiers});
  }
  if(towerFocus&&!assetTowerSummaries.some(t=>t.key===towerFocus))towerFocus=null;
  renderEngine.setBatch('assetScaleDemo',showTierTowers?out:[]);updateTowerLabels();return showTierTowers?assetTowerSummaries.length:0;
@@ -1572,9 +1606,10 @@ function updateScene(){
 }
 function updateGuides(){
  const d=data(),h=halfOf(d),bounds=[],chunks=[],slice=[],axes=['x','y','z'];
- wireCube(bounds,new V3(),h*2,[.49,.57,.44],.42,true);
- for(const axis of axes){const a=new V3(),b=new V3();a[axis]=-1.2;b[axis]=1.2;line(bounds,a,b,[.52,.61,.46],.5);}
- // Draw each lattice edge once. Fixed 4³ chunk centers: -768, -256, 256, 768 c1 units.
+ wireCube(bounds,new V3(),h*2,[0,0,0],.62,true);
+ for(const axis of axes){const a=new V3(),b=new V3();a[axis]=-1.2;b[axis]=1.2;line(bounds,a,b,[0,0,0],.7);}
+ // Draw each lattice edge once. Fixed 9³ chunk layout; coordinates are derived
+ // from the active span so the guide stays correct for compatible imports too.
  for(const axis of axes){
   const [u,v]=axes.filter(a=>a!==axis);
   for(let i=0;i<=d.spanChunks;i++)for(let j=0;j<=d.spanChunks;j++){
@@ -1603,7 +1638,7 @@ function platformFootprintWire(out,d,m,color,alpha){
 function updateSelectionGraphics(){
  const lines=[],ghost=[],d=data();
  const selected=selectedCell?d.modules.find(m=>m.kind==='manual'&&cellKey(m.cell)===cellKey(selectedCell)):null;
- const marker=(m,color)=>{const p=platformCenter(d,m),size=showTierTowers?CUBE_TIERS.r3:CONTROL_UNIT;wireCube(lines,p.clone().add(new V3(0,size/2,0)),size,color,.95);platformFootprintWire(lines,d,m,color,.34);};
+ const marker=(m,color)=>{const size=showTierTowers?CUBE_TIERS.r3:CONTROL_UNIT,up=platformUp(d,m),p=platformTowerSurface(d,m).clone().addScaledVector(up,size/2);wireCube(lines,p,size,color,.95);platformFootprintWire(lines,d,m,color,.34);};
  if(selected)marker(selected,[.31,.45,.35]);else selectedCell=null;
  let preview=null;
  if(hoverCell){
@@ -1658,6 +1693,7 @@ function updateHint(){
 function selectWorld(id){
  id=Number(id);if(!Number.isInteger(id)||id<1||id>27)return false;
  selectedWorldId=id;selectedCell=null;hoverCell=null;pointer=null;
+ if(!data().modules.some(m=>m.kind==='generated'))generatePlatforms(world(),data());
  sliceIndex=data().spanChunks*CHUNK_CELLS/2-1;updateScene();frameWorld();return true;
 }
 
@@ -1811,7 +1847,7 @@ for(const w of WORLDS){const option=document.createElement('option');option.valu
   setCubeTheme(list[next]);buttons[next].focus();
  };
  $('surfaceSnap').onchange=e=>{snapSurface=e.target.checked;hoverCell=null;updateSelectionGraphics();};
- $('seedInput').addEventListener('change',e=>updateSetting('seed',e.target.value||'little'));$('autoPaths').addEventListener('change',e=>updateSetting('autoPaths',e.target.checked));$('shuffleSeed').onclick=()=>{snapshot(selectedWorldId);data().config.seed='little-'+Math.floor(Math.random()*1e7).toString(36);generatePlatforms(world(),data());selectedCell=null;hoverCell=null;updateScene();toast('A new variation. Your control cubes were kept.');};$('generateButton').onclick=generateCurrent;$('startGenerate').onclick=generateCurrent;$('rebuildButton').onclick=()=>{updateScene();toast(data().modules.length?'Terrain refreshed. Cube-owned branches and existing main routes kept.':'Start with platforms or one cube. The first control cube grows a platform; a second can connect to it.');};$('generateAllButton').onclick=()=>{for(const w of WORLDS){snapshot(w.id);const d=levelData[w.id-1];generatePlatforms(w,d);if(w.id!==selectedWorldId&&d.modules.some(m=>m.kind==='manual')&&d.config.autoPaths)syncManualBranches(w,d,buildBaseGeometry(w,d));}selectedCell=null;hoverCell=null;updateScene();toast('All 27 levels generated independently. Hand-placed cubes were preserved.');};$('clearButton').onclick=clearWorld;
+ $('seedInput').addEventListener('change',e=>updateSetting('seed',e.target.value||'little'));$('autoPaths').addEventListener('change',e=>updateSetting('autoPaths',e.target.checked));$('shuffleSeed').onclick=()=>{snapshot(selectedWorldId);data().config.seed='little-'+Math.floor(Math.random()*1e7).toString(36);generatePlatforms(world(),data());selectedCell=null;hoverCell=null;updateScene();toast('A new variation. Your control cubes were kept.');};$('generateButton').onclick=generateCurrent;$('rebuildButton').onclick=()=>{updateScene();toast(data().modules.length?'Terrain refreshed. Cube-owned branches and existing main routes kept.':'Start with platforms or one cube. The first control cube grows a platform; a second can connect to it.');};$('generateAllButton').onclick=()=>{for(const w of WORLDS){snapshot(w.id);const d=levelData[w.id-1];generatePlatforms(w,d);if(w.id!==selectedWorldId&&d.modules.some(m=>m.kind==='manual')&&d.config.autoPaths)syncManualBranches(w,d,buildBaseGeometry(w,d));}selectedCell=null;hoverCell=null;updateScene();toast('All 27 levels generated independently. Hand-placed cubes were preserved.');};$('clearButton').onclick=clearWorld;
  $('sliceAxis').onchange=e=>{sliceAxis=e.target.value;hoverCell=null;updateGuides();updateSelectionGraphics();updateUI();};$('sliceInput').oninput=e=>{sliceIndex=Number(e.target.value);hoverCell=null;updateGuides();updateSelectionGraphics();updateUI();};$('undoButton').onclick=()=>applyHistory();$('redoButton').onclick=()=>applyHistory(true);$('deleteButton').onclick=()=>removeModule(selectedCell);$('guidesInput').onchange=e=>showGuides=e.target.checked;$('frameButton').onclick=frameWorld;$('topButton').onclick=()=>{towerFocus=null;updateTowerLabels();portalFocus=null;orbit.pitch=Math.PI/2-.001;orbit.target.set(0,0,0);orbit.radius=halfOf(data())*3.3;setOrbitCamera();updateUI();};
  $('exportButton').onclick=downloadProject;$('importButton').onclick=()=>$('importInput').click();$('importInput').onchange=async e=>{const file=e.target.files?.[0];if(!file)return;try{if(file.size>32*1024*1024)throw new Error('Project is too large (32 MB maximum).');importProject(JSON.parse(await file.text()));}catch(err){toast('Import rejected: '+err.message,true);}e.target.value='';};$('helpButton').onclick=()=>{pointer=null;paused=true;$('helpOverlay').hidden=false;$('closeHelp').focus();};$('closeHelp').onclick=()=>{paused=false;$('helpOverlay').hidden=true;canvas.focus();};
 }
@@ -1893,7 +1929,7 @@ window.LITTLE_WORLDS={
  placementPreview:(x,y)=>{const cell=placementCell(screenRay({clientX:x,clientY:y}));return {cell,valid:!!cell&&!placementProblem(cell)};},
  get geometry(){return currentGeometry;},get roster(){return WORLDS;}
 };
-try{renderEngine=new CubeRenderer(canvas,cubeGeometryFromGLB(EMBEDDED_CUBE_GLB));buildUI();attachInput();frameWorld();updateScene();$('loading').hidden=true;requestAnimationFrame(animate);window.LITTLE_WORLDS.ready=true;}catch(err){console.error(err);$('loading').classList.add('error');$('loading').firstElementChild.textContent=err.message;window.LITTLE_WORLDS.error=err.message;}
+try{renderEngine=new CubeRenderer(canvas,cubeGeometryFromGLB(EMBEDDED_CUBE_GLB));buildUI();attachInput();generatePlatforms(world(),data());frameWorld();updateScene();$('loading').hidden=true;requestAnimationFrame(animate);window.LITTLE_WORLDS.ready=true;}catch(err){console.error(err);$('loading').classList.add('error');$('loading').firstElementChild.textContent=err.message;window.LITTLE_WORLDS.error=err.message;}
 
 })();
 </script>

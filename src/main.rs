@@ -197,6 +197,7 @@ struct CubeScene {
     network_world: Option<NetworkWorld>,
     network_singleton: bool,
     network_empty: bool,
+    pending_empty_entry: bool,
     picker_camera: Option<FlyCam>,
     demo_camera: Option<FlyCam>,
     walker_camera: Option<walker_camera::CubesWalkerCam>,
@@ -443,6 +444,7 @@ impl CubeScene {
             network_world: None,
             network_singleton: false,
             network_empty: false,
+            pending_empty_entry: false,
             picker_camera: None,
             demo_camera: None,
             walker_camera: None,
@@ -478,7 +480,7 @@ impl CubeScene {
         // A selected Key-2 action continues after entering a world. Only its
         // exact committed quarter-turns change the portal topology.
         self.puzzle.update(elapsed_millis);
-        if self.mode.is_world() {
+        if self.mode.is_world() && !self.network_empty {
             self.active_world
                 .as_mut()
                 .unwrap()
@@ -691,6 +693,7 @@ impl CubeScene {
                 }
             }
             if self.mode == SceneMode::StaticCube
+                && !self.pending_empty_entry
                 && self.puzzle.selected().is_some()
                 && self.flight.is_none()
             {
@@ -765,6 +768,7 @@ impl CubeScene {
                     look_at_camera_rotation(self.flycam.camera.position, self.look_target, up);
             }
             if self.mode == SceneMode::StaticCube
+                && !self.pending_empty_entry
                 && self.puzzle.selected().is_some()
                 && !self.puzzle.locked()
             {
@@ -833,15 +837,10 @@ impl CubeScene {
                     }))
                     .normalized();
                     if flight.done(elapsed_millis) {
-                        let (world, portal) = self.selected_entry.ok_or(CubeError::Contract)?;
-                        self.select_mode(
-                            modes::Selection {
-                                mode: SceneMode::World,
-                                page: Some(world),
-                            },
-                            Some(portal),
-                        )?;
-                        self.arrival_fade = Some(elapsed_millis);
+                        self.flight = None;
+                        self.selected_entry = None;
+                        self.pending_empty_entry = true;
+                        self.network.connect_empty();
                     }
                 }
             }
@@ -1802,6 +1801,7 @@ impl CubeScene {
             self.image_wall = None;
             self.network_singleton = false;
             self.network_empty = false;
+            self.pending_empty_entry = false;
             self.network_world = None;
             if self.portal_trip.is_some() {
                 self.puzzle.cancel_travel(self.previous_elapsed_millis);
@@ -1844,12 +1844,23 @@ impl CubeScene {
         let slide = match update {
             network::Update::Gallery(slide) => slide,
             network::Update::Empty => {
+                self.pending_empty_entry = false;
+                if !self.mode.is_world() && self.demo_camera.is_none() {
+                    self.demo_camera = Some(self.flycam);
+                }
+                self.mode = SceneMode::World;
+                self.network_singleton = true;
                 self.network_empty = true;
+                self.asset_brush.disable();
+                self.active_world = None;
+                self.frame.set_center_snapped_mouse(true)
+                    .map_err(|error| CubeError::Ui4("empty-world-pointer", error))?;
                 self.flight_target.clear();
                 self.walker_camera = None;
                 self.flight = None;
                 self.portal_trip = None;
-                logl::log(level::INFO, format_args!("Cubes: Key8 server acknowledged empty world; Key8 returns to preview"));
+                self.set_mode_projection(SceneMode::World);
+                logl::log(level::INFO, format_args!("Cubes: server acknowledged empty world; Key8 returns to preview"));
                 return Ok(());
             }
             network::Update::Snake {session,state} => {
@@ -1920,6 +1931,7 @@ impl CubeScene {
             self.network_world = Some(NetworkWorld { session, bytes, asset });
             self.network_singleton = true;
             self.network_empty = false;
+            self.pending_empty_entry = false;
             self.asset_brush.disable();
             self.select_mode(modes::Selection {
                 mode: SceneMode::World, page: Some(0),

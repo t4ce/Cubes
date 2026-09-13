@@ -137,3 +137,9 @@ Key5 remains local. Rebuild both Cubes and CubeSrv for this extension.
 Host tests exercise preview → empty → preview repeatedly on one real UDP socket,
 including stale welcomes. GPU presentation and dual-VM host responsiveness still
 require a recoverable target test; host tests do not establish fault containment.
+
+Key2 click/Space world entry now requests server empty explicitly after its entry
+animation, regardless of which cubie/portal was selected. A fresh connection
+starts with world ID 2; an existing worker is reused. The frame enters empty only
+after acknowledgement, without requiring local terrain or a preview gallery.
+Key8 can then switch to preview. Number-key navigation cancels a pending entry.
