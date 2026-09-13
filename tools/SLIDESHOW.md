@@ -2,7 +2,7 @@
 
 The old flat panel and per-image-pixel normal/occlusion maps have been removed.
 Key 8 now displays six nearby real beveled c1 cube slabs at 10% of the standard
-world radius. A white 3×3×3 c4 landmark occupies the origin. Twenty-four sparse
+world radius. A white 3×3×3 c4 landmark occupies the origin. Six sparse
 32×32 c1 cube effects billboard toward the viewport above temporary server-spawned terrain blocks, and the player connects
 on the +Z part of the top face looking toward it. The scene combines one retained textured mesh and PNG atlas (native PBR with
 nearest filtering) with ordinary cube-patch instances in one depth-tested frame.
@@ -18,7 +18,7 @@ the same GLB as CubeImage.html. After changing that reference, run
 `src/network.rs` receives and validates the complete gallery package before
 asking the native media API to decode its atlas. `src/slideshow_gpu.rs` owns
 mesh buffers and texture lifetime. `src/vfx_stream.rs` caches immutable VFX1 pixel-lifetime assets by revision.
-Twenty-four server-timed slots evaluate these locally; unchanged pixels survive across
+Six server-timed slots evaluate these locally; unchanged pixels survive across
 N frames without retransmission. Transparent pixels end their lifetimes.
 GPU seeds still update for billboarding; meshes remain resident. Same-tier replacements
 reuse the mesh; changed-tier replacements create the new mesh before releasing the old one.
@@ -43,19 +43,20 @@ internal-face removal, bounds, package validation, chunk reordering/duplicates
 and material submission. Native XeLP rendering and frame timing remain untested
 until the rebuilt TRUEOS kernel, CubeSrv and Cubes are run together.
 
-The server spawns four c4 terrain blocks every 3 seconds, at cardinal positions
-5–10 blocks from the center with more than two empty blocks between them.
-Each cube independently rolls six effects from all 150 entries, one per face;
-duplicates reuse the cached asset. Slots are ordered +Y, -Y, +X, -X, +Z, -Z.
-Bottom-center anchors sit at face centers, with all pixels still billboarded;
-neighboring face effects can overlap or occlude one another in screen space.
+The server spawns six c4 terrain blocks every 3 seconds: four cardinal positions
+5–10 blocks from the center, plus one directly above and one below at 7–10 blocks.
+The vertical clearance leaves room for the lower billboard above its own cube.
+Each cube independently rolls one effect from all 150 entries; duplicates reuse
+the cached asset. Slots are ordered +X, +Z, -X, -Z, above, below.
+All effects keep their bottom-center anchor at their terrain cube's top and
+billboard toward the viewport.
 After 500 ms, each plays one complete loop (150 ms/frame or faster to fit 2.4 s).
-Each cube disappears after its last face effect ends. The blocks use world terrain colour and
+Each cube disappears with its effect. The blocks use world terrain colour and
 walking collision; local expiry still removes both when packets are lost.
 Only VFX positions and rotations follow camera right/up; terrain stays upright.
 Opaque terrain and VFX use group zero; navigation alone uses group one.
-Capacity reserves 24×1024 pixels, four terrain cubes, 27 landmark cubes and 129
-navigation slots, leaving 8032 nearest-world terrain seeds within the 32768 limit.
+Capacity reserves 6×1024 pixels, six terrain cubes, 27 landmark cubes and 129
+navigation slots, leaving 26462 nearest-world terrain seeds within the 32768 limit.
 Rebuild TRUEOS as well as both apps: the SDK and native row limits changed;
 other Cubes modes keep their existing 8192-seed UI budget.
 The former standalone Holy path and per-frame downloads are removed.

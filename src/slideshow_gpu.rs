@@ -27,8 +27,8 @@ impl Wall {
         self.scene=Some(scene);
         Ok(())
     }
-    pub fn spawned(&self) -> [Option<[i16;3]>;4] {
-        self.scene.as_ref().map_or([None;4], |s| s.terrain())
+    pub fn spawned(&self) -> [Option<[i16;3]>;cubes_protocol::vfx::TERRAIN_CUBES] {
+        self.scene.as_ref().map_or([None;cubes_protocol::vfx::TERRAIN_CUBES], |s| s.terrain())
     }
     pub fn gallery_revision(&self) -> u32 { self.slide.revision }
     pub fn replace(&mut self, slide: Slide) -> Result<(), i32> {
@@ -166,7 +166,7 @@ fn landmark_seeds() -> Vec<RetainedTransformSeed> {
 }
 
 /// View matrix rows are world-space camera right/up/back. A common basis keeps
-/// all 24 planes parallel to the viewport and their original pixel order.
+/// all six planes parallel to the viewport and their original pixel order.
 fn billboard(camera: &RetainedCamera) -> ([f32;3],[f32;3],[f32;4]) {
     let m=&camera.view;
     let mut right=[m[0],m[4],m[8]];
@@ -207,21 +207,21 @@ fn scene_seeds(scene: Option<&crate::network::VfxScene>, palette: &[u16], world:
         }
         seeds.push(terrain);
     }
-    for (i,(slot,asset)) in scene.info.slots.iter().zip(&scene.assets).enumerate() {
+    for (slot,asset) in scene.info.slots.iter().zip(&scene.assets) {
         let Some(frame)=slot.frame(age) else { continue; };
         let Some(asset)=asset else { continue; };
         let sequence=cubes_protocol::vfx::Sequence::parse(asset).ok_or(ERR_UNSUPPORTED)?;
         let base=slot.anchor.map(|v|v as f32*slideshow::contract::C1);
+        let pixel_side=slot.pixel_side_c1 as f32*slideshow::contract::C1;
         for pixel in sequence.pixels(frame) {
-            let x=(pixel.x as f32+0.5-16.)*slideshow::contract::C1;
-            let y=(31.5-pixel.y as f32)*slideshow::contract::C1;
-            let normal=cubes_protocol::vfx::FACE_NORMALS[i%cubes_protocol::vfx::FACES];
-            let translation=core::array::from_fn(|a| base[a]+normal[a] as f32*0.8
+            let x=(pixel.x as f32+0.5-16.)*pixel_side;
+            let y=(31.5-pixel.y as f32)*pixel_side;
+            let translation=core::array::from_fn(|a| base[a]+if a==1 {0.8} else {0.}
                 +right[a]*x+up[a]*y);
             let color=*palette.get(pixel.palette as usize).ok_or(ERR_UNSUPPORTED)?;
             if color&0x8000==0 { return Err(ERR_UNSUPPORTED); }
             seeds.push(RetainedTransformSeed {translation,previous_translation:translation,
-                scale:[0.1;3],rotation,local_radius:1.74,flags:color as u32,
+                scale:[pixel_side*0.5;3],rotation,local_radius:1.74,flags:color as u32,
                 ..RetainedTransformSeed::default()});
         }
     }

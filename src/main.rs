@@ -200,7 +200,7 @@ struct NetworkWorld {
     session: u64,
     bytes: Vec<u8>,
     asset: orchard::Asset,
-    spawned: [Option<[i16; 3]>;4],
+    spawned: [Option<[i16; 3]>;cubes_protocol::vfx::TERRAIN_CUBES],
 }
 
 fn main() {
@@ -1882,7 +1882,7 @@ impl CubeScene {
         }
         if first {
             let (bytes, asset) = terrain.ok_or(CubeError::Contract)?;
-            self.network_world = Some(NetworkWorld { session, bytes, asset, spawned: [None;4] });
+            self.network_world = Some(NetworkWorld { session, bytes, asset, spawned: [None;cubes_protocol::vfx::TERRAIN_CUBES] });
             self.network_singleton = true;
             self.asset_brush.disable();
             self.select_mode(modes::Selection {

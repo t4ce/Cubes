@@ -49,7 +49,7 @@ fn animation(pixels:&[(u8,u8,u8)])->crate::network::VfxScene {
     crate::network::VfxScene {session:1, received:trueos::time::Instant::now(),
         info:Scene {gallery_revision:7,event:1,age_ms:500,
             slots:core::array::from_fn(|i|Slot {revision:3,bytes:asset.len() as u32,
-                anchor:[[40,8,0],[0,8,40],[-40,8,0],[0,8,-40]][i/6],frames:10,period_ms:150})},
+                anchor:[[40,8,0],[0,8,40],[-40,8,0],[0,8,-40],[0,56,0],[0,-56,0]][i],frames:10,period_ms:150,pixel_side_c1:1})},
         assets:core::array::from_fn(|_|Some(asset.clone()))}
 }
 fn active_bytes(wall:&Wall)->Vec<u8> {
@@ -103,7 +103,7 @@ fn terrain_and_vfx_share_compact_slots_and_one_depth_tested_frame() {
     for now in [0,333,1033] {
         wall.render(queue,wall.device.acquire_ui4_surface(1).unwrap(),
             RetainedCamera::default(),441,now,&terrain,&[]).unwrap();
-        assert_eq!(wall.cubes.count,56);
+        assert_eq!(wall.cubes.count,40);
         let bytes=active_bytes(&wall);
         let last=&bytes[bytes.len()-64..];
         assert_eq!(f32::from_le_bytes(last[..4].try_into().unwrap()),10.);
@@ -122,7 +122,7 @@ fn frames_replace_instances_without_rebuilding_either_mesh() {
         draw(&mut wall,queue,now).unwrap();
         draw(&mut wall,queue,now+333).unwrap();
         draw(&mut wall,queue,now+1033).unwrap();
-        assert_eq!(wall.cubes.count,31+24*pixels.len() as u32);
+        assert_eq!(wall.cubes.count,33+6*pixels.len() as u32);
         assert_eq!(&active_bytes(&wall)[..27*64],&center);
         driver(|d| {
             assert_eq!(d.creates,original.0);
@@ -174,12 +174,12 @@ fn billboard_pixel_spacing_tracks_viewport_right_and_up() {
         0.,0.,1.,0., 0.,1.,0.,0., -1.,0.,0.,0., 0.,0.,0.,1.
     ],..Default::default()};
     let seeds=scene_seeds(Some(&scene),&[0x801f,0xfc00],&[],&camera).unwrap();
-    assert_eq!(seeds.len(),79);
-    for slot in 0..24 {
-        let terrain=seeds[27+slot/6];
+    assert_eq!(seeds.len(),45);
+    for slot in 0..6 {
+        let terrain=seeds[27+slot];
         assert_eq!(terrain.rotation,[1.,0.,0.,0.]);
-        let a=seeds[31+slot*2];let b=seeds[32+slot*2];
-        let n=cubes_protocol::vfx::FACE_NORMALS[slot%6];
+        let a=seeds[33+slot*2];let b=seeds[34+slot*2];
+        let n=[0,1,0];
         // First pixel is at local (-3.1,0.1) relative to the face's bottom-center anchor.
         let expected=core::array::from_fn::<_,3,_>(|axis|
             terrain.translation[axis]+n[axis] as f32*0.8+[0.,0.1,3.1][axis]);
@@ -193,7 +193,7 @@ fn billboard_pixel_spacing_tracks_viewport_right_and_up() {
 }
 
 #[test]
-fn twenty_four_full_planes_fit_with_terrain_and_navigation_and_expire_locally() {
+fn six_full_planes_fit_with_terrain_and_navigation_and_expire_locally() {
     let (mut wall,queue)=setup();
     let pixels:Vec<_>=(0..32).flat_map(|y|(0..32).map(move |x|(x,y,0))).collect();
     wall.replace_vfx(animation(&pixels)).unwrap();
@@ -205,11 +205,11 @@ fn twenty_four_full_planes_fit_with_terrain_and_navigation_and_expire_locally() 
     assert_eq!(wall.cubes.count as usize,MAX_CUBES);
     let mut scene=animation(&pixels);scene.info.age_ms=499;
     wall.replace_vfx(scene).unwrap();draw(&mut wall,queue,0).unwrap();
-    assert_eq!(wall.cubes.count,31);
+    assert_eq!(wall.cubes.count,33);
     let mut scene=animation(&pixels);scene.info.age_ms=2000;
     wall.replace_vfx(scene).unwrap();draw(&mut wall,queue,0).unwrap();
     assert_eq!(wall.cubes.count,27);
-    assert_eq!(wall.spawned(),[None;4]);
+    assert_eq!(wall.spawned(),[None;6]);
 }
 
 #[unsafe(no_mangle)] extern "C" fn trueos_cabi_vgpu_open(_:u64,out:*mut u64)->i32 {handle(out)}
