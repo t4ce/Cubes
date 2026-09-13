@@ -67,9 +67,7 @@ impl Pages {
     pub fn load_world(&mut self, index: usize) -> Result<bool, &'static str> {
         let loaded = self.load(index)?;
         if loaded {
-            for cube in &mut self.decoded[index].as_mut().unwrap().cubes {
-                cube.center = world_from_demo(cube.center);
-            }
+            orient_world(self.decoded[index].as_mut().unwrap());
         }
         Ok(loaded)
     }
@@ -232,6 +230,16 @@ pub fn side_by_side(assets: &[Asset]) -> Result<Asset, &'static str> {
         cubes,
         radius: (0..3).map(|a| (hi[a] - lo[a]) * 0.5).sum(),
     })
+}
+/// Decode terrain into the same +Y-up world coordinates used by collision,
+/// navigation and world rendering. Asset-picker/demo decoding stays unchanged.
+pub fn decode_world(name: &'static str, bytes: &[u8]) -> Result<Asset, &'static str> {
+    let mut asset=decode(name,bytes)?;
+    orient_world(&mut asset);
+    Ok(asset)
+}
+fn orient_world(asset: &mut Asset) {
+    for cube in &mut asset.cubes { cube.center=world_from_demo(cube.center); }
 }
 pub fn decode(name: &'static str, bytes: &[u8]) -> Result<Asset, &'static str> {
     if bytes.len() >= 16 && bytes[4] == 2 {
@@ -757,6 +765,27 @@ mod reveal;
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn network_world_decode_matches_key5_and_cached_revisits_do_not_rotate_twice() {
+        static SOURCES: &[(&str,&[u8])] = &[
+            ("world1",include_bytes!("../Cube/lvl27/world_01_sky.cubes")),
+            ("legacy",include_bytes!("../Cube/plant_pine.cubes")),
+        ];
+        let mut pages=Pages::new(SOURCES,false);
+        for (index,&(name,bytes)) in SOURCES.iter().enumerate() {
+            let network=decode_world(name,bytes).unwrap();
+            let raw=decode(name,bytes).unwrap();
+            assert_eq!(pages.load_world(index),Ok(true));
+            let ptr=pages[index].cubes.as_ptr();
+            assert_eq!(pages.load_world(index),Ok(false));
+            assert_eq!(pages[index].cubes.as_ptr(),ptr);
+            for ((a,b),raw) in network.cubes.iter().zip(&pages[index].cubes).zip(&raw.cubes) {
+                assert_eq!(a.center,b.center);
+                assert_eq!(a.center,world_from_demo(raw.center));
+                assert_eq!(a.scale,b.scale);assert_eq!(a.flags,b.flags);
+            }
+        }
+    }
     #[test]
     fn pages_decode_only_selection_and_cache_revisits() {
         static SOURCES: &[(&str, &[u8])] = &[

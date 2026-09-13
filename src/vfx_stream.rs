@@ -22,6 +22,9 @@ pub struct Stream {
     snake: cubes_protocol::snake::Replica,
     snake_published: Option<(u32,u32,u32)>,
     snake_requested: Option<time::Instant>,
+    worm: cubes_protocol::worm::Replica,
+    worm_published: Option<(u32,u32,u32)>,
+    worm_requested: Option<time::Instant>,
     pending: Option<(vfx::Scene,time::Instant)>,
     cache: BTreeMap<u32,Arc<Vec<u8>>>,
 }
@@ -32,6 +35,12 @@ impl Stream {
         }
         if let Some(step)=payload(bytes,0x8c).and_then(cubes_protocol::snake::Step::parse) {
             self.snake.step(step);
+        }
+        if let Some(state)=payload(bytes,0x8d).and_then(cubes_protocol::worm::State::parse) {
+            self.worm.snapshot(state);
+        }
+        if let Some(step)=payload(bytes,0x8e).and_then(cubes_protocol::worm::Step::parse) {
+            self.worm.step(step);
         }
         let Some(info)=payload(bytes,0x89).and_then(vfx::Scene::parse) else { return; };
         if let Some((old,received))=self.pending {
@@ -54,6 +63,16 @@ impl Stream {
                 }
             }
         }
+        if let Some(worm)=self.worm.state.filter(|s|s.gallery==gallery) {
+            let identity=(worm.gallery,worm.epoch,worm.tick);
+            if self.worm_published!=Some(identity) {
+                let mut state=shared.lock().unwrap();
+                if state.session==session {
+                    state.worm_ready=Some(worm);
+                    self.worm_published=Some(identity);
+                }
+            }
+        }
         let Some((info,received))=self.pending else { return; };
         if info.gallery_revision!=gallery { return; }
         let scene=Scene { session,info,received,
@@ -69,6 +88,11 @@ impl Stream {
             && self.snake_requested.is_none_or(|t|t.elapsed()>=time::Duration::from_millis(200)) {
             socket.send(&packet(8,&[])).await.map_err(|_| "snake snapshot request")?;
             self.snake_requested=Some(time::Instant::now());
+        }
+        if (self.worm.state.is_none() || self.worm.needs_snapshot)
+            && self.worm_requested.is_none_or(|t|t.elapsed()>=time::Duration::from_millis(200)) {
+            socket.send(&packet(9,&[])).await.map_err(|_| "worm snapshot request")?;
+            self.worm_requested=Some(time::Instant::now());
         }
         for _ in 0..4 {
             if !self.fetch_one(socket,shared,session,gallery).await? { break; }
@@ -138,10 +162,39 @@ fn accept_chunk(packet: &[u8],revision:u32,bytes:&mut [u8],received:&mut [bool])
 mod tests {
     use super::*;
     #[test]
+    fn worm_and_snake_publish_and_recover_independently() {
+        let mut worm=crate::server_worm::Worm::new(9,1);
+        let mut snake=crate::server_snake::Snake::new(9,2);
+        let mut stream=Stream::default();
+        let shared=Mutex::new(Shared {session:1,running:true,gallery_ready:None,vfx_ready:None,snake_ready:None,worm_ready:None,
+            error:None,position:[0.;3],orientation:[0.;3]});
+        stream.observe(&packet(0x8d,&worm.state.encode()));
+        stream.observe(&packet(0x8b,&snake.state.encode()));
+        stream.publish(&shared,1,9);
+        assert_eq!(shared.lock().unwrap().snake_ready.take(),Some(snake.state));
+        assert_eq!(shared.lock().unwrap().worm_ready.take(),Some(worm.state));
+        worm.step(0); // Lose one worm update.
+        stream.observe(&packet(0x8e,&worm.step(1).encode()));
+        stream.observe(&packet(0x8c,&snake.step(0).encode()));
+        stream.publish(&shared,1,9);
+        assert!(stream.worm.needs_snapshot);
+        assert!(!stream.snake.needs_snapshot);
+        assert!(shared.lock().unwrap().worm_ready.is_none());
+        assert_eq!(shared.lock().unwrap().snake_ready.take(),Some(snake.state));
+        stream.observe(&packet(0x8d,&worm.state.encode()));
+        stream.publish(&shared,2,9);
+        assert!(shared.lock().unwrap().worm_ready.is_none());
+        stream.publish(&shared,1,9);
+        assert_eq!(shared.lock().unwrap().worm_ready.take(),Some(worm.state));
+        assert!(shared.lock().unwrap().snake_ready.is_none());
+        stream.publish(&shared,1,9);
+        assert!(shared.lock().unwrap().worm_ready.is_none());
+    }
+    #[test]
     fn snake_packets_publish_only_changes_and_ignore_old_sessions() {
         let mut snake=crate::server_snake::Snake::new(9,1);
         let mut stream=Stream::default();
-        let shared=Mutex::new(Shared {session:1,running:true,gallery_ready:None,vfx_ready:None,snake_ready:None,
+        let shared=Mutex::new(Shared {session:1,running:true,gallery_ready:None,vfx_ready:None,snake_ready:None,worm_ready:None,
             error:None,position:[0.;3],orientation:[0.;3]});
         stream.observe(&packet(0x8b,&snake.state.encode()));
         stream.publish(&shared,1,9);
@@ -166,7 +219,7 @@ mod tests {
         stream.observe(&packet(0x89,&info.encode()));
         let asset=Arc::new(vec![1,2,3]);
         stream.cache.insert(7,asset.clone());
-        let shared=Mutex::new(Shared {session:1,running:true,gallery_ready:None,vfx_ready:None,snake_ready:None,
+        let shared=Mutex::new(Shared {session:1,running:true,gallery_ready:None,vfx_ready:None,snake_ready:None,worm_ready:None,
             error:None,position:[0.;3],orientation:[0.;3]});
         stream.publish(&shared,1,9);
         let published=shared.lock().unwrap().vfx_ready.take().unwrap();

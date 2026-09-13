@@ -26,13 +26,14 @@ pub struct Slide {
 #[path = "vfx_stream.rs"]
 mod vfx_stream;
 pub use vfx_stream::Scene as VfxScene;
-pub enum Update { Gallery(Slide), Vfx(VfxScene), Snake {session:u64, state:cubes_protocol::snake::State} }
+pub enum Update { Gallery(Slide), Vfx(VfxScene), Snake {session:u64, state:cubes_protocol::snake::State}, Worm {session:u64, state:cubes_protocol::worm::State} }
 struct Shared {
     session: u64,
     running: bool,
     gallery_ready: Option<Slide>,
     vfx_ready: Option<VfxScene>,
     snake_ready: Option<cubes_protocol::snake::State>,
+    worm_ready: Option<cubes_protocol::worm::State>,
     error: Option<&'static str>,
     position: [f32; 3],
     orientation: [f32; 3],
@@ -54,6 +55,7 @@ impl Client {
                 gallery_ready: None,
                 vfx_ready: None,
                 snake_ready: None,
+                worm_ready: None,
                 error: None,
                 position: [0.; 3],
                 orientation: [0., 0., -1.],
@@ -68,6 +70,7 @@ impl Client {
         s.gallery_ready = None;
         s.vfx_ready = None;
         s.snake_ready = None;
+        s.worm_ready = None;
         s.error = None;
     }
     pub fn key(&mut self, held: bool, position: [f32; 3], orientation: [f32; 3]) {
@@ -85,6 +88,7 @@ impl Client {
             s.gallery_ready = None;
             s.vfx_ready = None;
             s.snake_ready = None;
+            s.worm_ready = None;
             s.error = None;
             s.session
         };
@@ -115,6 +119,7 @@ impl Client {
         let mut shared = self.shared.lock().unwrap();
         if let Some(slide) = shared.gallery_ready.take() { return Some(Ok(Update::Gallery(slide))); }
         if let Some(state) = shared.snake_ready.take() { return Some(Ok(Update::Snake {session:shared.session,state})); }
+        if let Some(state) = shared.worm_ready.take() { return Some(Ok(Update::Worm {session:shared.session,state})); }
         if let Some(frame) = shared.vfx_ready.take() { return Some(Ok(Update::Vfx(frame))); }
         shared.error.take().map(Err)
     }
@@ -452,6 +457,20 @@ mod server;
 mod tests {
     use super::*;
 
+    #[test]
+    fn worm_wire_has_nine_slots_and_independent_messages() {
+        let mut worm=crate::server_worm::Worm::new(9,4);
+        assert_eq!(server::decode(&packet(9,&[])),Ok(server::ClientPacket::WormRequest));
+        assert!(server::decode(&packet(9,&[0])).is_err());
+        let snapshot=server::worm_snapshot(worm.state);
+        assert_eq!(snapshot.len(),75);
+        assert_eq!(payload(&snapshot,0x8d).and_then(cubes_protocol::worm::State::parse),Some(worm.state));
+        assert!(payload(&snapshot,0x8b).is_none());
+        let step=worm.step(0);
+        let update=server::worm_step(step);
+        assert_eq!(update.len(),27);
+        assert_eq!(payload(&update,0x8e).and_then(cubes_protocol::worm::Step::parse),Some(step));
+    }
     #[test]
     fn snake_wire_uses_one_tail_replacement_and_explicit_resync() {
         let mut snake=crate::server_snake::Snake::new(9,4);

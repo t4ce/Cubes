@@ -12,13 +12,14 @@ pub struct Wall {
     cubes: CubeInstances,
     scene: Option<crate::network::VfxScene>,
     snake: Option<cubes_protocol::snake::State>,
+    worm: Option<cubes_protocol::worm::State>,
 }
 impl Wall {
     pub fn new(device: Device, slide: Slide) -> Result<Self, i32> {
         let cubes = CubeInstances::new(device)?;
         let geometry = slideshow::geometry(slide.layout);
         let (vertices, indices, mesh) = upload(device, &geometry)?;
-        Ok(Self { device, vertices, indices, mesh, slide, cubes, scene: None, snake: None })
+        Ok(Self { device, vertices, indices, mesh, slide, cubes, scene: None, snake: None, worm: None })
     }
     pub fn replace_vfx(&mut self, scene: crate::network::VfxScene) -> Result<(), i32> {
         if scene.session!=self.slide.session || scene.info.gallery_revision!=self.slide.revision { return Ok(()); }
@@ -32,11 +33,15 @@ impl Wall {
     pub fn replace_snake(&mut self, state: cubes_protocol::snake::State) {
         if state.gallery==self.slide.revision && state.valid() { self.snake=Some(state); }
     }
+    pub fn replace_worm(&mut self, state: cubes_protocol::worm::State) {
+        if state.gallery==self.slide.revision && state.valid() { self.worm=Some(state); }
+    }
     pub fn replace(&mut self, slide: Slide) -> Result<(), i32> {
         if self.slide.layout == slide.layout {
             if self.slide.revision != slide.revision || self.slide.session != slide.session {
                 self.scene = None;
                 self.snake = None;
+                self.worm = None;
             }
             self.slide = slide;
         } else { *self = Self::new(self.device, slide)?; }
@@ -47,12 +52,15 @@ impl Wall {
         &mut self, queue: Queue, surface: Ui4Surface, camera: RetainedCamera, height: u32, _now: u64, terrain: &[RetainedTransformSeed], overlays: &[RetainedTransformSeed],
     ) -> Result<(), i32> {
         let mut seeds = scene_seeds(self.scene.as_ref(), &self.slide.palette, &self.slide.world, &camera)?;
+        if let Some(worm)=self.worm {
+            seeds.splice(CENTER_COUNT..CENTER_COUNT, chain_seeds(worm.cells, 1));
+        }
         if let Some(snake)=self.snake {
             // Stable slots precede changing sprite populations; only the old
             // tail slot gets a new transform on each server step.
             seeds.splice(CENTER_COUNT..CENTER_COUNT, snake_seeds(snake));
-            for (i,seed) in seeds.iter_mut().enumerate() {seed.flags=(seed.flags&0xffff)|((i as u32)<<16);}
         }
+        for (i,seed) in seeds.iter_mut().enumerate() {seed.flags=(seed.flags&0xffff)|((i as u32)<<16);}
         self.cubes.animate(seeds, terrain, overlays)?;
         let point = self.device.submit_retained_frame_v4(
             queue, surface, self.mesh, self.cubes.mesh, self.vertices, self.indices,
@@ -80,7 +88,8 @@ const CENTER_COUNT: usize = 27;
 const MAX_CUBES: usize = MAX_RETAINED_SCENE_INSTANCES;
 pub const OVERLAY_BUDGET: usize = 129;
 pub const TERRAIN_BUDGET: usize = MAX_CUBES - CENTER_COUNT
-    - cubes_protocol::vfx::INSTANCES * cubes_protocol::vfx::CELLS - OVERLAY_BUDGET - cubes_protocol::snake::SEGMENTS;
+    - cubes_protocol::vfx::INSTANCES * cubes_protocol::vfx::CELLS - OVERLAY_BUDGET
+    - cubes_protocol::snake::SEGMENTS - cubes_protocol::worm::SEGMENTS;
 const SEED_BYTES: usize = 64;
 /// Immutable 44-patch topology. Updates only upload TRS/color seeds.
 struct CubeInstances {
@@ -176,12 +185,15 @@ impl CubeInstances {
     }
 }
 fn snake_seeds(state:cubes_protocol::snake::State) -> [RetainedTransformSeed;cubes_protocol::snake::SEGMENTS] {
-    // Theme 1 (sky), in four fixed brightness shades. Slot colors never age.
-    let color=cubes_protocol::COLORS[0];
+    chain_seeds(state.cells, 0)
+}
+fn chain_seeds<const N:usize>(cells:[[i16;3];N], theme:usize) -> [RetainedTransformSeed;N] {
+    // Four fixed brightness shades from the shared theme palette.
+    let color=cubes_protocol::COLORS[theme];
     core::array::from_fn(|slot| {
         let brightness=[10u32,7,5,3][slot%4];
         let rgb=(0..3).map(|a| ((color[a] as u32*31*brightness+1275)/2550)<<(a*5)).sum::<u32>();
-        let translation=state.cells[slot].map(|v|(v as f32+0.5)*slideshow::contract::C1);
+        let translation=cells[slot].map(|v|(v as f32+0.5)*slideshow::contract::C1);
         RetainedTransformSeed {translation,previous_translation:translation,
             scale:[slideshow::contract::C1*0.5;3],rotation:[1.,0.,0.,0.],
             local_radius:1.74,flags:0x8000|rgb,..RetainedTransformSeed::default()}

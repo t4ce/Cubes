@@ -1837,6 +1837,14 @@ impl CubeScene {
                 }
                 return Ok(());
             }
+            network::Update::Worm {session,state} => {
+                if self.network_world.as_ref().is_some_and(|w|w.session==session) {
+                    if let Some(wall)=self.image_wall.as_mut().filter(|w|w.gallery_revision()==state.gallery) {
+                        wall.replace_worm(state);
+                    }
+                }
+                return Ok(());
+            }
             network::Update::Vfx(scene) => {
                 let current_session=self.network_world.as_ref().map(|w|w.session);
                 if let Some(wall)=self.image_wall.as_mut().filter(|wall|
@@ -1851,7 +1859,7 @@ impl CubeScene {
         let first = self.network_world.as_ref().is_none_or(|world| world.session != slide.session);
         let session = slide.session;
         let terrain = if first {
-            match orchard::decode(WORLD_ASSETS[0].0, &slide.world) {
+            match orchard::decode_world(WORLD_ASSETS[0].0, &slide.world) {
                 Ok(asset) => Some((slide.world.clone(), asset)),
                 Err(error) => {
                     logl::log(level::WARN, format_args!("Cubes: server world1 rejected: {error}"));
@@ -1920,8 +1928,7 @@ impl CubeScene {
     }
 
     fn install_plateau(&mut self, profile: plateau::Profile) -> Result<(), CubeError> {
-        let mut asset = orchard::decode("custom plateau", &profile.terrain).map_err(|_| CubeError::Contract)?;
-        for cube in &mut asset.cubes { cube.center = orchard::world_from_demo(cube.center); }
+        let asset = orchard::decode_world("custom plateau", &profile.terrain).map_err(|_| CubeError::Contract)?;
         let placed: Vec<_> = profile.placed.iter().map(|c| orchard::Cube {
             center: c.center, scale: c.scale, flags: c.flags,
         }).collect();

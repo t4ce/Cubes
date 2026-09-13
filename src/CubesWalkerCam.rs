@@ -2755,6 +2755,30 @@ mod tests {
 mod image_gallery_tests {
     use super::*;
     #[test]
+    fn server_rendered_world_matches_collision_and_target_metadata() {
+        let bytes=include_bytes!("../Cube/lvl27/world_01_sky.cubes");
+        let asset=crate::orchard::decode_world("world1",bytes).unwrap();
+        let camera=CubesWalkerCam::image_gallery_world(
+            crate::slideshow::contract::Layout {tiers:[1;6]},bytes);
+        let walkable:Vec<_>=asset.cubes.iter().zip(crate::cube_format::cubes(bytes))
+            .filter(|(_,r)|crate::subcubes::walkable(r.tier)).collect();
+        assert_eq!(camera.cubes.len(),walkable.len()+27);
+        let mut checked=0;
+        for ((rendered,_),bound) in walkable.into_iter().zip(&camera.cubes) {
+            let center=mul(add(bound.lo,[bound.size*0.5;3]),camera.unit);
+            for axis in 0..3 {assert!((rendered.center[axis]-center[axis]).abs()<0.0001);}
+            assert!((rendered.scale-(bound.size-bound.gap)*camera.unit*0.5).abs()<0.0001);
+            assert!(camera.solid.has(mul(rendered.center,1./camera.unit)));
+            let hit=Hit {point:add(bound.lo,[bound.size*0.5,0.,bound.size*0.5]),
+                normal:[0.,-1.,0.],distance:1.};
+            let target=camera.highlight_hit(hit).unwrap();
+            for axis in 0..3 {assert!((target.center[axis]-rendered.center[axis]).abs()<0.0001);}
+            assert!((target.scale-rendered.scale).abs()<0.0001);
+            checked+=1;
+        }
+        assert!(checked>2000); // actual terraces and pathways, not just the landmark
+    }
+    #[test]
     fn local_and_server_flight_previews_draw_a_centered_line_to_the_marker() {
         let bytes = include_bytes!("../Cube/lvl27/world_01_sky.cubes");
         for mut c in [CubesWalkerCam::from_world(bytes, false),

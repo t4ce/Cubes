@@ -23,6 +23,7 @@ use cubes_protocol as plateau;
 #[path="{APP.parent}/TRUEOS-Blueprints/crates/cubes-protocol/src/vfx.rs"] mod vfx_contract;
 #[path="{APP.parent}/TRUEOS-Blueprints/apps/cubesrv/spawn.rs"] mod vfx_spawn;
 #[path="{APP.parent}/TRUEOS-Blueprints/apps/cubesrv/snake.rs"] mod server_snake;
+#[path="{APP.parent}/TRUEOS-Blueprints/apps/cubesrv/worm.rs"] mod server_worm;
 #[path="{APP}/src/network.rs"] mod network;
 #[path="{APP}/src/slideshow.rs"] mod slideshow;
 #[path="{APP}/src/reveal.rs"] mod reveal;

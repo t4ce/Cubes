@@ -305,9 +305,39 @@ fn snake_keeps_survivor_transforms_and_four_theme_shades_without_idle_uploads() 
     }
 }
 #[test]
+fn worm_tunnel_only_replaces_its_tail_and_uses_four_shades_of_theme_two() {
+    let (mut wall,queue)=setup();
+    let snake=crate::server_snake::Snake::new(wall.slide.revision,1);
+    let mut worm=crate::server_worm::Worm::new(wall.slide.revision,2);
+    wall.replace_snake(snake.state); wall.replace_worm(worm.state);
+    draw(&mut wall,queue,0).unwrap();
+    let colors:std::collections::BTreeSet<_>=chain_seeds(worm.state.cells,1).iter().map(|s|s.flags).collect();
+    assert_eq!(colors.len(),4);
+    let theme=cubes_protocol::COLORS[1];
+    let full=0x8000|(0..3).map(|a|((theme[a] as u32*31+127)/255)<<(a*5)).sum::<u32>();
+    assert_eq!(chain_seeds(worm.state.cells,1)[0].flags,full);
+    assert_ne!(full,snake_seeds(snake.state)[0].flags);
+    for i in 0..30 {
+        let before=active_bytes(&wall);
+        let writes=driver(|d|d.writes); draw(&mut wall,queue,0).unwrap();
+        assert_eq!(driver(|d|d.writes),writes);
+        let step=worm.step(if i%3==0 {0} else {1});
+        wall.replace_worm(worm.state); draw(&mut wall,queue,0).unwrap();
+        let after=active_bytes(&wall);
+        assert_eq!(wall.cubes.count,41);
+        assert_eq!(&before[..32*64],&after[..32*64]); // Entire snake stays still.
+        for slot in 0..9 {
+            let row=(32+slot)*64;
+            if slot!=step.slot as usize {assert_eq!(&before[row..row+64],&after[row..row+64]);}
+            assert_eq!(&before[row+60..row+64],&after[row+60..row+64]);
+        }
+    }
+}
+#[test]
 fn six_full_planes_fit_with_terrain_and_navigation_and_expire_locally() {
     let (mut wall,queue)=setup();
     wall.replace_snake(crate::server_snake::Snake::new(wall.slide.revision,1).state);
+    wall.replace_worm(crate::server_worm::Worm::new(wall.slide.revision,2).state);
     let pixels:Vec<_>=(0..32).flat_map(|y|(0..32).map(move |x|(x,y,0))).collect();
     wall.replace_vfx(animation(&pixels)).unwrap();
     let overlay=RetainedTransformSeed {scale:[0.4;3],rotation:[1.,0.,0.,0.],
@@ -318,10 +348,10 @@ fn six_full_planes_fit_with_terrain_and_navigation_and_expire_locally() {
     assert_eq!(wall.cubes.count as usize,MAX_CUBES);
     let mut scene=animation(&pixels);scene.info.age_ms=499;
     wall.replace_vfx(scene).unwrap();draw(&mut wall,queue,0).unwrap();
-    assert_eq!(wall.cubes.count,32);
+    assert_eq!(wall.cubes.count,41);
     let mut scene=animation(&pixels);scene.info.age_ms=2000;
     wall.replace_vfx(scene).unwrap();draw(&mut wall,queue,0).unwrap();
-    assert_eq!(wall.cubes.count,32);
+    assert_eq!(wall.cubes.count,41);
 }
 
 #[unsafe(no_mangle)] extern "C" fn trueos_cabi_vgpu_open(_:u64,out:*mut u64)->i32 {handle(out)}

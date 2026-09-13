@@ -103,3 +103,17 @@ uploads only dirty row ranges; idle snake frames require no seed upload when
 nothing else changes. The normal two-buffer upload still preserves the last
 complete frame after an upload error. The terrain budget reserves five slots so
 six full VFX planes, the snake and all navigation markers fit together.
+
+### Server worm
+
+The independent nine-segment worm uses the same stable slots and four-shade
+rendering as the snake, selecting theme 2. Surface travel stays straight with
+edge folds; an occasional inward move places its head on the opposite face
+immediately, retaining its tangent heading. Body slots follow the route, and
+self-overlap or overlap with the snake is permitted. Both creatures step every
+200 ms with independent stream state and loss recovery.
+
+Nine worm slots follow the five snake slots. The terrain budget now reserves
+fourteen creature slots in total, preserving capacity for six full VFX planes
+and all navigation overlays. Unchanged worm and snake seeds retain their colors
+and transforms while either creature advances.

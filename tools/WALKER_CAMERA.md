@@ -101,6 +101,12 @@ The `surface-path` log reports searching, ready, travelling, unreachable or
 limited states. Retargeting, geometry edits and mode changes discard stale paths.
 Standing partway through a step/turn requires finishing it before previewing.
 
+Key4 and Key8 decode terrain with `orchard::decode_world`; Key5's cached world
+loader uses the same orientation step exactly once. It maps demo coordinates
+`(x,y,z)` to world `(x,-y,-z)` before culling, drawing or supplying highlight
+source cubes. This keeps render positions aligned with the walker's metadata
+interpretation; rotating the cube mesh alone does not orient its position.
+
 Local worlds and the Key8 server gallery use the same navigation preview code.
 In flight, a visible landing marker gets a straight dashed line from the camera
 to its center, using the walking route's small cube sizes and marker material.
