@@ -12,9 +12,17 @@ reopens the picker at the last group and asset. [Key4](PLATEAU.md) uses the same
 picker and placement flow for a persisted personal plateau. The separate
 R-toggle Rubik companion is unchanged.
 
-Exported assets are placed at one sixth of their authored size: each base cell
-is R1/2 (1/6 c1, about 0.03333 renderer units). Relative cube sizes, colours,
-and proportions are preserved; the ghost and placement grid use this scale.
+Asset exports carry their final placement scale. Trees (including the five
+packed-lite trees) use c1 base cells, 0.2 renderer units. Other assets use
+R1/2 base cells, 1/6 c1 or about 0.03333 renderer units. Trees are therefore
+two grid steps larger: R1/2 → C1/2 → c1, or 6× their previous placed size.
+Relative cube sizes, colours, and proportions are preserved. The app reads
+the exported unit directly for the ghost and placement grid.
+
+The static asset preview and CUBES download in `Cube/AssetShowcase.html`
+share this policy. `node tools/export_asset_scales.cjs` re-exports the scale
+headers of the existing catalogue without regenerating shapes or colours;
+`node tools/export_asset_scales.cjs --check` checks alignment with the editor.
 The existing
 Key7 cube group can also be selected, retaining each cube's tier and material.
 The base snaps to the aimed face and its up axis follows that face's normal.

@@ -484,6 +484,16 @@
     </aside>
   </div>
 </div>
+<script id="asset-placement-scale">
+// Exported world units: R1/2 -> C1/2 -> c1 is two size steps for trees.
+const AssetPlacementScale = Object.freeze({
+  trees: Object.freeze(['pine','broad','orchard','tall','packedLitePalmTree',
+    'packedLiteOakTree','packedLiteBirchTree','packedLiteTree','packedLiteSpruceTree']),
+  gridUnit(preset) { return this.trees.includes(preset) ? 0.2 : 0.2 / 6; },
+  tier(preset) { return this.trees.includes(preset) ? 'c1' : 'R1/2'; }
+});
+window.AssetPlacementScale = AssetPlacementScale;
+</script>
 <script id="subcubes-core">
 // Browser counterpart of Cubes/SubCubes.rs. Side values are c1 lengths, not ordinals.
 const SubCubes = (() => {
@@ -1317,10 +1327,12 @@ function build(){
     : ['chilliPepper','banana','carrot','eggplant','cornCob','pumpkin','radish','cucumber'].includes(p) ? 'vegetable'
     : 'bush';
   treeGroup.name=`CubeNature_${p}`;
+  const exportGridUnit=window.AssetPlacementScale.gridUnit(p);
+  treeGroup.scale.setScalar(exportGridUnit/GRID_UNIT);
   treeGroup.userData={
     assetType:family,
     preset:p,
-    gridUnit:GRID_UNIT,
+    gridUnit:exportGridUnit,
     cubeSizes:SubCubes.assetTiers.map(tier=>tier.side),
     cubeTierIds:SubCubes.assetTiers.map(tier=>tier.id),
     cubeSystem:SubCubes.metadata,
@@ -1331,7 +1343,7 @@ function build(){
   };
   const {counts}=SubCubes.validateRecords(placed);
   const label=PACKED_LITE_MODELS[p]?`packed_lite · ${PACKED_LITE_MODELS[p].name}`:family;
-  status.textContent=`${label} · ${placed.length} cubes · c1:${counts.c1} c2:${counts.c2} r1:${counts.r1} · strict grid · no overlap · ${Math.round(GAP*100)}% gap`;
+  status.textContent=`${label} · ${placed.length} cubes · placement base: ${window.AssetPlacementScale.tier(p)} (${exportGridUnit.toFixed(5)} units) · strict grid · no overlap · ${Math.round(GAP*100)}% gap`;
   frameTree();
 }
 
@@ -1388,7 +1400,7 @@ function downloadBlob(blob,name){
 //                        palette:u8, part:u8, flags:u8, reserved:u8
 // Keep the v1 byte layout and existing part IDs. The size byte stores side
 // length (1/2/3), never the index in the seven-tier table in Cubes/SubCubes.rs.
-function makeCubesBinary(records=placed){
+function makeCubesBinary(records=placed,gridUnit=GRID_UNIT){
   if(!Array.isArray(records)){alert('Cube records must be an array.');return null;}
   if(!records.length) return null;
   if(records.length>65535){alert('Too many cubes for compact CUBES v1.');return null;}
@@ -1415,8 +1427,8 @@ function makeCubesBinary(records=placed){
   dv.setUint8(o++,8); // cube record size
   dv.setUint16(o,records.length,true); o+=2;
   dv.setUint8(o++,colors.length);
-  dv.setUint8(o++,MAX_ASSET_CUBE_SIDE); // Asset profile: c1, c2, r1 only.
-  dv.setFloat32(o,GRID_UNIT,true); o+=4;
+  dv.setUint8(o++,4); // CUBES v1 header contract; generated records use sides 1..3.
+  dv.setFloat32(o,gridUnit,true); o+=4;
 
   for(const c of colors){
     dv.setUint8(o++,(c>>16)&255); dv.setUint8(o++,(c>>8)&255); dv.setUint8(o++,c&255); dv.setUint8(o++,255);
@@ -1438,7 +1450,7 @@ function downloadCubes(){
   if(mode==='animal'){window.CUBE_NATURE_THEME_HOST.exportAnimalCubes?.();return;}
   if(mode==='morphling'){window.CUBE_NATURE_THEME_HOST.exportMorphlingJSON?.();return;}
   if(mode==='ui'){window.CUBE_NATURE_THEME_HOST.exportUIJSON?.();return;}
-  const data=makeCubesBinary(); if(!data) return;
+  const data=makeCubesBinary(placed,window.AssetPlacementScale.gridUnit(document.getElementById('preset').value)); if(!data) return;
   downloadBlob(new Blob([data],{type:'application/octet-stream'}),`cube_nature_${document.getElementById('preset').value}.cubes`);
 }
 

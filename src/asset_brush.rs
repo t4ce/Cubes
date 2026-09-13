@@ -2,8 +2,8 @@
 extern crate alloc;
 use crate::orchard::{self, Cube};
 use alloc::vec::Vec;
-/// Map authored c1 base cells to R1/2, the smallest sixth-c1 tier.
-pub const PLACEMENT_SCALE: f32 = 1.0 / crate::subcubes::TICKS_PER_C1 as f32;
+/// Asset exports carry their final world grid size (c1 trees, R1/2 otherwise).
+pub const PLACEMENT_SCALE: f32 = 1.0;
 pub const GHOST_SEEDS: usize = 768;
 pub const FULL_WORLD_SEEDS: usize = 3840;
 pub const MAX_PLACED_CUBES: usize = 16_384;
