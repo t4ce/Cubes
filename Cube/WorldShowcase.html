@@ -285,9 +285,9 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
  <section class="panel">
   <div class="eyebrow"><span>01 &nbsp; Shape the void</span><span class="num">GENERATION</span></div>
   <div class="generation-note"><strong>Terraces, c4 paths &amp; cube tiers.</strong><br>Six seeded portal plateaus. Each stays small and directly paired.</div>
-  <div class="platform-rolls" aria-label="Automatic per-platform rolls">
-   <div class="eyebrow"><span>Per-platform rolls</span><span>SEEDED</span></div>
-   <div class="field-head"><span>Terrace size</span><strong>2 × 2 r3</strong></div><div id="platformSizeNote" class="field-note">Each terrace renders as four r3 cubes on a 2 × 2 c4 footprint.</div>
+  <div class="platform-rolls" aria-label="Automatic platform settings">
+   <div class="eyebrow"><span>Platform dimensions</span><span>FIXED</span></div>
+   <div class="field-head"><span>Terrace size</span><strong>8 c4 · MIN</strong></div><div id="platformSizeNote" class="field-note">Every terrace uses the minimum 8 c4 footprint: a 2 × 2 set of r3 cubes.</div>
    <div class="roll-growth"><div class="field-head"><span>Small-cube growth</span><strong>250–500%</strong></div><div id="growthNote" class="field-note">Individual growth rolls · connected c3 shelves</div></div>
   <div class="field-note" style="margin-top:9px"><strong style="color:var(--ink)">Seven-cube size tower</strong><br>Bottom → top: r3 · c4 · r2 · c3 · r1 · c2 · c1<br>One of each, 88 c1 tall. c1, c2, r1, and c3 intentionally share the 1 c1 size; the tower follows each platform’s UP face.</div>
   <label class="checks"><input id="showPlatformHulls" type="checkbox" checked><span>Platform hull indicators</span><span>LOD</span></label>
@@ -343,14 +343,14 @@ kbd{font:9px var(--mono);background:#e9eedf;border:1px solid #d9e0d0;padding:1px
   <strong>Build camera</strong><span>Drag to orbit. Scroll to zoom. Right-drag to pan. Home frames the world. Alt-drag also orbits while placing or removing.</span>
   <strong>World layout</strong><span>Each world remains 9 × 9 × 9 chunks. Each chunk is 64 × 64 × 64 c4 cells, or 1024³ c1 units. The full world is 9216³ c1 units.</span>
   <strong>Place / remove</strong><span>Place a c1 control cube at the center of a new platform. Placement addresses snap to the c4 terrain grid; the control is centered on the actual footprint. Its platform, growth, and local branch belong to it. With tower demos visible, click the tower to select or remove the same owner. Keys 1 / 2 / 3 choose Select / Place / Remove. Deleting an owner does not remove other platforms or the main network.</span>
-  <strong>Platform size</strong><span>Platforms and paths both use c4 cubes (8 c1 per side) on the same lattice. The six generated portal plateaus independently roll 16 / 17 / 18 / 19 c4 across. Each side plateau is seeded horizontal or vertical, using only the two planes perpendicular to its portal face. Top and bottom use XY or YZ. The attached 2 × 1 connector shares the same roll. Placed platforms keep their pinned rolls when the world regenerates.</span>
+  <strong>Platform size</strong><span>Platforms and paths both use c4 cubes (16 c1 per side) on the same lattice. Every platform is fixed at 8 c4 across, matching its visible 2 × 2 r3 terrace. Side plateaus are flat; top and bottom retain their XY/YZ rotations. The attached 2 × 1 connector ends directly on the terrace edge.</span>
   <strong>Cube-size towers</strong><span>Seven cubes, one per tier: bottom to top r3 (64 c1 per side), c4 (16), r2 (4), c3 (1), r1 (1), c2 (1), c1 (1). Each tower is 88 c1 tall and centered on its platform. Inspect tower zooms in and labels each cube. These display-only rulers do not affect routes, collision, or budgets; toggle them off to reveal manual control cubes.</span>
   <strong>Small-cube growth</strong><span>Optional growth is off by default. Each platform retains its independent 250–500% roll. When enabled, it adds connected c3 (4 c1) shelves, exactly half the side length of the c4 terrain cubes. No extra cube tiers are introduced.</span>
   <strong>Local branches</strong><span>With automatic paths on, each owned platform gets one link to existing generated terrain. In a blank world, the first cube grows an isolated platform; later platforms connect to earlier ones. With automatic paths off, the platforms remain and only the paths are hidden. Removing an empty-world anchor repairs only dependent links. World 27 offers all six colours plus Void.</span>
   <strong>Undo / redo</strong><span>Ctrl or Cmd + Z / Shift + Z. History is independent for every world. Ctrl or Cmd + Y also redoes.</span>
   <strong>Portal lab</strong><span>The Portals tab owns eight reusable presets: Sky, Underground, black-hole, white-hole, Island, City, Special, and Leave. Portal structure defaults by destination: pure-theme and Leave portals use Terraced, two-theme portals use Twin ring, and three-theme plus Special/Void portals use Tri ring. Any preset can override that structure; opening, depth, rotation, and flat-colour settings remain reusable.</span>
   <strong>Portal inspection</strong><span>Choose a face, then Back or Angle to inspect that actual portal using the build camera. Back looks through the frame from its reverse side. The World tab or Home frames the whole scene. Amber and mint guide cubes identify the authored player spawn and forward direction; the optional passage guide previews the full route. Guides add no terrain and do not count toward the budget.</span>
-  <strong>Portal paths</strong><span>Portal frames remain round. Each outer face supplies one portal in its X, Y, or Z plane, with one plateau 15–25% of the way toward the world centre. Side plateaus seed between their horizontal and vertical perpendicular planes; top and bottom use XY or YZ. Generation stamps exactly six straight portal-to-plateau links—no cross-links and no separate portal bridge. Each is one continuous 2 × 1 c4 path from the outermost in-bounds world-grid slice to its platform edge, sharing the platform roll. Rendering, picking, and collision use those same c4 cells. Portal frames stay c2 and flush with the world boundary.</span>
+  <strong>Portal paths</strong><span>Portal frames remain round. Each outer face supplies one portal in its X, Y, or Z plane, with one plateau at the fixed minimum offset toward the world centre. Side plateaus are flat; top and bottom retain their XY/YZ rotations. Generation stamps exactly six straight portal-to-plateau links—no cross-links and no separate portal bridge. Each is one continuous 2 × 1 c4 path from the outermost in-bounds world-grid slice to the visible terrace edge. Rendering, picking, and collision use those same c4 cells. Portal frames stay c2 and flush with the world boundary.</span>
   <strong>Save / import</strong><span>Exports store all 27 world recipes, eight portal presets, corrected cube tiers, the 1024-c1 chunk size, c4 placement-grid addresses, and c1-world-space branch centerlines. Earlier projects are migrated by enlarging their world-space layout eightfold; v15 c2 portal designs are preserved without a second size increase. The old r3 (6) and r4 (12) labels become r2 (6) and r3 (64). Safe placed-platform recipes are kept; invalid local links are rebuilt. Imports are fully validated before the live project changes.</span>
  </div>
  <button id="closeHelp" class="primary">Back to making</button><p class="dialog-footer">All 27 worlds start completely empty. Generation is explicit. Control cubes and their owned platforms survive regeneration. Remove a control cube to remove its platform, growth, and branch; the generated main network is separate. 16 is a soft budget, not a hard cap. JSON includes generation recipes, eight reusable portal presets, cube colours, pinned owned-platform rolls, and saved local branch centerlines—not a game-specific loader.</p>
@@ -698,13 +698,11 @@ function orientHalf(h,q){
  return new V3(Math.abs(a.x)+Math.abs(b.x)+Math.abs(c.x),Math.abs(a.y)+Math.abs(b.y)+Math.abs(c.y),Math.abs(a.z)+Math.abs(b.z)+Math.abs(c.z));
 }
 function verticalPlateauRollAxis(d,face){
- // Every portal plateau chooses between the two planes perpendicular to its
- // portal face. Side plateaus alternate between horizontal and vertical;
- // top/bottom use their two meaningful vertical planes.
+ // Side portals always use the flat deck from the intended reference layout:
+ // its connector remains on the same c4 layer. Up/down portals retain their
+ // intended XY/YZ rotations.
  if(SIDE_FACES.includes(face)){
-  const vertical=rng(d.config.seed+'|'+d.id+'|side-plateau-roll-v1|'+face)()<.5;
-  if(!vertical)return null;
-  return face==='east'||face==='west'?'x':'z';
+  return null;
  }
  if(face!=='top'&&face!=='bottom')return null;
  const swapped=rng(d.config.seed+'|'+d.id+'|vertical-plateau-roll-v1')()<.5;
@@ -784,8 +782,11 @@ const DETAIL_UNIT=CUBE_TIERS.c3,CONTROL_UNIT=CUBE_TIERS.c1,SOFT_CAP=16,MAX_MODUL
 // demo renders exactly those seven (largest first); no unnamed eighth tier is invented.
 const ASSET_CUBE_TIERS=Object.freeze(CUBE_TIER_ORDER.map(name=>({name,size:CUBE_TIERS[name]})));
 const WORLD_C1_SIZE=4*CHUNK;
-const PLATFORM_MIN=16,PLATFORM_MAX=19,PLATFORM_SIZE_MAX=19,GROWTH_MIN=250,GROWTH_MAX=500;
 const TERRACE_CUBES=2,TERRACE_SIZE_C4=TERRACE_CUBES*CUBE_TIERS.r3/SLOT;
+// The terrain footprint matches the visible 2 × 2 r3 terrace: 128 c1 wide,
+// or eight c4 cells. Keeping these dimensions coupled makes its path end
+// flush with the rendered cubes as well as the logical platform hull.
+const PLATFORM_MIN=TERRACE_SIZE_C4,PLATFORM_MAX=PLATFORM_MIN,PLATFORM_SIZE_MAX=PLATFORM_MIN,GROWTH_MIN=250,GROWTH_MAX=500;
 const buildStats={baseBuilds:0,platformBuilds:0,branchBuilds:0,compositions:0};
 const DEFAULT_SPAN=9,WORLD_LAYOUTS=Object.freeze([9]);
 const FACE_NORMAL={north:new V3(0,0,1),south:new V3(0,0,-1),east:new V3(-1,0,0),west:new V3(1,0,0),top:new V3(0,-1,0),bottom:new V3(0,1,0),center:new V3(0,0,1)};
@@ -810,14 +811,12 @@ function pointCell(d,p){const h=halfOf(d);return p.toArray().map(x=>Math.floor((
 function validCell(d,c){return Array.isArray(c)&&c.length===3&&c.every(x=>Number.isInteger(x)&&x>=0&&x<d.spanChunks*CHUNK_CELLS);}
 function snapGrid(value,step=1){return Math.floor(value/step)*step;}
 function overlapsBox(lo,hi,p,half,padding=0){return ['x','y','z'].every(a=>hi[a]>p[a]-half[a]-padding&&lo[a]<p[a]+half[a]+padding);}
-/* Independent, seeded rolls per platform, not global size/growth targets.
- * World-space anchor coordinates keep profiles stable across legacy layout
- * migration. Separate streams decouple size from growth. The centered average
- * preserves gentle variation, and rounding stays inside the closed ranges. */
+/* Platforms use the minimum c4 footprint. Growth can still be seeded when it
+ * is enabled, but the deck size and its route attachment are no longer rolls. */
 function softRandom(key){const r=rng(key);return (r()+r()+r())/3;}
 function platformProfile(d,m){
  const key=d.config.seed+'|platform-roll-v7|'+d.id+'|'+m.variant+'|'+cellOrigin(d,m.cell).toArray().map(v=>v/SLOT).join(',');
- const rollSize=m.kind==='manual'&&m.platform?m.platform.rollSize:PLATFORM_MIN+Math.round(softRandom(key+'|size')*(PLATFORM_MAX-PLATFORM_MIN));
+ const rollSize=PLATFORM_MIN;
  const growthPercent=m.kind==='manual'&&m.platform?m.platform.growthPercent:GROWTH_MIN+Math.round(softRandom(key+'|growth')*(GROWTH_MAX-GROWTH_MIN));
  const boosted=false,size=Math.min(PLATFORM_MAX,rollSize);
  return {rollSize,size,worldSize:size*SLOT,cubeTier:'c4',boosted,growthPercent,growth:d.config.growthEnabled===false?0:growthPercent/100};
@@ -908,19 +907,18 @@ function moduleFits(world,d,m,platformSize=null){
 function snapshot(id){const h=histories[id-1];h.undo.push(JSON.stringify(levelData[id-1]));if(h.undo.length>50)h.undo.shift();h.redo=[];}
 function changeHistory(id,redo=false){const h=histories[id-1],a=redo?h.redo:h.undo,b=redo?h.undo:h.redo;if(!a.length)return false;b.push(JSON.stringify(levelData[id-1]));levelData[id-1]=JSON.parse(a.pop());return true;}
 function generatePlatforms(world,d){
- const rand=rng(d.config.seed+'|'+world.id+'|portal-plateaus');
  const manual=d.modules.filter(m=>m.kind==='manual');d.modules=manual.slice();
  // Four side portals and the top/bottom portals each own exactly one nearby
- // plateau. Fifteen to twenty-five percent of the mouth-to-centre distance
- // keeps every plateau near its portal, never beyond the world's midpoint.
+ // plateau. The minimum portal offset keeps their placement predictable and
+ // makes every connector run to the platform edge without a rolled gap.
  for(const o of portalInfo(world,d)){
   // A special centre portal remains a portal, not a seventh generation slot.
   if(!ALL_FACES.includes(o.face))continue;
-  const fraction=.20+rand()*.25,p=o.mouth.clone().multiplyScalar(1-fraction);
+  const fraction=.20,p=o.mouth.clone().multiplyScalar(1-fraction);
   // Side decks share the portal mouth height. Their radial edge attachment
   // is therefore a single X or Z run, never a final down-step.
   if(o.axis!=='y')p.y+=SLOT;
-  const cell=pointCell(d,p),m={cell,kind:'generated',portalFace:o.face,variant:Math.floor(rand()*1e6)};
+  const cell=pointCell(d,p),m={cell,kind:'generated',portalFace:o.face,variant:hashSeed(d.config.seed+'|'+world.id+'|portal-plateau|'+o.face)};
   if(moduleFits(world,d,m,PLATFORM_SIZE_MAX))d.modules.push(m);
  }
  d.generated=d.modules.length>0;return d;
@@ -956,14 +954,14 @@ function platformPathAttachment(d,m,other){
  // opposite edge with a route hidden through the platform interior.
  if(m.portalFace==='top'||m.portalFace==='bottom'){
   const point=[p.x,p.y,p.z];
-  point[1]=m.portalFace==='top'?p.y+size*u:p.y-size*u-u;
+  point[1]=m.portalFace==='top'?p.y+(size-1)*u:p.y-size*u;
   return {point,normal:null,length:0};
  }
  const roll=verticalPlateauRollAxis(d,m.portalFace)||platformPlaneRoll(m);
  if(roll){
   const axis=roll==='x'?0:2,sign=Math.sign(other[axis]-p[['x','y','z'][axis]])||1,lo=-Math.floor(size/2),hi=lo+size;
   const point=[p.x,p.y-SLOT,p.z];
-  point[axis]=p[['x','y','z'][axis]]+(sign>0?hi:lo-1)*u;
+  point[axis]=p[['x','y','z'][axis]]+(sign>0?hi-1:lo)*u;
   return {point,normal:null,length:0};
  }
  const axis=Math.abs(dx)>=Math.abs(dz)?0:2,transverse=axis===0?2:0;
@@ -979,10 +977,9 @@ function platformPathAttachment(d,m,other){
  }
  if(!lanes.length)return {point:origin,normal:null,length:0};
  lanes.sort((a,b)=>Math.abs((p[['x','y','z'][transverse]]+a*u)-other[transverse])-Math.abs((p[['x','y','z'][transverse]]+b*u)-other[transverse])||a-b);
- const point=origin.slice();point[axis]=p[['x','y','z'][axis]]+(sign>0?hi:lo-1)*u;point[transverse]=p[['x','y','z'][transverse]]+lanes[0]*u;
- // The selected point is already one c4 outside the terrace. Let the route
- // meet it directly; a mandatory outward lead here creates a visible L-jog
- // even when the remaining route is otherwise a straight continuation.
+ const point=origin.slice();point[axis]=p[['x','y','z'][axis]]+(sign>0?hi-1:lo)*u;point[transverse]=p[['x','y','z'][transverse]]+lanes[0]*u;
+ // Begin on the terrace's edge cell. The following path cell is immediately
+ // adjacent, so the connector cannot leave a one-c4 gap at the platform.
  return {point,normal:null,length:0};
 }
 function routeNodes(world,d){
