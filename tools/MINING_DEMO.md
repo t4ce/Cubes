@@ -76,8 +76,12 @@ only the targeted c1 splits into halves, with one removed and seven retained.
 The c2 readout is therefore `4 : 14` (seven c1 plus seven C1/2).
 On c1 it splits 2×2×2, removes one half, and leaves seven C1/2 cubes.
 Existing C1/2 cubes can be removed whole. Cubes larger than c2 are ineligible.
-Tool 6 targets only C1/2: split 4×4×4 into 1/8-c1 pieces, remove one, collect 63.
-It does not target c1. The smaller collection pieces are transient;
+Tool 6 targets c1 and C1/2. On c1, seven intact C1/2 chunks remain in the scene;
+only the targeted half splits 4×4×4 into 1/8-c1 pieces, with one removed and
+63 collected. Preview shows all 63 flying candidates plus the seven intact
+halves (`6 : 70`). On C1/2, it removes one tiny piece and collects the other
+63 (`6 : 63`). Collection animation expands around the targeted half's center,
+and the arrival counter increases by 63 in either case. The smaller pieces are transient;
 the existing display rows (including R1/2=1/3 and C1/4=1/4) keep their sizes.
 R1/2 and C1/4 cannot currently be mined by any tool. All colors are supported.
 
@@ -87,7 +91,8 @@ cube's center for 500 ms, using a damped overshoot-and-settle curve inspired by
 the reference's bottom-center physical curve, settling at 3× their original
 spacing. Then they fly toward the center of the camera-relative Rubik companion
 in the top right along slightly different curved paths, preserving their palette material and growing smoothly to
-full c1 size by 40% of the eased flight. Over the remaining flight, they fade
+one-quarter of the former c1-sized peak by 40% of the eased flight. The initial
+expansion and original fragment size are unchanged. Over the remaining flight, they fade
 smoothly to zero alpha while shrinking with a Physical: 4, 5-inspired damped
 spring. Undershoot becomes small size rebounds; scales stay positive and above
 the renderer's tiny-marker threshold until disappearance. Collection pieces use the sorted
