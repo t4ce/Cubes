@@ -162,6 +162,26 @@ pub fn camera_distance(width: u32, height: u32, yfov: f32) -> f32 {
 fn rgb(r: u32, g: u32, b: u32) -> u32 {
     CUSTOM_RGB555 | r | (g << 5) | (b << 10)
 }
+/// Key9's cube-pixel font as short screen-space lines for the Key7 readout.
+/// Retained static geometry supports LINE_LIST only, at most 128 indices.
+pub fn mining_readout(width: u32, height: u32, tool: usize, spawned: usize) -> Vec<[f32; 3]> {
+    let mut pixels = Vec::new();
+    text(&mut pixels, &format!("{tool} : {spawned}"), [16., 16., 0.], 3., 0);
+    let mut vertices = Vec::with_capacity(pixels.len() * 2);
+    for pixel in pixels {
+        let [x, y, _] = pixel.center;
+        let s = pixel.scale;
+        for [dx, dy] in [[-s,0.], [s,0.]] {
+            // Static vertices are NDC; depth zero keeps the readout in front.
+            vertices.push([
+                2. * (x + dx) / width.max(1) as f32 - 1.,
+                1. - 2. * (y + dy) / height.max(1) as f32,
+                0.,
+            ]);
+        }
+    }
+    vertices
+}
 fn text(cubes: &mut Vec<Cube>, text: &str, origin: [f32; 3], pitch: f32, flags: u32) {
     for (i, c) in text.bytes().enumerate() {
         let rows = match c {
@@ -175,6 +195,7 @@ fn text(cubes: &mut Vec<Cube>, text: &str, origin: [f32; 3], pitch: f32, flags: 
             b'7' => [7, 1, 1, 1, 1],
             b'8' => [7, 5, 7, 5, 7],
             b'9' => [7, 5, 7, 1, 7],
+            b':' => [0, 2, 0, 2, 0],
             b'F' => [7, 4, 6, 4, 4],
             b'U' => [5, 5, 5, 5, 7],
             b'L' => [4, 4, 4, 4, 7],
@@ -204,6 +225,26 @@ fn text(cubes: &mut Vec<Cube>, text: &str, origin: [f32; 3], pitch: f32, flags: 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn mining_readout_reuses_font_and_stays_at_top_left_on_resize() {
+        for (width, height) in [(784,441), (1920,1080)] {
+            for tool in 0..=4 { for count in 0..=63 {
+                let vertices = mining_readout(width, height, tool, count);
+                assert!(!vertices.is_empty() && vertices.len() <= 128);
+                assert_eq!(vertices.len() % 2, 0);
+                for p in vertices {
+                    let x = (p[0]+1.) * width as f32 * 0.5;
+                    let y = (1.-p[1]) * height as f32 * 0.5;
+                    assert!((14.7..90.).contains(&x));
+                    assert!((14.7..29.3).contains(&y));
+                    assert_eq!(p[2],0.);
+                }
+            }}
+        }
+        let mut colon = Vec::new();
+        text(&mut colon, ":", [0.;3], 1., 0);
+        assert_eq!(colon.len(), 2);
+    }
     fn set(limits: &mut Limits, row: usize, step: usize) {
         // Target the strip's back plane, away from the protruding marker.
         limits.pointer(

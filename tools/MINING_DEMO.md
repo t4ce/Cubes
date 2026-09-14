@@ -16,8 +16,24 @@ Palette RGB, roughness, and metallic values come from
 - Space: push away / approach a walkable face; Home: align the walk view.
 - Wheel: cycle off → 64-to-16 → 16-to-4 → 4-to-1 → c1-to-R1/2 → off (reverse wheel reverses).
   Entry and reset start off.
-- Left click: commit the previewed removal.
+- Left click: commit on release, only if the same removal cube stayed targeted
+  throughout the press. Aiming away cancels the click.
+- Hold left for two seconds on the target: start auto-mining the currently
+  aimed cube every 100 ms. Release stops it without an extra cut. Slow frames
+  do not trigger catch-up bursts. Wheel changes, reset, leaving Key7, and lost
+  input focus cancel the gesture.
 - Right click: restore all 66 blocks and the starting view.
+
+The top-left readout uses Key9's cube-pixel number font: `tool ID : spawned`.
+Tools are numbered 1–4 in wheel order; off is `0 : 0`. The count is the
+number of replacement cubes the current cut would create, excluding the
+removed cube, preview marker, and untouched scene blocks. For example,
+cutting C1/2 with tool 4 shows `4 : 26`; cutting intact c1 shows `4 : 33`.
+Removing a whole cube or aiming at no eligible target shows a zero count.
+The readout updates before clicking and stays fixed at the top left.
+It uses camera-relative white cube pixels, following Key5's R-toggle companion
+placement approach, with a 20-pixel inset and 5-pixel font pitch. Its seeds are
+reserved before scene admission; it does not use the static floor-line path.
 
 This first mining pass targets intact 64-c1 cubes and 16-c1 (c4) cubes.
 A 64-c1 cube is divided into 4×4×4 children of side 16 c1. The ray selects

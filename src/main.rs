@@ -171,6 +171,8 @@ struct CubeScene {
     puzzle_space_held: bool,
     puzzle_space_pressed: bool,
     mining: subcubes::Demo,
+    mining_gesture: subcubes::MiningGesture,
+    mining_cursor: Option<GridCursor>,
     mining_asset: orchard::Asset,
     orbit: [f32; 3], // yaw, elevation, radius
     look_target: [f32; 3],
@@ -409,6 +411,8 @@ impl CubeScene {
             puzzle_space_held: false,
             puzzle_space_pressed: false,
             mining: subcubes::Demo::new(),
+            mining_gesture: subcubes::MiningGesture::default(),
+            mining_cursor: None,
             mining_asset: orchard::Asset {
                 name: "mining",
                 cubes: Vec::new(),
@@ -500,6 +504,9 @@ impl CubeScene {
             })
         };
         self.cursors.retain(&routed);
+        if self.mining_cursor.as_ref().is_some_and(|cursor| !routed(cursor)) {
+            self.mining_gesture.cancel(); self.mining_cursor = None;
+        }
         if self.limits_cursor.as_ref().is_some_and(|cursor| !routed(cursor)) {
             self.limits.cancel_drag(); self.limits_cursor = None;
         }
@@ -567,6 +574,7 @@ impl CubeScene {
                     camera.look(event.dx as f32, event.dy as f32);
                 }
                 if event.wheel != 0 {
+                    self.mining_gesture.cancel(); self.mining_cursor = None;
                     self.mining.cycle(-(event.wheel as i32));
                     logl::log(
                         level::INFO,
@@ -579,15 +587,28 @@ impl CubeScene {
                     );
                 }
                 if event.buttons_pressed & 4 != 0 {
+                    self.mining_gesture.cancel(); self.mining_cursor = None;
                     self.mining = subcubes::Demo::new();
                     self.walker_camera = Some(walker_camera::CubesWalkerCam::mining_demo(
                         &self.mining.blocks,
                     ));
                     self.refresh_mining();
-                } else if event.buttons_pressed & 1 != 0 {
-                    if let Some(cut) = self.mining_target() {
-                        self.mining.mine(cut);
-                        self.refresh_mining();
+                } else if self.mining_cursor.as_ref().is_none_or(|owner|
+                    owner.source == cursor.source && owner.combo == cursor.combo
+                        && owner.virtual_cursor == cursor.virtual_cursor) {
+                    let target = self.mining_target();
+                    if event.buttons_pressed & 1 != 0 {
+                        self.mining_gesture.press(target, elapsed_millis);
+                        self.mining_cursor = Some(cursor);
+                    }
+                    self.mining_gesture.observe(target);
+                    if event.buttons_down & 1 == 0 {
+                        let cut = self.mining_gesture.release(target);
+                        self.mining_cursor = None;
+                        if let Some(cut) = cut {
+                            self.mining.mine(cut);
+                            self.refresh_mining();
+                        }
                     }
                 }
             }
@@ -970,6 +991,13 @@ impl CubeScene {
             let source = orchard::Cube { center: target.center, scale: target.scale, flags: theme as u32 };
             (target, source, quaternion_from_rotation_columns(basis[0], basis[1], basis[2]).0)
         });
+        if self.mode == SceneMode::MaterialShowcase {
+            let target = self.mining_target();
+            if let Some(cut) = self.mining_gesture.tick(target, elapsed_millis) {
+                self.mining.mine(cut);
+                self.refresh_mining();
+            }
+        }
         let puzzle_sources = puzzle_hover.map(|(_, source, _)| [source]);
         let target = if self.mode == SceneMode::StaticCube {
             puzzle_hover.map(|(target, _, _)| target)
@@ -983,12 +1011,18 @@ impl CubeScene {
         } else if self.mode == SceneMode::MaterialShowcase {
             &self.mining_asset.cubes[..]
         } else { &[] };
+        let mut mining_readout = None;
         let flight_cube = if self.mode == SceneMode::MaterialShowcase {
             let preview = self.mining_target();
             self.mining_asset.cubes = self.mining.preview_blocks(preview).into_iter().map(|b| {
                 let (center, scale) = b.pose();
                 orchard::Cube { center, scale, flags: rubik::MATERIAL_SHOWCASE_FLAG | b.material }
             }).collect();
+            let spawned = if preview.is_some() {
+                self.mining_asset.cubes.len() + 1 - self.mining.blocks.len()
+            } else { 0 };
+            let tool_id = if self.mining.tool_side().is_some() { self.mining.tool + 1 } else { 0 };
+            mining_readout = Some((tool_id, spawned));
             if self.mining.tool_side().is_some() {
                 self.flight_target.clear();
                 if let Some(t) = preview {
@@ -1502,7 +1536,17 @@ impl CubeScene {
             &seed_bytes[..seed_count * 64],
         )
         .map_err(|code| CubeError::Vgpu("grid-seed-upload", code))?;
-        let floor_bytes = floor::vertices(&camera.view_projection, self.mode == SceneMode::StaticCube);
+        let mut floor_bytes = floor::vertices(&camera.view_projection, self.mode == SceneMode::StaticCube);
+        if let Some((tool, spawned)) = mining_readout {
+            let vertices = render_limits::mining_readout(width, height, tool, spawned);
+            if vertices.len() > floor::VERTICES { return Err(CubeError::Contract); }
+            for (i, vertex) in vertices.iter().enumerate() {
+                for (a, value) in vertex.iter().enumerate() {
+                    let offset = i * 12 + a * 4;
+                    floor_bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+                }
+            }
+        }
         write_exact(self.device, self.floor_vertices, &floor_bytes)
             .map_err(|code| CubeError::Vgpu("floor-upload", code))?;
         self.floor_revision = self.floor_revision.wrapping_add(1);
@@ -1534,9 +1578,13 @@ impl CubeScene {
                             static_draw_count: 1,
                             static_draws: [
                                 trueos::vgpu::IndexedBatchDrawV2 {
+                                    // Fixed line count preserves the cached static mesh
+                                    // through mode changes and changing digit counts.
                                     index_count: floor::VERTICES as u32,
                                     topology: trueos::vgpu::PRIMITIVE_TOPOLOGY_LINE_LIST,
-                                    rgba8_srgb: u32::from_le_bytes([100, 100, 100, 255]),
+                                    rgba8_srgb: if mining_readout.is_some() {
+                                        u32::from_le_bytes([240, 240, 240, 255])
+                                    } else { u32::from_le_bytes([100, 100, 100, 255]) },
                                     ..trueos::vgpu::IndexedBatchDrawV2::default()
                                 },
                                 trueos::vgpu::IndexedBatchDrawV2::default(),
@@ -2381,6 +2429,8 @@ impl CubeScene {
         if mode == SceneMode::Orchard && self.mode != mode {
             self.carousel.orbit = carousel::Orbit::default();
         }
+        self.mining_gesture.cancel();
+        self.mining_cursor = None;
         self.mode = mode;
         self.frame
             .set_center_snapped_mouse(matches!(
@@ -2571,9 +2621,11 @@ impl CubeScene {
     }
 
     fn mining_target(&self) -> Option<subcubes::MiningTarget> {
+        let (position, rotation) = self.walker_camera.as_ref().map(|c| c.pose())
+            .unwrap_or((self.flycam.camera.position, self.flycam.camera.rotation));
         self.mining.target_details(
-            self.flycam.camera.position,
-            self.flycam.camera.rotation.rotate([0., 0., -1.]),
+            position,
+            rotation.rotate([0., 0., -1.]),
         )
     }
     fn refresh_mining(&mut self) {

@@ -19,7 +19,7 @@ const EPS: f32 = 1e-4;
 // Slightly higher surface viewpoint; shared with landing/headroom checks.
 const EYE: f32 = 0.825;
 const EDGE_TRAVEL: f32 = 1.8;
-const WALK_SPEED: f32 = 2.9 * 5.;
+const WALK_SPEED: f32 = 2.9 * 2.5;
 const SHIFT_SPEED: f32 = WALK_SPEED * 2.;
 const PATH_SPEED: f32 = SHIFT_SPEED * 2.;
 // 7.5% narrower than the original 45-degree walker view.

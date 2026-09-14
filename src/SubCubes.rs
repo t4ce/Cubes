@@ -100,6 +100,45 @@ pub struct MiningTarget {
     pub cut: Block,
 }
 
+/// A click is armed on press and committed on release; a hold repeats on frames.
+#[derive(Default)]
+pub struct MiningGesture {
+    pressed: Option<(MiningTarget, u64)>,
+    automatic: bool,
+    next_mine: u64,
+}
+impl MiningGesture {
+    pub fn cancel(&mut self) { *self = Self::default(); }
+    pub fn press(&mut self, target: Option<MiningTarget>, now: u64) {
+        self.cancel();
+        self.pressed = target.map(|t| (t, now));
+    }
+    pub fn observe(&mut self, target: Option<MiningTarget>) {
+        if !self.automatic && self.pressed.is_some_and(|(t, _)| Some(t) != target) {
+            self.cancel();
+        }
+    }
+    pub fn release(&mut self, target: Option<MiningTarget>) -> Option<MiningTarget> {
+        let cut = self.pressed.and_then(|(t, _)|
+            (!self.automatic && Some(t) == target).then_some(t));
+        self.cancel();
+        cut
+    }
+    pub fn tick(&mut self, target: Option<MiningTarget>, now: u64) -> Option<MiningTarget> {
+        self.observe(target);
+        let (_, started) = self.pressed?;
+        if !self.automatic {
+            if now.saturating_sub(started) < 2000 { return None; }
+            self.automatic = true;
+            self.next_mine = now;
+        }
+        if now < self.next_mine { return None; }
+        // No catch-up bursts after a slow frame or a period without a target.
+        self.next_mine = now.saturating_add(100);
+        target
+    }
+}
+
 pub struct Demo {
     pub blocks: Vec<Block>,
     pub tool: usize,
@@ -245,6 +284,58 @@ impl Demo {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn gesture_target(x: i32) -> MiningTarget {
+        let parent = Block { min: [x,0,0], side: 6, material: 0 };
+        MiningTarget { parent, cut: parent }
+    }
+    #[test]
+    fn click_commits_only_on_release_and_aiming_away_cancels_it() {
+        let a = Some(gesture_target(0));
+        let b = Some(gesture_target(6));
+        let mut g = MiningGesture::default();
+        g.press(a, 100);
+        assert!(g.tick(a, 101).is_none());
+        assert_eq!(g.release(a), a);
+        assert!(g.release(a).is_none());
+        for away in [None, b] {
+            g.press(a, 100);
+            g.observe(away);
+            assert!(g.release(a).is_none());
+            assert!(g.tick(a, 3000).is_none());
+        }
+        g.press(None, 100);
+        assert!(g.release(a).is_none());
+        g.press(a, 100);
+        assert!(g.release(b).is_none());
+    }
+    #[test]
+    fn hold_starts_at_two_seconds_and_tracks_targets_without_release_extra_cut() {
+        let a = Some(gesture_target(0));
+        let b = Some(gesture_target(6));
+        let mut g = MiningGesture::default();
+        g.press(a, 100);
+        assert!(g.tick(a, 2099).is_none());
+        assert_eq!(g.tick(a, 2100), a);
+        assert!(g.tick(b, 2199).is_none());
+        assert_eq!(g.tick(b, 2200), b);
+        assert!(g.tick(None, 2300).is_none());
+        assert_eq!(g.tick(a, 2400), a);
+        assert!(g.release(a).is_none());
+        assert!(g.tick(a, 3000).is_none());
+    }
+    #[test]
+    fn cancelled_holds_and_slow_frames_never_burst() {
+        let a = Some(gesture_target(0));
+        let mut g = MiningGesture::default();
+        g.press(a, 0);
+        assert_eq!(g.tick(a, 5000), a);
+        assert!(g.tick(a, 5000).is_none());
+        assert!(g.tick(a, 5099).is_none());
+        assert_eq!(g.tick(a, 5100), a);
+        g.cancel();
+        assert!(g.tick(a, 10000).is_none());
+        assert!(g.release(a).is_none());
+    }
     #[test]
     fn wheel_visits_every_size_and_off_in_both_directions() {
         let mut d = Demo::new();

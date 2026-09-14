@@ -3,6 +3,16 @@
 from pathlib import Path
 import subprocess,tempfile
 ROOT=Path(__file__).resolve().parents[1]
+# The kernel's retained-static path only admits LINE_LIST draws of <=128
+# indices. Keep the startup floor on a fixed mesh contract across modes.
+import re
+floor_source=(ROOT/'src/floor.rs').read_text()
+main_source=(ROOT/'src/main.rs').read_text()
+static_vertices=int(re.search(r'pub const VERTICES: usize = (\d+);',floor_source)[1])
+assert 0 < static_vertices <= 128 and static_vertices % 2 == 0
+static_draw=main_source.split('static_draws: [',1)[1].split('..trueos::vgpu::IndexedBatchDrawV2::default()',1)[0]
+assert 'index_count: floor::VERTICES as u32' in static_draw
+assert 'topology: trueos::vgpu::PRIMITIVE_TOPOLOGY_LINE_LIST,' in static_draw
 source='''#![allow(dead_code)]
 extern crate alloc;
 extern crate self as libm;

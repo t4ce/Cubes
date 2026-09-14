@@ -53,7 +53,7 @@ Camera behavior is owned by Cubes; world imports contain `.cubes` geometry,
 materials, and the two point markers that define each portal arrival. Settings:
 41.625-degree base FOV, rendered at approximately 21.522 degrees by the app's
 shared 2× camera magnification; 0.003 rad/pixel look,
-0.825-voxel eye height (10% higher), 14.5/29 voxels per second walking (normal/Shift), 1.8-voxel quarter-turn
+0.825-voxel eye height (10% higher), 7.25/14.5 voxels per second walking (normal/Shift), 1.8-voxel quarter-turn
 travel, 100% camera assist, 45-degree soft perch, and exponential camera smoothing.
 Stop to hold an edge, reverse to return, or move sideways along it. A one-cell
 step is traversed automatically; larger walls become walkable faces. At a
