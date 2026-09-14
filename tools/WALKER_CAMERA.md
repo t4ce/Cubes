@@ -32,7 +32,7 @@ the empty opening, not while approaching along the connector or touching its rin
   The view follows travel; WASD/arrows cancel it, and Tab cancels and exits
   path mode. Opening the picker or changing modes also cancels travel.
   Tab does nothing in flight or Key7.
-- Flight speed is twice the original; Shift retains the 2.8× flight boost.
+- Flight speed is 12 voxel units/s (halved from 24); Shift retains the 2.8× flight boost.
 - Space held at an outside edge, or pressed during its turn: push off 18 voxels
   at twice current walking speed while turning the view back toward the edge.
 - In drift, press Space to approach the aimed cube at 48 voxels/s and attach.

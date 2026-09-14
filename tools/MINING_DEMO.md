@@ -57,8 +57,11 @@ branch: one cut leaves seven intact c2 chunks and seven c1 cubes. Targeting
 c2 splits it into 2×2×2 c1, removing one and retaining seven. Existing c1 cubes
 are removed whole. Larger cubes and other sizes cannot be targeted by this tool.
 
-Tool 4 targets c1 and C1/2. It splits c1 into 2×2×2 halves, removes one,
-and leaves seven C1/2 cubes. Existing C1/2 cubes can be removed whole.
+Tool 4 targets c2, c1, and C1/2. On c2 it preserves seven intact c1 cubes;
+only the targeted c1 splits into halves, with one removed and seven retained.
+The c2 readout is therefore `4 : 14` (seven c1 plus seven C1/2).
+On c1 it splits 2×2×2, removes one half, and leaves seven C1/2 cubes.
+Existing C1/2 cubes can be removed whole. Cubes larger than c2 are ineligible.
 Tool 5 targets only c1: split 3×3×3, remove one, leave 26 R1/2 cubes.
 Tool 6 targets only c1: split 4×4×4, remove one, leave 63 C1/4 cubes.
 R1/2 and C1/4 cannot currently be mined by any tool. All colors are supported.

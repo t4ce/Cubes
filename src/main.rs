@@ -351,7 +351,7 @@ impl CubeScene {
         }
         write_exact(device, floor_indices, &floor_index_bytes)
             .map_err(|code| CubeError::Vgpu("floor-index-upload", code))?;
-        let flycam = FlyCam::new(camera, 3.0);
+        let flycam = FlyCam::new(camera, 1.5);
         let seed_buffer = device
             .create_buffer(
                 grid::MAX_SEED_COUNT * 64,
@@ -2497,7 +2497,7 @@ impl CubeScene {
             logl::log(level::INFO,format_args!("Cubes: asset picker group={} assets={} selected={} five-row-slots alpha=.25/.5/1/.5/.25 group-previews=above/below alpha=.5 wheel/AD=slide W/S=next/previous-group mouse=orbit",
                 self.carousel.name(),self.carousel.group_len(),self.carousel.asset_name()));
         } else if mode == SceneMode::World {
-            self.flycam = FlyCam::new(default_camera(), 3.0);
+            self.flycam = FlyCam::new(default_camera(), 1.5);
             let (world_name, world_bytes, asset) = if self.network_singleton {
                 let network = self.network_world.as_ref().ok_or(CubeError::Contract)?;
                 (network.asset.name, network.bytes.as_slice(), &network.asset)

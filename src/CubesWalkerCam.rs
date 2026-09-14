@@ -20,6 +20,7 @@ const EPS: f32 = 1e-4;
 const EYE: f32 = 0.825;
 const EDGE_TRAVEL: f32 = 1.8;
 const WALK_SPEED: f32 = 2.9 * 2.5;
+const FLY_SPEED: f32 = 12.;
 const SHIFT_SPEED: f32 = WALK_SPEED * 2.;
 const PATH_SPEED: f32 = SHIFT_SPEED * 2.;
 // 7.5% narrower than the original 45-degree walker view.
@@ -1401,7 +1402,7 @@ impl CubesWalkerCam {
             );
             if dot(movement, movement) > 0. {
                 let direction = norm(movement);
-                let distance = 24. * if input.boost { 2.8 } else { 1. } * dt;
+                let distance = FLY_SPEED * if input.boost { 2.8 } else { 1. } * dt;
                 let distance = self
                     .solid
                     .ray(self.foot, direction, distance + 0.12)
@@ -2253,7 +2254,7 @@ mod tests {
                 );
                 close(
                     sub(c.foot, start),
-                    mul(screen.rotate([1., 0., 0.]), sign * 24. * 0.025),
+                    mul(screen.rotate([1., 0., 0.]), sign * 12. * 0.025),
                 );
             }
         }
