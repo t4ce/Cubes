@@ -1,12 +1,13 @@
 # Cubes Key7 mining demo
 
-Key7 has ten sizes in total: the existing eight plus C1/2 and R1/2.
-Six palette columns contain nine size rows: R1/2=1/6, C1/2=1/2, c1=1,
+Key7 has eleven sizes in total, including the large base cubes.
+Six palette columns contain ten size rows: C1/4=1/4, R1/2=1/3, C1/2=1/2, c1=1,
 c2=2, r1=3, c3=4, r2=6, r3=8, c4=16 c1. Each c1 is 0.2 renderer units.
-A 2×2×2 group of C1/2 fills c1; a 3×3×3 group of R1/2 fills C1/2.
-Coordinates use exact integer sixth-c1 ticks.
+A 2×2×2 group of C1/2, 3×3×3 group of R1/2, or 4×4×4 group of C1/4 fills c1.
+R1/2 retains its name but is redesigned as one third of c1.
+Coordinates use exact integer twelfth-c1 ticks; network wire coordinates remain sixths.
 
-The nine display rows contain 54 cubes. Below them is the existing 6×2×1
+The ten display rows contain 60 cubes. Below them is the existing 6×2×1
 floor of twelve 64×64×64 c1 cubes, centered at y=-32 c1 with its top at y=0.
 Each depth row contains red, orange, yellow, green, blue, and violet once.
 Palette RGB, roughness, and metallic values come from
@@ -14,7 +15,7 @@ Palette RGB, roughness, and metallic values come from
 
 - Mouse: look; WASD: move; Shift: boost; Q/E: flight roll.
 - Space: push away / approach a walkable face; Home: align the walk view.
-- Wheel: cycle off → 64-to-16 → 16-to-4 → 4-to-1 → c1-to-R1/2 → off (reverse wheel reverses).
+- Wheel: cycle off → 64-to-16 → 16-to-4 → 4-to-1 → c1-to-half → c1-to-third → c1-to-quarter → off (reverse wheel reverses).
   Entry and reset start off.
 - Left click: commit on release, only if the same removal cube stayed targeted
   throughout the press. Aiming away cancels the click.
@@ -22,13 +23,13 @@ Palette RGB, roughness, and metallic values come from
   aimed cube every 100 ms. Release stops it without an extra cut. Slow frames
   do not trigger catch-up bursts. Wheel changes, reset, leaving Key7, and lost
   input focus cancel the gesture.
-- Right click: restore all 66 blocks and the starting view.
+- Right click: restore all 72 blocks and the starting view.
 
 The top-left readout uses Key9's cube-pixel number font: `tool ID : spawned`.
-Tools are numbered 1–4 in wheel order; off is `0 : 0`. The count is the
+Tools are numbered 1–6 in wheel order; off is `0 : 0`. The count is the
 number of replacement cubes the current cut would create, excluding the
 removed cube, preview marker, and untouched scene blocks. For example,
-cutting C1/2 with tool 4 shows `4 : 26`; cutting intact c1 shows `4 : 33`.
+cutting intact c1 shows `4 : 7`, `5 : 26`, or `6 : 63` for the three split tools.
 Removing a whole cube or aiming at no eligible target shows a zero count.
 The readout updates before clicking and stays fixed at the top left.
 It uses camera-relative white cube pixels, following Key5's R-toggle companion
@@ -56,22 +57,22 @@ branch: one cut leaves seven intact c2 chunks and seven c1 cubes. Targeting
 c2 splits it into 2×2×2 c1, removing one and retaining seven. Existing c1 cubes
 are removed whole. Larger cubes and other sizes cannot be targeted by this tool.
 
-The fourth tool targets c1, C1/2 (half c1), and R1/2 (one sixth c1).
-It removes one R1/2 at a time. Cutting intact c1 preserves seven C1/2 chunks;
-only the affected half splits into 3×3×3 R1/2, leaving 26 around the cut.
-Existing C1/2 splits the same way, and existing R1/2 is removed whole.
-All palette colors are supported; cubes larger than c1 cannot be targeted.
+Tool 4 targets c1 and C1/2. It splits c1 into 2×2×2 halves, removes one,
+and leaves seven C1/2 cubes. Existing C1/2 cubes can be removed whole.
+Tool 5 targets only c1: split 3×3×3, remove one, leave 26 R1/2 cubes.
+Tool 6 targets only c1: split 4×4×4, remove one, leave 63 C1/4 cubes.
+R1/2 and C1/4 cannot currently be mined by any tool. All colors are supported.
 
 The preview renders the retained chunks as opaque cubes and marks the selected
 child with a centered opaque cube pulsing sinusoidally between 75% and 95%
 of the child's linear size over two seconds, in its original material.
 The full child remains the removal volume (16 c1 for the
-first tool, 4 c1 for the second, 1 c1 for the third, 1/6 c1 for the fourth).
+first tool, 4 c1 for the second, 1 c1 for the third, then 1/2, 1/3, and 1/4 c1).
 It does not attach an extra cube outside the surface.
 Aiming away or disabling the tool restores the intact display. Preview never
 changes collision or stored blocks. Clicking removes exactly that previewed
 child and retains the other chunks with their original material. Targeting an
-existing child cube shows the same pulsing marker and removes that whole cube
+eligible existing child cube shows the same pulsing marker and removes that whole cube
 without further subdivision. No intermediate
 sizes are added. With no tool selected, the normal animated flycam marker
 returns for Space-to-snap. Enabling the mining tool hides that flight marker.

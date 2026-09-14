@@ -225,7 +225,7 @@ mod tests {
     #[test]
     fn mining_readout_reuses_font_and_stays_at_top_left_on_resize() {
         for (width, height) in [(784,441), (1920,1080), (3840,2160)] {
-            for tool in 0..=4 { for count in 0..=63 {
+            for tool in 0..=6 { for count in 0..=63 {
                 let tan = 0.20710678;
                 let pixels = mining_readout(width, height, tan, tool, count);
                 assert!(!pixels.is_empty() && pixels.len() <= 64);

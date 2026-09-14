@@ -1933,7 +1933,9 @@ impl CubeScene {
                 self.network_empty = true;
                 self.asset_brush.disable();
                 let blocks: Vec<_> = world.cubes.iter().map(|c| subcubes::Block {
-                    min: c.min, side: c.side as i32, material: c.material as u32,
+                    // Network structures retain their sixth-c1 wire coordinates.
+                    min: c.min.map(|v| v * (subcubes::TICKS_PER_C1 / 6)),
+                    side: c.side as i32 * (subcubes::TICKS_PER_C1 / 6), material: c.material as u32,
                 }).collect();
                 let asset = orchard::Asset {
                     name: "empty-structure",
@@ -1955,7 +1957,7 @@ impl CubeScene {
                     .map_err(|error| CubeError::Ui4("empty-world-pointer", error))?;
                 self.flight_target.clear();
                 let walker = walker_camera::CubesWalkerCam::server_structure(&blocks,
-                    world.spawn.map(|v|v as f32 * subcubes::UNIT), world.normal.map(|v|v as f32), world.side_c1);
+                    world.spawn.map(|v|v as f32 * subcubes::C1 / 6.), world.normal.map(|v|v as f32), world.side_c1);
                 let (position, rotation) = walker.pose();
                 self.flycam.camera.position = position;
                 self.flycam.camera.rotation = rotation;

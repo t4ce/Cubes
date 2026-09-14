@@ -1,18 +1,18 @@
-//! Key7 uses an exact sixth-c1 lattice and block-local subdivision.
+//! Key7 uses an exact twelfth-c1 lattice and block-local subdivision.
 use alloc::vec::Vec;
 
 pub const C1: f32 = 0.2;
 /// Existing world/VFX contract, in c1 units.
 pub const SIDES: [i32; 7] = [1, 2, 3, 4, 6, 8, 12];
-pub const TICKS_PER_C1: i32 = 6;
+pub const TICKS_PER_C1: i32 = 12;
 pub const UNIT: f32 = C1 / TICKS_PER_C1 as f32;
-/// Display tiers, in sixth-c1 ticks; c4 remains 16 c1.
-pub const MINING_SIDES: [i32; 9] = [1, 3, 6, 12, 18, 24, 36, 48, 96];
-pub const MINING_NAMES: [&str; 9] = ["R1/2", "C1/2", "c1", "c2", "r1", "c3", "r2", "r3", "c4"];
-/// Maximum target sizes and removal sizes, in sixth-c1 ticks.
-pub const TOOLS: [i32; 4] = [64 * TICKS_PER_C1, 16 * TICKS_PER_C1, 4 * TICKS_PER_C1, TICKS_PER_C1];
-pub const CUT_SIDES: [i32; 4] = [96, 24, 6, 1];
-pub const TOOL_NAMES: [&str; 4] = ["64 c1 -> c4 (16 c1)", "c4 (16 c1) -> c3 (4 c1)", "c3 (4 c1) -> c1", "c1 -> R1/2"];
+/// Display tiers, in twelfth-c1 ticks; R1/2 is now one third of c1.
+pub const MINING_SIDES: [i32; 10] = [3, 4, 6, 12, 24, 36, 48, 72, 96, 192];
+pub const MINING_NAMES: [&str; 10] = ["C1/4", "R1/2", "C1/2", "c1", "c2", "r1", "c3", "r2", "r3", "c4"];
+/// Maximum target sizes and removal sizes, in twelfth-c1 ticks.
+pub const TOOLS: [i32; 6] = [768, 192, 48, 12, 12, 12];
+pub const CUT_SIDES: [i32; 6] = [192, 48, 12, 6, 4, 3];
+pub const TOOL_NAMES: [&str; 6] = ["64 c1 -> c4 (16 c1)", "c4 (16 c1) -> c3 (4 c1)", "c3 (4 c1) -> c1", "c1 -> C1/2", "c1 -> R1/2 (1/3)", "c1 -> C1/4"];
 pub const NO_TOOL: usize = TOOLS.len();
 pub const MINING_BASE_SIDE: i32 = 64 * TICKS_PER_C1;
 
@@ -36,7 +36,7 @@ pub fn walkable(side: i32) -> bool {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Block {
-    /// Coordinates and side length in sixth-c1 ticks.
+    /// Coordinates and side length in twelfth-c1 ticks.
     pub min: [i32; 3],
     pub side: i32,
     pub material: u32,
@@ -52,7 +52,7 @@ impl Block {
         self.side % TICKS_PER_C1 == 0 && walkable(self.side / TICKS_PER_C1)
     }
     fn children(self) -> Vec<Block> {
-        let side = if matches!(self.side, 96 | 48 | 24 | 12 | 6) {
+        let side = if matches!(self.side, 192 | 96 | 48 | 24 | 12) {
             Some(self.side / 2)
         } else if TOOLS.contains(&self.side) {
             Some(self.side / 4)
@@ -149,7 +149,7 @@ impl Demo {
         for (row, side) in MINING_SIDES.into_iter().enumerate() {
             for color in 0..6 {
                 blocks.push(Block {
-                    min: [(color * 18 - 51) * 6, 0, (row as i32 * 18 - 75) * 6],
+                    min: [(color * 18 - 51) * TICKS_PER_C1, 0, (row as i32 * 18 - 75) * TICKS_PER_C1],
                     side,
                     material: color as u32,
                 });
@@ -186,9 +186,15 @@ impl Demo {
     pub fn tool_name(&self) -> &'static str {
         TOOL_NAMES.get(self.tool).copied().unwrap_or("none")
     }
+    fn accepts(&self, side: i32) -> bool {
+        let Some(selected) = self.tool_side() else { return false; };
+        side == selected
+            || (self.tool < 4 && self.cut_side() == Some(side))
+            || (matches!(self.tool, 1 | 2) && side == selected / 2)
+    }
 
     pub fn target_details(&self, origin: [f32; 3], direction: [f32; 3]) -> Option<MiningTarget> {
-        let selected = self.tool_side()?;
+        self.tool_side()?;
         let origin = origin.map(|x| x / UNIT);
         let mut best = f32::INFINITY;
         let mut hit = None;
@@ -222,12 +228,10 @@ impl Demo {
             hit = if near < 0. { None } else { Some((block, near)) };
         }
         let (parent, distance) = hit?;
+        if !self.accepts(parent.side) { return None; }
         let side = self.cut_side()?;
         if parent.side == side {
             return Some(MiningTarget { parent, cut: parent });
-        }
-        if parent.side != selected && !(matches!(selected, 96 | 24 | 6) && parent.side == selected / 2) {
-            return None;
         }
         let min = core::array::from_fn(|a| {
             let p = origin[a] + direction[a] * (distance + 0.0001) - parent.min[a] as f32;
@@ -249,7 +253,17 @@ impl Demo {
         for &block in &self.blocks {
             if let Some(t) = target.filter(|t| t.parent == block) {
                 if t.cut != block {
-                    block.without(t.cut, &mut out);
+                    if block.side == TICKS_PER_C1 {
+                        // Tools 4–6 split c1 directly into their own uniform tier.
+                        let n = block.side / t.cut.side;
+                        for x in 0..n { for y in 0..n { for z in 0..n {
+                            let child = Block {
+                                min: core::array::from_fn(|a| block.min[a] + [x,y,z][a] * t.cut.side),
+                                side: t.cut.side, material: block.material,
+                            };
+                            if child != t.cut { out.push(child); }
+                        }}}
+                    } else { block.without(t.cut, &mut out); }
                 }
             } else {
                 out.push(block);
@@ -259,14 +273,12 @@ impl Demo {
     }
     pub fn mine(&mut self, target: MiningTarget) {
         // Reject stale previews or targets from a different wheel selection.
-        let Some(selected) = self.tool_side() else { return; };
+        if !self.accepts(target.parent.side) { return; }
         let Some(cut_side) = self.cut_side() else { return; };
         let valid = if target.parent.side == cut_side {
             target.cut == target.parent
         } else {
-            (target.parent.side == selected
-                || (matches!(selected, 96 | 24 | 6) && target.parent.side == selected / 2))
-                && target.cut.side == cut_side
+            target.cut.side == cut_side
                 && target.cut.material == target.parent.material
                 && (0..3).all(|a| {
                     let offset = target.cut.min[a] - target.parent.min[a];
@@ -285,7 +297,7 @@ impl Demo {
 mod tests {
     use super::*;
     fn gesture_target(x: i32) -> MiningTarget {
-        let parent = Block { min: [x,0,0], side: 6, material: 0 };
+        let parent = Block { min: [x,0,0], side: 12, material: 0 };
         MiningTarget { parent, cut: parent }
     }
     #[test]
@@ -384,8 +396,8 @@ mod tests {
                     );
                     assert!(preview.iter().all(|b| b.material == 5 && *b != target.cut));
                     let n = side / target.cut.side;
-                    assert_eq!(n, if tool == 3 { 6 } else { 4 });
-                    assert_eq!(preview.len(), [63, 14, 14, 33][tool]);
+                    assert_eq!(n, [4,4,4,2,3,4][tool]);
+                    assert_eq!(preview.len(), [63, 14, 14, 7, 26, 63][tool]);
                     d.mine(target);
                     assert_eq!(d.blocks, preview);
                     let after = d.blocks.clone();
@@ -396,48 +408,50 @@ mod tests {
         }
     }
     #[test]
-    fn finest_tool_preserves_halves_and_removes_sixths_in_every_color() {
-        for material in 0..6 {
-            let parent = Block { min: [0; 3], side: 6, material };
-            let mut d = Demo { blocks: alloc::vec![parent], tool: 3 };
-            let origin = [UNIT*0.5, UNIT*0.5, -UNIT];
-            let direction = [0., 0., 1.];
-            let target = d.target_details(origin, direction).unwrap();
-            assert_eq!(target.cut.side, 1);
-            let preview = d.preview_blocks(Some(target));
-            assert_eq!(preview.iter().filter(|b| b.side == 3).count(), 7);
-            assert_eq!(preview.iter().filter(|b| b.side == 1).count(), 26);
-            assert_eq!(d.blocks, [parent]);
-            d.mine(target);
-            assert_eq!(d.blocks, preview);
-            for _ in 0..2 {
-                let child = d.target_details(origin, direction).unwrap();
-                assert_eq!(child.parent, child.cut);
-                d.mine(child);
+    fn c1_split_tools_keep_uniform_children_and_enforce_target_sizes() {
+        for material in 0..6 { for tool in 3..6 {
+            let parent = Block { min: [-12;3], side: 12, material };
+            let mut d = Demo { blocks: alloc::vec![parent], tool };
+            let cut_side = CUT_SIDES[tool];
+            let n = 12 / cut_side;
+            for axis in 0..3 { for u in 0..n { for v in 0..n {
+                let mut origin = [-12. + 0.5;3];
+                origin[axis] = -13.;
+                origin[(axis+1)%3] += (u*cut_side) as f32;
+                origin[(axis+2)%3] += (v*cut_side) as f32;
+                let mut direction = [0.;3]; direction[axis] = 1.;
+                let target = d.target_details(origin.map(|x|x*UNIT), direction).unwrap();
+                let preview = d.preview_blocks(Some(target));
+                assert_eq!(preview.len(), (n*n*n-1) as usize);
+                assert!(preview.iter().all(|b| b.side == cut_side && b.material == material));
+                d.mine(target);
+                assert_eq!(d.blocks, preview);
+                d.blocks = alloc::vec![parent];
+                d.tool = if tool == 5 { 3 } else { tool+1 };
+                d.mine(target);
+                assert_eq!(d.blocks, [parent]); // stale wheel target
+                d.tool = tool;
+            }}}
+            for side in MINING_SIDES.into_iter().chain([MINING_BASE_SIDE]) {
+                let block = Block { min: [0;3], side, material };
+                d.blocks = alloc::vec![block];
+                let hit = d.target_details([UNIT*0.5,UNIT*0.5,-UNIT], [0.,0.,1.]);
+                assert_eq!(hit.is_some(), side == 12 || (tool == 3 && side == 6));
+                if tool == 3 && side == 6 {
+                    d.mine(hit.unwrap());
+                    assert!(d.blocks.is_empty());
+                } else if side != 12 {
+                    // Even a fabricated whole-piece deletion must be rejected.
+                    d.mine(MiningTarget { parent:block, cut:block });
+                    assert_eq!(d.blocks, [block]);
+                }
             }
-            let half = d.target_details(origin, direction).unwrap();
-            assert_eq!(half.parent.side, 3);
-            assert_eq!(half.cut.side, 1);
-            let volume = d.blocks.iter().map(|b| b.side.pow(3)).sum::<i32>();
-            d.mine(half);
-            assert_eq!(d.blocks.iter().map(|b| b.side.pow(3)).sum::<i32>(), volume-1);
-            assert!(d.blocks.iter().all(|b| b.material == material));
-            for side in [1, 3] {
-                d.blocks = alloc::vec![Block { min: [0;3], side, material }];
-                let t = d.target_details(origin, direction).unwrap();
-                d.mine(t);
-                assert_eq!(d.blocks.len(), if side == 1 { 0 } else { 26 });
-            }
-            for side in MINING_SIDES.into_iter().filter(|&s| s > 6) {
-                d.blocks = alloc::vec![Block { min:[0;3], side, material }];
-                assert!(d.target_details(origin, direction).is_none());
-            }
-        }
+        }}
     }
     #[test]
     fn third_tool_removes_c1_and_rejects_larger_than_c3_in_all_colors() {
         for material in 0..6 {
-            let parent = Block { min: [0; 3], side: 24, material };
+            let parent = Block { min: [0; 3], side: 48, material };
             let mut d = Demo { blocks: alloc::vec![parent], tool: 2 };
             let origin = [UNIT, UNIT, -UNIT];
             let direction = [0., 0., 1.];
@@ -445,33 +459,33 @@ mod tests {
             assert_eq!(target.cut.side, TICKS_PER_C1);
             let preview = d.preview_blocks(Some(target));
             assert_eq!(preview.len(), 14);
+            assert_eq!(preview.iter().filter(|b| b.side == 24).count(), 7);
             assert_eq!(preview.iter().filter(|b| b.side == 12).count(), 7);
-            assert_eq!(preview.iter().filter(|b| b.side == 6).count(), 7);
             assert_eq!(d.blocks, [parent]);
             d.mine(target);
             assert_eq!(d.blocks, preview);
-            assert!(d.blocks.iter().all(|b| matches!(b.side, 6 | 12) && b.material == material));
+            assert!(d.blocks.iter().all(|b| matches!(b.side, 12 | 24) && b.material == material));
             let child = d.target_details(origin, direction).unwrap();
             assert_eq!(child.cut, child.parent);
             d.mine(child);
             assert_eq!(d.blocks.len(), 13);
             let c2 = d.target_details(origin, direction).unwrap();
-            assert_eq!(c2.parent.side, 12);
-            assert_eq!(c2.cut.side, 6);
+            assert_eq!(c2.parent.side, 24);
+            assert_eq!(c2.cut.side, 12);
             let before_volume = d.blocks.iter().map(|b| b.side.pow(3)).sum::<i32>();
             d.mine(c2);
             assert_eq!(d.blocks.len(), 19);
-            assert_eq!(before_volume - d.blocks.iter().map(|b| b.side.pow(3)).sum::<i32>(), 6i32.pow(3));
-            d.blocks = alloc::vec![Block { min: [0; 3], side: 12, material }];
+            assert_eq!(before_volume - d.blocks.iter().map(|b| b.side.pow(3)).sum::<i32>(), 12i32.pow(3));
+            d.blocks = alloc::vec![Block { min: [0; 3], side: 24, material }];
             let c2 = d.target_details(origin, direction).unwrap();
             d.mine(c2);
             assert_eq!(d.blocks.len(), 7);
-            assert!(d.blocks.iter().all(|b| b.side == 6 && b.material == material));
-            d.blocks = alloc::vec![Block { min: [0; 3], side: 6, material }];
+            assert!(d.blocks.iter().all(|b| b.side == 12 && b.material == material));
+            d.blocks = alloc::vec![Block { min: [0; 3], side: 12, material }];
             let child = d.target_details(origin, direction).unwrap();
             d.mine(child);
             assert!(d.blocks.is_empty());
-            for side in [36, 48, 96, MINING_BASE_SIDE] {
+            for side in [72, 96, 192, MINING_BASE_SIDE] {
                 d.blocks = alloc::vec![Block { min: [0; 3], side, material }];
                 assert!(d.target_details(origin, direction).is_none());
             }
@@ -488,8 +502,8 @@ mod tests {
             assert_eq!(target.cut.side, 4 * TICKS_PER_C1);
             let preview = d.preview_blocks(Some(target));
             assert_eq!(preview.len(), 14);
+            assert_eq!(preview.iter().filter(|b| b.side == 96).count(), 7);
             assert_eq!(preview.iter().filter(|b| b.side == 48).count(), 7);
-            assert_eq!(preview.iter().filter(|b| b.side == 24).count(), 7);
             assert_eq!(d.blocks, [parent]);
             // Switching to the first tool must reject this subdivision target.
             d.tool = 0;
@@ -502,16 +516,16 @@ mod tests {
             assert_eq!(child.cut, child.parent);
             d.mine(child);
             assert_eq!(d.blocks.len(), 13);
-            assert!(d.blocks.iter().all(|b| matches!(b.side, 24 | 48) && b.material == material));
+            assert!(d.blocks.iter().all(|b| matches!(b.side, 48 | 96) && b.material == material));
             // Continue along the same ray into the next intact r3 chunk.
             let r3 = d.target_details(origin, direction).unwrap();
-            assert_eq!(r3.parent.side, 48);
-            assert_eq!(r3.cut.side, 24);
+            assert_eq!(r3.parent.side, 96);
+            assert_eq!(r3.cut.side, 48);
             let before = d.blocks.clone();
             d.mine(r3);
             assert_eq!(d.blocks.len(), before.len() + 6);
             assert_eq!(before.iter().map(|b| b.side.pow(3)).sum::<i32>()
-                - d.blocks.iter().map(|b| b.side.pow(3)).sum::<i32>(), 24i32.pow(3));
+                - d.blocks.iter().map(|b| b.side.pow(3)).sum::<i32>(), 48i32.pow(3));
             d.blocks = alloc::vec![Block { min: [0; 3], side: 4 * TICKS_PER_C1, material }];
             let standalone = d.target_details(origin, direction).unwrap();
             assert_eq!(standalone.cut, standalone.parent);
@@ -552,11 +566,11 @@ mod tests {
     fn wrong_size_occludes_matching_size_and_off_disables_preview() {
         let front = Block {
             min: [0; 3],
-            side: 6,
+            side: 12,
             material: 0,
         };
         let back = Block {
-            min: [0, 0, 12],
+            min: [0, 0, 24],
             side: MINING_BASE_SIDE,
             material: 1,
         };
@@ -582,8 +596,8 @@ mod tests {
     #[test]
     fn every_face_snaps_to_sixteen_cells_without_sliding_within_a_cell() {
         let parent = Block {
-            min: [-384, -384, -384],
-            side: 384,
+            min: [-768, -768, -768],
+            side: 768,
             material: 4,
         };
         let d = Demo {
@@ -595,12 +609,12 @@ mod tests {
                 for u in 0..4 {
                     for v in 0..4 {
                         let mut expected = parent.min;
-                        expected[axis] += if sign > 0. { 0 } else { 288 };
-                        expected[(axis + 1) % 3] += u * 96;
-                        expected[(axis + 2) % 3] += v * 96;
+                        expected[axis] += if sign > 0. { 0 } else { 576 };
+                        expected[(axis + 1) % 3] += u * 192;
+                        expected[(axis + 2) % 3] += v * 192;
                         for fraction in [0.01, 0.25, 0.99] {
-                            let mut origin = expected.map(|x| (x as f32 + fraction * 96.) * UNIT);
-                            origin[axis] = if sign > 0. { -400. * UNIT } else { 16. * UNIT };
+                            let mut origin = expected.map(|x| (x as f32 + fraction * 192.) * UNIT);
+                            origin[axis] = if sign > 0. { -800. * UNIT } else { 16. * UNIT };
                             let mut direction = [0.; 3];
                             direction[axis] = sign;
                             let target = d.target_details(origin, direction).unwrap();
@@ -608,7 +622,7 @@ mod tests {
                                 target.cut,
                                 Block {
                                     min: expected,
-                                    side: 96,
+                                    side: 192,
                                     material: 4
                                 }
                             );
@@ -622,13 +636,14 @@ mod tests {
     fn fine_tiers_have_exact_two_and_three_subdivisions() {
         let c1 = Block {
             min: [0; 3],
-            side: 6,
+            side: 12,
             material: 2,
         };
         assert_eq!(c1.children().len(), 8);
-        assert_eq!(c1.children()[0].children().len(), 27);
+        assert_eq!(TICKS_PER_C1 / 3, 4);
+        assert_eq!(TICKS_PER_C1 / 4, 3);
         let d = Demo::new();
-        assert_eq!(d.blocks.len(), 66);
+        assert_eq!(d.blocks.len(), 72);
         for side in MINING_SIDES {
             for material in 0..6 {
                 assert_eq!(

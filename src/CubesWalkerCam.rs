@@ -2754,8 +2754,8 @@ mod tests {
         assert_eq!(blocks.len(),27);
         assert!(blocks.iter().all(|b| b.side == crate::subcubes::MINING_BASE_SIDE && b.material == 0));
         for axis in 0..3 {
-            assert_eq!(blocks.iter().map(|b|b.min[axis]).min(),Some(-576));
-            assert_eq!(blocks.iter().map(|b|b.min[axis]+b.side).max(),Some(576));
+            assert_eq!(blocks.iter().map(|b|b.min[axis]).min(),Some(-1152));
+            assert_eq!(blocks.iter().map(|b|b.min[axis]+b.side).max(),Some(1152));
         }
         let mut cam = CubesWalkerCam::server_structure(&blocks,[0.,96.*crate::subcubes::C1,0.],UP,9216);
         assert_eq!(cam.drift_half_extent,1152.);
@@ -2773,7 +2773,7 @@ mod tests {
     }
     #[test]
     fn large_cube_flight_preview_and_landing_share_eight_by_eight_face_cells() {
-        let block = crate::subcubes::Block {min: [-192;3], side:384, material:4};
+        let block = crate::subcubes::Block {min: [-384;3], side:768, material:4};
         let mut cam = CubesWalkerCam::mining_demo(&[block]);
         for axis in 0..3 { for sign in [-1.,1.] { for u in 0..8 { for v in 0..8 {
             let mut normal = [0.;3]; normal[axis] = sign;
@@ -2803,7 +2803,7 @@ mod tests {
     }
     #[test]
     fn flight_target_tracks_all_six_faces_and_is_absent_while_attached() {
-        let block = crate::subcubes::Block {min: [-24; 3], side: 48, material: 4};
+        let block = crate::subcubes::Block {min: [-48; 3], side: 96, material: 4};
         let mut cam = CubesWalkerCam::mining_demo(&[block]);
         for axis in 0..3 {
             for sign in [-1., 1.] {
@@ -2828,7 +2828,7 @@ mod tests {
         let c = CubesWalkerCam::mining_demo(&demo.blocks);
         assert_eq!(c.cubes.len(), 36);
         for b in &demo.blocks {
-            let center = b.min.map(|v| (v as f32 + b.side as f32 * 0.5) / 6. * 0.25);
+            let center = b.min.map(|v| (v as f32 + b.side as f32 * 0.5) / crate::subcubes::TICKS_PER_C1 as f32 * 0.25);
             assert_eq!(c.solid.has(center), b.walkable());
         }
         let mut bytes = alloc::vec![0u8;20];

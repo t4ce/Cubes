@@ -212,7 +212,7 @@ impl Carousel {
             return crate::asset_brush::place(self.sources[id].1, point, normal);
         }
         // The existing Key7 group is also selectable. Preserve its real tier
-        // and material, using the finer lattice for the two sub-c1 sizes.
+        // and material, using the finer lattice for the sub-c1 sizes.
         let original = self.asset(id).cubes[0];
         let unit = if original.scale * 2. < C1 * 0.75 { crate::subcubes::UNIT } else { C1 };
         let side = libm::roundf(original.scale * 2. / unit) as i32;
