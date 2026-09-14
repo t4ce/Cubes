@@ -163,11 +163,25 @@ fn rgb(r: u32, g: u32, b: u32) -> u32 {
     CUSTOM_RGB555 | r | (g << 5) | (b << 10)
 }
 /// Key9's cube-pixel font, placed in camera space like the Key5 companion.
-pub fn mining_readout(width: u32, height: u32, tan_half_fov: f32, tool: usize, spawned: usize) -> Vec<Cube> {
+pub fn mining_readout(width: u32, height: u32, tan_half_fov: f32, tool: &str, spawned: usize) -> Vec<Cube> {
+    screen_readout(width, height, tan_half_fov, &format!("{tool} : {spawned}"), false)
+}
+pub fn collection_readout(width: u32, height: u32, tan_half_fov: f32, vanished: u64) -> Vec<Cube> {
+    screen_readout(width, height, tan_half_fov, &format!("{vanished}"), true)
+}
+fn screen_readout(width: u32, height: u32, tan_half_fov: f32, label: &str, bottom_right: bool) -> Vec<Cube> {
     let mut pixels = Vec::new();
-    text(&mut pixels, &format!("{tool} : {spawned}"), [20., 20., 0.], 5., rgb(31,31,31));
     let h = height.max(1) as f32;
     let w = width.max(1) as f32;
+    // Tool font is four times the old 5px pitch. Fit narrow windows without
+    // clipping longer labels such as "3.5 : 85"; collection stays unchanged.
+    let pitch = if bottom_right { 5. } else {
+        20f32.min((w-64.).max(1.)/(label.len()*4) as f32)
+            .min((h-64.).max(1.)/5.)
+    };
+    let origin = if bottom_right { [w-20.-(label.len()*4-2) as f32*5., h-40., 0.] }
+        else { [32.,32.,0.] };
+    text(&mut pixels, label, origin, pitch, rgb(31,31,31));
     // Keep full cube seeds above the hull shader's tiny-marker threshold,
     // even on high-DPI viewports, without changing their projected pixel size.
     let depth = (h / 600.).max(1.);
@@ -193,6 +207,7 @@ fn text(cubes: &mut Vec<Cube>, text: &str, origin: [f32; 3], pitch: f32, flags: 
             b'8' => [7, 5, 7, 5, 7],
             b'9' => [7, 5, 7, 1, 7],
             b':' => [0, 2, 0, 2, 0],
+            b'.' => [0, 0, 0, 0, 2],
             b'F' => [7, 4, 6, 4, 4],
             b'U' => [5, 5, 5, 5, 7],
             b'L' => [4, 4, 4, 4, 7],
@@ -223,14 +238,42 @@ fn text(cubes: &mut Vec<Cube>, text: &str, origin: [f32; 3], pitch: f32, flags: 
 mod tests {
     use super::*;
     #[test]
-    fn mining_readout_reuses_font_and_stays_at_top_left_on_resize() {
-        for (width, height) in [(784,441), (1920,1080), (3840,2160)] {
-            for tool in 0..=6 { for count in 0..=63 {
+    fn collected_counter_is_bottom_right_and_collection_fits_minimum_budget() {
+        for (w,h) in [(784,441),(1920,1080),(3840,2160)] {
+            for total in [0,26,63,378,123456,u64::MAX] {
+                let pixels = collection_readout(w,h,0.20710678,total);
+                let reserved = pixels.len() + mining_readout(w,h,0.20710678,"3.5",63).len()
+                    + crate::subcubes::Collection::MAX_PIECES + 27 + 1;
+                assert!(reserved < FULL_MIN);
+                assert!(reserved + 54 < SEED_MIN);
+                for pixel in pixels {
+                    assert!(pixel.scale>=0.001);
+                    for dx in [-pixel.scale,pixel.scale] { for dy in [-pixel.scale,pixel.scale] { for dz in [-pixel.scale,pixel.scale] {
+                        let [x,y,z] = pixel.center;
+                        let unit = h as f32 / (-2.*(z+dz)*0.20710678);
+                        let px = w as f32*0.5+(x+dx)*unit;
+                        let py = h as f32*0.5-(y+dy)*unit;
+                        assert!(px > 0. && px < w as f32-10.);
+                        assert!(py > h as f32-50. && py < h as f32-10.);
+                    }}}
+                }
+            }
+        }
+    }
+    #[test]
+    fn mining_readout_is_four_times_larger_and_stays_at_top_left_on_resize() {
+        for (width, height) in [(400,300), (784,441), (1920,1080), (3840,2160)] {
+            for tool in ["0","1","2","3","3.5","4","6"] { for count in 0..=189 {
                 let tan = 0.20710678;
                 let pixels = mining_readout(width, height, tan, tool, count);
-                assert!(!pixels.is_empty() && pixels.len() <= 64);
+                assert!(!pixels.is_empty() && pixels.len() <= 96);
                 for pixel in pixels {
                     assert!(pixel.scale >= 0.001);
+                    if width >= 784 {
+                        let depth = (height as f32/600.).max(1.);
+                        let old_scale = 5.*0.42*2.*depth*tan/height as f32;
+                        assert!((pixel.scale/old_scale-4.).abs()<0.0001);
+                    }
                     assert_ne!(pixel.flags & CUSTOM_RGB555, 0);
                     // Project all corners, including the nearer cube face.
                     for dx in [-pixel.scale,pixel.scale] { for dy in [-pixel.scale,pixel.scale] { for dz in [-pixel.scale,pixel.scale] {
@@ -238,8 +281,8 @@ mod tests {
                         let unit = height as f32 / (-2.*(pz+dz)*tan);
                         let x = width as f32*0.5 + (px+dx)*unit;
                         let y = height as f32*0.5 - (py+dy)*unit;
-                        assert!((10. ..145.).contains(&x), "x={x}");
-                        assert!((10. ..50.).contains(&y), "y={y}");
+                        assert!(x>10. && x<width as f32-10., "x={x}");
+                        assert!(y>10. && y<130., "y={y}");
                     }}}
                 }
             }}

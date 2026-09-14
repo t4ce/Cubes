@@ -172,6 +172,7 @@ struct CubeScene {
     puzzle_space_pressed: bool,
     mining: subcubes::Demo,
     mining_gesture: subcubes::MiningGesture,
+    mining_collection: subcubes::Collection,
     mining_cursor: Option<GridCursor>,
     mining_asset: orchard::Asset,
     orbit: [f32; 3], // yaw, elevation, radius
@@ -412,6 +413,7 @@ impl CubeScene {
             puzzle_space_pressed: false,
             mining: subcubes::Demo::new(),
             mining_gesture: subcubes::MiningGesture::default(),
+            mining_collection: subcubes::Collection::default(),
             mining_cursor: None,
             mining_asset: orchard::Asset {
                 name: "mining",
@@ -589,6 +591,7 @@ impl CubeScene {
                 if event.buttons_pressed & 4 != 0 {
                     self.mining_gesture.cancel(); self.mining_cursor = None;
                     self.mining = subcubes::Demo::new();
+                    self.mining_collection = subcubes::Collection::default();
                     self.walker_camera = Some(walker_camera::CubesWalkerCam::mining_demo(
                         &self.mining.blocks,
                     ));
@@ -606,8 +609,7 @@ impl CubeScene {
                         let cut = self.mining_gesture.release(target);
                         self.mining_cursor = None;
                         if let Some(cut) = cut {
-                            self.mining.mine(cut);
-                            self.refresh_mining();
+                            self.commit_mining(cut, elapsed_millis);
                         }
                     }
                 }
@@ -973,7 +975,8 @@ impl CubeScene {
         }
         let palette_visible = if self.mode == SceneMode::StaticCube { self.palette_selection.visible } else { 0 };
         let palette_count = palette_visible.count_ones() as usize;
-        let companion = self.world_cube.visible(self.mode == SceneMode::World && !self.network_empty);
+        let companion = self.mode == SceneMode::MaterialShowcase
+            || self.world_cube.visible(self.mode == SceneMode::World && !self.network_empty);
         let flight_slot = usize::from(self.mode.is_world()
             || matches!(self.mode, SceneMode::MaterialShowcase | SceneMode::StaticCube));
         let puzzle_hover = self.cursors.iter().rev().find_map(|cursor| {
@@ -994,8 +997,7 @@ impl CubeScene {
         if self.mode == SceneMode::MaterialShowcase {
             let target = self.mining_target();
             if let Some(cut) = self.mining_gesture.tick(target, elapsed_millis) {
-                self.mining.mine(cut);
-                self.refresh_mining();
+                self.commit_mining(cut, elapsed_millis);
             }
         }
         let puzzle_sources = puzzle_hover.map(|(_, source, _)| [source]);
@@ -1021,7 +1023,7 @@ impl CubeScene {
             let spawned = if preview.is_some() {
                 self.mining_asset.cubes.len() + 1 - self.mining.blocks.len()
             } else { 0 };
-            let tool_id = if self.mining.tool_side().is_some() { self.mining.tool + 1 } else { 0 };
+            let tool_id = self.mining.tool_id();
             mining_readout = Some((tool_id, spawned));
             if self.mining.tool_side().is_some() {
                 self.flight_target.clear();
@@ -1059,9 +1061,32 @@ impl CubeScene {
         self.asset_brush.update_preview_with(ghost_target, |point, normal|
             self.carousel.placement(point, normal, rubik::MATERIAL_SHOWCASE_FLAG));
         let ghost_count = if self.mode.is_world() { self.asset_brush.ghost.len().min(asset_brush::GHOST_SEEDS) } else { 0 };
-        let mining_pixels = mining_readout.map(|(tool, spawned)|
+        let mut mining_pixels = mining_readout.map(|(tool, spawned)|
             render_limits::mining_readout(width, height, tan_half_fov, tool, spawned))
             .unwrap_or_default();
+        if self.mode == SceneMode::MaterialShowcase {
+            self.mining_collection.advance(elapsed_millis);
+            mining_pixels.extend(render_limits::collection_readout(
+                width, height, tan_half_fov, self.mining_collection.vanished));
+        }
+        let companion_expansion = if self.mode == SceneMode::MaterialShowcase {
+            self.mining_collection.expansion(elapsed_millis)
+        } else { self.world_cube.expansion(elapsed_millis) };
+        let companion_placement = world_cube::Placement::new(width, height, tan_half_fov, companion_expansion);
+        if self.mode == SceneMode::MaterialShowcase {
+            let destination = companion_placement.center();
+            let q = self.flycam.camera.rotation.0;
+            let inverse = Quaternion([-q[0],-q[1],-q[2],q[3]]);
+            for piece in &self.mining_collection.pieces {
+                let (world, scale, eased) = piece.animation(elapsed_millis);
+                let local = inverse.rotate(core::array::from_fn(|a| world[a]-self.flycam.camera.position[a]));
+                mining_pixels.push(orchard::Cube {
+                    center: core::array::from_fn(|a| local[a]*(1.-eased)+destination[a]*eased),
+                    scale,
+                    flags: rubik::MATERIAL_SHOWCASE_FLAG | piece.block.material,
+                });
+            }
+        }
         let mining_hud_count = mining_pixels.len();
         let (detail_budget, solid_capacity) = self.limits.scene_budget(
             flight_slot + path_cubes.len() + mining_hud_count + if companion { 27 } else { 0 },
@@ -1434,12 +1459,7 @@ impl CubeScene {
             expanded_count += 1;
         }
         if companion {
-            let placement = world_cube::Placement::new(
-                width,
-                height,
-                tan_half_fov,
-                self.world_cube.expansion(elapsed_millis),
-            );
+            let placement = companion_placement;
             for id in 0..27 {
                 let (cell, basis) = self.puzzle.pose(id, turn_sin, turn_cos);
                 let (position, basis, scale) = placement.pose(cell, basis);
@@ -2483,6 +2503,7 @@ impl CubeScene {
                 ),
             );
             self.mining = subcubes::Demo::new();
+            self.mining_collection = subcubes::Collection::default();
             self.walker_camera = Some(walker_camera::CubesWalkerCam::mining_demo(
                 &self.mining.blocks,
             ));
@@ -2615,7 +2636,7 @@ impl CubeScene {
                     SceneMode::Interface => "3 custom-menu Key3=confirm/info/slider pointer=hover/press actions=preview-only",
                     SceneMode::RenderLimits => "9 render limits upper=full-geometry lower=retained-seeds click/drag=16-steps Key5=world",
                     SceneMode::MaterialShowcase =>
-                        "7 mining 10 sizes x 6 materials mouse-look WASD=walk/fly Shift=boost Space=push/approach Home=align wheel=off/64-to-16/16-to-4/4-to-1/1-to-sixth LMB=remove-preview RMB=reset snap=tool-size",
+                        "7 mining 11 sizes x 6 materials mouse-look WASD=walk/fly Shift=boost Space=push/approach Home=align wheel=off/64-to-16/16-to-4/4-to-1/r-cut/2-to-half/half-to-eighth LMB=mine-or-collect RMB=reset Rubik=collection counter=bottom-right snap=tool-size",
                 },
                 if mode == SceneMode::Orchard {
                     self.carousel.drawn.len()
@@ -2656,6 +2677,12 @@ impl CubeScene {
             .collect();
         if let Some(camera) = self.walker_camera.as_mut() {
             camera.replace_mining_blocks(&self.mining.blocks);
+        }
+    }
+
+    fn commit_mining(&mut self, target: subcubes::MiningTarget, now: u64) {
+        if self.mining_collection.commit(&mut self.mining, target, now) {
+            self.refresh_mining();
         }
     }
 

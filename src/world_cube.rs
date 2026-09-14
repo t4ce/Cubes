@@ -39,6 +39,7 @@ pub struct Placement {
     spacing: f32,
 }
 impl Placement {
+    pub fn center(&self) -> [f32; 3] { self.center }
     pub fn new(width: u32, height: u32, tan_half_fov: f32, expansion: f32) -> Self {
         let h = height.max(1) as f32;
         let w = width.max(1) as f32;

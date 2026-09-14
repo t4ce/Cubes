@@ -2755,8 +2755,8 @@ mod tests {
         assert_eq!(blocks.len(),27);
         assert!(blocks.iter().all(|b| b.side == crate::subcubes::MINING_BASE_SIDE && b.material == 0));
         for axis in 0..3 {
-            assert_eq!(blocks.iter().map(|b|b.min[axis]).min(),Some(-1152));
-            assert_eq!(blocks.iter().map(|b|b.min[axis]+b.side).max(),Some(1152));
+            assert_eq!(blocks.iter().map(|b|b.min[axis]).min(),Some(-2304));
+            assert_eq!(blocks.iter().map(|b|b.min[axis]+b.side).max(),Some(2304));
         }
         let mut cam = CubesWalkerCam::server_structure(&blocks,[0.,96.*crate::subcubes::C1,0.],UP,9216);
         assert_eq!(cam.drift_half_extent,1152.);
@@ -2774,7 +2774,7 @@ mod tests {
     }
     #[test]
     fn large_cube_flight_preview_and_landing_share_eight_by_eight_face_cells() {
-        let block = crate::subcubes::Block {min: [-384;3], side:768, material:4};
+        let block = crate::subcubes::Block {min: [-768;3], side:1536, material:4};
         let mut cam = CubesWalkerCam::mining_demo(&[block]);
         for axis in 0..3 { for sign in [-1.,1.] { for u in 0..8 { for v in 0..8 {
             let mut normal = [0.;3]; normal[axis] = sign;
@@ -2804,7 +2804,7 @@ mod tests {
     }
     #[test]
     fn flight_target_tracks_all_six_faces_and_is_absent_while_attached() {
-        let block = crate::subcubes::Block {min: [-48; 3], side: 96, material: 4};
+        let block = crate::subcubes::Block {min: [-96; 3], side: 192, material: 4};
         let mut cam = CubesWalkerCam::mining_demo(&[block]);
         for axis in 0..3 {
             for sign in [-1., 1.] {

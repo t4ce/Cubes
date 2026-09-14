@@ -20,6 +20,9 @@ pub fn sqrtf(x:f32)->f32{x.sqrt()}
 pub fn floorf(x:f32)->f32{x.floor()}
 pub fn roundf(x:f32)->f32{x.round()}
 pub fn tanf(x:f32)->f32{x.tan()}
+pub fn sinf(x:f32)->f32{x.sin()}
+pub fn cosf(x:f32)->f32{x.cos()}
+pub fn expf(x:f32)->f32{x.exp()}
 '''
 for module,file in [('orchard','orchard'),('subcubes','SubCubes'),('cube_format','cube_format'),('asset_brush','asset_brush'),('marker_lod','marker_lod'),('modes','modes'),('render_limits','render_limits')]:
     source+=f'#[path="{ROOT}/src/{file}.rs"] mod {module};\n'
