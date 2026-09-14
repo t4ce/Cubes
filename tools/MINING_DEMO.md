@@ -1,13 +1,13 @@
 # Cubes Key7 mining demo
 
-Key7 has eleven sizes in total, including the large base cubes.
-Six palette columns contain ten size rows: C1/4=1/4, R1/2=1/3, C1/2=1/2, c1=1,
+Key7 displays nine sizes in total, including the large base cubes.
+Six palette columns contain eight size rows: C1/2=1/2, c1=1,
 c2=2, r1=3, c3=4, r2=6, r3=8, c4=16 c1. Each c1 is 0.2 renderer units.
-A 2×2×2 group of C1/2, 3×3×3 group of R1/2, or 4×4×4 group of C1/4 fills c1.
-R1/2 retains its name but is redesigned as one third of c1.
+A 2×2×2 group of C1/2 fills c1. The non-mineable C1/4 and R1/2 display rows
+have been removed in all six colors; collection particles are unchanged.
 Coordinates use exact integer 1/24-c1 ticks; network wire coordinates remain sixths.
 
-The ten display rows contain 60 cubes. Below them is the existing 6×2×1
+The eight display rows contain 48 cubes. Below them is the existing 6×2×1
 floor of twelve 64×64×64 c1 cubes, centered at y=-32 c1 with its top at y=0.
 Each depth row contains red, orange, yellow, green, blue, and violet once.
 Palette RGB, roughness, and metallic values come from
@@ -19,11 +19,11 @@ Palette RGB, roughness, and metallic values come from
   Entry and reset start off.
 - Left click: commit on release, only if the same removal cube stayed targeted
   throughout the press. Aiming away cancels the click.
-- Hold left for two seconds on the target: start auto-mining the currently
+- Hold left for one second on the target: start auto-mining the currently
   aimed cube every 100 ms. Release stops it without an extra cut. Slow frames
   do not trigger catch-up bursts. Wheel changes, reset, leaving Key7, and lost
   input focus cancel the gesture.
-- Right click: restore all 72 blocks and the starting view.
+- Right click: restore all 60 blocks and the starting view.
   This also clears in-flight collection pieces and the collected total.
 
 The top-left readout uses Key9's cube-pixel number font: `tool ID : spawned`.
@@ -82,8 +82,7 @@ only the targeted half splits 4×4×4 into 1/8-c1 pieces, with one removed and
 halves (`6 : 70`). On C1/2, it removes one tiny piece and collects the other
 63 (`6 : 63`). Collection animation expands around the targeted half's center,
 and the arrival counter increases by 63 in either case. The smaller pieces are transient;
-the existing display rows (including R1/2=1/3 and C1/4=1/4) keep their sizes.
-R1/2 and C1/4 cannot currently be mined by any tool. All colors are supported.
+the remaining display rows keep their sizes. All colors are supported.
 
 On committing tool 6, those 63 surviving pieces are collected
 instead of remaining in the scene. First they expand outward around the source

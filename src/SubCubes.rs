@@ -6,9 +6,9 @@ pub const C1: f32 = 0.2;
 pub const SIDES: [i32; 7] = [1, 2, 3, 4, 6, 8, 12];
 pub const TICKS_PER_C1: i32 = 24;
 pub const UNIT: f32 = C1 / TICKS_PER_C1 as f32;
-/// Display tiers, in 1/24-c1 ticks; R1/2 is one third of c1.
-pub const MINING_SIDES: [i32; 10] = [6, 8, 12, 24, 48, 72, 96, 144, 192, 384];
-pub const MINING_NAMES: [&str; 10] = ["C1/4", "R1/2", "C1/2", "c1", "c2", "r1", "c3", "r2", "r3", "c4"];
+/// Display tiers, in 1/24-c1 ticks; non-mineable C1/4 and R1/2 are omitted.
+pub const MINING_SIDES: [i32; 8] = [12, 24, 48, 72, 96, 144, 192, 384];
+pub const MINING_NAMES: [&str; 8] = ["C1/2", "c1", "c2", "r1", "c3", "r2", "r3", "c4"];
 /// Maximum target sizes and removal sizes, in 1/24-c1 ticks.
 pub const TOOLS: [i32; 6] = [1536, 384, 96, 48, 24, 144];
 pub const CUT_SIDES: [i32; 6] = [384, 96, 24, 12, 3, 72];
@@ -298,7 +298,7 @@ impl MiningGesture {
         self.observe(target);
         let (_, started) = self.pressed?;
         if !self.automatic {
-            if now.saturating_sub(started) < 2000 { return None; }
+            if now.saturating_sub(started) < 1000 { return None; }
             self.automatic = true;
             self.next_mine = now;
         }
@@ -696,17 +696,17 @@ mod tests {
         assert!(g.release(b).is_none());
     }
     #[test]
-    fn hold_starts_at_two_seconds_and_tracks_targets_without_release_extra_cut() {
+    fn hold_starts_at_one_second_and_tracks_targets_without_release_extra_cut() {
         let a = Some(gesture_target(0));
         let b = Some(gesture_target(6));
         let mut g = MiningGesture::default();
         g.press(a, 100);
-        assert!(g.tick(a, 2099).is_none());
-        assert_eq!(g.tick(a, 2100), a);
-        assert!(g.tick(b, 2199).is_none());
-        assert_eq!(g.tick(b, 2200), b);
-        assert!(g.tick(None, 2300).is_none());
-        assert_eq!(g.tick(a, 2400), a);
+        assert!(g.tick(a, 1099).is_none());
+        assert_eq!(g.tick(a, 1100), a);
+        assert!(g.tick(b, 1199).is_none());
+        assert_eq!(g.tick(b, 1200), b);
+        assert!(g.tick(None, 1300).is_none());
+        assert_eq!(g.tick(a, 1400), a);
         assert!(g.release(a).is_none());
         assert!(g.tick(a, 3000).is_none());
     }
@@ -1106,7 +1106,7 @@ mod tests {
     }
     #[test]
     fn collection_uses_halves_and_preserves_display_world_dimensions() {
-        for (side, c1_units) in MINING_SIDES.into_iter().zip([0.25,1./3.,0.5,1.,2.,3.,4.,6.,8.,16.]) {
+        for (side, c1_units) in MINING_SIDES.into_iter().zip([0.5,1.,2.,3.,4.,6.,8.,16.]) {
             let block = Block {min:[0;3],side,material:0};
             let (center,scale)=block.pose();
             assert!((center[0]-c1_units*C1*0.5).abs()<1e-6);
@@ -1132,7 +1132,8 @@ mod tests {
         assert_eq!(TICKS_PER_C1 / 3, 8);
         assert_eq!(TICKS_PER_C1 / 4, 6);
         let d = Demo::new();
-        assert_eq!(d.blocks.len(), 72);
+        assert_eq!(d.blocks.len(), 60);
+        assert!(d.blocks.iter().all(|b| !matches!(b.side, 6 | 8)));
         for side in MINING_SIDES {
             for material in 0..6 {
                 assert_eq!(

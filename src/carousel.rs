@@ -441,7 +441,7 @@ mod tests {
         let mut reference = crate::subcubes::Demo::new();
         reference.blocks.retain(|b| crate::subcubes::MINING_SIDES.contains(&b.side));
         assert_eq!(c.group_len(), reference.blocks.len());
-        assert_eq!(c.group_len(), 54);
+        assert_eq!(c.group_len(), 48);
         for (index, block) in reference.blocks.iter().enumerate() {
             assert_eq!(c.selected, index);
             let cube = c.asset(c.slots[2].asset).cubes[0];

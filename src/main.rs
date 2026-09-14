@@ -2651,7 +2651,7 @@ impl CubeScene {
                     SceneMode::Interface => "3 custom-menu Key3=confirm/info/slider pointer=hover/press actions=preview-only",
                     SceneMode::RenderLimits => "9 render limits upper=full-geometry lower=retained-seeds click/drag=16-steps Key5=world",
                     SceneMode::MaterialShowcase =>
-                        "7 mining 11 sizes x 6 materials mouse-look WASD=walk/fly Shift=boost Space=push/approach Home=align wheel=off/64-to-16/16-to-4/4-to-1/r-cut/2-to-half/half-to-eighth LMB=mine-or-collect RMB=reset Rubik=collection counter=bottom-right snap=tool-size",
+                        "7 mining 9 sizes x 6 materials mouse-look WASD=walk/fly Shift=boost Space=push/approach Home=align wheel=off/64-to-16/16-to-4/4-to-1/r-cut/2-to-half/half-to-eighth LMB=mine-or-collect hold=1s cadence=100ms RMB=reset Rubik=collection counter=bottom-right snap=tool-size",
                 },
                 if mode == SceneMode::Orchard {
                     self.carousel.drawn.len()

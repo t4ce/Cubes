@@ -14,6 +14,7 @@ pub fn roundf(x:f32)->f32{x.round()}
 pub fn sinf(x:f32)->f32{x.sin()}
 pub fn cosf(x:f32)->f32{x.cos()}
 pub fn tanf(x:f32)->f32{x.tan()}
+pub fn expf(x:f32)->f32{x.exp()}
 '''
 for name,file in [('orchard','orchard'),('subcubes','SubCubes'),('cube_format','cube_format'),('reveal','reveal'),('carousel','carousel'),('asset_brush','asset_brush')]:
  source+=f'#[path="{ROOT}/src/{file}.rs"] mod {name};\n'
