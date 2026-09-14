@@ -1,7 +1,7 @@
 //! Clipped Key2 orientation floor in normalized device coordinates.
 // Preserve the retained static-buffer capacity across all scene modes.
 // The retained static path accepts at most 128 indices per line draw.
-// Key7's font uses one short line per pixel and fits this same fixed buffer.
+// Keep a fixed buffer shape across mode changes; unused lines are clipped.
 pub const VERTICES: usize = 128;
 fn empty() -> [u8; VERTICES * 12] {
     let mut bytes = [0; VERTICES * 12];

@@ -1059,9 +1059,13 @@ impl CubeScene {
         self.asset_brush.update_preview_with(ghost_target, |point, normal|
             self.carousel.placement(point, normal, rubik::MATERIAL_SHOWCASE_FLAG));
         let ghost_count = if self.mode.is_world() { self.asset_brush.ghost.len().min(asset_brush::GHOST_SEEDS) } else { 0 };
+        let mining_pixels = mining_readout.map(|(tool, spawned)|
+            render_limits::mining_readout(width, height, tan_half_fov, tool, spawned))
+            .unwrap_or_default();
+        let mining_hud_count = mining_pixels.len();
         let (detail_budget, solid_capacity) = self.limits.scene_budget(
-            flight_slot + path_cubes.len() + if companion { 27 } else { 0 },
-            flight_slot + path_cubes.len() + ghost_count + if companion { world_cube::SEEDS } else { 0 },
+            flight_slot + path_cubes.len() + mining_hud_count + if companion { 27 } else { 0 },
+            flight_slot + path_cubes.len() + ghost_count + mining_hud_count + if companion { world_cube::SEEDS } else { 0 },
         );
         if self.mode.is_world() {
             let metadata = if platform_lod::ENABLED && self.mode == SceneMode::World && !self.network_singleton {
@@ -1207,13 +1211,14 @@ impl CubeScene {
         // Visibility removes submissions, not authored scene instances. The
         // fallback seed is an ABI placeholder and is never a countable cube.
         let opaque_count =
-            scene_opaque_count + ghost_count + palette_count + if companion { 27 } else { 0 };
+            scene_opaque_count + ghost_count + palette_count + mining_hud_count + if companion { 27 } else { 0 };
         let countable_seed_count = visibility_stats
             .map_or(scene_opaque_count, |stats| stats.source)
             + usize::from(flight_cube.is_some())
             + path_cubes.len()
             + ghost_count
             + palette_count
+            + mining_hud_count
             + if companion { 27 } else { 0 };
         let seed_count = opaque_count + flight_slot + path_cubes.len()
             + if self.mode == SceneMode::Orchard { 1 } else if self.mode == SceneMode::StaticCube {
@@ -1457,6 +1462,22 @@ impl CubeScene {
                 expanded_count += 1;
             }
         }
+        for (slot, pixel) in mining_pixels.iter().enumerate() {
+            let offset = self.flycam.camera.rotation.rotate(pixel.center);
+            let translation = core::array::from_fn(|a| self.flycam.camera.position[a] + offset[a]);
+            let row = scene_opaque_count + ghost_count + palette_count + if companion { 27 } else { 0 } + slot;
+            let seed = RetainedTransformSeed {
+                translation,
+                previous_translation: translation,
+                scale: [pixel.scale; 3],
+                rotation: self.flycam.camera.rotation.0,
+                local_radius: grid::CUBE_LOCAL_RADIUS,
+                draw_group: 0,
+                flags: ((row as u32) << 16) | pixel.flags,
+            };
+            encode_seed(seed, &mut seed_bytes[row * 64..(row + 1) * 64]);
+            expanded_count += 1;
+        }
         let mut landing_seed = flight_target_seed(flight_cube, placeholder);
         if let Some((_, _, rotation)) = puzzle_hover { landing_seed.rotation = rotation; }
         if flight_cube.is_some() { expanded_count += 1; }
@@ -1536,17 +1557,7 @@ impl CubeScene {
             &seed_bytes[..seed_count * 64],
         )
         .map_err(|code| CubeError::Vgpu("grid-seed-upload", code))?;
-        let mut floor_bytes = floor::vertices(&camera.view_projection, self.mode == SceneMode::StaticCube);
-        if let Some((tool, spawned)) = mining_readout {
-            let vertices = render_limits::mining_readout(width, height, tool, spawned);
-            if vertices.len() > floor::VERTICES { return Err(CubeError::Contract); }
-            for (i, vertex) in vertices.iter().enumerate() {
-                for (a, value) in vertex.iter().enumerate() {
-                    let offset = i * 12 + a * 4;
-                    floor_bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
-                }
-            }
-        }
+        let floor_bytes = floor::vertices(&camera.view_projection, self.mode == SceneMode::StaticCube);
         write_exact(self.device, self.floor_vertices, &floor_bytes)
             .map_err(|code| CubeError::Vgpu("floor-upload", code))?;
         self.floor_revision = self.floor_revision.wrapping_add(1);
@@ -1579,12 +1590,10 @@ impl CubeScene {
                             static_draws: [
                                 trueos::vgpu::IndexedBatchDrawV2 {
                                     // Fixed line count preserves the cached static mesh
-                                    // through mode changes and changing digit counts.
+                                    // through mode changes.
                                     index_count: floor::VERTICES as u32,
                                     topology: trueos::vgpu::PRIMITIVE_TOPOLOGY_LINE_LIST,
-                                    rgba8_srgb: if mining_readout.is_some() {
-                                        u32::from_le_bytes([240, 240, 240, 255])
-                                    } else { u32::from_le_bytes([100, 100, 100, 255]) },
+                                    rgba8_srgb: u32::from_le_bytes([100, 100, 100, 255]),
                                     ..trueos::vgpu::IndexedBatchDrawV2::default()
                                 },
                                 trueos::vgpu::IndexedBatchDrawV2::default(),

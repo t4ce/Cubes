@@ -162,25 +162,22 @@ pub fn camera_distance(width: u32, height: u32, yfov: f32) -> f32 {
 fn rgb(r: u32, g: u32, b: u32) -> u32 {
     CUSTOM_RGB555 | r | (g << 5) | (b << 10)
 }
-/// Key9's cube-pixel font as short screen-space lines for the Key7 readout.
-/// Retained static geometry supports LINE_LIST only, at most 128 indices.
-pub fn mining_readout(width: u32, height: u32, tool: usize, spawned: usize) -> Vec<[f32; 3]> {
+/// Key9's cube-pixel font, placed in camera space like the Key5 companion.
+pub fn mining_readout(width: u32, height: u32, tan_half_fov: f32, tool: usize, spawned: usize) -> Vec<Cube> {
     let mut pixels = Vec::new();
-    text(&mut pixels, &format!("{tool} : {spawned}"), [16., 16., 0.], 3., 0);
-    let mut vertices = Vec::with_capacity(pixels.len() * 2);
-    for pixel in pixels {
-        let [x, y, _] = pixel.center;
-        let s = pixel.scale;
-        for [dx, dy] in [[-s,0.], [s,0.]] {
-            // Static vertices are NDC; depth zero keeps the readout in front.
-            vertices.push([
-                2. * (x + dx) / width.max(1) as f32 - 1.,
-                1. - 2. * (y + dy) / height.max(1) as f32,
-                0.,
-            ]);
-        }
+    text(&mut pixels, &format!("{tool} : {spawned}"), [20., 20., 0.], 5., rgb(31,31,31));
+    let h = height.max(1) as f32;
+    let w = width.max(1) as f32;
+    // Keep full cube seeds above the hull shader's tiny-marker threshold,
+    // even on high-DPI viewports, without changing their projected pixel size.
+    let depth = (h / 600.).max(1.);
+    let units_per_pixel = 2. * depth * tan_half_fov / h;
+    for pixel in &mut pixels {
+        let [x,y,_] = pixel.center;
+        pixel.center = [(x-w*0.5)*units_per_pixel, (h*0.5-y)*units_per_pixel, -depth];
+        pixel.scale *= units_per_pixel;
     }
-    vertices
+    pixels
 }
 fn text(cubes: &mut Vec<Cube>, text: &str, origin: [f32; 3], pitch: f32, flags: u32) {
     for (i, c) in text.bytes().enumerate() {
@@ -227,17 +224,23 @@ mod tests {
     use super::*;
     #[test]
     fn mining_readout_reuses_font_and_stays_at_top_left_on_resize() {
-        for (width, height) in [(784,441), (1920,1080)] {
+        for (width, height) in [(784,441), (1920,1080), (3840,2160)] {
             for tool in 0..=4 { for count in 0..=63 {
-                let vertices = mining_readout(width, height, tool, count);
-                assert!(!vertices.is_empty() && vertices.len() <= 128);
-                assert_eq!(vertices.len() % 2, 0);
-                for p in vertices {
-                    let x = (p[0]+1.) * width as f32 * 0.5;
-                    let y = (1.-p[1]) * height as f32 * 0.5;
-                    assert!((14.7..90.).contains(&x));
-                    assert!((14.7..29.3).contains(&y));
-                    assert_eq!(p[2],0.);
+                let tan = 0.20710678;
+                let pixels = mining_readout(width, height, tan, tool, count);
+                assert!(!pixels.is_empty() && pixels.len() <= 64);
+                for pixel in pixels {
+                    assert!(pixel.scale >= 0.001);
+                    assert_ne!(pixel.flags & CUSTOM_RGB555, 0);
+                    // Project all corners, including the nearer cube face.
+                    for dx in [-pixel.scale,pixel.scale] { for dy in [-pixel.scale,pixel.scale] { for dz in [-pixel.scale,pixel.scale] {
+                        let [px,py,pz] = pixel.center;
+                        let unit = height as f32 / (-2.*(pz+dz)*tan);
+                        let x = width as f32*0.5 + (px+dx)*unit;
+                        let y = height as f32*0.5 - (py+dy)*unit;
+                        assert!((10. ..145.).contains(&x), "x={x}");
+                        assert!((10. ..50.).contains(&y), "y={y}");
+                    }}}
                 }
             }}
         }
