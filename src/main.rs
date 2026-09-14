@@ -571,10 +571,10 @@ impl CubeScene {
                     logl::log(
                         level::INFO,
                         format_args!(
-                            "Cubes: Key7 mining tool={} side={} c1 snap={} c1 (4x4x4)",
+                            "Cubes: Key7 mining tool={} side={} c1 snap={} c1",
                             self.mining.tool_name(),
                             self.mining.tool_side().unwrap_or(0) / subcubes::TICKS_PER_C1,
-                            self.mining.tool_side().unwrap_or(0) / (4 * subcubes::TICKS_PER_C1)
+                            self.mining.cut_side().unwrap_or(0) as f32 / subcubes::TICKS_PER_C1 as f32
                         ),
                     );
                 }
@@ -2554,7 +2554,7 @@ impl CubeScene {
                     SceneMode::Interface => "3 custom-menu Key3=confirm/info/slider pointer=hover/press actions=preview-only",
                     SceneMode::RenderLimits => "9 render limits upper=full-geometry lower=retained-seeds click/drag=16-steps Key5=world",
                     SceneMode::MaterialShowcase =>
-                        "7 mining 10 sizes x 6 materials mouse-look WASD=walk/fly Shift=boost Space=push/approach Home=align wheel=off/64-to-16/16-to-4/4-to-1 LMB=remove-preview RMB=reset snap=4x4x4",
+                        "7 mining 10 sizes x 6 materials mouse-look WASD=walk/fly Shift=boost Space=push/approach Home=align wheel=off/64-to-16/16-to-4/4-to-1/1-to-sixth LMB=remove-preview RMB=reset snap=tool-size",
                 },
                 if mode == SceneMode::Orchard {
                     self.carousel.drawn.len()

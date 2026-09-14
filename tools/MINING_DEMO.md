@@ -14,7 +14,7 @@ Palette RGB, roughness, and metallic values come from
 
 - Mouse: look; WASD: move; Shift: boost; Q/E: flight roll.
 - Space: push away / approach a walkable face; Home: align the walk view.
-- Wheel: cycle off → 64-to-16 → 16-to-4 → 4-to-1 → off (reverse wheel reverses).
+- Wheel: cycle off → 64-to-16 → 16-to-4 → 4-to-1 → c1-to-R1/2 → off (reverse wheel reverses).
   Entry and reset start off.
 - Left click: commit the previewed removal.
 - Right click: restore all 66 blocks and the starting view.
@@ -34,15 +34,23 @@ Existing c3 cubes, including mined fragments, are removed whole without further
 subdivision. It uses the same centered pulsing opaque preview and
 parent-relative snapping as the first tool, with a 4-c1 removal volume.
 
-The third tool targets only c3 (4 c1) and c1, in every palette color. It splits
-c3 into a 4×4×4 grid of c1, removing one and retaining 63. Existing c1 cubes
+The third tool targets c3 (4 c1), c2 (2 c1), and c1, in every palette color.
+It keeps the same 4×4×4 c1 snap grid inside c3, but splits only the affected
+branch: one cut leaves seven intact c2 chunks and seven c1 cubes. Targeting
+c2 splits it into 2×2×2 c1, removing one and retaining seven. Existing c1 cubes
 are removed whole. Larger cubes and other sizes cannot be targeted by this tool.
+
+The fourth tool targets c1, C1/2 (half c1), and R1/2 (one sixth c1).
+It removes one R1/2 at a time. Cutting intact c1 preserves seven C1/2 chunks;
+only the affected half splits into 3×3×3 R1/2, leaving 26 around the cut.
+Existing C1/2 splits the same way, and existing R1/2 is removed whole.
+All palette colors are supported; cubes larger than c1 cannot be targeted.
 
 The preview renders the retained chunks as opaque cubes and marks the selected
 child with a centered opaque cube pulsing sinusoidally between 75% and 95%
 of the child's linear size over two seconds, in its original material.
 The full child remains the removal volume (16 c1 for the
-first tool, 4 c1 for the second, 1 c1 for the third).
+first tool, 4 c1 for the second, 1 c1 for the third, 1/6 c1 for the fourth).
 It does not attach an extra cube outside the surface.
 Aiming away or disabling the tool restores the intact display. Preview never
 changes collision or stored blocks. Clicking removes exactly that previewed
