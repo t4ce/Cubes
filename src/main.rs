@@ -1073,6 +1073,7 @@ impl CubeScene {
             self.mining_collection.expansion(elapsed_millis)
         } else { self.world_cube.expansion(elapsed_millis) };
         let companion_placement = world_cube::Placement::new(width, height, tan_half_fov, companion_expansion);
+        let mut collection_cubes = Vec::new();
         if self.mode == SceneMode::MaterialShowcase {
             let destination = companion_placement.center();
             let q = self.flycam.camera.rotation.0;
@@ -1080,17 +1081,20 @@ impl CubeScene {
             for piece in &self.mining_collection.pieces {
                 let (world, scale, eased) = piece.animation(elapsed_millis);
                 let local = inverse.rotate(core::array::from_fn(|a| world[a]-self.flycam.camera.position[a]));
-                mining_pixels.push(orchard::Cube {
-                    center: core::array::from_fn(|a| local[a]*(1.-eased)+destination[a]*eased),
+                let local_center = piece.flight_position(local, destination, eased);
+                let offset = self.flycam.camera.rotation.rotate(local_center);
+                collection_cubes.push(orchard::Cube {
+                    center: core::array::from_fn(|a| self.flycam.camera.position[a]+offset[a]),
                     scale,
-                    flags: rubik::MATERIAL_SHOWCASE_FLAG | piece.block.material,
+                    flags: piece.fade_flags(elapsed_millis),
                 });
             }
         }
         let mining_hud_count = mining_pixels.len();
+        let collection_count = collection_cubes.len();
         let (detail_budget, solid_capacity) = self.limits.scene_budget(
-            flight_slot + path_cubes.len() + mining_hud_count + if companion { 27 } else { 0 },
-            flight_slot + path_cubes.len() + ghost_count + mining_hud_count + if companion { world_cube::SEEDS } else { 0 },
+            flight_slot + path_cubes.len() + mining_hud_count + collection_count + if companion { 27 } else { 0 },
+            flight_slot + path_cubes.len() + ghost_count + mining_hud_count + collection_count + if companion { world_cube::SEEDS } else { 0 },
         );
         if self.mode.is_world() {
             let metadata = if platform_lod::ENABLED && self.mode == SceneMode::World && !self.network_singleton {
@@ -1244,8 +1248,9 @@ impl CubeScene {
             + ghost_count
             + palette_count
             + mining_hud_count
+            + collection_count
             + if companion { 27 } else { 0 };
-        let seed_count = opaque_count + flight_slot + path_cubes.len()
+        let seed_count = opaque_count + flight_slot + path_cubes.len() + collection_count
             + if self.mode == SceneMode::Orchard { 1 } else if self.mode == SceneMode::StaticCube {
                 rubik::ALL_FACE_COUNT + palette_count * 6
             } else if companion {
@@ -1501,10 +1506,20 @@ impl CubeScene {
         let mut landing_seed = flight_target_seed(flight_cube, placeholder);
         if let Some((_, _, rotation)) = puzzle_hover { landing_seed.rotation = rotation; }
         if flight_cube.is_some() { expanded_count += 1; }
-        expanded_count += path_cubes.len();
+        expanded_count += path_cubes.len() + collection_count;
         if self.mode == SceneMode::StaticCube || companion || !path_cubes.is_empty() {
             let all_faces = self.mode == SceneMode::StaticCube;
             let mut faces = Vec::with_capacity(seed_count - opaque_count);
+            // Collection cubes fade in the same back-to-front transparent
+            // group as the companion faces, never in the opaque depth pass.
+            for cube in &collection_cubes {
+                let mut seed = flight_target_seed(Some(*cube), placeholder);
+                seed.rotation = self.flycam.camera.rotation.0;
+                let p = seed.translation;
+                let depth = -(camera.view[2]*p[0]+camera.view[6]*p[1]
+                    +camera.view[10]*p[2]+camera.view[14]);
+                faces.push((depth,seed));
+            }
             if flight_slot != 0 {
                 let p = landing_seed.translation;
                 let depth = -(camera.view[2] * p[0] + camera.view[6] * p[1]

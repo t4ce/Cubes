@@ -387,6 +387,10 @@ void main() {
             else baseColor = carouselColor(flags & 511u);
             uint opacity = (flags >> 10u) & 3u;
             alpha = opacity == 1u ? 0.5 : opacity == 2u ? 0.25 : opacity == 3u ? 0.35 : 1.0;
+            // Collection-only continuous fade; legacy preview/carousel classes
+            // remain unchanged. Bit 8 is free when using palette materials.
+            if ((flags & 4352u) == 4352u)
+                alpha = float(((flags >> 3u) & 31u) | ((flags >> 5u) & 96u)) / 127.0;
         } else if ((flags & 32768u) != 0u) {
             baseColor = vec3(flags & 31u, (flags >> 5u) & 31u, (flags >> 10u) & 31u) / 31.0;
         // Key 7 combines the otherwise-exclusive room and sphere flags. Each

@@ -142,7 +142,16 @@ impl CollectedPiece {
             *(libm::cosf(10.*t)+0.6*libm::sinf(10.*t));
         response(t.clamp(0.,1.))/response(1.)
     }
-    /// Expanded world-space launch point, growing half-size, flight blend.
+    /// Positive scale envelope inspired by Physical: 4, 5. Reflect the spring
+    /// undershoot into small rebounds instead of inverting the cube geometry.
+    fn shrink_spring(t: f32) -> f32 {
+        let frequency = core::f32::consts::TAU*5.;
+        let residual = |t: f32| libm::expf(-5.*t)
+            *(libm::cosf(frequency*t)+(5./frequency)*libm::sinf(frequency*t));
+        let end = residual(1.);
+        ((residual(t.clamp(0.,1.))-end)/(1.-end)).abs()
+    }
+    /// Expanded world-space launch point, animated half-size, flight blend.
     pub fn animation(&self, now: u64) -> ([f32;3], f32, f32) {
         let elapsed = now.saturating_sub(self.started);
         let expansion = Self::spring(elapsed as f32 / Self::EXPAND_MS as f32);
@@ -153,8 +162,50 @@ impl CollectedPiece {
             / (self.duration-Self::EXPAND_MS) as f32).min(1.);
         let flight = t*t*(3.-2.*t);
         let c1_scale = C1*0.5-C1*0.005;
-        let scale = original_scale+(c1_scale-original_scale)*flight;
+        let fade = ((flight-0.4)/0.6).clamp(0.,1.);
+        let grown = original_scale+(c1_scale-original_scale)*(flight/0.4).min(1.);
+        // Do not enter the hull shader's <0.001 marker path during rebounds.
+        let scale = (grown*Self::shrink_spring(fade)).max(0.0011);
         (launch,scale,flight)
+    }
+    pub fn fade_flags(&self, now: u64) -> u32 {
+        let (_,_,flight) = self.animation(now);
+        let t = ((flight-0.4)/0.6).clamp(0.,1.);
+        let alpha = ((1.-t*t*(3.-2.*t))*127.+0.5) as u32;
+        // Whole-cube palette transparency; bit 8 selects continuous alpha.
+        // Seven alpha bits occupy 3..7 and 10..11, leaving material bits 0..2.
+        24576 | 512 | 4096 | 256 | ((alpha&31)<<3) | ((alpha&96)<<5) | self.block.material
+    }
+    /// Soft software RNG, seeded from immutable flight identity, never frame
+    /// time. The same piece therefore keeps its curve while the camera moves.
+    fn curve_random(&self) -> [f32;3] {
+        let mut rng = self.started as u32 ^ (self.started >> 32) as u32 ^ 0x6d2b79f5;
+        for v in self.block.min {
+            rng = (rng ^ v as u32).wrapping_mul(0x9e3779b9).rotate_left(13);
+        }
+        rng ^= (self.block.side as u32).wrapping_mul(7919);
+        if rng == 0 { rng = 0x6d2b79f5; }
+        core::array::from_fn(|_| {
+            // Same small xorshift family as the Rubik palette's soft RNG.
+            rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5;
+            (rng >> 8) as f32 / 16777215. * 2. - 1.
+        })
+    }
+    pub fn flight_position(&self, from: [f32;3], to: [f32;3], blend: f32) -> [f32;3] {
+        let t = blend.clamp(0.,1.);
+        if t == 0. { return from; }
+        if t == 1. { return to; }
+        let delta: [f32;3] = core::array::from_fn(|a|to[a]-from[a]);
+        let length = libm::sqrtf(delta.iter().map(|v|v*v).sum());
+        if length < 1e-6 { return from; }
+        let direction = delta.map(|v|v/length);
+        let random = self.curve_random();
+        let along: f32 = (0..3).map(|a|random[a]*direction[a]).sum();
+        let bend: [f32;3] = core::array::from_fn(|a|random[a]-along*direction[a]);
+        // Gentle quadratic arc, at most 8% of the trip (and 0.3 world units).
+        // Its envelope vanishes at both ends; no snap into or out of flight.
+        let strength = (length*0.08).min(0.3)*4.*t*(1.-t)/1.732051;
+        core::array::from_fn(|a|from[a]+delta[a]*t+bend[a]*strength)
     }
 }
 #[derive(Default)]
@@ -445,6 +496,58 @@ mod tests {
         }}
     }
     #[test]
+    fn collection_alpha_fades_with_positive_spring_shrink_and_preserves_palette() {
+        for material in 0..6 {
+            let piece=CollectedPiece {
+                block:Block { min:[0;3], side:3, material }, source_center:[0.05;3],
+                started:100, duration:CollectedPiece::EXPAND_MS+CollectedPiece::FLIGHT_MS,
+            };
+            let mut last_alpha=127;
+            let mut last_scale=0.;
+            for now in 100..=1300 {
+                let flags=piece.fade_flags(now);
+                let alpha=((flags>>3)&31)|((flags>>5)&96);
+                assert_eq!(flags&7,material);
+                assert_eq!(flags&57856,25088); // whole-cube transparent route
+                assert_eq!(flags&4352,4352); // continuous palette alpha
+                assert!(alpha<=last_alpha);
+                if now<=600 { assert_eq!(alpha,127); }
+                let (_,scale,_)=piece.animation(now);
+                assert!(scale.is_finite() && scale>=0.0011);
+                last_alpha=alpha; last_scale=scale;
+            }
+            assert_eq!(last_alpha,0);
+            assert!((last_scale-0.0011).abs()<1e-6);
+        }
+    }
+    #[test]
+    fn collection_soft_rng_curves_are_stable_distinct_bounded_and_meet_endpoints() {
+        let mut mids=Vec::new();
+        for x in 0..4 { for y in 0..4 { for z in 0..4 {
+            let piece=CollectedPiece {
+                block:Block {min:[x*3,y*3,z*3],side:3,material:0},
+                source_center:[0.05;3],started:100,duration:1300,
+            };
+            let from=[-2.,-1.,-3.]; let to=[0.2,0.2,-1.];
+            assert_eq!(piece.flight_position(from,to,0.),from);
+            assert_eq!(piece.flight_position(from,to,1.),to);
+            assert_eq!(piece.flight_position(from,from,0.5),from);
+            let mid=piece.flight_position(from,to,0.5);
+            assert_eq!(mid,piece.flight_position(from,to,0.5));
+            assert!(!mids.contains(&mid));
+            mids.push(mid);
+            for step in 0..=100 {
+                let t=step as f32/100.;
+                let p=piece.flight_position(from,to,t);
+                let offset: [f32;3]=core::array::from_fn(|a|p[a]-(from[a]+(to[a]-from[a])*t));
+                let squared:f32=offset.iter().map(|v|v*v).sum();
+                assert!(squared<=0.3*0.3+1e-6);
+                assert!((0..3).map(|a|offset[a]*(to[a]-from[a])).sum::<f32>().abs()<1e-5);
+                assert!(p.iter().all(|v|v.is_finite()));
+            }
+        }}}
+    }
+    #[test]
     fn collection_capacity_and_other_tools_never_lose_scene_blocks() {
         let mut collection = Collection::default();
         let parent = Block { min: [0;3], side: 12, material:2 };
@@ -469,7 +572,7 @@ mod tests {
         }
     }
     #[test]
-    fn collection_expands_with_overshoot_then_flies_and_grows_to_c1() {
+    fn collection_expands_then_grows_and_spring_shrinks_during_fade() {
         assert_eq!(CollectedPiece::spring(0.),0.);
         assert!((CollectedPiece::spring(1.)-1.).abs()<1e-6);
         assert!(CollectedPiece::spring(0.32)>1.1);
@@ -500,8 +603,18 @@ mod tests {
             assert!(mid_size>size && mid_size<C1*0.5-C1*0.005);
             let (_,end_size,blend)=piece.animation(1300);
             assert_eq!(blend,1.);
-            assert!((end_size-(C1*0.5-C1*0.005)).abs()<1e-6);
+            assert!((end_size-0.0011).abs()<1e-6);
         }
+    }
+    #[test]
+    fn physical_shrink_has_rebounds_and_settles_without_negative_scale() {
+        assert!((CollectedPiece::shrink_spring(0.)-1.).abs()<1e-6);
+        assert_eq!(CollectedPiece::shrink_spring(1.),0.);
+        let samples: Vec<_>=(0..=1000).map(|i|CollectedPiece::shrink_spring(i as f32/1000.)).collect();
+        assert!(samples.iter().all(|s| s.is_finite() && *s>=0. && *s<=1.01));
+        let rebounds=samples.windows(3).filter(|v|v[1]>v[0] && v[1]>v[2]).count();
+        assert!(rebounds>=4);
+        assert!(samples[900]<0.02);
     }
     fn gesture_target(x: i32) -> MiningTarget {
         let parent = Block { min: [x,0,0], side: 24, material: 0 };

@@ -11,6 +11,23 @@ from bake_patch_cube import ROOT, PALETTE, geometry, load_palette, replace, srgb
 
 
 class PatchCubeTests(unittest.TestCase):
+    def test_collection_fade_shader_contract(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            write_sources(ROOT / 'Cube/cube.glb', out)
+            ds = (out / 'cube.tese').read_text()
+            self.assertIn('(flags & 4352u) == 4352u', ds)
+            self.assertIn('((flags >> 3u) & 31u) | ((flags >> 5u) & 96u)', ds)
+            for material in range(6):
+                for alpha in range(128):
+                    flags = 24576|512|4096|256|((alpha&31)<<3)|((alpha&96)<<5)|material
+                    self.assertEqual(flags & 57856, 25088)
+                    self.assertEqual(flags & 7, material)
+                    self.assertEqual(((flags>>3)&31)|((flags>>5)&96),alpha)
+            for opacity in range(4):
+                flags = 24576|512|4096|(opacity<<10)
+                self.assertNotEqual(flags & 4352,4352)
+
     def test_large_cube_center_rejection_does_not_drop_visible_corners(self):
         from itertools import product
         # Includes sharp welded corners, a stricter bound than the bevel mesh.

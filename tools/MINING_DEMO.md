@@ -86,11 +86,19 @@ instead of remaining in the scene. First they expand outward around the source
 cube's center for 500 ms, using a damped overshoot-and-settle curve inspired by
 the reference's bottom-center physical curve, settling at 3× their original
 spacing. Then they fly toward the center of the camera-relative Rubik companion
-in the top right, preserving their palette material and growing smoothly to
-full c1 size during flight. Key7 always shows this
+in the top right along slightly different curved paths, preserving their palette material and growing smoothly to
+full c1 size by 40% of the eased flight. Over the remaining flight, they fade
+smoothly to zero alpha while shrinking with a Physical: 4, 5-inspired damped
+spring. Undershoot becomes small size rebounds; scales stay positive and above
+the renderer's tiny-marker threshold until disappearance. Collection pieces use the sorted
+transparent pass alongside the companion faces; expansion stays opaque.
+Key7 always shows this
 companion, using the Key5 R-companion geometry and placement. It opens over
 120 ms, stays expanded during collection, then closes over 180 ms. Key5's
 existing R toggle and animation are unchanged.
+Each flight has a stable software-RNG bend derived from its source position and
+start time. Curvature stays within 8% of the trip distance (capped at 0.3 renderer
+units), joins both endpoints exactly, and never re-rolls between frames.
 
 After expansion, flight lasts 700–886 ms, so pieces arrive 1.2–1.386 seconds
 after the cut and disappear individually; only then does the
