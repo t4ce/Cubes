@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Cube Nature · SubCubes + Birds + Snake + Cube UI</title>
+<title>Cube Nature · Chess Collection + SubCubes + Birds + Snake + Cube UI</title>
 <style>
   html,body{height:100%;margin:0;background:#f1eee1;font-family:Inter,system-ui,Arial,sans-serif;color:#222}
   #app{height:100%;display:grid;grid-template-rows:auto auto minmax(0,1fr)}
@@ -267,6 +267,61 @@
     body[data-view-mode="ui"][data-ui-editor="true"] #uiControls{padding-top:6px}
   }
 
+  /* Chess controls only appear for the six entries in the first selector. */
+  #chessControls{order:8;flex-basis:100%;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-top:10px;border-top:1px solid #ded9ca}
+  #chessControls .chessControlHeading{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#717966}
+  #chessStyles{display:flex;gap:5px;flex-wrap:wrap}
+  #chessStyles button{display:flex;align-items:center;gap:7px;background:#f5f3e9;color:#59664f;border-color:#d3d4c3;font-size:12px;padding:7px 11px;border-radius:7px}
+  #chessStyles button>span:first-child{font:10px ui-monospace,monospace;opacity:.65}
+  #chessStyles button[aria-pressed="true"]{background:#496245;border-color:#496245;color:#fff}
+  #chessStyles button[data-favorite="true"]::after{content:'★';font-size:10px}
+  #chessKeep{font-size:11px;background:transparent;color:#52664a;padding:7px 10px;border-color:#c8cdbb}
+  #chessKeep[aria-pressed="true"]{background:#e7eddf;color:#3f5a3b;border-color:#a1b291}
+  #chessViewLabel{display:flex;align-items:center;gap:7px;margin-left:auto;font-size:11px;color:#66715b}
+  #chessView{font-size:12px;padding:6px 9px}
+  #chessFit{font-size:11px;padding:7px 9px;background:transparent;color:#52664a}
+  #chessInfo{position:absolute;top:26px;left:28px;pointer-events:none;max-width:310px;color:#344a35;z-index:1}
+  #chessEyebrow{font-size:9px;letter-spacing:.17em;font-weight:700;color:#829078}
+  #chessTitle{font-size:32px;letter-spacing:-.045em;line-height:1.15;font-weight:550;margin:10px 0 8px}
+  #chessSubtitle{font-size:12px;color:#76806d;margin:0;line-height:1.7}
+  #chessFooter{position:absolute;bottom:20px;left:28px;right:24px;display:flex;justify-content:space-between;align-items:flex-end;gap:18px;pointer-events:none;color:#7d8473;font-size:10px;line-height:1.7}
+  #chessFooter strong{font-weight:600;color:#596c50}
+  #chessFooter .chessNavigation{text-align:right}
+  #chessNotice{font-size:10px;color:#68775b;min-height:17px}
+  #chessLabels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+  .chessLabel{position:absolute;transform:translate(-50%,0);pointer-events:auto;padding:6px 10px;background:#fbf9efec;border:1px solid #d5d8c7;border-radius:7px;font-size:11px;color:#53634a;display:flex;align-items:center;gap:7px;box-shadow:0 2px 12px #293b2007;white-space:nowrap}
+  .chessLabel[aria-pressed="true"]{border-color:#829876;background:#edf3e5;color:#3c5436}
+  .chessLabel small{font:9px ui-monospace,monospace;opacity:.65}
+  .chessLabel i{width:9px;height:9px;background:var(--chess-color);border:1px solid #00000012;border-radius:3px}
+  body[data-chess-active="true"] #paletteControls{border-color:#bcc7ae}
+  body[data-view-mode="placement"] #chessControls,body[data-view-mode="materials"] #chessControls{display:none!important}
+  @media(max-width:780px){
+    #chessControls{gap:9px}#chessControls .chessControlHeading{display:none}
+    #chessViewLabel{margin-left:0}#chessInfo{top:16px;left:16px;max-width:225px}
+    #chessTitle{font-size:24px;margin:7px 0 5px}#chessSubtitle{font-size:10px}
+    #chessFooter{left:16px;right:14px;bottom:12px;font-size:9px}
+    #chessFooter .chessNavigation{display:none}#chessEyebrow{font-size:8px}
+    .chessLabel{font-size:10px;padding:5px 7px;gap:4px}
+  }
+  @media(max-width:480px){
+    body[data-chess-active="true"] #bar{padding:8px;gap:6px}
+    body[data-chess-active="true"] #bar>select{font-size:11px;padding:6px;max-width:150px}
+    body[data-chess-active="true"] #bar>button{font-size:11px;padding:6px 8px}
+    body[data-chess-active="true"] #status{font-size:10px}
+    body[data-chess-active="true"] #tierBar{padding:8px;gap:8px}
+    body[data-chess-active="true"] #tierButtons{gap:3px}
+    body[data-chess-active="true"] #tierButtons button{padding:5px 6px;font-size:10px}
+    body[data-chess-active="true"] #tierButtons .tierSide{font-size:8px}
+    body[data-chess-active="true"] #tierNote{font-size:10px}
+    #chessControls{gap:7px;padding-top:8px}#chessStyles{gap:4px;flex-basis:100%}
+    #chessStyles button{flex:1;justify-content:center;font-size:11px;padding:6px 5px;gap:4px}
+    #chessKeep,#chessFit{font-size:10px;padding:6px 7px}#chessViewLabel{margin-left:auto;font-size:10px;gap:5px}
+    #chessView{font-size:10px;padding:5px}#chessInfo{top:12px;left:12px}
+    #chessTitle{font-size:21px}#chessSubtitle{font-size:9px;max-width:240px}
+    #chessFooter{font-size:8px;left:12px;bottom:8px}#chessNotice{font-size:9px}
+    #chessFit{display:none}
+  }
+
 </style>
 <script type="importmap">
 {
@@ -331,6 +386,14 @@
         <option value="sickle">Sickle</option>
         <option value="wateringCan">Watering can</option>
       </optgroup>
+      <optgroup label="Chess pieces">
+        <option value="chessPawn">Pawn</option>
+        <option value="chessKing">King</option>
+        <option value="chessQueen">Queen</option>
+        <option value="chessHorse">Horse</option>
+        <option value="chessRook">Rook</option>
+        <option value="chessKnight">Knight</option>
+      </optgroup>
       <optgroup label="packed_lite demo">
         <option value="packedLiteBush">Bush</option>
         <option value="packedLiteWildflower">Wildflower</option>
@@ -372,6 +435,18 @@
     <button id="regen">New variant</button>
     <button id="exportCubes">Export CUBES</button>
     <span id="status">loading cube…</span>
+    <div id="chessControls" hidden aria-label="Chess collection controls">
+      <span class="chessControlHeading">Chess style</span>
+      <div id="chessStyles" role="group" aria-label="Choose chess style"></div>
+      <button id="chessKeep" type="button" aria-pressed="false" title="Remember this favorite style for all six chess pieces">☆ Keep style</button>
+      <label id="chessViewLabel" for="chessView">View <select id="chessView" aria-label="Chess preview layout">
+        <option value="single">Single piece</option>
+        <option value="styles">Compare 4 styles</option>
+        <option value="colors">All 6 colors</option>
+        <option value="set">Full 6-piece set</option>
+      </select></label>
+      <button id="chessFit" type="button" title="Fit the current chess preview in the viewport">Reset view</button>
+    </div>
     <div id="uiControls" hidden>
       <select id="uiTheme" aria-label="Cube UI color theme"></select>
       <button id="uiDemo" type="button" aria-pressed="false">Demo hover</button>
@@ -396,6 +471,16 @@
   </div>
   <div id="view">
     <div id="sceneViewport">
+    <div id="chessInfo" hidden>
+      <div id="chessEyebrow">CHESS / CUBE COLLECTION</div>
+      <h1 id="chessTitle">King</h1>
+      <p id="chessSubtitle">Six pieces. Four styles. Your palette.</p>
+    </div>
+    <div id="chessLabels" hidden aria-label="Select a chess preview"></div>
+    <div id="chessFooter" hidden>
+      <div><strong id="chessSelectionSummary"></strong><br><span id="chessExportNote">Only the selected piece is exported. The grid never changes its shape.</span><div id="chessNotice" role="status" aria-live="polite"></div></div>
+      <div class="chessNavigation">Drag to orbit · Scroll to zoom<br>Choose a swatch above to change color</div>
+    </div>
     <div id="uiHelp" hidden>
       <div class="uiHelpCopy"><strong>INTERFACE / BUILT FROM CUBES</strong><p id="uiDescription"></p><p id="uiHint" role="status" aria-live="polite">Hover or click a cube control.</p></div>
       <div id="uiFontNote">MicroFont 6 × 11 · embedded pixels<br>Drag background to orbit · scroll to zoom<br>Tab + Enter / Space also activate controls</div>
@@ -444,7 +529,7 @@
     <aside id="materialPanel" hidden aria-label="Color and surface editor">
       <div id="materialPanelHeader">
         <div><div class="materialEyebrow">Six-slot palette</div><div id="materialSelection"><span id="materialSelectedSwatch" aria-hidden="true"></span><div><h2 id="materialSelectedName">Red</h2><span id="materialHex">#D96559 · 01 / 06</span></div></div></div>
-        <p id="materialPanelDescription">Edit one shared material.<br>Placed cubes update with it.</p>
+        <p id="materialPanelDescription">Edit one shared material.<br>Placed cubes and chess update with it.</p>
       </div>
       <div id="materialFields">
         <div class="materialField" data-field="r">
@@ -602,6 +687,241 @@ const SubCubes = (() => {
 })();
 window.Cubes=Object.freeze({SubCubes});
 </script>
+<script id="cube-chess-core">
+/* Original cube-authored chess collection. Every cell is a unit cube, not a
+   scaled cylinder, sphere, wedge or imported chess mesh. Grid tier is a guide. */
+(() => {
+  'use strict';
+  const styles = Object.freeze({
+    classic: Object.freeze({name:'Classic',number:'01',description:'Turned silhouettes, stepped collars and traditional crowns.'}),
+    citadel: Object.freeze({name:'Citadel',number:'02',description:'Square plinths, strong shoulders and castle-like details.'}),
+    deco: Object.freeze({name:'Deco',number:'03',description:'Faceted bases, slender fluted stems and sculptural crowns.'}),
+    chunky: Object.freeze({name:'Chunky',number:'04',description:'Short stems and oversized, playful heads.'})
+  });
+  // Horse and Knight are intentionally separate, matching the requested six.
+  const pieces = Object.freeze({
+    chessPawn:Object.freeze({id:'pawn',name:'Pawn',description:'A rounded head on a balanced pedestal.'}),
+    chessKing:Object.freeze({id:'king',name:'King',description:'The tallest silhouette, finished with a cross.'}),
+    chessQueen:Object.freeze({id:'queen',name:'Queen',description:'An open, multi-point crown.'}),
+    chessHorse:Object.freeze({id:'horse',name:'Horse',description:'A horse-head bust with ears, muzzle and a stepped mane.'}),
+    chessRook:Object.freeze({id:'rook',name:'Rook',description:'A tower with a hollow crown and clear battlements.'}),
+    chessKnight:Object.freeze({id:'knight',name:'Knight',description:'An armored helmet with a recessed-looking visor and crest.'})
+  });
+  const presetFor = id => Object.keys(pieces).find(k=>pieces[k].id===id);
+  const shapeCache = new Map();
+  const key = (x,y,z) => `${x},${y},${z}`;
+  function build(piece='king',style='classic') {
+    if(pieces[piece])piece=pieces[piece].id;
+    if(!presetFor(piece)||!Object.hasOwn(styles,style))throw new RangeError('Unknown chess piece or style.');
+    const cacheKey=`${piece}/${style}`;
+    if(shapeCache.has(cacheKey))return shapeCache.get(cacheKey);
+    const cells=new Map(), round=style==='classic', castle=style==='citadel', deco=style==='deco', chunky=style==='chunky';
+    const footprint=castle?'square':deco?'octagon':'round';
+    const put=(x,y,z,kind='chessBody',tone=1)=>{
+      if(![x,y,z].every(Number.isInteger)||y<0)throw new RangeError('Chess cells must be integer, ground-supported coordinates.');
+      cells.set(key(x,y,z),{gx:x,gy:y,gz:z,tier:1,tierId:'c1',kind,tone});
+    };
+    const box=(x0,x1,y0,y1,z0,z1,kind='chessBody',tone=1)=>{
+      for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)for(let z=z0;z<=z1;z++)put(x,y,z,kind,tone);
+    };
+    function metric(x,z,shape=footprint) {
+      x=Math.abs(x);z=Math.abs(z);
+      return shape==='square'?Math.max(x,z):shape==='octagon'?Math.max(x,z,(x+z)/1.41421356237):shape==='diamond'?(x+z)/1.25:Math.hypot(x,z);
+    }
+    function layer(y,r,kind='chessBody',tone=1,{shape=footprint,inner=0,cx=0,cz=0}={}){
+      for(let x=Math.floor(cx-r);x<Math.ceil(cx+r);x++)for(let z=Math.floor(cz-r);z<Math.ceil(cz+r);z++){
+        const q=metric(x+.5-cx,z+.5-cz,shape);
+        if(q<=r&&q>=inner)put(x,y,z,kind,tone);
+      }
+    }
+    function layers(y,radii,kind='chessBody',tone=1,options={}){
+      radii.forEach((r,i)=>layer(y+i,r,kind,typeof tone==='function'?tone(i):tone,options));
+    }
+    function ellipsoid(cx,cy,cz,rx,ry,rz,kind='chessCrown',tone=1,faceted=false){
+      for(let y=Math.max(0,Math.floor(cy-ry));y<Math.ceil(cy+ry);y++)for(let x=Math.floor(cx-rx);x<Math.ceil(cx+rx);x++)for(let z=Math.floor(cz-rz);z<Math.ceil(cz+rz);z++){
+        const a=Math.abs((x+.5-cx)/rx),b=Math.abs((y+.5-cy)/ry),c=Math.abs((z+.5-cz)/rz);
+        if(faceted?Math.max(a,b,c)<=1&&a+b+c<=1.65:a*a+b*b+c*c<=1)put(x,y,z,kind,tone);
+      }
+    }
+    function frontDetail(x0,x1,y0,y1,tone=.28){
+      // Replace the frontmost body cell. No overlapping embellishment cubes.
+      for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+        let front=null;
+        for(const c of cells.values())if(c.gx===x&&c.gy===y&&(!front||c.gz>front.gz))front=c;
+        if(front){front.tone=tone;front.kind='chessDetail';}
+      }
+    }
+    function base(){
+      const radii=round?[8.4,9.3,9.3,8.7,7.8,6.4]:castle?[8,9,9,8,7,6]:deco?[8.3,9.2,9.2,8.2,7.3,6.3,5.3]:[8,9,9,8,6.6];
+      layers(0,radii,'chessBase',i=>i===0?.66:i===1?.82:i===radii.length-1?1.06:1);
+      if(deco){
+        // Inlaid corner steps emphasize the eight-sided footprint.
+        for(const c of cells.values())if(c.gy===3&&Math.abs(c.gx+.5)>4&&Math.abs(c.gz+.5)>4)c.tone=.78;
+      }
+    }
+    function stem(end,{wide=false}={}){
+      const start=deco?7:chunky?5:6, n=end-start;
+      for(let y=start;y<end;y++){
+        const t=(y-start)/Math.max(1,n-1);
+        let r;
+        if(round)r=2.5+(wide?.8:0)+3.8*(1-t)**3+.65*t**6;
+        else if(castle)r=(wide?4:3)+2.5*(1-t)**2;
+        else if(deco)r=(wide?3.2:2.3)+2.8*(1-t)**4+.8*t**8;
+        else r=3.7+(wide?.6:0)+1.7*(1-t)**2;
+        layer(y,r,'chessBody',1);
+        if(castle&&y<start+Math.ceil(n*.65)){
+          const reach=Math.max(3,Math.floor(6-(y-start)*.24));
+          for(const [x,z] of [[-reach,-reach],[reach-1,-reach],[-reach,reach-1],[reach-1,reach-1]])put(x,y,z,'chessBody',.86);
+          // Square shoulder remains a solid, connected volume.
+        }
+        if(deco&&y>start&&y<end-2){
+          for(const c of cells.values())if(c.gy===y&&((Math.abs(c.gx+.5)<.6&&Math.abs(c.gz+.5)>r-1.2)||(Math.abs(c.gz+.5)<.6&&Math.abs(c.gx+.5)>r-1.2))){
+            c.tone=.76;c.kind='chessDetail';
+          }
+        }
+      }
+      layers(end,[4.2,5.1,4.5],'chessCrown',i=>i===0?.83:i===1?1.08:1);
+      return end+3;
+    }
+    base();
+    if(piece==='pawn'){
+      const end=round?14:castle?13:deco?18:9,h=stem(end);
+      if(castle){layers(h,[3,4,4,3],'chessCrown',1);layers(h+4,[2,1],'chessCrown',1.06);}
+      else if(deco)ellipsoid(0,h+4,0,4.3,5.2,4.3,'chessCrown',1,true);
+      else ellipsoid(0,h+(chunky?4.8:3.6),0,chunky?6.2:4.6,chunky?6:4.8,chunky?6.2:4.6);
+    }else if(piece==='king'){
+      const end=round?24:castle?22:deco?28:14,h=stem(end);
+      layers(h,castle?[4,4,3,3]:deco?[3,3.7,4.5,3.5]:[3.4,4.4,4.4,3.4],'chessCrown');
+      const y=h+4, width=chunky?2:1;
+      box(-width,width-1,y,y+(deco?10:8),-width,width-1,'chessCrown');
+      const arm=chunky?5:4,at=y+(deco?6:4);
+      box(-arm,arm-1,at,at+(chunky?2:1),-width,width-1,'chessCrown',1.05);
+      // A collar at the cross foot keeps the terminal visibly attached.
+      layer(y,2.8,'chessCrown',1.07,{shape:deco?'diamond':footprint});
+      if(castle){for(const [x,z]of[[-4,-4],[-4,2],[2,-4],[2,2]])box(x,x+1,h+3,h+5,z,z+1,'chessCrown',.9);}
+    }else if(piece==='queen'){
+      const end=round?21:castle?20:deco?24:13,h=stem(end);
+      const radii=deco?[3.2,3.8,4.4,5,5.6]:[3.5,4.2,5,5.8];
+      radii.forEach((r,i)=>layer(h+i,r,'chessCrown',i===0?.88:1,{inner:i>=2?r-1.8:0}));
+      const top=h+radii.length;
+      if(deco){
+        // A radial fan of eight distinct stepped crown rays, with an open center.
+        for(const [x,z]of[[-5,-2],[-2,-5],[1,-5],[4,-2],[4,1],[1,4],[-2,4],[-5,1]]){
+          const height=(Math.abs(x)>3||Math.abs(z)>3)?5:4;
+          box(x,x+1,top,top+height-1,z,z+1,'chessCrown');
+          box(x,x+1,top+height,top+height,z,z+1,'chessCrown',1.09);
+        }
+      }else{
+        const points=castle?[[-5,-5],[-5,3],[3,-5],[3,3]]:[[-5,-2],[-2,-5],[1,-5],[4,-2],[4,1],[1,4],[-2,4],[-5,1]];
+        if(castle)layer(top-1,6,'chessCrown',1,{inner:3.5});
+        for(const [x,z]of points){
+          box(x,x+1,top,top+(chunky?2:3),z,z+1,'chessCrown');
+          if(!castle)ellipsoid(x+1,top+(chunky?3:4),z+1,1.35,1.3,1.35,'chessCrown',1.05);
+        }
+      }
+    }else if(piece==='rook'){
+      const start=deco?7:chunky?5:6,end=round?23:castle?25:deco?27:16;
+      for(let y=start;y<end;y++){
+        const t=(y-start)/(end-start),r=castle?5.5:deco?4.7+.8*(t>.75):chunky?5.9:5.5-.4*Math.sin(t*Math.PI);
+        layer(y,r,'chessBody',y===start?.85:1);
+        if(castle)for(const [x,z]of[[-6,-6],[-6,4],[4,-6],[4,4]])box(x,x+1,y,y,z,z+1,'chessBody',.88);
+        if(deco&&y>start+1&&y<end-2)frontDetail(-1,0,y,y,.82);
+      }
+      layers(end,[6.2,7.2,7.2],'chessCrown',i=>i===0?.82:1);
+      for(let y=end+3;y<end+5;y++)layer(y,7.2,'chessCrown',1,{inner:4.6});
+      // Four corner merlons / eight round merlons leave real open notches.
+      for(let y=end+5;y<end+(chunky?8:9);y++)for(let x=-8;x<8;x++)for(let z=-8;z<8;z++){
+        const px=x+.5,pz=z+.5,r=metric(px,pz,footprint);
+        const crenel=castle?(Math.abs(px)>3.5&&Math.abs(pz)>3.5):(Math.abs(px)<1.6||Math.abs(pz)<1.6||(Math.abs(px)>3.5&&Math.abs(pz)>3.5));
+        if(r<=7.2&&r>=4.6&&crenel)put(x,y,z,'chessCrown',y===end+8?1.05:1);
+      }
+      // Shallow dark arrow slits, not detached decoration.
+      frontDetail(-1,0,start+5,Math.min(end-3,start+9),.4);
+    }else if(piece==='horse'){
+      const h=stem(round?10:castle?10:deco?12:6,{wide:true});
+      // Authored sagittal profile: chest -> swept neck -> brow -> dropped muzzle.
+      const profile=chunky?[
+        [-4,3,4.5],[-4,3,4.5],[-4,2,4.5],[-4,2,4],[-4,3,4],
+        [-4,5,4.5],[-4,7,4.5],[-4,7,4.5],[-4,7,4],[-3,5,4],[-3,3,3.5]
+      ]:castle?[
+        [-4,3,4.5],[-4,3,4.5],[-4,2,4],[-4,2,4],[-4,1,3.5],[-4,1,3.5],
+        [-4,1,3.5],[-4,2,3.5],[-4,4,4],[-4,6,4],[-4,7,3.5],[-4,7,3.5],
+        [-3,7,3.5],[-3,5,3.5],[-3,3,3]
+      ]:deco?[
+        [-4,3,4.5],[-4,3,4.5],[-4,2,4],[-4,2,4],[-4,1,3.5],[-4,1,3.5],
+        [-4,0,3],[-4,0,3],[-4,0,3],[-4,1,3],[-4,2,3],[-4,4,3.5],
+        [-4,6,3.5],[-3,7,3],[-3,7,3],[-3,5,3],[-2,3,2.5]
+      ]:[
+        [-4,3,4.5],[-4,3,4.5],[-4,2,4.5],[-4,2,4],[-4,1,3.5],[-4,1,3.5],
+        [-4,1,3.5],[-4,2,3.5],[-4,4,4],[-4,6,4],[-3,7,3.5],[-3,7,3.5],
+        [-3,6,3.5],[-3,4,3],[-2,3,3]
+      ];
+      profile.forEach(([back,front,half],i)=>{
+        for(let z=back;z<=front;z++)for(let x=-Math.ceil(half);x<Math.ceil(half);x++){
+          const edge=(z===back||z===front)&&!castle?.8:0;
+          if(Math.abs(x+.5)<=half-edge)put(x,h+i,z,'chessBody');
+        }
+        // The mane joins the rear of every neck layer, with staggered outer steps.
+        box(-1,0,h+i,h+i,back-(i%3===0?2:1),back,'chessDetail',deco?.67:.73);
+      });
+      const top=h+profile.length;
+      for(const x of [-3,1]){
+        box(x,x+1,top-1,top+(chunky?2:3),-2,-1,'chessCrown');
+        put(x,top+(chunky?3:4),-2,'chessCrown');
+      }
+      const eyeY=h+profile.length-4;
+      for(const s of [-1,1]){
+        const row=[...cells.values()].filter(c=>c.gy===eyeY&&c.gz===2);
+        if(row.length){const x=s<0?Math.min(...row.map(c=>c.gx)):Math.max(...row.map(c=>c.gx));const c=cells.get(key(x,eyeY,2));c.tone=.22;c.kind='chessDetail';}
+      }
+      frontDetail(-2,1,h+profile.length-5,h+profile.length-5,.58);
+    }else if(piece==='knight'){
+      const h=stem(round?10:castle?10:deco?12:6,{wide:true});
+      layers(h,[4.8,5.7,6.3,6.1],'chessBody',1,{shape:castle?'square':'octagon'});
+      const cy=h+(chunky?8:9),rx=chunky?6.6:5.8,ry=chunky?7.1:8,rz=chunky?5.6:4.8;
+      if(castle){
+        layers(h+3,[5.5,5.5,5.5,5.5,5.5,5.5,5.5,5.5,5.5,5,4,3],'chessCrown',1,{shape:'square'});
+      }else ellipsoid(0,cy,0,rx,ry,rz,'chessCrown',1,deco);
+      const eye=h+(castle?10:chunky?9:10);
+      frontDetail(-4,3,eye,eye+1,.22);
+      frontDetail(-1,0,h+5,eye,.3);
+      // Cheek guards and a bright central brow make a clear armored T-visor.
+      frontDetail(-1,0,eye+2,eye+3,1.07);
+      frontDetail(-4,-3,h+4,h+6,.79);frontDetail(2,3,h+4,h+6,.79);
+      const top=castle?h+15:Math.ceil(cy+ry)-1;
+      for(let z=-4;z<=2;z++){
+        const rise=chunky?3:deco?5:4;
+        box(-1,0,top-2,top+rise-Math.floor(Math.abs(z+1)/2),z,z,'chessDetail',.78);
+      }
+      if(deco){frontDetail(-1,0,h+3,h+4,1.08);}
+    }
+    // Remove decorative corner cells not joined to the sculpture. This is not
+    // packing: the final result remains a solid-connected, unit-cube model.
+    const seen=new Set(),queue=[];
+    for(const c of cells.values())if(c.gy===0){const k=key(c.gx,c.gy,c.gz);seen.add(k);queue.push(c);}
+    const dirs=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+    for(let i=0;i<queue.length;i++){
+      const c=queue[i];
+      for(const [dx,dy,dz]of dirs){const k=key(c.gx+dx,c.gy+dy,c.gz+dz);if(cells.has(k)&&!seen.has(k)){seen.add(k);queue.push(cells.get(k));}}
+    }
+    const records=[...cells.entries()].filter(([k])=>seen.has(k)).map(([,c])=>Object.freeze(c));
+    const bounds={min:[Infinity,0,Infinity],max:[-Infinity,0,-Infinity]};
+    for(const q of records){for(const [i,k]of ['gx','gy','gz'].entries()){bounds.min[i]=Math.min(bounds.min[i],q[k]);bounds.max[i]=Math.max(bounds.max[i],q[k]+1);}}
+    const surfaceIndices=records.map((c,i)=>dirs.some(([dx,dy,dz])=>!seen.has(key(c.gx+dx,c.gy+dy,c.gz+dz)))?i:-1).filter(i=>i>=0);
+    const model=Object.freeze({piece,style,records:Object.freeze(records),surfaceIndices:Object.freeze(surfaceIndices),bounds:Object.freeze(bounds)});
+    shapeCache.set(cacheKey,model);return model;
+  }
+  function tint(hex,tone=1){
+    const channel=v=>Math.round(Math.max(0,Math.min(255,tone<=1?v*tone:v+(255-v)*(tone-1)*2)));
+    return ((channel((hex>>16)&255)<<16)|(channel((hex>>8)&255)<<8)|channel(hex&255))>>>0;
+  }
+  let favorite=null;
+  try{const id=localStorage.getItem('CubeNature.Chess.favorite.v1');if(Object.hasOwn(styles,id))favorite=id;}catch{}
+  window.CUBE_CHESS_STATE={style:favorite||'classic',favorite,colorId:null,view:'single'};
+  window.CUBE_CHESS_CORE=Object.freeze({styles,pieces,presetFor,build,tint});
+})();
+
+</script>
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -702,7 +1022,8 @@ const PART_IDS = new Map([
   ['toolHandle',16],['toolHead',17],['toolDetail',18],
   ['birdBody',19],['birdHead',20],['birdWing',21],['birdWingTip',22],
   ['birdTail',23],['birdFeet',24],['birdBeak',25],['birdEye',26],
-  ['packedLite',27]
+  ['packedLite',27],
+  ['chessBase',28],['chessBody',29],['chessCrown',30],['chessDetail',31]
 ]);
 
 const bark = [0x6b3423,0x7b3d29,0x8c4930,0x5e2c20];
@@ -787,6 +1108,7 @@ function clearTree(){
   }
   occupied.clear();
   placed=[];
+  selectedChessAsset=null;
 }
 
 function cellKey(x,y,z){ return `${x},${y},${z}`; }
@@ -1306,6 +1628,59 @@ function buildPackedLite(key){
   return true;
 }
 
+// Chess assets use their authored c1 cells at a fixed world scale. Rendering
+// culls fully enclosed cells, but CUBES exports retain the complete solid model.
+function createChessAsset(preset,styleId,colorId){
+  const core=window.CUBE_CHESS_CORE,store=window.CUBE_NATURE_MATERIALS;
+  if(!store)throw new Error('The shared six-color palette is not ready.');
+  store.ensureEnvironment();
+  const spec=core.pieces[preset];
+  if(!spec)throw new RangeError('Unknown chess preset.');
+  const index=Math.max(0,store.palette.findIndex(c=>c.id===colorId));
+  const model=core.build(spec.id,styleId),palette=store.palette[index];
+  const records=model.records.map(q=>({...q,center:SubCubes.center(q.gx,q.gy,q.gz,1),color:core.tint(palette.hex,q.tone),materialId:palette.id}));
+  const mat=store.materials[index].clone();mat.color.setHex(0xffffff);
+  const mesh=new THREE.InstancedMesh(cubeGeometry,mat,model.surfaceIndices.length);
+  const matrix=new THREE.Matrix4(),rotation=new THREE.Quaternion(),position=new THREE.Vector3();
+  const scale=new THREE.Vector3().setScalar(SubCubes.renderSide('c1'));
+  const color=new THREE.Color();
+  model.surfaceIndices.forEach((recordIndex,i)=>{
+    const q=records[recordIndex];position.set(...q.center.map(c=>c*GRID_UNIT));
+    matrix.compose(position,rotation,scale);mesh.setMatrixAt(i,matrix);mesh.setColorAt(i,color.setHex(q.color));
+  });
+  mesh.instanceMatrix.needsUpdate=true;mesh.instanceColor.needsUpdate=true;
+  mesh.castShadow=mesh.receiveShadow=true;mesh.computeBoundingBox();mesh.computeBoundingSphere();
+  mesh.name=`Chess_${spec.id}_${styleId}_${palette.id}`;
+  mesh.userData={kind:'chess',piece:spec.id,preset,style:styleId,materialId:palette.id,
+    cubeCount:records.length,visibleCubes:model.surfaceIndices.length,gridTierIndependent:true};
+  return {mesh,records,model,colorId:palette.id};
+}
+function recolorChessAsset(asset,colorId){
+  const core=window.CUBE_CHESS_CORE,store=window.CUBE_NATURE_MATERIALS;
+  const index=store.palette.findIndex(c=>c.id===colorId);if(index<0)return false;
+  const source=store.materials[index],mat=asset.mesh.material;
+  mat.copy(source);mat.color.setHex(0xffffff);mat.needsUpdate=true;
+  const color=new THREE.Color(),palette=store.palette[index];
+  for(const q of asset.records){q.color=core.tint(palette.hex,q.tone);q.materialId=palette.id;}
+  asset.model.surfaceIndices.forEach((recordIndex,i)=>asset.mesh.setColorAt(i,color.setHex(asset.records[recordIndex].color)));
+  asset.mesh.instanceColor.needsUpdate=true;asset.mesh.userData.materialId=palette.id;asset.colorId=palette.id;
+  return true;
+}
+let selectedChessAsset=null;
+function buildChess(preset){
+  const state=window.CUBE_CHESS_STATE,store=window.CUBE_NATURE_MATERIALS;
+  state.colorId=state.colorId||store.selectedId;
+  selectedChessAsset=createChessAsset(preset,state.style,state.colorId);
+  treeGroup.add(selectedChessAsset.mesh);placed=selectedChessAsset.records;
+  for(const q of placed)occupied.add(cellKey(q.gx,q.gy,q.gz));
+}
+window.CUBE_NATURE_THEME_HOST.chessAssets={create:createChessAsset,recolor:recolorChessAsset,
+  getSelected:()=>selectedChessAsset,
+  recolorSelected:(colorId)=>{
+    if(!selectedChessAsset||treeGroup.userData.assetType!=='chess')return false;
+    recolorChessAsset(selectedChessAsset,colorId);treeGroup.userData.materialId=colorId;return true;
+  }};
+
 function build(){
   if(!cubeGeometry || ['placement','materials'].includes(window.CUBE_NATURE_THEME_HOST.viewMode)) return;
   // The first combobox owns the standalone static-asset preview. Building or
@@ -1318,8 +1693,9 @@ function build(){
   seed=(seed+1)>>>0; rnd=mulberry32(seed);
   const p=document.getElementById('preset').value;
   const builders={pine,broad,orchard,tall,stonePile,ironPile,copperPile,goldPile,roundBush,berryBush,grassTuft,wildBush,compactBush,lowMoundBush,forkedBush,smallBerryBush,travelerChest,gemChest,ironboundChest,royalChest,pickaxe,hatchet,hammer,spade,hoe,rake,sickle,wateringCan,chilliPepper,banana,carrot,eggplant,cornCob,pumpkin,radish,cucumber};
-  if(PACKED_LITE_MODELS[p]) buildPackedLite(p); else builders[p]();
-  const family=PACKED_LITE_MODELS[p] ? 'packed_lite'
+  if(window.CUBE_CHESS_CORE.pieces[p]) buildChess(p);
+  else if(PACKED_LITE_MODELS[p]) buildPackedLite(p); else builders[p]();
+  const family=window.CUBE_CHESS_CORE.pieces[p] ? 'chess' : PACKED_LITE_MODELS[p] ? 'packed_lite'
     : ['pine','broad','orchard','tall'].includes(p) ? 'tree'
     : ['stonePile','ironPile','copperPile','goldPile'].includes(p) ? 'rock'
     : ['travelerChest','gemChest','ironboundChest','royalChest'].includes(p) ? 'chest'
@@ -1331,6 +1707,7 @@ function build(){
   treeGroup.scale.setScalar(exportGridUnit/GRID_UNIT);
   treeGroup.userData={
     assetType:family,
+    ...(family==='chess'?{chessStyle:window.CUBE_CHESS_STATE.style,materialId:window.CUBE_CHESS_STATE.colorId,gridTierIndependent:true}:{}),
     preset:p,
     gridUnit:exportGridUnit,
     cubeSizes:SubCubes.assetTiers.map(tier=>tier.side),
@@ -1345,6 +1722,7 @@ function build(){
   const label=PACKED_LITE_MODELS[p]?`packed_lite · ${PACKED_LITE_MODELS[p].name}`:family;
   status.textContent=`${label} · ${placed.length} cubes · placement base: ${window.AssetPlacementScale.tier(p)} (${exportGridUnit.toFixed(5)} units) · strict grid · no overlap · ${Math.round(GAP*100)}% gap`;
   frameTree();
+  window.dispatchEvent(new CustomEvent('cube-nature-asset-built',{detail:{preset:p,family}}));
 }
 
 function frameTree(){
@@ -1451,7 +1829,9 @@ function downloadCubes(){
   if(mode==='morphling'){window.CUBE_NATURE_THEME_HOST.exportMorphlingJSON?.();return;}
   if(mode==='ui'){window.CUBE_NATURE_THEME_HOST.exportUIJSON?.();return;}
   const data=makeCubesBinary(placed,window.AssetPlacementScale.gridUnit(document.getElementById('preset').value)); if(!data) return;
-  downloadBlob(new Blob([data],{type:'application/octet-stream'}),`cube_nature_${document.getElementById('preset').value}.cubes`);
+  const p=document.getElementById('preset').value;
+  const name=window.CUBE_CHESS_CORE.pieces[p]?`chess_${window.CUBE_CHESS_CORE.pieces[p].id}_${window.CUBE_CHESS_STATE.style}_${window.CUBE_CHESS_STATE.colorId}.cubes`:`cube_nature_${p}.cubes`;
+  downloadBlob(new Blob([data],{type:'application/octet-stream'}),name);
 }
 
 document.getElementById('regen').addEventListener('click',()=>{
@@ -1459,6 +1839,7 @@ document.getElementById('regen').addEventListener('click',()=>{
   if(host.viewMode==='animal') host.regenerateAnimal?.();
   else if(host.viewMode==='morphling') host.regenerateMorphling?.();
   else if(host.viewMode==='ui') host.regenerateUI?.();
+  else if(host.viewMode==='asset'&&window.CUBE_CHESS_CORE.pieces[document.getElementById('preset').value]&&host.regenerateChess) host.regenerateChess();
   else if(host.viewMode==='asset') build();
 });
 const presetSelect=document.getElementById('preset');
@@ -1469,7 +1850,7 @@ presetSelect.addEventListener('pointerdown',()=>{
   grid.position.y=0;
   window.dispatchEvent(new CustomEvent('cube-nature-view-mode',{detail:{mode:'asset'}}));
   if(placed.length){
-    frameTree();
+    if(window.CUBE_NATURE_THEME_HOST.isChessPreview?.()) window.CUBE_NATURE_THEME_HOST.frameChess?.(); else frameTree();
     const family=treeGroup.userData.assetType || 'asset';
     const {counts}=SubCubes.validateRecords(placed);
     status.textContent=`${family} · ${placed.length} cubes · c1:${counts.c1} c2:${counts.c2} r1:${counts.r1} · strict grid · no overlap · ${Math.round(GAP*100)}% gap`;
@@ -1482,7 +1863,7 @@ presetSelect.addEventListener('focus',()=>{
   grid.position.y=0;
   window.dispatchEvent(new CustomEvent('cube-nature-view-mode',{detail:{mode:'asset'}}));
   if(placed.length){
-    frameTree();
+    if(window.CUBE_NATURE_THEME_HOST.isChessPreview?.()) window.CUBE_NATURE_THEME_HOST.frameChess?.(); else frameTree();
     const family=treeGroup.userData.assetType || 'asset';
     const {counts}=SubCubes.validateRecords(placed);
     status.textContent=`${family} · ${placed.length} cubes · c1:${counts.c1} c2:${counts.c2} r1:${counts.r1} · strict grid · no overlap · ${Math.round(GAP*100)}% gap`;
@@ -1841,7 +2222,7 @@ window.CUBE_NATURE_ANIMALS={species:BIRD_SPECIES,timing:BIRD_TIMING,makeBirdCell
   get controller(){return controller;},get rig(){return rig;}};
 </script>
 
-<!-- Six stable material slots shared by the editor and placement, never by assets. -->
+<!-- Six stable material slots shared by placement, the editor and chess. Other asset palettes stay independent. -->
 <script type="module" id="cube-material-palette">
 import * as THREE from 'three';
 
@@ -2065,14 +2446,14 @@ function updateUI(){
   toggle.title=active?'Return to the selected asset; keep these edits for this tab':'Enable placement camera mode';
   help.hidden=!active;undoButton.disabled=!active || history.length===0;
   for(const [i,button] of [...paletteButtons.children].entries()){
-    if(host.viewMode!=='materials'){button.disabled=!active;button.setAttribute('aria-pressed',String(i===colorIndex));}
+    if(host.viewMode!=='materials'&&!host.isChessPreview?.()){button.disabled=!active;button.setAttribute('aria-pressed',String(i===colorIndex));}
   }
   for(const [button,title] of baseTitles) button.title=active?
     `Place ${button.dataset.tier} cubes (${system.get(button.dataset.tier).side} c1 per side)`:title;
   if(active){
     tierContext.textContent=`Place: ${tierId} · ${selectedColor().name}`;
     status.textContent=`Placement · ${records.length} cube${records.length===1?'':'s'} · ${tierId} / ${selectedColor().name} · session workspace`;
-  }else tierContext.innerHTML=assetTierContext;
+  }else if(!host.isChessPreview?.()) tierContext.innerHTML=assetTierContext;
 }
 for(const [i,color] of PALETTE.entries()){
   const button=document.createElement('button');button.type='button';button.dataset.color=color.id;
@@ -2348,7 +2729,7 @@ function syncUI(){
     tierHeading.textContent='Grid tier';
     const state=placement.getState();
     for(const [i,button] of [...paletteButtons.children].entries()){
-      button.disabled=!state.active;button.setAttribute('aria-pressed',String(store.palette[i].id===state.color));
+      if(!host.isChessPreview?.()){button.disabled=!state.active;button.setAttribute('aria-pressed',String(store.palette[i].id===state.color));}
     }
   }
   for(const [i,tag] of tags.entries())tag.setAttribute('aria-pressed',String(i===selectedIndex));
@@ -3448,6 +3829,224 @@ window.CUBE_NATURE_UI=Object.freeze({select:selectUI,activate,setSlider,exportJS
   getState:()=>({active,preset,tierId,themeId,time,motion:true,demo,front,hovered,pressed,state:{...state},cubeCount:currentRecords.length,lifts:Object.fromEntries(lifts)}),
   getRecords:()=>currentRecords.map(q=>({...q})),getRenderCells:()=>field?.snapshot(time)||[],
   get model(){return model;},get field(){return field;},get root(){return root;},frame:frameUI,update,pick});
+
+</script>
+<script type="module" id="cube-chess-preview">
+import * as THREE from 'three';
+await window.CUBE_NATURE_MATERIALS_READY;
+const host=window.CUBE_NATURE_THEME_HOST,core=window.CUBE_CHESS_CORE,state=window.CUBE_CHESS_STATE;
+const store=window.CUBE_NATURE_MATERIALS,assets=host.chessAssets;
+const preset=document.getElementById('preset'),panel=document.getElementById('chessControls');
+const styles=document.getElementById('chessStyles'),keep=document.getElementById('chessKeep'),viewSelect=document.getElementById('chessView');
+const viewport=document.getElementById('sceneViewport'),labels=document.getElementById('chessLabels');
+const info=document.getElementById('chessInfo'),footer=document.getElementById('chessFooter'),notice=document.getElementById('chessNotice');
+const sceneRoot=new THREE.Group();sceneRoot.name='ChessComparison_DisplayOnly';sceneRoot.userData.displayOnly=true;sceneRoot.visible=false;host.scene.add(sceneRoot);
+const modelsRoot=new THREE.Group(),shadowsRoot=new THREE.Group();sceneRoot.add(modelsRoot,shadowsRoot);
+const entries=[],tags=[],anchors=[];
+let signature='',resizeRequest=0,active=false,storageAvailable=true,lastPreset='';
+const projected=new THREE.Vector3();
+state.colorId=state.colorId||store.selectedId;
+const shadowCanvas=document.createElement('canvas');shadowCanvas.width=shadowCanvas.height=128;
+const context=shadowCanvas.getContext('2d'),gradient=context.createRadialGradient(64,64,12,64,64,63);
+gradient.addColorStop(0,'rgba(42,53,34,0.24)');gradient.addColorStop(.5,'rgba(42,53,34,0.13)');gradient.addColorStop(1,'rgba(42,53,34,0)');
+context.fillStyle=gradient;context.fillRect(0,0,128,128);
+const shadowGeometry=new THREE.PlaneGeometry(1,1),shadowMaterial=new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(shadowCanvas),transparent:true,depthWrite:false,opacity:.75});
+function isActive(){return host.viewMode==='asset'&&Object.hasOwn(core.pieces,preset.value)&&host.treeGroup.userData.assetType==='chess';}
+host.isChessPreview=isActive;
+function disposePreviews(){
+  for(const entry of entries){entry.asset.mesh.dispose();entry.asset.mesh.material.dispose();}
+  entries.length=0;tags.length=0;anchors.length=0;modelsRoot.clear();shadowsRoot.clear();labels.replaceChildren();
+}
+function addShadow(x,z){
+  const m=new THREE.Mesh(shadowGeometry,shadowMaterial);m.name='ChessContactShadow_DisplayOnly';m.rotation.x=-Math.PI/2;m.position.set(x,.002,z);m.scale.set(1.02,.94,1);m.renderOrder=1;m.userData.displayOnly=true;shadowsRoot.add(m);
+}
+function columns(){
+  const w=viewport.clientWidth;
+  return state.view==='styles'?(w<800?2:4):state.view==='set'?(w<600?2:w<1100?3:6):(w<520?2:3);
+}
+function refreshPreview({frame=false}={}){
+  if(!isActive())return;
+  const mode=state.view,cols=mode==='single'?1:columns();
+  const next=`${mode}|${mode==='set'?'all':preset.value}|${mode==='styles'?'all':state.style}|${cols}`;
+  if(next!==signature){
+    signature=next;disposePreviews();
+    if(mode==='single')addShadow(0,0);
+    else{
+      const specs=mode==='styles'?Object.keys(core.styles).map(style=>({preset:preset.value,style,color:state.colorId,label:core.styles[style].name})):
+        mode==='colors'?store.palette.map(color=>({preset:preset.value,style:state.style,color:color.id,label:color.name})):
+        Object.keys(core.pieces).map(p=>({preset:p,style:state.style,color:state.colorId,label:core.pieces[p].name}));
+      const rows=Math.ceil(specs.length/cols),pitchX=1.06,pitchZ=2.40;
+      specs.forEach((spec,i)=>{
+        const row=Math.floor(i/cols),column=i%cols;
+        const x=(column-(cols-1)/2)*pitchX,z=(row-(rows-1)/2)*pitchZ;
+        const asset=assets.create(spec.preset,spec.style,spec.color),group=new THREE.Group();
+        group.name=`ChessPreview_${spec.preset}_${spec.style}_${spec.color}`;
+        group.userData.displayOnly=true;group.position.set(x,0,z);
+        group.scale.setScalar(window.AssetPlacementScale.gridUnit(spec.preset)/host.gridUnit);
+        group.add(asset.mesh);modelsRoot.add(group);entries.push({asset,spec,group});addShadow(x,z);
+        const tag=document.createElement('button');tag.type='button';tag.className='chessLabel';tag.setAttribute('aria-pressed','false');
+        if(mode==='colors'){
+          const dot=document.createElement('i');dot.setAttribute('aria-hidden','true');tag.appendChild(dot);
+        }else{
+          const number=document.createElement('small');number.textContent=String(i+1).padStart(2,'0');tag.appendChild(number);
+        }
+        const text=document.createElement('span');text.textContent=spec.label;tag.appendChild(text);
+        tag.setAttribute('aria-label',mode==='styles'?`Select ${spec.label} style`:mode==='colors'?`Select ${spec.label} chess color`:`Select ${spec.label}`);
+        tag.addEventListener('click',()=>mode==='styles'?selectStyle(spec.style):mode==='colors'?selectColor(spec.color):selectPiece(spec.preset));
+        labels.appendChild(tag);tags.push(tag);anchors.push(new THREE.Vector3(x,0,z+.39));
+      });
+    }
+  }
+  sceneRoot.visible=true;modelsRoot.visible=mode!=='single';host.treeGroup.visible=mode==='single';
+  syncLabels();if(frame)frameChess();
+}
+function syncLabels(){
+  entries.forEach((entry,i)=>{
+    const spec=entry.spec;
+    const selected=state.view==='styles'?spec.style===state.style:state.view==='colors'?spec.color===state.colorId:spec.preset===preset.value;
+    tags[i].setAttribute('aria-pressed',String(selected));
+    if(state.view==='colors')tags[i].style.setProperty('--chess-color',`#${store.palette.find(c=>c.id===spec.color).hex.toString(16).padStart(6,'0')}`);
+  });
+  updateLabels();
+}
+function updateLabels(){
+  if(!active||state.view==='single')return;
+  host.camera.updateMatrixWorld(true);const w=viewport.clientWidth,h=viewport.clientHeight;
+  for(let i=0;i<tags.length;i++){
+    projected.copy(anchors[i]).project(host.camera);
+    const x=(projected.x+1)*w/2,y=(1-projected.y)*h/2;
+    tags[i].hidden=projected.z< -1||projected.z>1||x<0||x>w||y<0||y>h-35;
+    tags[i].style.left=`${x}px`;tags[i].style.top=`${y}px`;
+  }
+}
+function frameChess(){
+  if(!isActive())return;
+  const w=viewport.clientWidth,h=viewport.clientHeight;if(w<=0||h<=0)return;
+  host.renderer.setSize(w,h,false);host.camera.aspect=w/h;host.camera.zoom=1;
+  const single=state.view==='single',count=single?1:entries.length,cols=single?1:columns(),rows=Math.ceil(count/cols);
+  let box;
+  if(single){
+    // One common camera envelope for all six pieces, so relative sizes are real.
+    box=new THREE.Box3(new THREE.Vector3(-.42,-.10,-.4),new THREE.Vector3(.42,1.6,.4));
+  }else{
+    box=new THREE.Box3().setFromObject(modelsRoot);box.min.y=-.2;box.max.y=Math.max(box.max.y,1.55);box.expandByScalar(.10);
+    box.max.z+=.26;
+  }
+  const center=box.getCenter(new THREE.Vector3());
+  const direction=single?new THREE.Vector3(.95,.63,1.55).normalize():rows>1?new THREE.Vector3(.14,1.55,2.05).normalize():new THREE.Vector3(.24,.55,2.35).normalize();
+  const right=new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),direction).normalize(),up=new THREE.Vector3().crossVectors(direction,right).normalize();
+  const tanV=Math.tan(THREE.MathUtils.degToRad(host.camera.fov/2)),tanH=tanV*host.camera.aspect;
+  let distance=0;
+  for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]){
+    const offset=new THREE.Vector3(x,y,z).sub(center),depth=offset.dot(direction);
+    distance=Math.max(distance,depth+Math.abs(offset.dot(right))/tanH,depth+Math.abs(offset.dot(up))/tanV);
+  }
+  // Reserve headroom for the compact title and room beneath for selection labels.
+  const margin=h<420?1.40:single?1.26:1.28;
+  const damping=host.controls.enableDamping;host.controls.enableDamping=false;host.controls.update();host.controls.enableDamping=damping;
+  host.controls.target.copy(center);host.camera.position.copy(center).addScaledVector(direction,distance*margin);
+  host.camera.near=.01;host.camera.far=Math.max(100,distance*30);host.camera.updateProjectionMatrix();host.controls.update();updateLabels();
+}
+function syncUI(){
+  active=isActive();document.body.dataset.chessActive=String(active);
+  panel.hidden=!active;info.hidden=!active;footer.hidden=!active;labels.hidden=!active||state.view==='single';sceneRoot.visible=active;
+  if(!active){
+    // Only restore controls owned by the static asset preview, never another editor.
+    document.getElementById('regen').textContent='New variant';
+    if(!['placement','materials'].includes(host.viewMode)){
+      const paletteButtons=document.getElementById('paletteButtons');
+      paletteButtons.setAttribute('aria-label','Choose placement color');
+      for(const b of paletteButtons.children)b.disabled=true;
+    }
+    return;
+  }
+  const p=core.pieces[preset.value],style=core.styles[state.style],color=store.palette.find(c=>c.id===state.colorId);
+  const selected=assets.getSelected();
+  for(const button of styles.children){button.setAttribute('aria-pressed',String(button.dataset.style===state.style));button.dataset.favorite=String(button.dataset.style===state.favorite);}
+  keep.setAttribute('aria-pressed',String(state.favorite===state.style));keep.textContent=state.favorite===state.style?`★ ${style.name} kept`:'☆ Keep style';viewSelect.value=state.view;
+  const titles={single:p.name,styles:`${p.name} · four styles`,colors:`${p.name} · six colors`,set:`The ${style.name} set`};
+  document.getElementById('chessTitle').textContent=titles[state.view];
+  document.getElementById('chessSubtitle').textContent=state.view==='styles'?'Same color. Same scale. Select a label to choose.':state.view==='colors'?`${style.name} · your six shared materials. Select a color below.`:state.view==='set'?'Pawn · King · Queen · Horse · Rook · Knight':`${style.name} / ${color.name} — ${p.description}`;
+  document.getElementById('chessSelectionSummary').textContent=`Selected: ${p.name} / ${style.name} / ${color.name}`;
+  document.getElementById('chessEyebrow').textContent=`CHESS / ${style.number} / BUILT FROM CUBES`;
+  document.getElementById('chessExportNote').textContent=state.view==='single'?'Fixed sculpture size · grid tier changes the guide only.':'Export saves the selected piece only, not the comparison layout.';
+  store.refreshSwatches();
+  const paletteButtons=document.getElementById('paletteButtons');paletteButtons.setAttribute('aria-label','Choose chess piece color');
+  for(const b of paletteButtons.children){b.disabled=false;b.setAttribute('aria-pressed',String(b.dataset.color===state.colorId));}
+  document.getElementById('tierHeading').textContent='Grid guide';
+  document.getElementById('tierContext').textContent='Chess: fixed scale · grid only';
+  const tier=host.subCubes.get(host.grid.userData.tierId);
+  if(tier)document.getElementById('gridCaption').textContent=`${tier.id} guide · ${tier.side} c1 per side · sculpture unchanged`;
+  const regen=document.getElementById('regen');regen.textContent='Next style';regen.title='Cycle the four chess styles without changing the selected color';
+  const exp=document.getElementById('exportCubes');exp.textContent='Export CUBES';exp.title=`Export only ${p.name} / ${style.name} / ${color.name} at its fixed world scale`;
+  document.getElementById('status').textContent=`Chess · ${p.name} · ${style.name} · ${color.name} · ${selected?.records.length.toLocaleString()||0} cubes`;
+  host.treeGroup.visible=state.view==='single';syncLabels();
+}
+function refreshColors(){
+  if(host.treeGroup.userData.assetType==='chess')assets.recolorSelected(state.colorId);
+  for(const entry of entries)assets.recolor(entry.asset,state.view==='colors'?entry.spec.color:state.colorId);
+  if(isActive())syncUI();
+}
+function selectColor(value){
+  if(!store.palette.some(c=>c.id===value)||!isActive())return false;
+  state.colorId=value;store.select(value);refreshColors();return true;
+}
+function selectStyle(value){
+  if(!Object.hasOwn(core.styles,value)||!isActive())return false;
+  if(state.style===value){syncUI();return true;}
+  state.style=value;notice.textContent='';host.showAssetPreview();return true;
+}
+function selectPiece(value){
+  if(!Object.hasOwn(core.pieces,value)||['placement','materials'].includes(host.viewMode))return false;
+  preset.value=value;host.showAssetPreview();return true;
+}
+function setView(value){
+  if(!['single','styles','colors','set'].includes(value)||!isActive())return false;
+  state.view=value;refreshPreview({frame:true});syncUI();return true;
+}
+function saveFavorite(){
+  if(!isActive())return false;
+  state.favorite=state.style;
+  try{localStorage.setItem('CubeNature.Chess.favorite.v1',state.style);storageAvailable=true;}catch{storageAvailable=false;}
+  notice.textContent=storageAvailable?`${core.styles[state.style].name} will be your default for all six pieces.`:'Favorite kept for this session; browser storage is unavailable.';
+  syncUI();return true;
+}
+for(const [id,style]of Object.entries(core.styles)){
+  const b=document.createElement('button');b.type='button';b.dataset.style=id;b.setAttribute('aria-pressed','false');b.title=style.description;
+  const n=document.createElement('span');n.textContent=style.number;const text=document.createElement('span');text.textContent=style.name;b.append(n,text);
+  b.addEventListener('click',()=>selectStyle(id));styles.appendChild(b);
+}
+for(const b of document.getElementById('paletteButtons').children)b.addEventListener('click',()=>{if(isActive())selectColor(b.dataset.color);});
+keep.addEventListener('click',saveFavorite);viewSelect.addEventListener('change',()=>setView(viewSelect.value));document.getElementById('chessFit').addEventListener('click',frameChess);
+host.regenerateChess=()=>{const ids=Object.keys(core.styles);selectStyle(ids[(ids.indexOf(state.style)+1)%ids.length]);};
+host.syncChessUI=syncUI;
+host.frameChess=frameChess;
+window.addEventListener('cube-nature-asset-built',()=>{
+  if(isActive()){
+    if(lastPreset!==preset.value)notice.textContent='';lastPreset=preset.value;
+    refreshPreview({frame:true});syncUI();
+    // Toolbar wrapping can change the canvas after its first measurement.
+    cancelAnimationFrame(resizeRequest);resizeRequest=requestAnimationFrame(frameChess);
+  }else{signature='';disposePreviews();syncUI();}
+});
+window.addEventListener('cube-nature-view-mode',()=>{
+  // Existing preview modules may write their own controls during this event.
+  // Run after all of them and do not rebuild or reset the restored camera.
+  queueMicrotask(()=>{syncUI();if(isActive())refreshPreview();});
+});
+window.addEventListener('cube-nature-grid-tier',()=>{if(isActive())syncUI();});
+window.addEventListener('cube-nature-material-changed',refreshColors);
+window.addEventListener('cube-nature-geometry-ready',()=>{if(isActive()){refreshPreview({frame:true});syncUI();}});
+host.onFrame.add(updateLabels);
+if(typeof ResizeObserver!=='undefined')new ResizeObserver(()=>{
+  if(!isActive())return;cancelAnimationFrame(resizeRequest);resizeRequest=requestAnimationFrame(()=>{refreshPreview({frame:true});syncUI();});
+}).observe(viewport);
+syncUI();
+window.CUBE_NATURE_CHESS=Object.freeze({core,select:selectPiece,setStyle:selectStyle,setColor:selectColor,setView,keepFavorite:saveFavorite,frame:frameChess,
+  getState:()=>({active:isActive(),preset:preset.value,piece:core.pieces[preset.value]?.id||null,style:state.style,colorId:state.colorId,view:state.view,favorite:state.favorite,cubeCount:assets.getSelected()?.records.length||0,previewCount:state.view==='single'?1:entries.length}),
+  getRecords:()=>host.treeGroup.userData.assetType==='chess'?host.getAssetRecords().map(q=>({...q,center:[...q.center]})):[],
+  getPreviews:()=>entries.map(e=>({preset:e.spec.preset,style:e.spec.style,color:e.asset.colorId,cubes:e.asset.records.length})),
+  get root(){return sceneRoot;}});
 
 </script>
 </body>
