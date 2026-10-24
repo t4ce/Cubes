@@ -3007,3 +3007,5 @@ fn quaternion_from_rotation_columns(x: [f32; 3], y: [f32; 3], z: [f32; 3]) -> Qu
     };
     Quaternion(rotation).normalized()
 }
+
+mod app_shader_packages;

@@ -1,0 +1,30 @@
+[
+  {
+    "id": 4,
+    "name": "cube-patch",
+    "bytes": 36052,
+    "sha256": "acefef76eb524e6c3e422fc1c963555a6c683b067a9ee92ff8bc5dff70e2c336",
+    "stages": [
+      {
+        "kind": 1,
+        "bytes": 752,
+        "sha256": "6ea762a708b22b365eef58fcf491813a83a1ad3fbe496ae0c965edf3c9c75a24"
+      },
+      {
+        "kind": 1,
+        "bytes": 18384,
+        "sha256": "90fa3d733b5e3b489699b1ffff8dc57fb56eb5f8ebb9a3d28df50a63df08ff5a"
+      },
+      {
+        "kind": 1,
+        "bytes": 12256,
+        "sha256": "ffe5cc437865817ad753e740322a3030474be8f5a58433586d7480f1de522729"
+      },
+      {
+        "kind": 1,
+        "bytes": 4608,
+        "sha256": "68e2ec03e32e5461dc3650a9b3951a4dda96aabcdc101899352fb0da20226264"
+      }
+    ]
+  }
+]
