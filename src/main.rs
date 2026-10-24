@@ -25,6 +25,7 @@ use cubes_protocol as plateau;
 mod plateau_client;
 mod slideshow;
 mod slideshow_gpu;
+mod local_vfx;
 mod orchard;
 #[path = "SubCubes.rs"]
 mod subcubes;
@@ -104,7 +105,7 @@ impl SceneMode {
             Self::Orchard => 0, // Asset-specific count is selected at runtime.
             Self::World | Self::Plateau => 0,   // Nearest visible world seeds are selected at runtime.
             Self::MaterialShowcase => grid::MATERIAL_SHOWCASE_COUNT,
-            Self::RenderLimits => 0,
+            Self::RenderLimits | Self::LocalVfx => 0,
         }
     }
 
@@ -119,6 +120,7 @@ impl SceneMode {
             Self::World => 5,
             Self::MaterialShowcase => 7,
             Self::RenderLimits => 9,
+            Self::LocalVfx => 6,
         }
     }
 }
@@ -197,6 +199,7 @@ struct CubeScene {
     plateau_reset_held: bool,
     picker_mode: SceneMode,
     image_wall: Option<slideshow_gpu::Wall>,
+    local_vfx: Option<slideshow_gpu::LocalVfx>,
     network_world: Option<NetworkWorld>,
     network_singleton: bool,
     network_empty: bool,
@@ -447,6 +450,7 @@ impl CubeScene {
             plateau_reset_held: false,
             picker_mode: SceneMode::World,
             image_wall: None,
+            local_vfx: None,
             network_world: None,
             network_singleton: false,
             network_empty: false,
@@ -478,6 +482,9 @@ impl CubeScene {
         self.service_plateau()?;
         if self.mode == SceneMode::Interface || (self.mode == SceneMode::Plateau && self.plateau_menu) {
             return self.render_interface(elapsed_millis, delta_seconds);
+        }
+        if self.mode == SceneMode::LocalVfx {
+            return self.render_local_vfx();
         }
         if self.mode == SceneMode::RenderLimits {
             self.flycam.camera.position = [0., 0., -render_limits::camera_distance(self.frame.width(), self.frame.height(), PUZZLE_YFOV)];
@@ -1274,7 +1281,7 @@ impl CubeScene {
         for i in 0..scene_opaque_count {
             let (cell, basis) = self.puzzle.pose(i.min(26), turn_sin, turn_cos);
             let (translation, mut scale) = match self.mode {
-                SceneMode::Interface => (placeholder, 0.0001),
+                SceneMode::Interface | SceneMode::LocalVfx => (placeholder, 0.0001),
                 SceneMode::RenderLimits => {
                     let cube = self.limits.cubes[i]; (cube.center, cube.scale)
                 }
@@ -1759,6 +1766,48 @@ impl CubeScene {
         Ok(())
     }
 
+    fn render_local_vfx(&mut self) -> Result<(), CubeError> {
+        let (width, height) = (self.frame.width(), self.frame.height());
+        // Fit the server's c1 pixels at every aspect ratio, including the grow bounce.
+        let aspect = width as f32 / height.max(1) as f32;
+        let distance = 4.5 / (libm::tanf(scaled_camera_fov(PUZZLE_YFOV) * 0.5)
+            * aspect.min(1.).max(0.01));
+        self.flycam.camera.position = [0., 0., distance];
+        self.flycam.camera.rotation = look_at_camera_rotation(
+            self.flycam.camera.position, [0.;3], [0.,-1.,0.]);
+        if let Projection::Perspective { ref mut zfar, .. } = self.flycam.camera.projection {
+            *zfar = Some(distance + 100.);
+        }
+        let routes = self.frame.input_routes().map_err(|e| CubeError::Ui4("local-vfx-routes", e))?;
+        while let Some(event) = self.frame.take_pointer_event()
+            .map_err(|e| CubeError::Ui4("local-vfx-pointer", e))? {
+            if event.buttons_pressed & 1 != 0 && routes.iter().any(|r|
+                r.cursor == event.source && r.combo_id == event.combo_id
+                && r.vcursor == event.vcursor && r.selected_for_window && r.application_focus) {
+                let name = self.local_vfx.as_mut().ok_or(CubeError::Contract)?.trigger()
+                    .map_err(|code| CubeError::Vgpu("local-vfx-trigger", code))?;
+                logl::log(level::INFO, format_args!("Cubes: Key6 local VFX {name}"));
+            }
+        }
+        let camera = self.flycam.camera.retained(width, height, self.previous_view_projection);
+        self.background.update(background::Mode::Neutral, self.flycam.camera.rotation.0,
+            0., libm::tanf(scaled_camera_fov(PUZZLE_YFOV)*0.5), (width,height))
+            .map_err(|e| CubeError::Ui4("local-vfx-background", e))?;
+        match self.frame.begin_gpu_frame() {
+            Ok(()) => {},
+            Err(Ui4Error::Busy) => return Ok(()),
+            Err(e) => return Err(CubeError::Ui4("local-vfx-begin", e)),
+        }
+        let surface = self.device.acquire_ui4_surface(self.frame.window_id())
+            .map_err(|code| CubeError::Vgpu("surface-acquire", code))?;
+        self.local_vfx.as_mut().ok_or(CubeError::Contract)?.render(self.queue, surface, camera)
+            .map_err(|code| CubeError::Vgpu("local-vfx-submit", code))?;
+        self.frame.publish(Damage::full(width,height)).map_err(|e| CubeError::Ui4("frame-publish", e))?;
+        self.previous_view_projection = camera.view_projection;
+        self.first_frame = false;
+        Ok(())
+    }
+
     fn render_interface(&mut self, now: u64, delta: f32) -> Result<(), CubeError> {
         let (width, height) = (self.frame.width(), self.frame.height());
         let def = cube_interface::definition(self.interface.page);
@@ -1902,6 +1951,7 @@ impl CubeScene {
                 | ((keyboard.is_down(0x20) as u16) << 2)
                 | ((keyboard.is_down(0x21) as u16) << 3)
                 | (((keyboard.is_down(0x22) || keyboard.is_down(0x3e)) as u16) << 4)
+                | ((keyboard.is_down(0x23) as u16) << 5)
                 | ((keyboard.is_down(0x24) as u16) << 6)
                 | ((keyboard.is_down(0x26) as u16) << 8)
         });
@@ -2478,6 +2528,10 @@ impl CubeScene {
         self.mining_gesture.cancel();
         self.mining_cursor = None;
         self.mode = mode;
+        self.local_vfx = if mode == SceneMode::LocalVfx {
+            Some(slideshow_gpu::LocalVfx::new(self.device)
+                .map_err(|code| CubeError::Vgpu("local-vfx-open", code))?)
+        } else { None };
         self.frame
             .set_center_snapped_mouse(matches!(
                 mode,
@@ -2649,6 +2703,7 @@ impl CubeScene {
                         "5 lvl27-world first-person mouse-look WASD=surface-walk Shift=walk/flight-boost Tab=surface-path Space=confirm-path/edge-push/approach Home=align Key5=next-world J=weld-toggle R=display-cube MMB=picker/tool-off wheel=group-assets LMB=place",
                     SceneMode::Plateau => "4 custom-plateau username=t4ce Tab=surface-path Space=confirm-path WASD/Tab=cancel-travel MMB=picker/tool-off LMB=place Key0=delete-profile",
                     SceneMode::Interface => "3 custom-menu Key3=confirm/info/slider pointer=hover/press actions=preview-only",
+                    SceneMode::LocalVfx => "6 local VFX LMB=random-effect offline cube-frames",
                     SceneMode::RenderLimits => "9 render limits upper=full-geometry lower=retained-seeds click/drag=16-steps Key5=world",
                     SceneMode::MaterialShowcase =>
                         "7 mining 9 sizes x 6 materials mouse-look WASD=walk/fly Shift=boost Space=push/approach Home=align wheel=off/64-to-16/16-to-4/4-to-1/r-cut/2-to-half/half-to-eighth LMB=mine-or-collect hold=1s cadence=100ms RMB=reset Rubik=collection counter=bottom-right snap=tool-size",
@@ -2758,7 +2813,7 @@ impl CubeScene {
                 SceneMode::Orchard => PUZZLE_YFOV,
                 SceneMode::World | SceneMode::Plateau => walker_camera::FOV,
                 SceneMode::MaterialShowcase => walker_camera::FOV,
-                SceneMode::RenderLimits | SceneMode::Interface => PUZZLE_YFOV,
+                SceneMode::LocalVfx | SceneMode::RenderLimits | SceneMode::Interface => PUZZLE_YFOV,
             }),
             znear: if matches!(mode, SceneMode::World | SceneMode::Plateau | SceneMode::MaterialShowcase) {
                 walker_camera::NEAR

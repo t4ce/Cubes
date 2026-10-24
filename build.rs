@@ -23,6 +23,23 @@ mod exported {
 mod build_interface;
 
 fn main() {
+    println!("cargo:rerun-if-changed=Cube/Vfx");
+    let bundle = fs::read("Cube/Vfx/vfx.bin").expect("local VFX bundle");
+    let catalog: serde_json::Value = serde_json::from_slice(
+        &fs::read("Cube/Vfx/catalog.json").expect("local VFX catalog")).unwrap();
+    let mut source = String::from("const EFFECTS: &[(&str, usize, usize)] = &[\n");
+    for effect in catalog.as_array().expect("VFX entries") {
+        let name = effect["name"].as_str().unwrap();
+        let start = effect["offset"].as_u64().unwrap() as usize;
+        let end = start + effect["length"].as_u64().unwrap() as usize;
+        assert_eq!(format!("{:x}", Sha256::digest(&bundle[start..end])),
+            effect["sha256"].as_str().unwrap(), "stale local VFX {name}");
+        source.push_str(&format!("({name:?}, {start}, {end}),\n"));
+    }
+    assert!(!catalog.as_array().unwrap().is_empty());
+    source.push_str("];\n");
+    fs::write(std::path::PathBuf::from(std::env::var_os("OUT_DIR").unwrap())
+        .join("local_vfx_catalog.rs"), source).unwrap();
     build_interface::generate(
         std::path::Path::new("Cube/CubeInterface"),
         &std::path::PathBuf::from(std::env::var_os("OUT_DIR").unwrap())

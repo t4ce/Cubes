@@ -10,6 +10,7 @@ pub enum SceneMode {
     World,
     MaterialShowcase,
     RenderLimits,
+    LocalVfx,
 }
 impl SceneMode {
     pub fn is_world(self) -> bool { matches!(self, Self::World | Self::Plateau) }
@@ -55,6 +56,8 @@ impl ModeKeys {
             SceneMode::World
         } else if pressed & 256 != 0 {
             SceneMode::RenderLimits
+        } else if pressed & 32 != 0 {
+            SceneMode::LocalVfx
         } else if pressed & 64 != 0 {
             SceneMode::MaterialShowcase
         } else {
@@ -161,11 +164,14 @@ mod tests {
 mod limit_keys_tests {
     use super::*;
     #[test]
-    fn key6_is_unused_and_key9_does_not_consume_world_pages() {
+    fn key6_selects_local_vfx_and_key9_does_not_consume_world_pages() {
         let mut keys = ModeKeys::default();
         assert_eq!(keys.update(8, SceneMode::World, 0, 10, 27).unwrap().mode, SceneMode::Plateau);
         keys.update(0, SceneMode::World, 0, 10, 27);
-        assert_eq!(keys.update(32, SceneMode::World, 0, 10, 27), None);
+        let local = keys.update(32, SceneMode::World, 0, 10, 27).unwrap();
+        assert_eq!(local.mode, SceneMode::LocalVfx);
+        assert_eq!(local.page, None);
+        assert_eq!(keys.update(32, local.mode, 0, 10, 27), None);
         keys.update(0, SceneMode::World, 0, 10, 27);
         let selected = keys.update(256, SceneMode::World, 0, 10, 27).unwrap();
         assert_eq!(
