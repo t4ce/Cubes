@@ -15,8 +15,14 @@ libm = "0.2"
 v = {{ path = "{APP.parent}/TRUEOS-Blueprints/crates/trueos-v" }}
 cubes-protocol = {{ path = "{APP.parent}/TRUEOS-Blueprints/crates/cubes-protocol" }}
 trueos = {{ path = "{APP.parent}/TRUEOS-Blueprints/api", features = ["tokio-net-probe"] }}
+[build-dependencies]
+sha2 = "0.10"
+serde_json = "1"
 [lib]
 path = "lib.rs"
+''')
+    (root / 'build.rs').write_text(f'''#[path="{APP}/tools/build_vfx.rs"] mod build_vfx;
+fn main() {{ build_vfx::generate(std::path::Path::new("{APP}/Cube/Vfx")); }}
 ''')
     (root / 'lib.rs').write_text(f'''extern crate alloc;
 use cubes_protocol as plateau;
@@ -25,6 +31,7 @@ use cubes_protocol as plateau;
 #[path="{APP.parent}/TRUEOS-Blueprints/apps/cubesrv/snake.rs"] mod server_snake;
 #[path="{APP.parent}/TRUEOS-Blueprints/apps/cubesrv/worm.rs"] mod server_worm;
 #[path="{APP}/src/network.rs"] mod network;
+#[path="{APP}/src/local_vfx.rs"] mod local_vfx;
 #[path="{APP}/src/slideshow.rs"] mod slideshow;
 #[path="{APP}/src/reveal.rs"] mod reveal;
 #[path="{APP}/src/slideshow_gpu.rs"] mod slideshow_gpu;

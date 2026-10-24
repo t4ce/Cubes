@@ -154,3 +154,18 @@ animation, regardless of which cubie/portal was selected. A fresh connection
 starts with world ID 2; an existing worker is reused. The frame enters empty only
 after the validated world transfer, without requiring local terrain or a preview gallery.
 Key8 can then switch to preview. Number-key navigation cancels a pending entry.
+
+## Key 6: local VFX canvas
+
+Key 6 opens an offline single-effect canvas. Left click plays a random entry
+from the 150-effect catalog bundled under `Cube/Vfx`; another click replaces it
+and restarts playback. It uses the same VFX1 sequences, c1 pixel size, 500 ms
+start delay, authored frame period, RGB555 palette, billboarding and lifetime
+animation as the network demo. The effect plays once and disappears. The canvas
+fits the sprite on resize and uses the existing cube-patch renderer.
+
+The assets are copied from CubeSrv's `slides/vfx.bin` and the `vfx_catalog` field
+of `slides/gallery.json`. `tools/build_vfx.rs` checks every asset's SHA256 and
+embeds the catalog during the Cubes build; no server or image decode is needed
+for playback. `python3 tools/test_slideshow_network.py` checks every bundled
+sequence and exercises the local GPU submission alongside the network path.

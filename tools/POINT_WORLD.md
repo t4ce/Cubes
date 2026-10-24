@@ -16,7 +16,8 @@ scene is otherwise idle. The producer still publishes in world and settings
 modes to complete UI4's two-layer resize barrier. Transient begin/import/submit contention is retried with the appropriate
 lease ownership; tests run the actual worker against a lease/resize mock.
 
-The failed Key6 world-point experiment has been removed. Key6 is unassigned;
+The failed Key6 world-point experiment has been removed. Key6 now opens the
+[local VFX canvas](SLIDESHOW.md#key-6-local-vfx-canvas);
 its CPU projection, world-point mailbox and marker extraction are gone. Native
 point buffers now hold only the 264 circle points. Key2 keeps its shader, and
 all background modes retain 50% opacity. This is independent of Key9's

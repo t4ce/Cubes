@@ -17,6 +17,7 @@ struct Driver {
     busy: bool,
     leased: bool,
     submissions: Vec<RetainedFrameSubmitV4>,
+    local_submissions: Vec<RetainedFrameSubmitV3>,
 }
 thread_local! { static DRIVER: RefCell<Driver> = RefCell::new(Driver::default()); }
 fn driver<T>(f: impl FnOnce(&mut Driver)->T)->T { DRIVER.with(|d| f(&mut d.borrow_mut())) }
@@ -354,6 +355,70 @@ fn six_full_planes_fit_with_terrain_and_navigation_and_expire_locally() {
     assert_eq!(wall.cubes.count,41);
 }
 
+#[test]
+fn local_canvas_has_one_effect_no_landmark_and_clears_after_expiry() {
+    driver(|d| *d=Driver::default());
+    let device=Device::open(Capabilities::RENDER).unwrap();
+    let queue=device.create_queue(QueueClass::Render).unwrap();
+    let mut local=LocalVfx::new(device).unwrap();
+    let draw = |local: &mut LocalVfx| local.render(queue,
+        device.acquire_ui4_surface(1).unwrap(), RetainedCamera::default()).unwrap();
+    draw(&mut local);
+    assert_eq!(local.cubes.count,1);
+    driver(|d| assert_eq!(&d.buffers[&local.cubes.seeds[local.cubes.active].raw()][12..24], &[0;12]));
+    // A real catalog trigger replaces the running scene and resets its clock.
+    assert!(!local.trigger().unwrap().is_empty());
+    assert_eq!(local.scene.as_ref().unwrap().info.age_ms,0);
+    assert_eq!(local.scene.as_ref().unwrap().assets.iter().flatten().count(),1);
+    let mut scene=animation(&[(0,31,0),(31,0,1)]);
+    for asset in &mut scene.assets[1..] { *asset=None; }
+    let expected=scene_seeds(Some(&scene), &[0x801f,0x83e0,0xfc00], &[],
+        &RetainedCamera::default()).unwrap();
+    local.scene=Some(scene);
+    local.palette=vec![0x801f,0x83e0,0xfc00];
+    let creates=driver(|d|d.creates);
+    draw(&mut local);
+    assert_eq!(local.cubes.count,2);
+    let bytes=driver(|d|d.buffers[&local.cubes.seeds[local.cubes.active].raw()][..128].to_vec());
+    let expected=seed_bytes(&expected[CENTER_COUNT..]);
+    for (row,reference) in bytes.chunks_exact(64).zip(expected.chunks_exact(64)) {
+        // Transform, color and draw-group match the network path. Slot IDs are local.
+        assert_eq!(&row[..60], &reference[..60]);
+        assert_eq!(&row[60..62], &reference[60..62]);
+    }
+    local.scene.as_mut().unwrap().info.age_ms=2000;
+    draw(&mut local);
+    assert_eq!(local.cubes.count,1);
+    driver(|d| assert_eq!(&d.buffers[&local.cubes.seeds[local.cubes.active].raw()][12..24], &[0;12]));
+    assert_eq!(driver(|d|d.creates),creates);
+    driver(|d| {
+        assert_eq!(d.local_submissions.len(),3);
+        assert_eq!(d.local_submissions.last().unwrap().seed_count,1);
+        assert!(!d.leased);
+    });
+}
+
+#[unsafe(no_mangle)] extern "C" fn trueos_cabi_vgpu_retained_frame_submit_v3(
+    _:u64,_:u64,submit:*const RetainedFrameSubmitV3,out:*mut TimelinePoint)->i32 {
+    driver(|d| {
+        assert!(d.leased);
+        let submission=unsafe{*submit};
+        assert!(submission.seed_count > 0);
+        assert_eq!(submission.draw_count,1);
+        assert_eq!(submission.draws[0].index_count,44);
+        assert_eq!(submission.frame.frame.seed_count,0);
+        for (slot,row) in d.buffers[&submission.seed_buffer][..submission.seed_count as usize*64]
+            .chunks_exact(64).enumerate() {
+            assert_eq!(u32::from_le_bytes(row[56..60].try_into().unwrap()),0);
+            assert_eq!(u32::from_le_bytes(row[60..64].try_into().unwrap())>>16,slot as u32);
+        }
+        d.local_submissions.push(submission);
+        d.leased=false;
+        unsafe{*out=TimelinePoint{value:d.local_submissions.len() as u64,physical_serial:1};}
+        0
+    })
+}
+
 #[unsafe(no_mangle)] extern "C" fn trueos_cabi_vgpu_open(_:u64,out:*mut u64)->i32 {handle(out)}
 #[unsafe(no_mangle)] extern "C" fn trueos_cabi_vgpu_queue_create(_:u64,_:u32,out:*mut u64)->i32 {handle(out)}
 #[unsafe(no_mangle)] extern "C" fn trueos_cabi_vgpu_buffer_create(_:u64,len:usize,_:u32,out:*mut u64)->i32 {
@@ -407,3 +472,8 @@ fn six_full_planes_fit_with_terrain_and_navigation_and_expire_locally() {
     unsafe{*out=TrueosVmediaRetainedTextureInfo{texture_id:id as u64,width:1,height:1,stride_bytes:4,byte_len:4,source_format:3,pixel_format:1,backend:3,revision:1,residency:2,reserved:0};}0
 }
 #[unsafe(no_mangle)] extern "C" fn trueos_cabi_vmedia_texture_release(_:u64,_:u64)->i32 {0}
+
+// Deterministic host RNG for the real local catalog trigger.
+#[unsafe(no_mangle)] extern "C" fn sys_rand(out:*mut u32, words:usize) {
+    for i in 0..words { unsafe { *out.add(i)=0x12345678; } }
+}

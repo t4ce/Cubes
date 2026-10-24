@@ -193,7 +193,7 @@ actual platform bounds chooses the detailed platforms. Other platforms become
 one opaque, uniformly sized, averaged-colour cube each before existing frustum
 and occlusion culling. Kept platforms and hulls request full geometry, subject to Key9's runtime
 full-geometry and retained-seed budgets. Paths, portals, placed assets, picking and walking retain the
-authored geometry. Network worlds use the existing rendering path; Key6 is unassigned.
+authored geometry. Network worlds use the existing rendering path; Key6 opens the local VFX demo.
 Switching between detail and hull is immediate; proxies can visually cover
 nearby paths because they enclose the full platform footprint in all three axes.
 

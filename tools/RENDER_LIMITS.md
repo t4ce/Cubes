@@ -23,8 +23,10 @@ caps and preserves its existing growth state for later restoration.
 Both caps apply to the Cubes foreground retained scene. The circle background,
 Key2 shader, collision, picking and authored asset data are unchanged. Full
 geometry counts cube instances; the Rubik's separate face-only overlays also
-consume retained seeds. The Key6 world-point experiment is removed and Key6
-is unassigned. No server or GPU ABI changes are involved.
+consume retained seeds. The Key6 world-point experiment is removed. Key6 now
+opens the [local VFX canvas](SLIDESHOW.md#key-6-local-vfx-canvas), which uses the
+network VFX budget independently of these controls. No server or GPU ABI changes
+are involved.
 
 Checks:
 

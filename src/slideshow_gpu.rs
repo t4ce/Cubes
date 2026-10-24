@@ -84,6 +84,58 @@ impl Drop for Wall {
     }
 }
 
+/// A single local sprite uses the network demo's seed generation and upload path.
+pub struct LocalVfx {
+    device: Device,
+    cubes: CubeInstances,
+    scene: Option<crate::network::VfxScene>,
+    palette: Vec<u16>,
+}
+impl LocalVfx {
+    pub fn new(device: Device) -> Result<Self, i32> {
+        Ok(Self { device, cubes: CubeInstances::new(device)?, scene: None, palette: Vec::new() })
+    }
+    pub fn trigger(&mut self) -> Result<&'static str, i32> {
+        let (name, scene, palette) = crate::local_vfx::random_scene().ok_or(ERR_UNSUPPORTED)?;
+        self.scene = Some(scene);
+        self.palette = palette;
+        Ok(name)
+    }
+    pub fn render(&mut self, queue: Queue, surface: Ui4Surface, camera: RetainedCamera) -> Result<(), i32> {
+        let mut seeds = scene_seeds(self.scene.as_ref(), &self.palette, &[], &camera)?;
+        // The gallery landmark is not part of the single-effect canvas.
+        seeds.drain(..CENTER_COUNT);
+        for (i, seed) in seeds.iter_mut().enumerate() {
+            seed.flags = (seed.flags & 0xffff) | ((i as u32) << 16);
+        }
+        // V3 requires a nonempty seed buffer even for a blank canvas. A zero-size
+        // seed behind the camera clears the previous frame without visible geometry.
+        if seeds.is_empty() {
+            seeds.push(RetainedTransformSeed {
+                translation: [0.,0.,10000.], previous_translation: [0.,0.,10000.],
+                rotation: [0.,0.,0.,1.], flags: 0x8000,
+                ..RetainedTransformSeed::default()
+            });
+        }
+        self.cubes.animate(seeds, &[], &[])?;
+        let point = self.device.submit_retained_frame_v3(queue, surface,
+            self.cubes.mesh, self.cubes.vertices, self.cubes.indices,
+            RetainedFrameSubmitV3 {
+                frame: RetainedFrameSubmitV2 {
+                    frame: RetainedFrameSubmit { camera, ..RetainedFrameSubmit::default() },
+                    ..RetainedFrameSubmitV2::default()
+                },
+                seed_buffer: self.cubes.seeds[self.cubes.active].raw(),
+                seed_count: self.cubes.count,
+                draw_count: 1,
+                draws: [RetainedDrawRange { first_index: 0, index_count: 44 },
+                    RetainedDrawRange::default(), RetainedDrawRange::default(), RetainedDrawRange::default()],
+                ..RetainedFrameSubmitV3::default()
+            })?;
+        self.device.wait(queue, point.value)
+    }
+}
+
 const CENTER_COUNT: usize = 27;
 const MAX_CUBES: usize = MAX_RETAINED_SCENE_INSTANCES;
 pub const OVERLAY_BUDGET: usize = 129;
