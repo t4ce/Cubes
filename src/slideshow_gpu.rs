@@ -108,11 +108,13 @@ impl LocalVfx {
         for (i, seed) in seeds.iter_mut().enumerate() {
             seed.flags = (seed.flags & 0xffff) | ((i as u32) << 16);
         }
-        // V3 requires a nonempty seed buffer even for a blank canvas. A zero-size
-        // seed behind the camera clears the previous frame without visible geometry.
+        // V3 requires a nonempty seed buffer even for a blank canvas. A tiny seed
+        // far behind the camera clears the previous frame without visible geometry;
+        // the kernel's uniform-instance contract rejects a zero scale.
         if seeds.is_empty() {
             seeds.push(RetainedTransformSeed {
                 translation: [0.,0.,10000.], previous_translation: [0.,0.,10000.],
+                scale: [1e-3; 3],
                 rotation: [0.,0.,0.,1.], flags: 0x8000,
                 ..RetainedTransformSeed::default()
             });
