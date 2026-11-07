@@ -369,10 +369,10 @@ impl Canvas {
     fn label(&mut self, text: &str, x: i32, y: i32, z: u8, color: u32) {
         for (i, c) in printable(text).bytes().enumerate() {
             let bits = style::GLYPHS[(c - 32) as usize];
-            for bit in 0..64 {
-                if bits >> (63 - bit) & 1 != 0 {
+            for bit in 0..66 {
+                if bits >> (65 - bit) & 1 != 0 {
                     self.put(
-                        x + i as i32 * 6 + bit % 6 + i32::from(c == b'q'),
+                        x + i as i32 * 6 + bit % 6,
                         y + bit / 6,
                         z,
                         color,

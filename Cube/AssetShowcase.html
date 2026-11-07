@@ -3194,10 +3194,10 @@ window.CUBE_NATURE_GRID_TRANSITIONS=Object.freeze({timing:MORPHLING_TIMING,creat
 <!-- MicroFont cube authoring and the isolated interface preview. -->
 <script id="cube-ui-core">
 /*
- * MicroFont 3.7.8 — printable ASCII subset, ported from src/lib.rs.
+ * MicroFont 8.5.0 — printable ASCII subset from canonical bitmap records.
  * https://crates.io/crates/microfont
- * https://docs.rs/crate/microfont/3.7.8/source/src/lib.rs
- * Packed glyphs and MSB-first stamping, including the original q x-bias.
+ * https://github.com/t4ce/MicroFont/tree/master/data/line-v1
+ * Full 66-bit cells, with the top-left pixel at bit 65.
  * No system fonts, font files, canvas text, or textures are used for UI geometry.
  *
  * MIT License — Copyright (c) 2026 t4ce
@@ -3219,42 +3219,42 @@ window.CUBE_NATURE_GRID_TRANSITIONS=Object.freeze({timing:MORPHLING_TIMING,creat
  */
 (() => {
 'use strict';
-const z=(bits,shift)=>bits<<BigInt(shift);
-// Exactly the upstream entries for byte values 32–126. Keep u64 precision.
+// Full 66-bit canonical masks for Unicode U+0020–U+007E.
+// Bitmap SHA-256: b4f898eb43d9950263c722ad5a869143c13aa124769c6e0053874c009af8f953
 const GLYPHS=Object.freeze([
-  0n, 0x2082082080082000n, z(0x5145n,48), 0x514F94514F945000n,
-  0x21CAA870AA9C2000n, 0x4AA50421052A9000n, 0x2145085628A27400n, z(0x1041n,49),
-  0x0842082082040800n, 0x4081041041084000n, z(0x54E395n,41), z(0x1047C41n,25),
-  z(0x821n,7), z(0x1Fn,35), z(0xC3n,12), 0x0821042104208000n,
-  0x7228A28A28A27000n, 0x0862928820820800n, 0x722882108420F800n, 0x7228823028A27000n,
-  0x10C51493E1041000n, 0xFA083C082082F000n, 0x722820F228A27000n, 0xF821042084104000n,
-  0x7228A27228A27000n, 0x7228A27820A27000n, z(0xC30000C3n,18), 0x00030C00030C1080n,
-  0x0021084081020000n, z(0x1F01Fn,29), 0x0204081084200000n, 0x7228842080082000n,
-  0x7A1B75D75D6E81E0n, 0x20851453E8A28800n, 0xF228A2F228A2F000n, 0x7228208208227000n,
-  0xF228A28A28A2F000n, 0xFA0820F20820F800n, 0xFA0820F208208000n, 0x722820B228A27000n,
-  0x8A28A2FA28A28800n, 0xF88208208208F800n, 0xF820820820A27000n, 0x8A4928C289248800n,
-  0x820820820820F800n, 0x8B6DAAAA28A28800n, 0x8B2CAAAAA9A68800n, 0xFA28A28A28A2F800n,
-  0xF228A2F208208000n, 0x7228A28A28A46800n, 0xF228A2F289228800n, 0x7228207020A27000n,
-  0xF882082082082000n, 0x8A28A28A28A27000n, 0x8A28A25145082000n, 0x8A28A28AAA945000n,
-  0x8A25142145228800n, 0x8A25142082082000n, 0xF82104210420F800n, 0x3882082082083800n,
-  0x8204102041020800n, 0xE08208208208E000n, z(0x4291n,47), z(0x1Fn,11),
-  z(0x81n,54), z(0x7027A27n,12), 0x820820F228A2F000n, z(0xF41040Fn,11),
-  0x0820827A28A27800n, z(0x722FA07n,12), 0x1882087082082000n, 0x0000007A28A27827n,
-  0x820820F228A28800n, 0x0002002082082000n, 0x0002002082082284n, 0x4104104946144800n,
-  0x4104104104103000n, z(0x1E555555n,11), z(0x1E451451n,11), z(0x7228A27n,12),
-  0x0000007124927104n, 0x0000007249247041n, z(0x1C49041n,14), z(0x3907827n,12),
-  0x2082087082081800n, z(0x1145144Fn,11), z(0x45128A1n,13), z(0x8AA7145n,12),
-  z(0x11284291n,11), 0x0000008A25142084n, z(0x1F08421Fn,11), 0x0841042041040800n,
-  0x2082082082082000n, 0x8104102104108000n, z(0x42A1n,30)
+  0x0n, 0x8208208200208000n, 0x14514000000000000n, 0x1453e51453e514000n,
+  0x872aa1c2aa708000n, 0x12a94108414aa4000n, 0x85142158a289d000n, 0x8208000000000000n,
+  0x2108208208102000n, 0x10204104104210000n, 0x2a71ca80000000000n, 0x823e208000000n,
+  0x104200n, 0x3e000000000n, 0x30c000n, 0x2084108410820000n,
+  0x1c8a28a28a289c000n, 0x218a4a2082082000n, 0x1c8a208421083e000n, 0x1c8a208c0a289c000n,
+  0xc524924f84104000n, 0x3e820f020820bc000n, 0x1c8a083c8a289c000n, 0x3e084108210410000n,
+  0x1c8a289c8a289c000n, 0x1c8a289e08289c000n, 0xc30000c300000n, 0xc30000c304200n,
+  0x84210204080000n, 0xf80f80000000n, 0x810204210800000n, 0x1c8a2108200208000n,
+  0x1e86dd75d75ba0780n, 0x85228be8a28a2000n, 0x3c8a28bc8a28bc000n, 0x1c8a082082089c000n,
+  0x3c8a28a28a28bc000n, 0x3e82083c82083e000n, 0x3e82083c820820000n, 0x1c8a082c8a289c000n,
+  0x228a28be8a28a2000n, 0x3e20820820823e000n, 0x3e8a208208289c000n, 0x22928c30c28922000n,
+  0x2082082082083e000n, 0x36aaaaaa8a28a2000n, 0x32aaaaaaaaaaa6000n, 0x3e8a28a28a28be000n,
+  0x3c8a28bc820820000n, 0x1c8a28a28aa91a000n, 0x3c8a28bcc28922000n, 0x1c8a081c08289c000n,
+  0x3e208208208208000n, 0x228a28a28a289c000n, 0x228a2894514208000n, 0x228a28a2aaa514000n,
+  0x228a25085228a2000n, 0x228a2894208208000n, 0x3e08210842083e000n, 0xe20820820820e000n,
+  0x20810408104082000n, 0x38208208208238000n, 0x8522000000000000n, 0x3e000n,
+  0x8100000000000000n, 0x1c09e89c000n, 0x2082083c8a28bc000n, 0x1e82081e000n,
+  0x208209e8a289e000n, 0x1c8be81c000n, 0x620821c208208000n, 0x1e8a289e09cn,
+  0x2082083c8a28a2000n, 0x20801820821c000n, 0x208008208208a10n, 0x10410412518512000n,
+  0x1041041041040c000n, 0x3caaaaaa000n, 0x3c8a28a2000n, 0x1c8a289c000n,
+  0x1c49249c410n, 0x1c92491c104n, 0x1c490410000n, 0xe41e09c000n,
+  0x820821c208206000n, 0x228a289e000n, 0x22894508000n, 0x22a9c514000n,
+  0x22508522000n, 0x22894508210n, 0x3e09c83e000n, 0x2104108104102000n,
+  0x8208208208208000n, 0x20410408410420000n, 0x42a100000000n
 ]);
-const fontInfo=Object.freeze({name:'MicroFont',version:'3.7.8',width:6,height:11,coverage:'Printable ASCII 32–126',source:'https://crates.io/crates/microfont',license:'MIT',copyright:'Copyright (c) 2026 t4ce'});
+const fontInfo=Object.freeze({name:'MicroFont',version:'8.5.0',width:6,height:11,coverage:'Printable ASCII 32–126',source:'https://crates.io/crates/microfont',license:'MIT',copyright:'Copyright (c) 2026 t4ce'});
 const glyphCache=new Map();
 function glyph(character){
   const code=typeof character==='number'?character:String(character).codePointAt(0);
   const byte=code>=32&&code<=126?code:code<32?32:63;
   if(!glyphCache.has(byte)){
     const bits=GLYPHS[byte-32],pixels=[];
-    for(let bit=0;bit<64;bit++)if((bits>>BigInt(63-bit))&1n)pixels.push(Object.freeze([bit%6+(byte===113?1:0),Math.floor(bit/6)]));
+    for(let bit=0;bit<66;bit++)if((bits>>BigInt(65-bit))&1n)pixels.push(Object.freeze([bit%6,Math.floor(bit/6)]));
     glyphCache.set(byte,Object.freeze(pixels));
   }
   return glyphCache.get(byte);
