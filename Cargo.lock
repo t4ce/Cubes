@@ -68,6 +68,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
+name = "core3"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7cbcb5224cf18d0beaecf52c52a58b248213de007fa72bc212d916224e26ceb8"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "core_maths"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -106,6 +115,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "tokio",
  "trueos",
  "trueos-picasso",
 ]
@@ -481,12 +491,12 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 [[package]]
 name = "mio"
 version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50b7e5b27aa02a74bac8c3f23f448f8d87ff11f92d3aac1a6ed369ee08cc56c1"
 dependencies = [
+ "core3",
  "libc",
+ "spin",
+ "trueos-io",
  "wasi",
- "windows-sys",
 ]
 
 [[package]]
@@ -781,8 +791,6 @@ dependencies = [
 [[package]]
 name = "tokio"
 version = "1.54.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b52fd3255258d26fac7264ab5a76b53c13367136dc011d3d6ad4f8ed070396a3"
 dependencies = [
  "bytes",
  "libc",
@@ -790,7 +798,7 @@ dependencies = [
  "pin-project-lite",
  "socket2",
  "tokio-macros",
- "windows-sys",
+ "trueos-runtime",
 ]
 
 [[package]]
@@ -895,6 +903,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "trueos-io"
+version = "0.1.0"
+dependencies = [
+ "core3",
+]
+
+[[package]]
 name = "trueos-math"
 version = "0.1.0"
 dependencies = [
@@ -909,6 +924,13 @@ dependencies = [
  "redb",
  "spin",
  "trueos",
+]
+
+[[package]]
+name = "trueos-runtime"
+version = "0.1.0"
+dependencies = [
+ "trueos-io",
 ]
 
 [[package]]

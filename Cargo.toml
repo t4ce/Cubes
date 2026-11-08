@@ -20,6 +20,15 @@ potato-stamps = { path = "../PotatoStamps" }
 trueos = { path = "../TRUEOS-Blueprints/api", features = ["default-global-allocator", "tokio-net-probe", "ui4-scene"] }
 trueos-picasso = { path = "../TRUEOS-Picasso", default-features = false, features = ["blueprint"] }
 
+[target.'cfg(target_os = "trueos")'.dependencies]
+# Match std-facing I/O types while using native socket IDs and readiness.
+tokio = { version = "=1.54.1", default-features = false, features = ["native-net"] }
+
+[patch.crates-io]
+# Cargo resolves target-specific features on the host too.
+tokio = { path = "../TRUEOS-Buildins/vendor/tokio-1.54.1" }
+mio = { path = "../TRUEOS/vendor/mio-1.2.0" }
+
 [build-dependencies]
 libm = "0.2"
 serde_json = "1"
